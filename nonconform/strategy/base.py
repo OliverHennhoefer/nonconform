@@ -37,6 +37,7 @@ class BaseStrategy(abc.ABC):
         detector: BaseDetector,
         seed: int | None,
         weighted: bool = False,
+        iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fits the detector and performs calibration.
 
@@ -56,6 +57,8 @@ class BaseStrategy(abc.ABC):
                 the subclass implementation.
             seed (Optional[int]): A random seed for ensuring reproducibility
                 in stochastic parts of the fitting or calibration process.
+            iteration_callback (Optional[callable]): Optional callback function
+                for strategies that support iteration tracking. Defaults to None.
 
         Raises
         ------

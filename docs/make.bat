@@ -23,9 +23,19 @@ if errorlevel 9009 (
 	exit /b 1
 )
 
-if "%1" == "" goto help
+REM Default to HTML if no argument provided
+if "%1" == "" goto html
+if "%1" == "pdf" goto pdf
 
 %SPHINXBUILD% -M %1 %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+goto end
+
+:html
+%SPHINXBUILD% -M html %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+goto end
+
+:pdf
+%SPHINXBUILD% -M latexpdf %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
 goto end
 
 :help

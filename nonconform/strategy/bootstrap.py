@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from copy import copy, deepcopy
 
 import numpy as np
@@ -8,6 +9,7 @@ from tqdm import tqdm
 
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.params import set_params
+from nonconform.utils.logging import get_logger
 from pyod.models.base import BaseDetector
 
 
@@ -77,6 +79,7 @@ class Bootstrap(BaseStrategy):
         detector: BaseDetector,
         seed: int = 1,
         weighted: bool = False,
+        iteration_callback: Callable[[int, np.ndarray], None] | None = None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fit and calibrate the detector using bootstrap resampling.
 
@@ -101,6 +104,10 @@ class Bootstrap(BaseStrategy):
                 If True, calibration scores are weighted by their sample
                 indices. Defaults to False.
             seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            iteration_callback (Callable[[int, np.ndarray], None], optional):
+                Optional callback function that gets called after each bootstrap
+                iteration with the iteration number and calibration scores.
+                Defaults to None.
 
         Returns
         -------
@@ -140,9 +147,15 @@ class Bootstrap(BaseStrategy):
             model = set_params(model, seed=seed, random_iteration=True, iteration=i)
             model.fit(x[train_idx])
 
+            current_scores = model.decision_function(x[calib_idx])
+
+            # Call iteration callback if provided
+            if iteration_callback is not None:
+                iteration_callback(i, current_scores)
+
             if self._plus:
                 self._detector_list.append(deepcopy(model))
-            self._calibration_set.extend(model.decision_function(x[calib_idx]))
+            self._calibration_set.extend(current_scores)
 
         if not self._plus:
             model = copy(_detector)
@@ -288,6 +301,21 @@ class Bootstrap(BaseStrategy):
                 res_ratio=self._resampling_ratio,
                 num_calib_target=self._n_calib,
             )
+
+        # Log configuration information
+        logger = get_logger("strategy.bootstrap")
+        training_samples_per_iter = int(n * self._resampling_ratio)
+        calib_samples_per_iter = n - training_samples_per_iter
+
+        logger.info(
+            "Bootstrap Configuration:\n"
+            f"  • Data: {n:,} total samples\n"
+            f"  • Training: {training_samples_per_iter:,} samples per iteration "
+            f"({self._resampling_ratio:.2%} ratio)\n"
+            f"  • Calibration: ~{calib_samples_per_iter:,} samples per iteration "
+            f"→ {self._n_calib:,} total expected\n"
+            f"  • Bootstrap iterations: {self._n_bootstraps:,}"
+        )
 
     @property
     def calibration_ids(self) -> list[int]:

@@ -57,6 +57,7 @@ class CrossValidation(BaseStrategy):
         detector: BaseDetector,
         seed: int = 1,
         weighted: bool = False,
+        iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fit and calibrate the detector using k-fold cross-validation.
 
@@ -78,6 +79,9 @@ class CrossValidation(BaseStrategy):
             weighted (bool, optional): Whether to use weighted calibration.
                 Currently not implemented for cross-validation. Defaults to False.
             seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            iteration_callback (callable, optional): Not used in CrossValidation
+                strategy.
+                Defaults to None.
 
         Returns
         -------

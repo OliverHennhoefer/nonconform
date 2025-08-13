@@ -1,6 +1,6 @@
 [project]
 name = "nonconform"
-version = "0.9.14"
+version = "0.9.15"
 description = "Conformal Anomaly Detection"
 authors = [
   { name = "Oliver Hennhoefer", email = "oliver.hennhoefer@mail.de" },
@@ -25,7 +25,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "numpy~=1.26.0",
+    "numpy>=2.2.0,<2.3",
     "pandas>=2.2.1",
     "scikit-learn>=1.6.1",
     "pyod==2.0.5",

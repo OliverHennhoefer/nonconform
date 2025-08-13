@@ -360,7 +360,7 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
     with open(cache_file, "wb") as f:
         f.write(data)
 
-    logger.debug("Successfully cached %s (%.1f KB)", filename, len(data)/1024)
+    logger.debug("Successfully cached %s (%.1f KB)", filename, len(data) / 1024)
     return io.BytesIO(data)
 
 
@@ -561,7 +561,7 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
                 logger = get_logger("utils.data.load")
                 logger.warning(
                     "Could not clear cache directory (v%s) due to file permissions",
-                    DATASET_VERSION
+                    DATASET_VERSION,
                 )
         _DATASET_CACHE.clear()
 

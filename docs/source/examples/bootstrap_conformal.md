@@ -115,6 +115,104 @@ print(f"Original detections: {(p_values < 0.05).sum()}")
 print(f"Reduction: {(p_values < 0.05).sum() - discoveries.sum()}")
 ```
 
+## Accessing Bootstrap Iterations
+
+```python
+# Track calibration scores during bootstrap iterations
+iteration_scores = []
+iteration_stats = []
+
+def track_bootstrap_iterations(iteration: int, scores: np.ndarray):
+    """Callback to track calibration scores per iteration."""
+    iteration_scores.append(scores.copy())
+    iteration_stats.append({
+        'iteration': iteration,
+        'count': len(scores),
+        'mean': scores.mean(),
+        'std': scores.std(),
+        'min': scores.min(),
+        'max': scores.max()
+    })
+    print(f"Iteration {iteration}: {len(scores)} calibration scores, "
+          f"mean={scores.mean():.3f}")
+
+# Initialize bootstrap strategy with callback
+bootstrap_strategy = Bootstrap(
+    n_bootstraps=10,
+    resampling_ratio=0.8
+)
+
+detector = StandardConformalDetector(
+    detector=base_detector,
+    strategy=bootstrap_strategy,
+    aggregation=Aggregation.MEDIAN,
+    seed=42,
+    silent=False
+)
+
+# Fit with iteration callback
+detector.detector_set, detector.calibration_set = bootstrap_strategy.fit_calibrate(
+    X, detector.detector, iteration_callback=track_bootstrap_iterations
+)
+
+# Analyze iteration progression
+print(f"\nBootstrap completed with {len(iteration_scores)} iterations")
+print(f"Total calibration scores: {len(detector.calibration_set)}")
+```
+
+## Bootstrap Iteration Analysis
+
+```python
+# Analyze how calibration distribution evolves
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(15, 5))
+
+# Plot calibration score evolution
+plt.subplot(1, 3, 1)
+for i, scores in enumerate(iteration_scores[:5]):  # Show first 5 iterations
+    plt.hist(scores, bins=20, alpha=0.5, label=f'Iter {i}')
+plt.xlabel('Calibration Score')
+plt.ylabel('Frequency')
+plt.title('Calibration Score Distribution per Iteration')
+plt.legend()
+
+# Plot iteration statistics
+plt.subplot(1, 3, 2)
+means = [stat['mean'] for stat in iteration_stats]
+stds = [stat['std'] for stat in iteration_stats]
+iterations = list(range(len(iteration_stats)))
+
+plt.errorbar(iterations, means, yerr=stds, marker='o', capsize=5)
+plt.xlabel('Bootstrap Iteration')
+plt.ylabel('Mean Calibration Score')
+plt.title('Score Statistics Evolution')
+
+# Cumulative distribution analysis
+plt.subplot(1, 3, 3)
+cumulative_scores = []
+for i in range(len(iteration_scores)):
+    # Combine all scores up to iteration i
+    combined = np.concatenate(iteration_scores[:i+1])
+    cumulative_scores.append(combined.mean())
+
+plt.plot(iterations, cumulative_scores, marker='s')
+plt.xlabel('Bootstrap Iteration')
+plt.ylabel('Cumulative Mean Score')
+plt.title('Cumulative Calibration Mean')
+
+plt.tight_layout()
+plt.show()
+
+# Print iteration summary
+print("\nIteration Summary:")
+for stat in iteration_stats:
+    print(f"Iteration {stat['iteration']:2d}: "
+          f"{stat['count']:3d} scores, "
+          f"mean={stat['mean']:6.3f}, "
+          f"std={stat['std']:6.3f}")
+```
+
 ## Uncertainty Quantification
 
 ```python
@@ -122,8 +220,6 @@ print(f"Reduction: {(p_values < 0.05).sum() - discoveries.sum()}")
 raw_scores = detector.predict(X, raw=True)
 
 # Analyze score distribution
-import matplotlib.pyplot as plt
-
 plt.figure(figsize=(12, 4))
 
 # Score distribution
@@ -132,6 +228,9 @@ plt.hist(raw_scores, bins=50, alpha=0.7, color='blue', edgecolor='black')
 plt.xlabel('Anomaly Score')
 plt.ylabel('Frequency')
 plt.title('Bootstrap Anomaly Score Distribution')
+
+# P-value calculation using final calibration set
+p_values = detector.predict(X, raw=False)
 
 # P-value vs Score relationship
 plt.subplot(1, 3, 2)

@@ -82,7 +82,7 @@ class StandardConformalDetector(BaseConformalDetector):
         self.calibration_set: list[float] = []
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
         """Fits the detector model(s) and computes calibration scores.
 
         This method uses the specified strategy to train the base detector(s)
@@ -95,9 +95,16 @@ class StandardConformalDetector(BaseConformalDetector):
             x (typing.Union[pd.DataFrame, np.ndarray]): The dataset used for
                 fitting the model(s) and determining calibration scores.
                 The strategy will dictate how this data is split or used.
+            iteration_callback (callable, optional): Optional callback function
+                for strategies that support iteration tracking (e.g., Bootstrap).
+                Called after each iteration with (iteration, scores). Defaults to None.
         """
         self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
-            x=x, detector=self.detector, weighted=False, seed=self.seed
+            x=x,
+            detector=self.detector,
+            weighted=False,
+            seed=self.seed,
+            iteration_callback=iteration_callback,
         )
 
     @ensure_numpy_array

@@ -94,7 +94,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         self.calibration_samples: np.ndarray = np.array([])  # Initialize as empty
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
         """Fits the detector and prepares for conformal prediction.
 
         This method uses the provided strategy to fit the underlying detector(s)
@@ -108,9 +108,15 @@ class WeightedConformalDetector(BaseConformalDetector):
                 training/fitting the detector(s) and for calibration. The
                 `@ensure_numpy_array` decorator converts `x` to a
                 ``numpy.ndarray`` internally.
+            iteration_callback (callable, optional): Optional callback function
+                for strategies that support iteration tracking. Defaults to None.
         """
         self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
-            x=x, detector=self.detector, weighted=True, seed=self.seed
+            x=x,
+            detector=self.detector,
+            weighted=True,
+            seed=self.seed,
+            iteration_callback=iteration_callback,
         )
         if (
             self.strategy.calibration_ids is not None

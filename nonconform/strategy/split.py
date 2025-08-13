@@ -48,6 +48,7 @@ class Split(BaseStrategy):
         detector: BaseDetector,
         weighted: bool = False,
         seed: int = 1,
+        iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fits a detector and generates calibration scores using a data split.
 
@@ -68,6 +69,8 @@ class Split(BaseStrategy):
                 calibration samples are stored. Defaults to ``False``.
             seed (int, optional): Random seed for reproducibility of the
                 train-test split. Defaults to ``1``.
+            iteration_callback (callable, optional): Not used in Split strategy.
+                Defaults to None.
 
         Returns
         -------

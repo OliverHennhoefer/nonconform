@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath("../../"))
 project = "Nonconform"
 copyright = "2024, Oliver Hennhöfer"
 author = "Oliver Hennhöfer"
-release = "0.9.14"
+release = "0.9.15"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

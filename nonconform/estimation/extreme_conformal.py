@@ -10,10 +10,10 @@ from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.decorator import ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.params import set_params
+from nonconform.utils.logging import get_logger
 from nonconform.utils.stat.aggregation import aggregate
 from nonconform.utils.stat.extreme import fit_gpd, select_threshold
 from nonconform.utils.stat.statistical import calculate_evt_p_val, calculate_p_val
-from nonconform.utils.logging import get_logger
 from pyod.models.base import BaseDetector as PyODBaseDetector
 
 
@@ -109,7 +109,7 @@ class ExtremeConformalDetector(BaseConformalDetector):
         self.gpd_params: tuple[float, float, float] | None = None
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
         """Fits the detector and prepares EVT-enhanced calibration.
 
         This method extends the parent's fit method by additionally:
@@ -121,10 +121,16 @@ class ExtremeConformalDetector(BaseConformalDetector):
 
         Args:
             x (Union[pd.DataFrame, np.ndarray]): Training data.
+            iteration_callback (callable, optional): Optional callback function
+                for strategies that support iteration tracking. Defaults to None.
         """
         # Fit using strategy (moved from StandardConformalDetector)
         self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
-            x=x, detector=self.detector, weighted=False, seed=self.seed
+            x=x,
+            detector=self.detector,
+            weighted=False,
+            seed=self.seed,
+            iteration_callback=iteration_callback,
         )
 
         # Fit EVT components
@@ -158,7 +164,8 @@ class ExtremeConformalDetector(BaseConformalDetector):
                 logger = get_logger("estimation.extreme_conformal")
                 logger.warning(
                     "Only %d exceedances, need at least %d. Using standard approach.",
-                    len(exceedances), self.evt_min_tail_size
+                    len(exceedances),
+                    self.evt_min_tail_size,
                 )
                 self.gpd_params = None
 
