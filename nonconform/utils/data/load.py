@@ -3,20 +3,24 @@ import io
 import os
 import shutil
 from pathlib import Path
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
-from nonconform.utils.logging import get_logger
+from nonconform.utils.func.logging import get_logger
+
+logger = get_logger("utils.data.load")
 
 DATASET_VERSION = os.environ.get("UNQUAD_DATASET_VERSION", "v.0.8.1-datasets")
 DATASET_BASE_URL = os.environ.get(
     "UNQUAD_DATASET_URL",
     f"https://github.com/OliverHennhoefer/nonconform/releases/download/{DATASET_VERSION}/",
 )
+DATASET_SUFFIX = ".parquet.gz"
 _DATASET_CACHE: dict[str, bytes] = {}  # In-memory cache for downloaded datasets
 
 # Disk cache directory (version-aware) - created lazily
@@ -74,7 +78,7 @@ def load_breast(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("breast.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"breast{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_fraud(
@@ -103,7 +107,7 @@ def load_fraud(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("fraud.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"fraud{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_ionosphere(
@@ -133,7 +137,7 @@ def load_ionosphere(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("ionosphere.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"ionosphere{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_mammography(
@@ -162,7 +166,7 @@ def load_mammography(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("mammography.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"mammography{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_musk(
@@ -192,7 +196,7 @@ def load_musk(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("musk.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"musk{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_shuttle(
@@ -221,7 +225,7 @@ def load_shuttle(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("shuttle.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"shuttle{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_thyroid(
@@ -249,7 +253,7 @@ def load_thyroid(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("thyroid.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"thyroid{DATASET_SUFFIX}"), setup, random_state)
 
 
 def load_wbc(
@@ -279,7 +283,7 @@ def load_wbc(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path("wbc.parquet.gz"), setup, random_state)
+    return _load_dataset(Path(f"wbc{DATASET_SUFFIX}"), setup, random_state)
 
 
 def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
@@ -305,7 +309,6 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
     cache_dir = _get_cache_dir()
     cache_file = cache_dir / filename
     if cache_file.exists():
-        logger = get_logger("utils.data.load")
         logger.debug("Loading %s from disk cache (v%s)", filename, DATASET_VERSION)
         with open(cache_file, "rb") as f:
             data = f.read()
@@ -317,7 +320,6 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
 
     # Download file
     url = urljoin(DATASET_BASE_URL, filename)
-    logger = get_logger("utils.data.load")
     logger.info("Downloading %s from %s...", filename, url)
 
     try:
@@ -330,8 +332,6 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
             # Download with progress bar if requested
             if show_progress and total_size > 0:
                 try:
-                    from tqdm import tqdm
-
                     with tqdm(
                         total=total_size, unit="B", unit_scale=True, desc=filename
                     ) as pbar:
@@ -350,7 +350,7 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
             else:
                 data = response.read()
 
-    except (URLError, HTTPError) as e:
+    except URLError as e:
         raise URLError(f"Failed to download {filename}: {e!s}") from e
 
     # Cache in memory and on disk
@@ -405,9 +405,11 @@ def _load_dataset(
     # Download dataset to memory
     compressed_stream = _download_dataset(filename)
 
-    # Read parquet directly from compressed memory stream
-    with gzip.open(compressed_stream, "rb") as f:
-        df = pd.read_parquet(f)
+    # GzipFile is not seekable, which is required by pyarrow.
+    # Decompress to an in-memory buffer to allow seeking.
+    with gzip.open(compressed_stream, "rb") as f_gz:
+        buffer = io.BytesIO(f_gz.read())
+    df = pd.read_parquet(buffer)
 
     if setup:
         return _create_setup(df, random_state=random_state)
@@ -501,7 +503,6 @@ def _cleanup_old_versions() -> None:
                 pass
 
     if removed_count > 0:
-        logger = get_logger("utils.data.load")
         logger.info("Cleaned up %d old dataset versions", removed_count)
 
 
@@ -522,18 +523,16 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
         if cache_root.exists():
             try:
                 shutil.rmtree(cache_root)
-                logger = get_logger("utils.data.load")
                 logger.info("Cleared all dataset cache (all versions)")
             except PermissionError:
                 # On Windows, files may be locked by other processes
-                logger = get_logger("utils.data.load")
                 logger.warning("Could not clear all cache due to file permissions")
         _DATASET_CACHE.clear()
         return
 
     if dataset is not None:
         # Clear specific dataset
-        filename = f"{dataset}.parquet.gz"
+        filename = f"{dataset}{DATASET_SUFFIX}"
 
         # Remove from memory cache
         _DATASET_CACHE.pop(filename, None)
@@ -543,10 +542,8 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
         cache_file = cache_dir / filename
         if cache_file.exists():
             cache_file.unlink()
-            logger = get_logger("utils.data.load")
             logger.info("Cleared cache for dataset: %s", dataset)
         else:
-            logger = get_logger("utils.data.load")
             logger.info("No cache found for dataset: %s", dataset)
     else:
         # Clear all datasets for current version
@@ -554,11 +551,9 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
         if cache_dir.exists():
             try:
                 shutil.rmtree(cache_dir)
-                logger = get_logger("utils.data.load")
                 logger.info("Cleared all dataset cache (v%s)", DATASET_VERSION)
             except PermissionError:
                 # On Windows, files may be locked by other processes
-                logger = get_logger("utils.data.load")
                 logger.warning(
                     "Could not clear cache directory (v%s) due to file permissions",
                     DATASET_VERSION,
@@ -577,17 +572,18 @@ def list_cached_datasets() -> list[str]:
 
     # Add from memory cache
     cached_names.update(
-        filename.removesuffix(".parquet.gz") for filename in _DATASET_CACHE.keys()
+        filename.removesuffix(DATASET_SUFFIX) for filename in _DATASET_CACHE.keys()
     )
 
     # Add from disk cache
     cache_dir = _get_cache_dir()
     if cache_dir.exists():
         cached_names.update(
-            f.name.removesuffix(".parquet.gz") for f in cache_dir.glob("*.parquet.gz")
+            f.name.removesuffix(DATASET_SUFFIX)
+            for f in cache_dir.glob(f"*{DATASET_SUFFIX}")
         )
 
-    return sorted(list(cached_names))
+    return sorted(cached_names)
 
 
 def get_cache_info() -> dict:
@@ -619,7 +615,7 @@ def get_cache_info() -> dict:
 
     if cache_dir.exists():
         total_size = 0
-        for cache_file in cache_dir.glob("*.parquet.gz"):
+        for cache_file in cache_dir.glob(f"*{DATASET_SUFFIX}"):
             size = cache_file.stat().st_size
             total_size += size
             size_mb = size / (1024 * 1024)
@@ -627,7 +623,7 @@ def get_cache_info() -> dict:
             precision = 6 if size_mb < 0.01 else 2
             disk_info["datasets"].append(
                 {
-                    "name": cache_file.name.removesuffix(".parquet.gz"),
+                    "name": cache_file.name.removesuffix(DATASET_SUFFIX),
                     "size_mb": round(size_mb, precision),
                 }
             )

@@ -1,39 +1,41 @@
 ![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
 ![Logo](./docs/img/banner_light.png#gh-light-mode-only)
 
-**nonconform** is a Python library that enhances anomaly detection by providing uncertainty quantification. It acts as a wrapper around most detectors from the popular [*PyOD*](https://pyod.readthedocs.io/en/latest/) library (see [Supported Estimators](#supported-estimators)). By leveraging one-class classification principles and **conformal inference**, **nonconform** enables **statistically rigorous anomaly detection**.
+---
 
-# Key Features
+![License](https://img.shields.io/github/license/OliverHennhoefer/nonconform)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/OliverHennhoefer/nonconform)
+![PyPI](https://img.shields.io/pypi/v/nonconform)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/badge/linting-ruff-%23FFA500)](https://github.com/astral-sh/ruff)
+![Hatch](https://img.shields.io/badge/build-hatch-FF69B4)
 
-*   **Uncertainty Quantification:** Go beyond simple anomaly scores; get statistically valid _p_-values.
-*   **Error Control:** Reliably control metrics like the False Discovery Rate (FDR).
-*   **Broad PyOD Compatibility:** Works with a wide range of PyOD estimators (see [Supported Estimators](#supported-estimators)).
-*   **Flexible Strategies:** Implements various conformal strategies like Split-Conformal and Bootstrap-after-Jackknife+ (JaB+).
+
+
+
+**nonconform** enhances anomaly detection by providing uncertainty quantification. It acts as a wrapper around most detectors from [*PyOD*](https://pyod.readthedocs.io/en/latest/) (see [Supported Estimators](#supported-estimators)). By leveraging one-class classification and **conformal inference**, **nonconform** enables **statistically rigorous anomaly detection**.
+
+*   **Uncertainty Quantification:** Turn anomaly scores into statistically valid _p_-values.
+*   **Control False Positives:** Reliably control metrics like the False Discovery Rate (FDR).
+*   **[*PyOD*](https://pyod.readthedocs.io/en/latest/) Compatibility:** Works with most PyOD anomaly detectors (see [Supported Estimators](#supported-estimators)).
 
 # :hatching_chick: Getting Started
 
+Installation via [PyPI](https://pypi.org/project/nonconform/):
 ```sh
 pip install nonconform
 ```
 
-_For additional features, you might need optional dependencies:_
-- `pip install nonconform[data]` - Includes pyarrow for loading example data (via remote download)
-- `pip install nonconform[deep]` - Includes deep learning dependencies (PyTorch)
-- `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[dev]` - Includes development tools (black, ruff, pre-commit)
-- `pip install nonconform[docs]` - Includes documentation building tools (sphinx, furo, etc.)
-- `pip install nonconform[all]` - Includes all optional dependencies
+> **Note:** The following examples use the built-in datasets. Install with `pip install nonconform[data]` to run these examples. (see [Optional Dependencies](#optional-dependencies))
 
-_Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
 
-## Split-Conformal (also _Inductive_) Approach
+## Classical (Conformal) Approach
 
-Using a _Gaussian Mixture Model_ on the _Shuttle_ dataset:
-
-> **Note:** The examples below use the built-in datasets. Install with `pip install nonconform[data]` to run these examples.
+**Example:** Detecting anomalies with Isolation Forest on the Shuttle dataset. The approach splits data for calibration, trains the model, then converts anomaly scores to statistically valid p-values by comparing test scores against the calibration distribution.
 
 ```python
-from pyod.models.gmm import GMM
+from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
 from nonconform.strategy import Split
@@ -41,104 +43,104 @@ from nonconform.estimation import StandardConformalDetector
 from nonconform.utils.data import load_shuttle
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True)
+x_train, x_test, y_test = load_shuttle(setup=True, random_state=42)  # built-in dataset setup
 
-ce = StandardConformalDetector(
-    detector=GMM(),
+estimator = StandardConformalDetector(
+    detector=IForest(behaviour="new"),
     strategy=Split(n_calib=1_000)
 )
 
-ce.fit(x_train)
-estimates = ce.predict(x_test)
+estimator.fit(x_train)
 
-decisions = false_discovery_control(estimates, method='bh') <= 0.2
+estimates = estimator.predict(x_test)
+decisions = false_discovery_control(estimates, method='bh') <= 0.1
 
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
-print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
+print(f"Empirical False Discovery Rate: {false_discovery_rate(y=y_test, y_hat=decisions)}")
+print(f"Empirical Statistical Power (Recall): {statistical_power(y=y_test, y_hat=decisions)}")
 ```
 
 Output:
 ```text
-Empirical FDR: 0.108
-Empirical Power: 0.99
+Empirical False Discovery Rate: 0.058
+Empirical Statistical Power (Recall): 0.97
 ```
 
-# :hatched_chick: Advanced Usage
+# :hatched_chick: Advanced Methods
 
-## Bootstrap-after-Jackknife+ (JaB+)
-
-The `BootstrapConformal()` strategy allows to set 2 of the 3 parameters `resampling_ratio`, `n_boostraps` and `n_calib`.
-For either combination, the remaining parameter will be filled automatically. This allows exact control of the
-calibration procedure when using a bootstrap strategy.
+Other conformal detector wrappers exist for advanced use cases, including ``WeightedConformalDetector()`` (robust to covariate shifts) and sophisticated calibration strategies like ``Bootstrap()`` for improved results.
 
 ```python
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import StandardConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform.strategy import Bootstrap, Split
+from nonconform.estimation import StandardConformalDetector, WeightedConformalDetector
 from nonconform.utils.data import load_shuttle
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True)
+x_train, x_test, y_test = load_shuttle(setup=True, random_state=42)
+SPLIT = 2500  # fixed calibration set size
 
-ce = StandardConformalDetector(
+ssd = StandardConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Bootstrap(resampling_ratio=0.99, n_bootstraps=20, plus=True)
+    strategy=Split(n_calib=SPLIT)
 )
 
-ce.fit(x_train)
-estimates = ce.predict(x_test)
+# Standard Split Strategy
+ssd.fit(x_train)
+ssd_estimates = ssd.predict(x_test)
+ssd_decisions = false_discovery_control(ssd_estimates, method='bh') <= 0.1
 
-decisions = false_discovery_control(estimates, method='bh') <= 0.1
+print(f"[Standard Split] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=ssd_decisions)}")
+print(f"[Standard Split] Empirical Power: {statistical_power(y=y_test, y_hat=ssd_decisions)}")
 
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
-print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
+# Bootstrapping Strategy
+sbt = StandardConformalDetector(
+    detector=IForest(behaviour="new"),
+    strategy=Bootstrap(n_bootstraps=20, n_calib=SPLIT)
+)
+
+sbt.fit(x_train)
+sbt_estimates = sbt.predict(x_test)
+sbt_decisions = false_discovery_control(sbt_estimates, method='bh') <= 0.1
+
+print(f"[Standard Boot] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=sbt_decisions)}")
+print(f"[Standard Boot] Empirical Power: {statistical_power(y=y_test, y_hat=sbt_decisions)}")
+
+# Weighted Strategy (Covariate Shift Robustness)
+wcd = WeightedConformalDetector(
+    detector=IForest(behaviour="new"),
+    strategy=Split(n_calib=SPLIT)
+)
+
+wcd.fit(x_train)
+wcd_estimates = wcd.predict(x_test)
+wcd_decisions = false_discovery_control(wcd_estimates, method='bh') <= 0.1
+
+print(f"[Weighted Split] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcd_decisions)}")
+print(f"[Weighted Split] Empirical Power: {statistical_power(y=y_test, y_hat=wcd_decisions)}")
 ```
 
 Output:
 ```text
-Empirical FDR: 0.067
-Empirical Power: 0.98
+[Standard Split] Empirical FDR: 0.085
+[Standard Split] Empirical Power: 0.97
+
+[Standard Boot] Empirical FDR: 0.139
+[Standard Boot] Empirical Power: 0.99
+
+[Weighted Split] Empirical FDR: 0.031
+[Weighted Split] Empirical Power: 0.95
 ```
 
-## Weighted Conformal Anomaly Detection
+# Beyond Static Data
 
-The statistical validity of conformal anomaly detection depends on data *exchangability* (weaker than i.i.d.). This assumption can be slightly relaxed by computing weighted conformal _p_-values.
+While primarily designed for static (single-batch) applications, the library supports streaming scenarios through ``BatchGenerator()`` and ``OnlineGenerator()``. For statistically valid FDR control in streaming data, use the optional ``onlineFDR`` dependency, which implements appropriate statistical methods.
 
-```python
-from pyod.models.iforest import IForest
-from scipy.stats import false_discovery_control
-
-from nonconform.utils.data import load_shuttle
-from nonconform.estimation import WeightedConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
-
-x_train, x_test, y_test = load_shuttle(setup=True)
-
-model = IForest(behaviour="new")
-strategy = Split(n_calib=1_000)
-
-ce = WeightedConformalDetector(detector=model, strategy=strategy)
-ce.fit(x_train)
-estimates = ce.predict(x_test)
-
-decisions = false_discovery_control(estimates, method='bh') <= 0.1
-
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
-print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
-```
-
-Output:
-```text
-Empirical FDR: 0.077
-Empirical Power: 0.96
-```
 
 # Citation
 
-If you find this repository useful for your research, please cite following papers:
+If you find this repository useful for your research, please cite the following papers:
 
 ##### Leave-One-Out-, Bootstrap- and Cross-Conformal Anomaly Detectors
 ```text
@@ -156,7 +158,7 @@ If you find this repository useful for your research, please cite following pape
 }
 ```
 
-##### Testing for outliers with conformal p-values
+##### Testing for Outliers with Conformal p-Values
 ```text
 @article{Bates2023,
 	title        = {Testing for outliers with conformal p-values},
@@ -172,7 +174,7 @@ If you find this repository useful for your research, please cite following pape
 	url          = {http://dx.doi.org/10.1214/22-AOS2244}
 }
 ```
-##### Model-free selective inference under covariate shift via weighted conformal p-values
+##### Model-free Selective Inference under Covariate Shift via Weighted Conformal p-Values
 ```text
 @inproceedings{Jin2023,
 	title        = {Model-free selective inference under covariate shift via weighted conformal p-values},
@@ -182,11 +184,21 @@ If you find this repository useful for your research, please cite following pape
 }
 ```
 
+# Optional Dependencies
+
+_For additional features, you might need optional dependencies:_
+- `pip install nonconform[data]` - Includes pyarrow for loading example data (via remote download)
+- `pip install nonconform[deep]` - Includes deep learning dependencies (PyTorch)
+- `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
+- `pip install nonconform[dev]` - Includes development tools (black, ruff, pre-commit)
+- `pip install nonconform[docs]` - Includes documentation building tools (sphinx, furo, etc.)
+- `pip install nonconform[all]` - Includes all optional dependencies
+
+_Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
+
 # Supported Estimators
 
-The package only supports anomaly estimators that are suitable for unsupervised one-class classification. As respective
-detectors are therefore exclusively fitted on *normal* (or *non-anomalous*) data, parameters like *threshold* are internally
-set to the smallest possible values.
+Only anomaly estimators suitable for unsupervised one-class classification are supported. Since detectors are trained exclusively on normal data, threshold parameters are automatically set to minimal values.
 
 Models that are **currently supported** include:
 
