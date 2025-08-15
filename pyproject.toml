@@ -1,6 +1,6 @@
 [project]
 name = "nonconform"
-version = "0.9.15"
+dynamic = ["version"]
 description = "Conformal Anomaly Detection"
 authors = [
   { name = "Oliver Hennhoefer", email = "oliver.hennhoefer@mail.de" },
@@ -36,6 +36,9 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "nonconform/__init__.py"
 
 [project.optional-dependencies]
 data = [

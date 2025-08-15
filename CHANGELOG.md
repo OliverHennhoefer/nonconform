@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.9.16 (Unreleased)
 
+### Added
+- Centralized version handling with ``nonconform/__init__.py`` as single source of truth.
+
 ### Changed
 - Removes ``silent`` parameter from ``ExtremeConformalDetector()``, ``StandardConformalDetector()`` and ``WeightedConformalDetector()``.
   - The parameter is being replaced by more consistent logging-based progress control.

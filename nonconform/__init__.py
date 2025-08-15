@@ -10,7 +10,7 @@ Main Components:
 - Statistical utilities and data handling tools
 """
 
-__version__ = "0.9.15"
+__version__ = "0.9.16"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

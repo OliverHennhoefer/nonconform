@@ -8,13 +8,16 @@ import sys
 
 sys.path.insert(0, os.path.abspath("../../"))
 
+# Import version from package
+from nonconform import __version__
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Nonconform"
 copyright = "2024, Oliver Hennhöfer"
 author = "Oliver Hennhöfer"
-release = "0.9.15"
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
