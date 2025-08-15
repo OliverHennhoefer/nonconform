@@ -34,7 +34,6 @@ detector = StandardConformalDetector(
     strategy=cv_strategy,
     aggregation=Aggregation.MEDIAN,
     seed=42,
-    silent=False
 )
 
 # Fit and predict
@@ -81,7 +80,6 @@ for n_folds in fold_options:
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
@@ -139,7 +137,6 @@ for seed in seeds:
         strategy=CrossValidation(k=5),
         aggregation=Aggregation.MEDIAN,
         seed=seed,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
@@ -190,7 +187,6 @@ for name, strategy in strategies.items():
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)

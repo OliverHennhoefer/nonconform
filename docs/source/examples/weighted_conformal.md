@@ -32,7 +32,6 @@ detector = WeightedConformalDetector(
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
     seed=42,
-    silent=False
 )
 
 # Fit on training data

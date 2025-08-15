@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from typing import Literal
 
@@ -36,7 +37,6 @@ class ExtremeConformalDetector(BaseConformalDetector):
         aggregation (Aggregation): Method used for aggregating scores from
             multiple detector models.
         seed (int): Random seed for reproducibility in stochastic processes.
-        silent (bool): Whether to suppress progress bars.
         evt_threshold_method (Literal): Method for selecting EVT threshold.
         evt_threshold_value (Union[float, Callable]): Parameter for threshold method.
         evt_min_tail_size (int): Minimum number of exceedances required for GPD fitting.
@@ -53,7 +53,6 @@ class ExtremeConformalDetector(BaseConformalDetector):
         strategy: BaseStrategy,
         aggregation: Aggregation = Aggregation.MEDIAN,
         seed: int = 1,
-        silent: bool = True,
         evt_threshold_method: Literal[
             "percentile", "top_k", "mean_excess", "custom"
         ] = "percentile",
@@ -68,8 +67,6 @@ class ExtremeConformalDetector(BaseConformalDetector):
             aggregation (Aggregation, optional): Method used for aggregating
                 scores from multiple detector models. Defaults to Aggregation.MEDIAN.
             seed (int, optional): Random seed for reproducibility. Defaults to 1.
-            silent (bool, optional): Whether to suppress progress bars.
-                Defaults to True.
             evt_threshold_method (Literal, optional): Method for selecting EVT
                 threshold. Defaults to "percentile".
             evt_threshold_value (Union[float, Callable], optional): Parameter for
@@ -90,7 +87,6 @@ class ExtremeConformalDetector(BaseConformalDetector):
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
         self.seed: int = seed
-        self.silent: bool = silent
 
         self.detector_set: list[PyODBaseDetector] = []
         self.calibration_set: list[float] = []
@@ -192,13 +188,14 @@ class ExtremeConformalDetector(BaseConformalDetector):
             np.ndarray: Predictions based on the output type.
         """
         # Calculate anomaly scores
+        logger = get_logger("estimation.extreme_conformal")
         scores_list = [
             model.decision_function(x)
             for model in tqdm(
                 self.detector_set,
                 total=len(self.detector_set),
-                desc="Inference",
-                disable=self.silent,
+                desc=f"Aggregating {len(self.detector_set)} models",
+                disable=not logger.isEnabledFor(logging.INFO),
             )
         ]
 

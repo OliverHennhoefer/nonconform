@@ -32,7 +32,6 @@ class TestCaseExtremeSplit(unittest.TestCase):
             evt_threshold_method="percentile",
             evt_threshold_value=0.95,
             evt_min_tail_size=25,
-            silent=True,
         )
 
         evt_detector.fit(x_train)
@@ -71,7 +70,6 @@ class TestCaseExtremeSplit(unittest.TestCase):
             evt_threshold_method="percentile",
             evt_threshold_value=0.95,
             evt_min_tail_size=25,
-            silent=True,
         )
 
         evt_detector.fit(x_train)
@@ -110,7 +108,6 @@ class TestCaseExtremeSplit(unittest.TestCase):
             evt_threshold_method="percentile",
             evt_threshold_value=0.95,
             evt_min_tail_size=25,
-            silent=True,
         )
 
         evt_detector.fit(x_train)
@@ -149,7 +146,6 @@ class TestCaseExtremeSplit(unittest.TestCase):
             evt_threshold_method="mean_excess",
             evt_threshold_value=0.95,
             evt_min_tail_size=25,
-            silent=True,
         )
 
         evt_detector.fit(x_train)

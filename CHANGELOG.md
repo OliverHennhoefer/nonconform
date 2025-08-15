@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.9.16 (Unreleased)
 
 ### Changed
-- Reworked `README.md` to reflect the current scope of features
-- Minor code improvements
+- Removes ``silent`` parameter from ``ExtremeConformalDetector()``, ``StandardConformalDetector()`` and ``WeightedConformalDetector()``.
+  - The parameter is being replaced by more consistent logging-based progress control.
+  - Documentation was updated and an example for logging configuration was added in ``examples/utils/``.
+- Reworked `README.md` to reflect the current scope of features.
+- Minor code refinements.
 
 ## 0.9.15 (2025-08-13)
 

@@ -12,5 +12,6 @@ User Guide
    batch_evaluation
    streaming_evaluation
    statistical_concepts
+   logging
    best_practices
    troubleshooting

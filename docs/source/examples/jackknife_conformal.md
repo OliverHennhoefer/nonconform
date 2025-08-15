@@ -34,7 +34,6 @@ detector = StandardConformalDetector(
     strategy=jackknife_strategy,
     aggregation=Aggregation.MEDIAN,
     seed=42,
-    silent=False
 )
 
 # Fit and predict
@@ -106,7 +105,6 @@ for name, strategy in strategies.items():
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
 
     start_time = time.time()
@@ -139,7 +137,6 @@ for size in dataset_sizes:
         strategy=Jackknife(),
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     jk_detector.fit(X_sample)
     jk_p_values = jk_detector.predict(X_sample, raw=False)
@@ -151,7 +148,6 @@ for size in dataset_sizes:
         strategy=Split(calib_size=0.2),
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     split_detector.fit(X_sample)
     split_p_values = split_detector.predict(X_sample, raw=False)
@@ -195,7 +191,6 @@ for config in leave_k_out_configs:
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X_small)
     p_vals = detector.predict(X_small, raw=False)
@@ -224,7 +219,6 @@ for name, strategy in strategies.items():
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)

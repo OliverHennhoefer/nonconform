@@ -30,8 +30,7 @@ detector = StandardConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    seed=42,
-    silent=False
+    seed=42
 )
 
 # Fit the detector on training data (normal samples only)

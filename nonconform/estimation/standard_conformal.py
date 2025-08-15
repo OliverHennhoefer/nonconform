@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -6,6 +8,7 @@ from nonconform.estimation.base import BaseConformalDetector
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.decorator import ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
+from nonconform.utils.func.logging import get_logger
 from nonconform.utils.func.params import set_params
 from nonconform.utils.stat.aggregation import aggregate
 from nonconform.utils.stat.statistical import calculate_p_val
@@ -30,7 +33,6 @@ class StandardConformalDetector(BaseConformalDetector):
         aggregation (Aggregation): Method used for aggregating scores from
             multiple detector models.
         seed (int): Random seed for reproducibility in stochastic processes.
-        silent (bool): Whether to suppress progress bars.
         detector_set (List[PyODBaseDetector]): A list of trained anomaly detector
             models. Populated after the `fit` method is called. Depending on
             the strategy, this might contain one or multiple models.
@@ -45,7 +47,6 @@ class StandardConformalDetector(BaseConformalDetector):
         strategy: BaseStrategy,
         aggregation: Aggregation = Aggregation.MEDIAN,
         seed: int = 1,
-        silent: bool = True,
     ):
         """Initialize the ConformalDetector.
 
@@ -57,8 +58,6 @@ class StandardConformalDetector(BaseConformalDetector):
             aggregation (Aggregation, optional): Method used for aggregating
                 scores from multiple detector models. Defaults to Aggregation.MEDIAN.
             seed (int, optional): Random seed for reproducibility. Defaults to 1.
-            silent (bool, optional): Whether to suppress progress bars.
-                Defaults to True.
 
         Raises
         ------
@@ -76,7 +75,6 @@ class StandardConformalDetector(BaseConformalDetector):
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
         self.seed: int = seed
-        self.silent: bool = silent
 
         self.detector_set: list[PyODBaseDetector] = []
         self.calibration_set: list[float] = []
@@ -136,13 +134,14 @@ class StandardConformalDetector(BaseConformalDetector):
             - If raw=True, an array of anomaly scores (float).
             - If raw=False, an array of p-values (float).
         """
+        logger = get_logger("estimation.standard_conformal")
         scores_list = [
             model.decision_function(x)
             for model in tqdm(
                 self.detector_set,
                 total=len(self.detector_set),
-                desc="Inference",
-                disable=self.silent,
+                desc=f"Aggregating {len(self.detector_set)} models",
+                disable=not logger.isEnabledFor(logging.INFO),
             )
         ]
 

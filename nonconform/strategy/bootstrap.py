@@ -1,3 +1,4 @@
+import logging
 import math
 from collections.abc import Callable
 from copy import copy, deepcopy
@@ -137,8 +138,14 @@ class Bootstrap(BaseStrategy):
         last_iteration_index = (
             0  # To ensure unique iteration for final model if not _plus
         )
+        logger = get_logger("strategy.bootstrap")
         for i, (train_idx, calib_idx) in enumerate(
-            tqdm(folds.split(x), total=n_folds, desc="Training", disable=False)
+            tqdm(
+                folds.split(x),
+                total=n_folds,
+                desc=f"Bootstrap training ({n_folds} folds)",
+                disable=not logger.isEnabledFor(logging.INFO)
+            )
         ):
             last_iteration_index = i
             self._calibration_ids.extend(calib_idx.tolist())

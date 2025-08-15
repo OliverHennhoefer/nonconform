@@ -1,3 +1,4 @@
+import logging
 from copy import copy, deepcopy
 
 import numpy as np
@@ -6,6 +7,7 @@ from sklearn.model_selection import KFold
 from tqdm import tqdm
 
 from nonconform.strategy.base import BaseStrategy
+from nonconform.utils.func.logging import get_logger
 from nonconform.utils.func.params import set_params
 from pyod.models.base import BaseDetector
 
@@ -104,8 +106,14 @@ class CrossValidation(BaseStrategy):
         )
 
         last_iteration_index = 0
+        logger = get_logger("strategy.cross_val")
         for i, (train_idx, calib_idx) in enumerate(
-            tqdm(folds.split(x), total=self._k, desc="Training", disable=False)
+            tqdm(
+                folds.split(x),
+                total=self._k,
+                desc=f"CV fold training ({self._k} folds)",
+                disable=not logger.isEnabledFor(logging.INFO)
+            )
         ):
             last_iteration_index = i
             self._calibration_ids.extend(calib_idx.tolist())

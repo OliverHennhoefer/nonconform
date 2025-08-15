@@ -36,8 +36,7 @@ detector = StandardConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
-    seed=42,
-    silent=False
+    seed=42
 )
 
 # Fit and predict
@@ -92,7 +91,6 @@ for config in configurations:
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
@@ -146,8 +144,7 @@ detector = StandardConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
-    seed=42,
-    silent=False
+    seed=42
 )
 
 # Fit with iteration callback
@@ -281,7 +278,6 @@ for name, strategy in strategies.items():
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)

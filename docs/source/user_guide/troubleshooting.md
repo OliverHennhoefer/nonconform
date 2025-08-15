@@ -29,8 +29,7 @@ detector = StandardConformalDetector(
     detector=LOF(),
     strategy=Split(calib_size=0.2),
     aggregation=Aggregation.MEDIAN,
-    seed=42,
-    silent=False
+    seed=42
 )
 ```
 
@@ -79,7 +78,7 @@ def process_in_batches(detector, X, batch_size=1000):
 - Use faster detectors (e.g., IsolationForest, LOF)
 - Reduce the calibration set size
 - Use batch processing
-- Set `silent=True` to disable progress bars
+- Configure logging to hide progress bars: `logging.getLogger('nonconform').setLevel(logging.WARNING)`
 - Profile your code to identify bottlenecks
 
 ```python
@@ -241,14 +240,20 @@ detector = ConformalDetector(
 ### 1. Enable Verbose Mode
 
 ```python
+import logging
+
 # Enable progress bars and detailed output
-detector = ConformalDetector(
+logging.getLogger('nonconform').setLevel(logging.INFO)
+
+detector = StandardConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    seed=42,
-    silent=False  # Enable verbose output
+    seed=42
 )
+
+# For debugging, use DEBUG level for maximum verbosity
+logging.getLogger('nonconform').setLevel(logging.DEBUG)
 ```
 
 ### 2. Check Intermediate Results
@@ -444,3 +449,83 @@ When migrating from older versions of nonconform:
 - [ ] Add FDR control using `scipy.stats.false_discovery_control`
 - [ ] Test with small datasets first
 - [ ] Update any custom code that depends on the old API
+- [ ] Replace `silent=True/False` with logging configuration
+
+## Logging Configuration
+
+nonconform uses Python's standard logging framework to control progress bars and informational output. This provides more flexibility than the old `silent` parameter.
+
+### Basic Logging Setup
+
+```python
+import logging
+
+# Show progress bars and info messages (default for development)
+logging.getLogger('nonconform').setLevel(logging.INFO)
+
+# Hide progress bars (recommended for production)
+logging.getLogger('nonconform').setLevel(logging.WARNING)
+
+# Show everything including debug info
+logging.getLogger('nonconform').setLevel(logging.DEBUG)
+```
+
+### Common Logging Scenarios
+
+**Production Environment:**
+```python
+import logging
+
+# Hide all progress bars and info messages
+logging.getLogger('nonconform').setLevel(logging.WARNING)
+
+detector = StandardConformalDetector(detector=IForest(), strategy=Split())
+detector.fit(X_train)  # No progress output
+```
+
+**Development Environment:**
+```python
+import logging
+
+# Show progress bars for monitoring
+logging.basicConfig(level=logging.INFO)
+
+detector = StandardConformalDetector(detector=IForest(), strategy=CrossValidation(k=5))
+detector.fit(X_train)  # Shows CV fold progress
+```
+
+**Selective Logging:**
+```python
+import logging
+
+# Show progress but hide specific module info
+logging.getLogger('nonconform').setLevel(logging.INFO)
+logging.getLogger('nonconform.strategy.bootstrap').setLevel(logging.WARNING)
+
+# This will show aggregation progress but hide bootstrap configuration details
+```
+
+**Debug Mode:**
+```python
+import logging
+
+# Maximum verbosity for troubleshooting
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# This will show all internal operations and warnings
+detector = ExtremeConformalDetector(detector=LOF(), strategy=Bootstrap())
+detector.fit(X_train)
+```
+
+### Logger Hierarchy
+
+nonconform uses the following logger hierarchy:
+- `nonconform`: Root logger for all nonconform output
+- `nonconform.estimation.*`: Detector-specific logging
+- `nonconform.strategy.*`: Strategy-specific logging
+- `nonconform.utils.*`: Utility function logging
+
+You can configure specific loggers for fine-grained control over output.
