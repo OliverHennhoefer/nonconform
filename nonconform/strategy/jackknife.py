@@ -59,7 +59,7 @@ class Jackknife(BaseStrategy):
         x: pd.DataFrame | np.ndarray,
         detector: BaseDetector,
         weighted: bool = False,  # Parameter passed to internal strategy
-        seed: int = 1,
+        seed: int | None = None,
         iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fits detector(s) and gets calibration scores using jackknife.
@@ -79,8 +79,8 @@ class Jackknife(BaseStrategy):
             weighted (bool, optional): Passed to the internal `CrossValidation`
                 strategy's `fit_calibrate` method. Its effect depends on the
                 `CrossValidation` implementation. Defaults to ``False``.
-            seed (int, optional): Random seed, passed to the internal
-                `CrossValidation` strategy for reproducibility. Defaults to ``1``.
+            seed (int | None, optional): Random seed, passed to the internal
+                `CrossValidation` strategy for reproducibility. Defaults to None.
             iteration_callback (callable, optional): Not used in Jackknife strategy.
                 Defaults to None.
 

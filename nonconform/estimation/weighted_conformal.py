@@ -58,7 +58,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         detector: BaseDetector,
         strategy: BaseStrategy,
         aggregation: Aggregation = Aggregation.MEDIAN,
-        seed: int = 1,
+        seed: int | None = None,
     ):
         """Initialize the WeightedConformalDetector.
 
@@ -68,15 +68,16 @@ class WeightedConformalDetector(BaseConformalDetector):
             strategy (BaseStrategy): A calibration strategy instance.
             aggregation (Aggregation, optional): Method used for aggregating
                 scores from multiple detector models. Defaults to Aggregation.MEDIAN.
-            seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            seed (int | None, optional): Random seed for reproducibility.
+                Defaults to None.
 
         Raises
         ------
             ValueError: If seed is negative.
             TypeError: If aggregation is not an Aggregation enum.
         """
-        if seed < 0:
-            raise ValueError(f"seed must be a non-negative integer, got {seed}")
+        if seed is not None and seed < 0:
+            raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
         if not isinstance(aggregation, Aggregation):
             raise TypeError(
                 f"aggregation must be an Aggregation enum, got {type(aggregation)}"
@@ -85,7 +86,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         self.detector: BaseDetector = set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
-        self.seed: int = seed
+        self.seed: int | None = seed
 
         self.detector_set: list[BaseDetector] = []
         self.calibration_set: list[float] = []

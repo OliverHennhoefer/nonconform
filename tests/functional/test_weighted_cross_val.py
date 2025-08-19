@@ -14,7 +14,7 @@ class TestCaseSplitConformalWeighted(unittest.TestCase):
         x_train, x_test, y_test = load_fraud(setup=True)
 
         ce = WeightedConformalDetector(
-            detector=IForest(behaviour="new"), strategy=CrossValidation(k=5)
+            detector=IForest(behaviour="new"), strategy=CrossValidation(k=5), seed=1
         )
 
         ce.fit(x_train)
@@ -33,6 +33,7 @@ class TestCaseSplitConformalWeighted(unittest.TestCase):
         wce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
+            seed=1,
         )
 
         wce.fit(x_train)

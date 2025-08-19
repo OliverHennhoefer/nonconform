@@ -1,4 +1,26 @@
-from enum import Enum
+from enum import Enum, auto
+
+
+class Distribution(Enum):
+    """Probability distributions for validation set sizes in randomized strategies.
+
+    This enumeration defines the available distribution types for selecting
+    validation set sizes in randomized leave-p-out conformal prediction
+    strategies.
+
+    Attributes
+    ----------
+        BETA_BINOMIAL: Beta-binomial distribution for drawing validation fractions.
+            Allows tunable mean and variance through alpha/beta parameters.
+        UNIFORM: Discrete uniform distribution over a specified range.
+            Simple and controlled selection within [p_min, p_max].
+        GRID: Discrete distribution over a specified set of values.
+            Targeted control with custom probabilities for each p value.
+    """
+
+    BETA_BINOMIAL = auto()
+    UNIFORM = auto()
+    GRID = auto()
 
 
 class Aggregation(Enum):

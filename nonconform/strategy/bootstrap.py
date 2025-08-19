@@ -78,7 +78,7 @@ class Bootstrap(BaseStrategy):
         self,
         x: pd.DataFrame | np.ndarray,
         detector: BaseDetector,
-        seed: int = 1,
+        seed: int | None = None,
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
     ) -> tuple[list[BaseDetector], list[float]]:
@@ -104,7 +104,8 @@ class Bootstrap(BaseStrategy):
             weighted (bool, optional): Whether to use weighted calibration.
                 If True, calibration scores are weighted by their sample
                 indices. Defaults to False.
-            seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            seed (int | None, optional): Random seed for reproducibility.
+                Defaults to None.
             iteration_callback (Callable[[int, np.ndarray], None], optional):
                 Optional callback function that gets called after each bootstrap
                 iteration with the iteration number and calibration scores.
@@ -144,7 +145,7 @@ class Bootstrap(BaseStrategy):
                 folds.split(x),
                 total=n_folds,
                 desc=f"Bootstrap training ({n_folds} folds)",
-                disable=not logger.isEnabledFor(logging.INFO)
+                disable=not logger.isEnabledFor(logging.INFO),
             )
         ):
             last_iteration_index = i

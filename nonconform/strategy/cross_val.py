@@ -57,7 +57,7 @@ class CrossValidation(BaseStrategy):
         self,
         x: pd.DataFrame | np.ndarray,
         detector: BaseDetector,
-        seed: int = 1,
+        seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
@@ -80,7 +80,8 @@ class CrossValidation(BaseStrategy):
             detector (BaseDetector): The base anomaly detector to be used.
             weighted (bool, optional): Whether to use weighted calibration.
                 Currently not implemented for cross-validation. Defaults to False.
-            seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            seed (int | None, optional): Random seed for reproducibility.
+                Defaults to None.
             iteration_callback (callable, optional): Not used in CrossValidation
                 strategy.
                 Defaults to None.
@@ -112,7 +113,7 @@ class CrossValidation(BaseStrategy):
                 folds.split(x),
                 total=self._k,
                 desc=f"CV fold training ({self._k} folds)",
-                disable=not logger.isEnabledFor(logging.INFO)
+                disable=not logger.isEnabledFor(logging.INFO),
             )
         ):
             last_iteration_index = i

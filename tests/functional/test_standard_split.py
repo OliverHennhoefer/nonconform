@@ -14,7 +14,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         x_train, x_test, y_test = load_fraud(setup=True)
 
         ce = StandardConformalDetector(
-            detector=IForest(behaviour="new"), strategy=Split(n_calib=2_000)
+            detector=IForest(behaviour="new"), strategy=Split(n_calib=2_000), seed=1
         )
 
         ce.fit(x_train)
@@ -32,7 +32,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         x_train, x_test, y_test = load_shuttle(setup=True)
 
         ce = StandardConformalDetector(
-            detector=IForest(behaviour="new"), strategy=Split(n_calib=1_000)
+            detector=IForest(behaviour="new"), strategy=Split(n_calib=1_000), seed=1
         )
 
         ce.fit(x_train)

@@ -16,6 +16,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.995, n_calib=1_000),
+            seed=1,
         )
 
         ce.fit(x_train)
@@ -36,6 +37,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.99, n_bootstraps=15),
+            seed=1,
         )
 
         ce.fit(x_train)
@@ -56,6 +58,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_calib=1_000, n_bootstraps=25),
+            seed=1,
         )
 
         ce.fit(x_train)

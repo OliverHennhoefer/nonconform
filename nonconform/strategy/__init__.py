@@ -8,6 +8,7 @@ from .base import BaseStrategy
 from .bootstrap import Bootstrap
 from .cross_val import CrossValidation
 from .jackknife import Jackknife
+from .randomized import Randomized
 from .split import Split
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "Bootstrap",
     "CrossValidation",
     "Jackknife",
+    "Randomized",
     "Split",
 ]

@@ -52,7 +52,7 @@ class ExtremeConformalDetector(BaseConformalDetector):
         detector: PyODBaseDetector,
         strategy: BaseStrategy,
         aggregation: Aggregation = Aggregation.MEDIAN,
-        seed: int = 1,
+        seed: int | None = None,
         evt_threshold_method: Literal[
             "percentile", "top_k", "mean_excess", "custom"
         ] = "percentile",
@@ -66,7 +66,8 @@ class ExtremeConformalDetector(BaseConformalDetector):
             strategy (BaseStrategy): The conformal strategy for calibration.
             aggregation (Aggregation, optional): Method used for aggregating
                 scores from multiple detector models. Defaults to Aggregation.MEDIAN.
-            seed (int, optional): Random seed for reproducibility. Defaults to 1.
+            seed (int | None, optional): Random seed for reproducibility.
+                Defaults to None.
             evt_threshold_method (Literal, optional): Method for selecting EVT
                 threshold. Defaults to "percentile".
             evt_threshold_value (Union[float, Callable], optional): Parameter for
@@ -75,8 +76,8 @@ class ExtremeConformalDetector(BaseConformalDetector):
                 required for GPD fitting. Defaults to 10.
         """
         # Parameter validation (moved from StandardConformalDetector)
-        if seed < 0:
-            raise ValueError(f"seed must be a non-negative integer, got {seed}")
+        if seed is not None and seed < 0:
+            raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
         if not isinstance(aggregation, Aggregation):
             raise TypeError(
                 f"aggregation must be an Aggregation enum, got {type(aggregation)}"
@@ -86,7 +87,7 @@ class ExtremeConformalDetector(BaseConformalDetector):
         self.detector: PyODBaseDetector = set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
-        self.seed: int = seed
+        self.seed: int | None = seed
 
         self.detector_set: list[PyODBaseDetector] = []
         self.calibration_set: list[float] = []

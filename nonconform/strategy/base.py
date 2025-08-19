@@ -35,7 +35,7 @@ class BaseStrategy(abc.ABC):
         self,
         x: pd.DataFrame | np.ndarray,
         detector: BaseDetector,
-        seed: int | None,
+        seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
@@ -57,6 +57,7 @@ class BaseStrategy(abc.ABC):
                 the subclass implementation.
             seed (Optional[int]): A random seed for ensuring reproducibility
                 in stochastic parts of the fitting or calibration process.
+                Defaults to None.
             iteration_callback (Optional[callable]): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
 

@@ -14,7 +14,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         x_train, x_test, y_test = load_fraud(setup=True)
 
         ce = StandardConformalDetector(
-            detector=IForest(behaviour="new"), strategy=CrossValidation(k=5)
+            detector=IForest(behaviour="new"), strategy=CrossValidation(k=5), seed=1
         )
 
         ce.fit(x_train)
@@ -34,6 +34,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
+            seed=1,
         )
 
         ce.fit(x_train)

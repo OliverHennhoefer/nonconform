@@ -8,12 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.9.16 (Unreleased)
 
 ### Added
-- Centralized version handling with ``nonconform/__init__.py`` as single source of truth.
+- The new strategy ``Randomized()`` implements randomized leave-p-out (rLpO) to interpolate between existing strategies.
 
 ### Changed
+- The approach to reproducibility was reworked to allow true randomness when no ``seed`` is provided in the main classes.
+  - Previously, the seed was internally set to 1, preventing truly random behavior.
 - Removes ``silent`` parameter from ``ExtremeConformalDetector()``, ``StandardConformalDetector()`` and ``WeightedConformalDetector()``.
   - The parameter is being replaced by more consistent logging-based progress control.
   - Documentation was updated and an example for logging configuration was added in ``examples/utils/``.
+- Centralized version handling with ``nonconform/__init__.py`` as single source of truth.
 - Reworked `README.md` to reflect the current scope of features.
 - Minor code refinements.
 

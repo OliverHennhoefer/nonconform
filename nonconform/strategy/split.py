@@ -47,7 +47,7 @@ class Split(BaseStrategy):
         x: pd.DataFrame | np.ndarray,
         detector: BaseDetector,
         weighted: bool = False,
-        seed: int = 1,
+        seed: int | None = None,
         iteration_callback=None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fits a detector and generates calibration scores using a data split.
@@ -67,8 +67,8 @@ class Split(BaseStrategy):
                 This instance is modified in place by fitting.
             weighted (bool, optional): If ``True``, the indices of the
                 calibration samples are stored. Defaults to ``False``.
-            seed (int, optional): Random seed for reproducibility of the
-                train-test split. Defaults to ``1``.
+            seed (int | None, optional): Random seed for reproducibility of the
+                train-test split. Defaults to None.
             iteration_callback (callable, optional): Not used in Split strategy.
                 Defaults to None.
 
