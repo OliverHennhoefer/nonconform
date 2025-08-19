@@ -5,10 +5,9 @@ from scipy.stats import false_discovery_control
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Randomized
 from nonconform.utils.data import load_wbc
-from pyod.models.iforest import IForest
-
 from nonconform.utils.func.enums import Distribution
 from nonconform.utils.stat import false_discovery_rate, statistical_power
+from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
@@ -16,7 +15,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     x_train, x_test, y_test = load_wbc(setup=True)
-    ce = StandardConformalDetector(detector=IForest(behaviour="new"), strategy=Randomized(n_calib=1_000, sampling_distr=Distribution.BETA_BINOMIAL))
+    ce = StandardConformalDetector(
+        detector=IForest(behaviour="new"),
+        strategy=Randomized(n_calib=1_000, sampling_distr=Distribution.BETA_BINOMIAL),
+    )
 
     ce.fit(x_train)
     estimates = ce.predict(x_test)

@@ -47,7 +47,9 @@ data = [
 dev = [
     "black",
     "ruff",
-    "pre-commit"
+    "pre-commit",
+    "twine",
+    "build"
 ]
 docs = [
     "sphinx",

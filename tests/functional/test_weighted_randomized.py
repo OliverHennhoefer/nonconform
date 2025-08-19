@@ -82,7 +82,7 @@ class TestCaseRandomizedConformalWeighted(unittest.TestCase):
             detector=IForest(behaviour="new"),
             strategy=Randomized(
                 n_calib=800,
-                sampling_distr=Distribution.BETA_BINOMIAL
+                sampling_distr=Distribution.BETA_BINOMIAL,
                 # No beta_params - should use default (2.0, 5.0)
             ),
             seed=1,
@@ -112,7 +112,7 @@ class TestCaseRandomizedConformalWeighted(unittest.TestCase):
                 n_iterations=10,
                 plus=True,
                 sampling_distr=Distribution.BETA_BINOMIAL,
-                beta_params=(2.0, 2.0)  # Bell-shaped, concentrated around middle
+                beta_params=(2.0, 2.0),  # Bell-shaped, concentrated around middle
             ),
             seed=1,
         )

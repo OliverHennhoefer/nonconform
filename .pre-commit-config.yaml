@@ -35,32 +35,3 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
         # Ruff will automatically find and use your pyproject.toml configuration
         # for selected rules, exclusions, target version, etc.
-
-  # Local hook for building Sphinx documentation
-  - repo: local
-    hooks:
-      - id: build-sphinx-docs
-        name: Build Sphinx HTML documentation
-        # Use -W to treat warnings as errors, making the check stricter.
-        # --keep-going allows Sphinx to attempt to process the rest of the docs even if errors are found early.
-        entry: sphinx-build
-        args: ["-W", "--keep-going", "-b", "html", "docs/source", "docs/build/html"]
-        language: python
-        # These dependencies are taken from your pyproject.toml [project.optional-dependencies].docs
-        # and are needed for Sphinx to build your documentation correctly.
-        additional_dependencies: [
-            "sphinx",
-            "furo",                             # Your HTML theme
-            "sphinx-autoapi",                   # For auto-generating API docs
-            "myst-parser",                      # For parsing Markdown files
-            # Your project 'nonconform' itself. AutoAPI needs to inspect its source code.
-            # Adding "." installs the current project in the pre-commit environment.
-            "."
-        ]
-        pass_filenames: false # The command operates on directories
-        # This regex triggers the hook if:
-        # 1. Any .rst, .py, or .md file in docs/source/ changes.
-        # 2. Your docs/source/conf.py changes.
-        # 3. Any .py file in your main 'nonconform' package changes (because autoapi reads these).
-        files: ^docs/source/.*\.(rst|py|md)$|^(docs/source/conf\.py)$|^nonconform/.*\.py$
-        verbose: true
