@@ -11,7 +11,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from nonconform.utils.func.logging import get_logger
+from nonconform.utils.func.logger import get_logger
 
 logger = get_logger("utils.data.load")
 

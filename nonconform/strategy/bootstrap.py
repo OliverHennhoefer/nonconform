@@ -9,7 +9,7 @@ from sklearn.model_selection import ShuffleSplit
 from tqdm import tqdm
 
 from nonconform.strategy.base import BaseStrategy
-from nonconform.utils.func.logging import get_logger
+from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import set_params
 from pyod.models.base import BaseDetector
 
