@@ -53,7 +53,7 @@ except ImportError:
 
 
 def load_breast(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Breast Cancer Wisconsin (Diagnostic) dataset.
 
@@ -68,8 +68,9 @@ def load_breast(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -78,11 +79,11 @@ def load_breast(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"breast{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"breast{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_fraud(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load a credit card fraud detection dataset.
 
@@ -97,8 +98,9 @@ def load_fraud(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -107,11 +109,11 @@ def load_fraud(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"fraud{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"fraud{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_ionosphere(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Ionosphere dataset.
 
@@ -127,8 +129,9 @@ def load_ionosphere(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -137,11 +140,11 @@ def load_ionosphere(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"ionosphere{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"ionosphere{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_mammography(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Mammography dataset.
 
@@ -156,8 +159,9 @@ def load_mammography(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -166,11 +170,11 @@ def load_mammography(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"mammography{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"mammography{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_musk(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Musk (Version 2) dataset.
 
@@ -186,8 +190,9 @@ def load_musk(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -196,11 +201,11 @@ def load_musk(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"musk{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"musk{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_shuttle(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Shuttle dataset.
 
@@ -215,8 +220,9 @@ def load_shuttle(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -225,11 +231,11 @@ def load_shuttle(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"shuttle{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"shuttle{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_thyroid(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Thyroid Disease (ann-thyroid) dataset.
 
@@ -243,8 +249,9 @@ def load_thyroid(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -253,11 +260,11 @@ def load_thyroid(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"thyroid{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"thyroid{DATASET_SUFFIX}"), setup, seed)
 
 
 def load_wbc(
-    setup: bool = False, random_state: int = 1
+    setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load the Wisconsin Breast Cancer (Original) (WBC) dataset.
 
@@ -273,8 +280,9 @@ def load_wbc(
             returning (x_train, x_test, y_test). `x_train` contains only
             normal samples. Defaults to ``False``, which returns the full
             DataFrame.
-        random_state (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``1``.
+        seed (int, optional): Seed for random number generation used
+            in data splitting if `setup` is ``True``. Defaults to ``None``
+            for true randomness.
 
     Returns
     -------
@@ -283,7 +291,7 @@ def load_wbc(
             DataFrame. If `setup` is ``True``, returns a tuple:
             (x_train, x_test, y_test).
     """
-    return _load_dataset(Path(f"wbc{DATASET_SUFFIX}"), setup, random_state)
+    return _load_dataset(Path(f"wbc{DATASET_SUFFIX}"), setup, seed)
 
 
 def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
@@ -365,7 +373,7 @@ def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
 
 
 def _load_dataset(
-    file_path, setup: bool, random_state: int
+    file_path, setup: bool, seed: int | None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Load a dataset from a gzipped Parquet file and optionally sets it up.
 
@@ -378,8 +386,8 @@ def _load_dataset(
         file_path: The path object (used to extract filename).
         setup (bool): If ``True``, the data is processed by `_create_setup`
             to produce training and testing sets.
-        random_state (int): Seed for random number generation, used if
-            `setup` is ``True``.
+        seed (int | None): Seed for random number generation, used if
+            `setup` is ``True``. None for true randomness.
 
     Returns
     -------
@@ -412,13 +420,13 @@ def _load_dataset(
     df = pd.read_parquet(buffer)
 
     if setup:
-        return _create_setup(df, random_state=random_state)
+        return _create_setup(df, seed=seed)
 
     return df
 
 
 def _create_setup(
-    df: pd.DataFrame, random_state: int
+    df: pd.DataFrame, seed: int | None
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
     """Create an experimental train/test split from a dataset.
 
@@ -438,8 +446,8 @@ def _create_setup(
     Args:
         df (pandas.DataFrame): The input DataFrame, expected to have a "Class"
             column where 0 indicates normal and 1 indicates an outlier.
-        random_state (int): Seed for random number generation used in
-            splitting and sampling.
+        seed (int | None): Seed for random number generation used in
+            splitting and sampling. None for true randomness.
 
     Returns
     -------
@@ -457,21 +465,19 @@ def _create_setup(
     n_test_normal = n_test - n_test_outlier
 
     x_train_full, test_set_normal_pool = train_test_split(
-        normal, train_size=n_train, random_state=random_state
+        normal, train_size=n_train, random_state=seed
     )
     x_train = x_train_full.drop(columns=["Class"])
 
     # Ensure enough samples are available for sampling
     # These checks could raise errors or adjust sample sizes if needed
     actual_n_test_normal = min(n_test_normal, len(test_set_normal_pool))
-    test_normal = test_set_normal_pool.sample(
-        n=actual_n_test_normal, random_state=random_state
-    )
+    test_normal = test_set_normal_pool.sample(n=actual_n_test_normal, random_state=seed)
 
     outliers_available = df[df["Class"] == 1]
     actual_n_test_outlier = min(n_test_outlier, len(outliers_available))
     test_outliers = outliers_available.sample(
-        n=actual_n_test_outlier, random_state=random_state
+        n=actual_n_test_outlier, random_state=seed
     )
 
     test_set = pd.concat([test_normal, test_outliers], ignore_index=True)

@@ -27,7 +27,7 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.2.0,<2.3",
     "pandas>=2.2.1",
-    "scikit-learn>=1.6.1",
+    "scikit-learn>=1.5.2,<1.6",
     "pyod==2.0.5",
     "scipy>=1.13.0",
     "tqdm>=4.66.2"

@@ -15,7 +15,7 @@ def demonstrate_batch_generation():
         anomaly_mode="proportional",
         n_batches=3,
         train_size=0.5,
-        random_state=42,
+        seed=42,
     )
 
     print(f"   Generator: {batch_gen}")
@@ -35,7 +35,7 @@ def demonstrate_batch_generation():
         anomaly_proportion=0.05,
         anomaly_mode="probabilistic",
         n_batches=10,
-        random_state=42,
+        seed=42,
     )
 
     print(f"   Generator: {batch_gen_prob}")
@@ -68,7 +68,7 @@ def demonstrate_online_generation():
         load_data_func=load_shuttle,
         anomaly_proportion=0.02,
         n_instances=1000,
-        random_state=42,
+        seed=42,
     )
 
     print(f"   Generator: {online_gen}")
@@ -93,7 +93,7 @@ def demonstrate_online_generation():
         load_data_func=load_breast,
         anomaly_proportion=0.01,
         n_instances=100,
-        random_state=42,
+        seed=42,
     )
 
     anomaly_count = 0
@@ -123,7 +123,7 @@ def demonstrate_integration_workflow():
         anomaly_mode="proportional",
         n_batches=3,
         train_size=0.7,
-        random_state=42,
+        seed=42,
     )
 
     # Get training data for detector
@@ -160,7 +160,7 @@ def demonstrate_different_datasets():
             load_data_func=load_func,
             anomaly_proportion=0.05,
             n_instances=200,
-            random_state=42,
+            seed=42,
         )
 
         x_train = online_gen.get_training_data()

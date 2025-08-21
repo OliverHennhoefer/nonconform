@@ -44,7 +44,7 @@ class Bootstrap(BaseStrategy):
         resampling_ratio: float | None = None,
         n_bootstraps: int | None = None,
         n_calib: int | None = None,
-        plus: bool = False,
+        plus: bool = True,
     ):
         """Initialize the Bootstrap strategy.
 
@@ -62,13 +62,21 @@ class Bootstrap(BaseStrategy):
             plus (bool, optional): If ``True``, appends each bootstrapped model
                 to `_detector_list`. If ``False``, `_detector_list` will contain
                 one model trained on all data after calibration scores are
-                collected. Defaults to ``False``.
+                collected. Defaults to ``True``.
         """
         super().__init__(plus)
         self._resampling_ratio: float | None = resampling_ratio
         self._n_bootstraps: int | None = n_bootstraps
         self._n_calib: int | None = n_calib
         self._plus: bool = plus
+
+        # Warn if plus=False to alert about potential validity issues
+        if not plus:
+            logger = get_logger("strategy.bootstrap")
+            logger.warning(
+                "Setting plus=False may compromise conformal validity. "
+                "The plus variant (plus=True) is recommended for validity guarantees."
+            )
 
         self._detector_list: list[BaseDetector] = []
         self._calibration_set: list[float] = []
@@ -291,19 +299,19 @@ class Bootstrap(BaseStrategy):
         """
         self._sanity_check()
 
-        if self._n_bootstraps is not None and self._resampling_ratio is not None:
+        if self._n_calib is None:
             self._n_calib = self._calculate_n_calib_target(
                 n_data=n,
                 num_bootstraps=self._n_bootstraps,
                 res_ratio=self._resampling_ratio,
             )
-        elif self._n_bootstraps is not None and self._n_calib is not None:
+        elif self._resampling_ratio is None:
             self._resampling_ratio = self._calculate_resampling_ratio_target(
                 n_data=n,
                 num_bootstraps=self._n_bootstraps,
                 num_calib_target=self._n_calib,
             )
-        elif self._resampling_ratio is not None and self._n_calib is not None:
+        elif self._n_bootstraps is None:
             self._n_bootstraps = self._calculate_n_bootstraps_target(
                 n_data=n,
                 res_ratio=self._resampling_ratio,

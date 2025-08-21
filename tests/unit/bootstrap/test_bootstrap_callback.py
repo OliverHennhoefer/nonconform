@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from nonconform.estimation.standard_conformal import StandardConformalDetector
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data.load import load_shuttle
 from pyod.models.iforest import IForest
 
@@ -11,7 +11,7 @@ from pyod.models.iforest import IForest
 class TestBootstrapCallback(unittest.TestCase):
     def test_bootstrap_iteration_callback(self):
         """Test that iteration callback receives correct data."""
-        x_train, x_test, y_test = load_shuttle(setup=True)
+        x_train, x_test, _ = load_shuttle(setup=True)
 
         # Track callback invocations
         callback_data = []

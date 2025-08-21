@@ -8,7 +8,7 @@ from nonconform.utils.data.load import load_wbc
 
 class TestDatasetSetup(unittest.TestCase):
     def test_dataset_setup_wbc(self):
-        x_train, x_test, y_test = load_wbc(setup=True)
+        x_train, x_test, y_test = load_wbc(setup=True, seed=1)
 
         data = {
             "V1": [3.0, 3.0, 1.0],

@@ -25,7 +25,7 @@ class BatchGenerator(BaseDataGenerator):
         - Optional for "proportional" mode (if None, generates indefinitely)
     train_size : float, default=0.5
         Proportion of normal instances to use for training.
-    random_state : int, optional
+    seed : int, optional
         Seed for random number generator.
 
     Examples
@@ -38,7 +38,7 @@ class BatchGenerator(BaseDataGenerator):
     ...     load_data_func=load_shuttle,
     ...     batch_size=100,
     ...     anomaly_proportion=0.1,
-    ...     random_state=42
+    ...     seed=42
     ... )
     >>>
     >>> # Proportional mode with limited batches - 10% anomalies for exactly 5 batches
@@ -48,7 +48,7 @@ class BatchGenerator(BaseDataGenerator):
     ...     anomaly_proportion=0.1,
     ...     anomaly_mode="proportional",
     ...     n_batches=5,
-    ...     random_state=42
+    ...     seed=42
     ... )
     >>>
     >>> # Probabilistic mode - 5% anomalies across 10 batches
@@ -58,7 +58,7 @@ class BatchGenerator(BaseDataGenerator):
     ...     anomaly_proportion=0.05,
     ...     anomaly_mode="probabilistic",
     ...     n_batches=10,
-    ...     random_state=42
+    ...     seed=42
     ... )
     >>>
     >>> # Get training data
@@ -87,7 +87,7 @@ class BatchGenerator(BaseDataGenerator):
         anomaly_mode: Literal["proportional", "probabilistic"] = "proportional",
         n_batches: int | None = None,
         train_size: float = 0.5,
-        random_state: int | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the batch generator."""
         self.batch_size = batch_size
@@ -103,7 +103,7 @@ class BatchGenerator(BaseDataGenerator):
             anomaly_mode=anomaly_mode,
             n_batches=n_batches,
             train_size=train_size,
-            random_state=random_state,
+            seed=seed,
         )
 
         # Calculate anomaly count per batch for proportional mode

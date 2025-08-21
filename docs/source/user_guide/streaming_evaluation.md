@@ -23,7 +23,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.02,
     n_instances=1000,
-    random_state=42
+    seed=42
 )
 
 # Get training data for detector fitting
@@ -53,13 +53,13 @@ for prop in proportions:
         load_data_func=load_shuttle,
         anomaly_proportion=prop,
         n_instances=500,
-        random_state=42
+        seed=42
     )
-    
+
     total_anomalies = 0
     for x_instance, y_label in online_gen.generate(n_instances=500):
         total_anomalies += y_label
-    
+
     expected = int(500 * prop)
     actual_prop = total_anomalies / 500
     print(f"Target: {prop:.2f}, Expected: {expected}, Actual: {total_anomalies}, Proportion: {actual_prop:.3f}")
@@ -79,7 +79,7 @@ online_gen = OnlineGenerator(
     anomaly_proportion=0.03,
     n_instances=2000,
     train_size=0.6,  # Use 60% of normal data for training
-    random_state=42
+    seed=42
 )
 
 # Train detector
@@ -138,7 +138,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.05,
     n_instances=1000,
-    random_state=42
+    seed=42
 )
 
 x_train = online_gen.get_training_data()
@@ -157,17 +157,17 @@ window_results = []
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     # Get prediction
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
-    
+
     # Add to current window
     window_predictions.append(p_value)
     window_labels.append(y_label)
-    
+
     # Process completed window
     if len(window_predictions) == window_size:
         window_decisions = [p < 0.05 for p in window_predictions]
         window_fdr = false_discovery_rate(window_labels, window_decisions)
         window_power = statistical_power(window_labels, window_decisions)
-        
+
         window_results.append({
             'window_start': i - window_size + 1,
             'window_end': i,
@@ -176,7 +176,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
             'anomalies': sum(window_labels),
             'detections': sum(window_decisions)
         })
-        
+
         # Slide window (remove first half, keep second half)
         mid_point = window_size // 2
         window_predictions = window_predictions[mid_point:]
@@ -209,7 +209,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.02,
     n_instances=1000,
-    random_state=42
+    seed=42
 )
 
 x_train = online_gen.get_training_data()
@@ -225,14 +225,14 @@ start_time = time.time()
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     instance_start = time.time()
-    
+
     # Process instance (this is what would be timed in real application)
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
     decision = p_value < 0.05
-    
+
     instance_end = time.time()
     latencies.append(instance_end - instance_start)
-    
+
     if i % 200 == 0:
         current_latency = np.mean(latencies[-200:]) if len(latencies) >= 200 else np.mean(latencies)
         print(f"Instance {i}: Avg latency = {current_latency*1000:.2f}ms")
@@ -259,7 +259,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.04,
     n_instances=1500,
-    random_state=42
+    seed=42
 )
 
 x_train = online_gen.get_training_data()
@@ -277,16 +277,16 @@ current_block_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500)):
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
-    
+
     current_block_preds.append(p_value)
     current_block_labels.append(y_label)
-    
+
     # Process completed block
     if len(current_block_preds) == block_size:
         block_decisions = [p < 0.05 for p in current_block_preds]
         block_fdr = false_discovery_rate(current_block_labels, block_decisions)
         block_power = statistical_power(current_block_labels, block_decisions)
-        
+
         block_results.append({
             'block': len(block_results) + 1,
             'instances': f"{i-block_size+1}-{i}",
@@ -295,7 +295,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500))
             'avg_p_value': np.mean(current_block_preds),
             'anomaly_rate': np.mean(current_block_labels)
         })
-        
+
         # Reset for next block
         current_block_preds = []
         current_block_labels = []
@@ -337,7 +337,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.06,
     n_instances=600,
-    random_state=42
+    seed=42
 )
 
 x_train = online_gen.get_training_data()
@@ -367,7 +367,7 @@ batch_gen = BatchGenerator(
     anomaly_proportion=0.06,
     anomaly_mode="probabilistic",
     n_batches=6,  # 6 batches × 100 = 600 instances
-    random_state=42
+    seed=42
 )
 
 batch_fdrs = []
@@ -420,7 +420,7 @@ for load_func, train_split, name in configs:
         anomaly_proportion=0.03,
         n_instances=300,
         train_size=train_split,
-        random_state=42
+        seed=42
     )
 
     x_train = online_gen.get_training_data()
@@ -443,7 +443,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.05,
     n_instances=200,
-    random_state=42
+    seed=42
 )
 
 # First run
@@ -480,7 +480,7 @@ online_gen = OnlineGenerator(
     load_data_func=load_shuttle,
     anomaly_proportion=0.04,
     n_instances=500,
-    random_state=42
+    seed=42
 )
 
 x_train = online_gen.get_training_data()
@@ -499,22 +499,22 @@ current_batch_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=500)):
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
-    
+
     current_batch_p.append(p_value)
     current_batch_labels.append(y_label)
-    
+
     # Process batch when full
     if len(current_batch_p) == batch_size:
         # Apply FDR control to batch
         fdr_adjusted = false_discovery_control(current_batch_p, method='bh')
         batch_decisions = fdr_adjusted < 0.05
-        
+
         # Calculate controlled metrics
         batch_fdr = false_discovery_rate(current_batch_labels, batch_decisions)
         batch_power = statistical_power(current_batch_labels, batch_decisions)
-        
+
         print(f"Batch {len(all_p_values)//batch_size + 1}: FDR={batch_fdr:.3f}, Power={batch_power:.3f}, Detections={sum(batch_decisions)}")
-        
+
         all_p_values.extend(current_batch_p)
         all_labels.extend(current_batch_labels)
         current_batch_p = []

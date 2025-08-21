@@ -49,7 +49,7 @@ class Randomized(BaseStrategy):
         holdout_size_range: tuple[float, float] | None = None,
         beta_params: tuple[float, float] | None = None,
         grid_probs: tuple[list[int], list[float]] | None = None,
-        plus: bool = False,
+        plus: bool = True,
     ):
         """Initialize the RandomizedLeaveOut strategy.
 
@@ -82,7 +82,7 @@ class Randomized(BaseStrategy):
                 sampling_distr is Distribution.GRID. Defaults to None.
             plus (bool, optional): If True, uses ensemble of models trained on
                 different subsets. If False, uses single model trained on all data.
-                Defaults to False.
+                Defaults to True.
 
         Raises
         ------
@@ -115,6 +115,14 @@ class Randomized(BaseStrategy):
         self._n_calib: int | None = n_calib
         self._plus: bool = plus
         self._use_n_calib_mode: bool = n_calib is not None
+
+        # Warn if plus=False to alert about potential validity issues
+        if not plus:
+            logger = get_logger("strategy.randomized")
+            logger.warning(
+                "Setting plus=False may compromise conformal validity. "
+                "The plus variant (plus=True) is recommended for validity guarantees."
+            )
 
         # Validate distribution-specific parameters
         self._validate_distribution_params()

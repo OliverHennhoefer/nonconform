@@ -19,7 +19,7 @@ batch_gen = BatchGenerator(
     load_data_func=load_shuttle,
     batch_size=100,
     anomaly_proportion=0.1,  # 10% anomalies per batch
-    random_state=42
+    seed=42
 )
 
 # Get training data for detector fitting
@@ -47,7 +47,7 @@ batch_gen = BatchGenerator(
     batch_size=100,
     anomaly_proportion=0.15,
     anomaly_mode="proportional",  # Default mode
-    random_state=42
+    seed=42
 )
 
 # Each batch will have exactly 15 anomalies (user controls stopping)
@@ -63,7 +63,7 @@ batch_gen = BatchGenerator(
     anomaly_proportion=0.15,
     anomaly_mode="proportional",
     n_batches=5,  # Optional limit for proportional mode
-    random_state=42
+    seed=42
 )
 
 # Automatically stops after 5 batches
@@ -83,7 +83,7 @@ batch_gen = BatchGenerator(
     anomaly_proportion=0.05,
     anomaly_mode="probabilistic",
     n_batches=10,  # Required for probabilistic mode
-    random_state=42
+    seed=42
 )
 
 total_instances = 0
@@ -112,7 +112,7 @@ batch_gen = BatchGenerator(
     batch_size=200,
     anomaly_proportion=0.08,
     train_size=0.7,  # Use 70% of normal data for training
-    random_state=42
+    seed=42
 )
 
 # Get training data and train detector
@@ -174,7 +174,7 @@ for load_func, name in datasets:
         batch_size=100,
         anomaly_proportion=0.1,
         n_batches=3,  # Generate exactly 3 batches per dataset
-        random_state=42
+        seed=42
     )
 
     # Check data availability
@@ -196,7 +196,7 @@ batch_gen = BatchGenerator(
     batch_size=100,
     anomaly_proportion=0.1,
     n_batches=3,  # Exactly 3 batches
-    random_state=42
+    seed=42
 )
 
 # Generate initial sequence (automatically stops after 3 batches)
@@ -230,9 +230,9 @@ for contamination in contamination_levels:
         load_data_func=load_shuttle,
         batch_size=150,
         anomaly_proportion=contamination,
-        random_state=42
+        seed=42
     )
-    
+
     # Train detector
     x_train = batch_gen.get_training_data()
     detector = StandardConformalDetector(
@@ -240,23 +240,23 @@ for contamination in contamination_levels:
         strategy=Split(calib_size=0.3)
     )
     detector.fit(x_train)
-    
+
     # Evaluate across multiple batches
     fdrs = []
     powers = []
-    
+
     for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     if i >= 4:  # Stop after 5 batches
         break
         p_values = detector.predict(x_batch)
         decisions = p_values < 0.05
-        
+
         fdr = false_discovery_rate(y_batch, decisions)
         power = statistical_power(y_batch, decisions)
-        
+
         fdrs.append(fdr)
         powers.append(power)
-    
+
     performance_results[contamination] = {
         'mean_fdr': np.mean(fdrs),
         'mean_power': np.mean(powers),
@@ -278,7 +278,7 @@ batch_gen = BatchGenerator(
     load_data_func=load_shuttle,
     batch_size=100,
     anomaly_proportion=0.1,
-    random_state=42
+    seed=42
 )
 
 print(f"Batch size: {batch_gen.batch_size}")
@@ -348,7 +348,7 @@ batch_gen = BatchGenerator(
     load_data_func=load_shuttle,
     batch_size=200,
     anomaly_proportion=0.1,
-    random_state=42
+    seed=42
 )
 
 x_train = batch_gen.get_training_data()
@@ -361,17 +361,17 @@ detector.fit(x_train)
 for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     # Get p-values
     p_values = detector.predict(x_batch)
-    
+
     # Apply Benjamini-Hochberg FDR control
     fdr_adjusted = false_discovery_control(p_values, method='bh')
     decisions = fdr_adjusted < 0.05
-    
+
     # Calculate controlled FDR
     fdr = false_discovery_rate(y_batch, decisions)
     power = statistical_power(y_batch, decisions)
-    
+
     print(f"Batch {i+1}: Controlled FDR={fdr:.3f}, Power={power:.3f}")
-    
+
     if i >= 4:  # Stop after 5 batches
         break
 ```

@@ -15,7 +15,7 @@ if __name__ == "__main__":
         n_batches=10,
         anomaly_proportion=0.01,
         train_size=0.6,
-        random_state=42,
+        seed=42,
     )
 
     # Get training data from generator

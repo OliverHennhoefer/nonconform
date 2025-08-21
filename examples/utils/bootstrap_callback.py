@@ -15,7 +15,7 @@ from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
-    x_train, x_test, y_test = load_fraud(setup=True, random_state=1)
+    x_train, x_test, y_test = load_fraud(setup=True, seed=1)
 
     # Track iterations with multiple convergence metrics
     all_scores = []

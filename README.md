@@ -43,7 +43,7 @@ from nonconform.estimation import StandardConformalDetector
 from nonconform.utils.data import load_shuttle
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True, random_state=42)  # built-in dataset setup
+x_train, x_test, y_test = load_shuttle(setup=True, seed=42)  # built-in dataset setup
 
 estimator = StandardConformalDetector(
     detector=IForest(behaviour="new"),
@@ -78,7 +78,7 @@ from nonconform.estimation import StandardConformalDetector, WeightedConformalDe
 from nonconform.utils.data import load_shuttle
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True, random_state=42)
+x_train, x_test, y_test = load_shuttle(setup=True, seed=42)
 SPLIT = 2500  # fixed calibration set size
 
 ssd = StandardConformalDetector(

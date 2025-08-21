@@ -5,12 +5,32 @@ All notable changes to this project will be documented in this file (from `0.9.1
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.163 (Unreleased)
+
+### Changed
+- The strategies ``Bootstrap()`` and ``Randomized()`` (i.e. randomized leave-p-out) are now structured into the sub dir ``experimental``.
+    - The methods were moved as they are statistically more inefficient than the 'classical' methods.
+    - The methods parameters ``plus`` default value was set to `True`, to guarantee a minimum of statistical validity as the guarantee otherwise does not hold.
+      - Users will receive a warning if ``plus`` is manually set to `False`
+- The test coverage was extended.
+  - The test folder structure was optimised for higher granularity.
+
+### Added
+- The Jackknife+-after-Bootstrap was added as ```JackknifeBootstrap()``` (Kim et al., 2020).
+
+### Changed
+- Standardized parameter name from `random_state` to `seed` across all nonconform classes and functions for consistency.
+  - Affects data loading functions (`load_*`), data generators (`BatchGenerator`, `OnlineGenerator`), and their base classes.
+
+### Fixed
+- After recent rework of the reproducibility approach, now also the ``load()`` method for all built-in dataset are truly random by default (for ``setup=True``).
+
 ## 0.9.162 (2025-08-20)
 
 ### Fixed
 - Resolved module name conflict where `nonconform.utils.func.logging` shadowed Python's standard `logging` module, causing `AttributeError` when using `logging.basicConfig()`
 
-## 0.9.161 (2025-08-20)
+## 0.9.161 (2025-08-19)
 
 ### Added
 - The new strategy ``Randomized()`` implements randomized leave-p-out (rLpO) to interpolate between existing strategies.

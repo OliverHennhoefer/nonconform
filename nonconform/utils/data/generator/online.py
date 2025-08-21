@@ -21,7 +21,7 @@ class OnlineGenerator(BaseDataGenerator):
         Number of instances to ensure exact global proportion.
     train_size : float, default=0.5
         Proportion of normal instances to use for training.
-    random_state : int, optional
+    seed : int, optional
         Seed for random number generator.
 
     Examples
@@ -34,7 +34,7 @@ class OnlineGenerator(BaseDataGenerator):
     ...     load_data_func=load_shuttle,
     ...     anomaly_proportion=0.01,
     ...     n_instances=1000,
-    ...     random_state=42
+    ...     seed=42
     ... )
     >>>
     >>> # Get training data
@@ -51,7 +51,7 @@ class OnlineGenerator(BaseDataGenerator):
         anomaly_proportion: float,
         n_instances: int,
         train_size: float = 0.5,
-        random_state: int | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the online generator."""
         # Initialize base class with probabilistic mode
@@ -61,7 +61,7 @@ class OnlineGenerator(BaseDataGenerator):
             anomaly_mode="probabilistic",
             n_batches=n_instances,
             train_size=train_size,
-            random_state=random_state,
+            seed=seed,
         )
 
     def generate(

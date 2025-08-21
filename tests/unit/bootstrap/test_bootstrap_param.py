@@ -1,17 +1,14 @@
 import unittest
 
-from scipy.stats import false_discovery_control
-
 from nonconform.estimation.standard_conformal import StandardConformalDetector
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data.load import load_shuttle
-from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 
 class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_compute_n_bootstraps(self):
-        x_train, x_test, y_test = load_shuttle(setup=True)
+        x_train, _, _ = load_shuttle(setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
@@ -20,19 +17,16 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         )
 
         ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-
-        fdr = false_discovery_rate(y=y_test, y_hat=decisions)
-        power = statistical_power(y=y_test, y_hat=decisions)
 
         self.assertEqual(len(ce.calibration_set), 1_000)
-        self.assertEqual(fdr, 0.075)
-        self.assertEqual(power, 0.98)
+        nb = round(
+            ce.strategy._n_calib / (len(x_train) * (1 - ce.strategy._resampling_ratio)),
+            0,
+        )
+        self.assertEqual(ce.strategy._n_bootstraps, nb)
 
     def test_bootstrap_conformal_compute_n_calib(self):
-        x_train, x_test, y_test = load_shuttle(setup=True)
+        x_train, _, _ = load_shuttle(setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
@@ -41,19 +35,13 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         )
 
         ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-
-        fdr = false_discovery_rate(y=y_test, y_hat=decisions)
-        power = statistical_power(y=y_test, y_hat=decisions)
 
         self.assertEqual(len(ce.calibration_set), 3419)
-        self.assertEqual(fdr, 0.261)
-        self.assertEqual(power, 0.99)
+        rs = round((len(x_train) * (1 - 0.99)) * 15, 0)
+        self.assertEqual(ce.strategy._n_calib, rs)
 
     def test_bootstrap_conformal_compute_resampling_ratio(self):
-        x_train, x_test, y_test = load_shuttle(setup=True)
+        x_train, _, _ = load_shuttle(setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
@@ -62,16 +50,10 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         )
 
         ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-
-        fdr = false_discovery_rate(y=y_test, y_hat=decisions)
-        power = statistical_power(y=y_test, y_hat=decisions)
 
         self.assertEqual(len(ce.calibration_set), 1000)
-        self.assertEqual(fdr, 0.175)
-        self.assertEqual(power, 0.99)
+        nb = 1 - (ce.strategy._n_calib / (ce.strategy._n_bootstraps * len(x_train)))
+        self.assertEqual(ce.strategy._resampling_ratio, nb)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ class TestDataGenerators(unittest.TestCase):
             anomaly_proportion=0.1,
             anomaly_mode="proportional",
             n_batches=5,
-            random_state=42,
+            seed=42,
         )
 
         # Check training data exists
@@ -38,7 +38,7 @@ class TestDataGenerators(unittest.TestCase):
             anomaly_proportion=0.01,
             anomaly_mode="proportional",
             n_batches=3,
-            random_state=42,
+            seed=42,
         )
 
         for i, (x_batch, y_batch) in enumerate(batch_gen_small.generate()):
@@ -54,7 +54,7 @@ class TestDataGenerators(unittest.TestCase):
             anomaly_proportion=0.05,
             anomaly_mode="probabilistic",
             n_batches=10,
-            random_state=42,
+            seed=42,
         )
 
         total_instances = 0
@@ -86,7 +86,7 @@ class TestDataGenerators(unittest.TestCase):
             load_data_func=load_shuttle,
             anomaly_proportion=0.02,
             n_instances=1000,
-            random_state=42,
+            seed=42,
         )
 
         # Check training data exists
@@ -112,7 +112,7 @@ class TestDataGenerators(unittest.TestCase):
             load_data_func=load_breast,
             anomaly_proportion=0.01,
             n_instances=100,
-            random_state=42,
+            seed=42,
         )
 
         total_anomalies = 0
@@ -129,7 +129,7 @@ class TestDataGenerators(unittest.TestCase):
                 load_data_func=load_shuttle,
                 batch_size=0,
                 anomaly_proportion=0.1,
-                random_state=42,
+                seed=42,
             )
 
         # Test invalid anomaly proportion
@@ -138,7 +138,7 @@ class TestDataGenerators(unittest.TestCase):
                 load_data_func=load_shuttle,
                 batch_size=100,
                 anomaly_proportion=1.5,  # > 1.0
-                random_state=42,
+                seed=42,
             )
 
         # Test invalid anomaly mode
@@ -148,7 +148,7 @@ class TestDataGenerators(unittest.TestCase):
                 batch_size=100,
                 anomaly_proportion=0.1,
                 anomaly_mode="invalid_mode",
-                random_state=42,
+                seed=42,
             )
 
         # Test probabilistic mode without n_batches
@@ -159,7 +159,7 @@ class TestDataGenerators(unittest.TestCase):
                 anomaly_proportion=0.1,
                 anomaly_mode="probabilistic",
                 # n_batches=None (missing)
-                random_state=42,
+                seed=42,
             )
 
     def test_online_generator_parameterization_validation(self):
@@ -170,7 +170,7 @@ class TestDataGenerators(unittest.TestCase):
                 load_data_func=load_shuttle,
                 anomaly_proportion=-0.1,  # < 0
                 n_instances=100,
-                random_state=42,
+                seed=42,
             )
 
         # Test invalid n_instances
@@ -179,7 +179,7 @@ class TestDataGenerators(unittest.TestCase):
                 load_data_func=load_shuttle,
                 anomaly_proportion=0.1,
                 n_instances=0,  # <= 0
-                random_state=42,
+                seed=42,
             )
 
         # Test exceeding n_instances in generate
@@ -187,7 +187,7 @@ class TestDataGenerators(unittest.TestCase):
             load_data_func=load_shuttle,
             anomaly_proportion=0.1,
             n_instances=100,
-            random_state=42,
+            seed=42,
         )
 
         with self.assertRaises(ValueError):
@@ -205,7 +205,7 @@ class TestDataGenerators(unittest.TestCase):
                     batch_size=50,
                     anomaly_proportion=0.1,
                     n_batches=1,
-                    random_state=42,
+                    seed=42,
                 )
 
                 x_train = batch_gen.get_training_data()
@@ -221,7 +221,7 @@ class TestDataGenerators(unittest.TestCase):
                     load_data_func=load_func,
                     anomaly_proportion=0.05,
                     n_instances=100,
-                    random_state=42,
+                    seed=42,
                 )
 
                 total_anomalies = 0
@@ -241,7 +241,7 @@ class TestDataGenerators(unittest.TestCase):
             anomaly_proportion=0.1,
             anomaly_mode="proportional",
             n_batches=3,
-            random_state=42,
+            seed=42,
         )
 
         # Generate some batches
@@ -268,7 +268,7 @@ class TestDataGenerators(unittest.TestCase):
             load_data_func=load_shuttle,
             anomaly_proportion=0.1,
             n_instances=20,
-            random_state=42,
+            seed=42,
         )
 
         # Generate instances
@@ -297,7 +297,7 @@ class TestDataGenerators(unittest.TestCase):
             batch_size=100,
             anomaly_proportion=0.0,
             n_batches=1,
-            random_state=42,
+            seed=42,
         )
 
         x_batch, y_batch = next(batch_gen_zero.generate())
@@ -312,7 +312,7 @@ class TestDataGenerators(unittest.TestCase):
                 batch_size=10,  # Small batch to avoid data issues
                 anomaly_proportion=0.5,  # 50% anomalies
                 n_batches=1,
-                random_state=42,
+                seed=42,
             )
 
             x_batch, y_batch = next(batch_gen_high.generate())

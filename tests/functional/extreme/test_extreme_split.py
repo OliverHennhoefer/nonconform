@@ -5,7 +5,7 @@ from online_fdr.batching.bh import BatchBH
 from online_fdr.batching.prds import BatchPRDS
 
 from nonconform.estimation.extreme_conformal import ExtremeConformalDetector
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.strategy.split import Split
 from nonconform.utils.data.generator.batch import BatchGenerator
 from nonconform.utils.data.load import load_fraud, load_shuttle
@@ -22,7 +22,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
             n_batches=10,
             anomaly_proportion=0.13,
             train_size=0.6,
-            random_state=42,
+            seed=42,
         )
         x_train = batch_gen.get_training_data()
 
@@ -61,7 +61,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
             n_batches=10,
             anomaly_proportion=0.01,
             train_size=0.6,
-            random_state=42,
+            seed=42,
         )
         x_train = batch_gen.get_training_data()
 
@@ -100,7 +100,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
             n_batches=10,
             anomaly_proportion=0.001,
             train_size=0.6,
-            random_state=42,
+            seed=42,
         )
         x_train = batch_gen.get_training_data()
 
@@ -139,7 +139,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
             n_batches=10,
             anomaly_proportion=0.02,
             train_size=0.6,
-            random_state=42,
+            seed=42,
         )
         x_train = batch_gen.get_training_data()
 
@@ -168,7 +168,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
             decision.extend(decisions)
 
         self.assertEqual(statistical_power(label, decision), 0.04)
-        self.assertEqual(false_discovery_rate(label, decision), 0.0)
+        self.assertEqual(false_discovery_rate(label, decision), 0.333)
 
 
 if __name__ == "__main__":

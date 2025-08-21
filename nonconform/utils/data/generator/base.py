@@ -30,7 +30,7 @@ class BaseDataGenerator(ABC):
         Required when anomaly_mode="probabilistic".
     train_size : float, default=0.5
         Proportion of normal instances to use for training.
-    random_state : int, optional
+    seed : int, optional
         Seed for random number generator.
 
     Attributes
@@ -56,7 +56,7 @@ class BaseDataGenerator(ABC):
         anomaly_mode: Literal["proportional", "probabilistic"] = "proportional",
         n_batches: int | None = None,
         train_size: float = 0.5,
-        random_state: int | None = None,
+        seed: int | None = None,
     ) -> None:
         """Initialize the base data generator."""
         self.load_data_func = load_data_func
@@ -64,10 +64,10 @@ class BaseDataGenerator(ABC):
         self.anomaly_mode = anomaly_mode
         self.n_batches = n_batches
         self.train_size = train_size
-        self.random_state = random_state
+        self.seed = seed
 
         # Initialize random number generator
-        self.rng = np.random.default_rng(random_state)
+        self.rng = np.random.default_rng(seed)
 
         # Validate configuration
         self._validate_config()
@@ -164,7 +164,7 @@ class BaseDataGenerator(ABC):
 
     def reset(self) -> None:
         """Reset the generator to initial state."""
-        self.rng = np.random.default_rng(self.random_state)
+        self.rng = np.random.default_rng(self.seed)
         if self.anomaly_mode == "probabilistic":
             self._current_anomalies = 0
             self._items_generated = 0
