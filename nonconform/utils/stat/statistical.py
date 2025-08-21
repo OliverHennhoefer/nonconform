@@ -79,21 +79,19 @@ def calculate_weighted_p_val(
         list[float]: A list of weighted p-values corresponding to the input
             `scores`.
     """
-    # Create a boolean matrix: True where calibration_set[j] >= scores[i]
+    # Create comparison matrix: True where calibration_set[j] >= scores[i]
     comparison_matrix = calibration_set >= scores[:, np.newaxis]
 
-    # Weighted sum for the numerator part 1:
-    # sum over j ( (calibration_set[j] >= scores[i]) * w_calib[j] )
+    # Weighted sum of calibration scores >= test score
     weighted_sum_calib_ge_score = np.sum(comparison_matrix * w_calib, axis=1)
 
-    # Add the weighted score part to the numerator
-    numerator = weighted_sum_calib_ge_score + np.abs(scores * w_scores)
+    # Sum of weights of higher-scoring calibration items + self weight
+    numerator = weighted_sum_calib_ge_score + w_scores
 
-    # Denominator: sum of calibration weights + weighted score
-    denominator = np.sum(w_calib) + np.abs(scores * w_scores)
+    # Total calibration weight + test instance weight
+    denominator = np.sum(w_calib) + w_scores
 
-    # Handle division by zero if denominator is zero for some scores
-    # np.divide handles this by returning np.nan or np.inf, then filter later if needed.
+    # Handle division by zero
     p_values = np.divide(
         numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0
     )

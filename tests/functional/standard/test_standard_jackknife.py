@@ -1,4 +1,3 @@
-import logging
 import unittest
 
 from scipy.stats import false_discovery_control
@@ -11,9 +10,6 @@ from pyod.models.iforest import IForest
 
 
 class TestCaseJackknifeConformal(unittest.TestCase):
-
-    logging.basicConfig(level=logging.INFO)
-
     def test_jackknife_conformal_breast(self):
         x_train, x_test, y_test = load_breast(setup=True, seed=1)
 

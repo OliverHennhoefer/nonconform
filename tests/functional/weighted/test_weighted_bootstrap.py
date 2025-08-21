@@ -17,71 +17,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
-            seed=1,
-        )
-
-        ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.153)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.72)
-
-    def test_bootstrap_conformal_shuttle(self):
-        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
-
-        ce = WeightedConformalDetector(
-            detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
-            seed=1,
-        )
-
-        ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.109)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.98)
-
-    def test_bootstrap_conformal_thyroid(self):
-        x_train, x_test, y_test = load_thyroid(setup=True, seed=1)
-
-        ce = WeightedConformalDetector(
-            detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
-            seed=1,
-        )
-
-        ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.058)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.803)
-
-    def test_bootstrap_conformal_mammography(self):
-        x_train, x_test, y_test = load_mammography(setup=True, seed=1)
-
-        ce = WeightedConformalDetector(
-            detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
-            seed=1,
-        )
-
-        ce.fit(x_train)
-        est = ce.predict(x_test)
-
-        decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.071)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.13)
-
-    def test_bootstrap_conformal_musk(self):
-        x_train, x_test, y_test = load_musk(setup=True, seed=1)
-
-        ce = WeightedConformalDetector(
-            detector=HBOS(),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(resampling_ratio=0.95, n_calib=100_000),
             seed=1,
         )
 
@@ -90,7 +26,71 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
         self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.0)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.0)
+        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.19)
+
+    def test_bootstrap_conformal_shuttle(self):
+        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
+
+        ce = WeightedConformalDetector(
+            detector=IForest(behaviour="new"),
+            strategy=Bootstrap(resampling_ratio=0.95, n_calib=100_000),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        est = ce.predict(x_test)
+
+        decisions = false_discovery_control(est, method="bh") <= 0.2
+        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.108)
+        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.99)
+
+    def test_bootstrap_conformal_thyroid(self):
+        x_train, x_test, y_test = load_thyroid(setup=True, seed=1)
+
+        ce = WeightedConformalDetector(
+            detector=IForest(behaviour="new"),
+            strategy=Bootstrap(n_bootstraps=75, n_calib=10_000),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        est = ce.predict(x_test)
+
+        decisions = false_discovery_control(est, method="bh") <= 0.2
+        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.056)
+        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.836)
+
+    def test_bootstrap_conformal_mammography(self):
+        x_train, x_test, y_test = load_mammography(setup=True, seed=1)
+
+        ce = WeightedConformalDetector(
+            detector=IForest(behaviour="new"),
+            strategy=Bootstrap(resampling_ratio=0.95, n_calib=100_000),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        est = ce.predict(x_test)
+
+        decisions = false_discovery_control(est, method="bh") <= 0.2
+        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.0)
+        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.04)
+
+    def test_bootstrap_conformal_musk(self):
+        x_train, x_test, y_test = load_musk(setup=True, seed=1)
+
+        ce = WeightedConformalDetector(
+            detector=HBOS(),
+            strategy=Bootstrap(n_bootstraps=25, n_calib=10_000),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        est = ce.predict(x_test)
+
+        decisions = false_discovery_control(est, method="bh") <= 0.2
+        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.155)
+        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 1.0)
 
 
 if __name__ == "__main__":
