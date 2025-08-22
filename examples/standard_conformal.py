@@ -2,14 +2,14 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Bootstrap
-from nonconform.utils.data import load_wbc
+from nonconform.utils.data import load_fraud
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
     # Example Setup
-    x_train, x_test, y_test = load_wbc(setup=True)
+    x_train, x_test, y_test = load_fraud(setup=True)
 
     # One-Class Classification
     model = IForest(behaviour="new")
