@@ -1,6 +1,8 @@
 import logging
 from collections.abc import Callable
-from copy import copy, deepcopy
+from copy import deepcopy
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -43,7 +45,8 @@ class JackknifeBootstrap(BaseStrategy):
         _calibration_set (list[float]): List of calibration scores from JaB+ procedure
         _calibration_ids (list[int]): Indices of samples used for calibration
         _bootstrap_models (list[BaseDetector]): Models trained on each bootstrap sample
-        _oob_indices (list[set[int]]): Out-of-bag indices for each bootstrap iteration
+        _oob_mask (np.ndarray): Boolean matrix of shape (n_bootstraps, n_samples) 
+            indicating out-of-bag status
     """
 
     def __init__(
@@ -65,13 +68,10 @@ class JackknifeBootstrap(BaseStrategy):
             ValueError: If aggregation_method is not a valid Aggregation enum value.
             ValueError: If n_bootstraps is less than 1.
         """
-        # JaB+ is only valid for plus=False
         super().__init__(plus=False)
 
         if n_bootstraps < 1:
             raise ValueError("Number of bootstraps must be at least 1.")
-        if not isinstance(aggregation_method, Aggregation):
-            raise ValueError("aggregation_method must be an Aggregation enum value")
         if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
             raise ValueError(
                 "aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN"
@@ -86,7 +86,7 @@ class JackknifeBootstrap(BaseStrategy):
 
         # Internal state for JaB+ computation
         self._bootstrap_models: list[BaseDetector] = []
-        self._oob_indices: list[set[int]] = []
+        self._oob_mask: np.ndarray = np.array([])
 
     def fit_calibrate(
         self,
@@ -95,6 +95,7 @@ class JackknifeBootstrap(BaseStrategy):
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
+        n_jobs: int = None,
     ) -> tuple[list[BaseDetector], list[float]]:
         """Fit and calibrate using Jackknife+-after-Bootstrap method.
 
@@ -115,6 +116,8 @@ class JackknifeBootstrap(BaseStrategy):
                 Optional callback function that gets called after each bootstrap
                 iteration with the iteration number and current calibration scores.
                 Defaults to None.
+            n_jobs (int, optional): Number of parallel jobs for bootstrap
+                training. If None, uses sequential processing. Defaults to None.
 
         Returns
         -------
@@ -133,30 +136,36 @@ class JackknifeBootstrap(BaseStrategy):
             f"  • Aggregation method: {self._aggregation_method}"
         )
 
-        # Step 1: Generate bootstrap samples and train models
-        self._bootstrap_models = []
-        self._oob_indices = []
-
-        for i in tqdm(
-            range(self._n_bootstraps),
-            desc=f"Bootstrap training ({self._n_bootstraps} iterations)",
-            disable=not logger.isEnabledFor(logging.INFO),
-        ):
-            # Generate bootstrap sample (sample with replacement)
-            bootstrap_indices = generator.choice(
-                n_samples, size=n_samples, replace=True
-            )
-
-            # Track out-of-bag samples
-            in_bag_set = set(bootstrap_indices)
-            oob_indices = set(range(n_samples)) - in_bag_set
-            self._oob_indices.append(oob_indices)
-
-            # Train model on bootstrap sample
-            model = copy(detector)
-            model = set_params(model, seed=seed, random_iteration=True, iteration=i)
-            model.fit(x[bootstrap_indices])
-            self._bootstrap_models.append(deepcopy(model))
+        # Step 1: Pre-allocate data structures and generate bootstrap samples
+        self._bootstrap_models = [None] * self._n_bootstraps
+        self._oob_mask = np.zeros((self._n_bootstraps, n_samples), dtype=bool)
+        
+        # Generate all bootstrap indices at once for better memory locality
+        all_bootstrap_indices = generator.choice(
+            n_samples, size=(self._n_bootstraps, n_samples), replace=True
+        )
+        
+        # Pre-compute OOB mask efficiently
+        for i in range(self._n_bootstraps):
+            bootstrap_indices = all_bootstrap_indices[i]
+            in_bag_mask = np.zeros(n_samples, dtype=bool)
+            in_bag_mask[bootstrap_indices] = True
+            self._oob_mask[i] = ~in_bag_mask
+        
+        # Train models (with optional parallelization)
+        if n_jobs is None or n_jobs == 1:
+            # Sequential training
+            for i in tqdm(
+                range(self._n_bootstraps),
+                desc=f"Bootstrap training ({self._n_bootstraps} iterations)",
+                disable=not logger.isEnabledFor(logging.INFO),
+            ):
+                bootstrap_indices = all_bootstrap_indices[i]
+                model = self._train_single_model(detector, x, bootstrap_indices, seed, i)
+                self._bootstrap_models[i] = model
+        else:
+            # Parallel training
+            self._train_models_parallel(detector, x, all_bootstrap_indices, seed, n_jobs, logger)
 
         # Step 2: Compute out-of-bag calibration scores
         oob_scores = self._compute_oob_scores(x)
@@ -169,7 +178,7 @@ class JackknifeBootstrap(BaseStrategy):
         self._calibration_ids = list(range(n_samples))
 
         # Step 3: Train final model on all data
-        final_model = copy(detector)
+        final_model = deepcopy(detector)
         final_model = set_params(
             final_model,
             seed=seed,
@@ -177,7 +186,7 @@ class JackknifeBootstrap(BaseStrategy):
             iteration=self._n_bootstraps,
         )
         final_model.fit(x)
-        self._detector_list = [deepcopy(final_model)]
+        self._detector_list = [final_model]
 
         logger.info(
             f"JaB+ calibration completed with {len(self._calibration_set)} scores"
@@ -185,13 +194,62 @@ class JackknifeBootstrap(BaseStrategy):
 
         return self._detector_list, self._calibration_set
 
-    def _compute_oob_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
-        """Compute out-of-bag calibration scores for JaB+ method.
+    def _train_single_model(
+        self, 
+        detector: BaseDetector, 
+        x: pd.DataFrame | np.ndarray, 
+        bootstrap_indices: np.ndarray, 
+        seed: int | None, 
+        iteration: int
+    ) -> BaseDetector:
+        """Train a single bootstrap model."""
+        model = deepcopy(detector)
+        model = set_params(model, seed=seed, random_iteration=True, iteration=iteration)
+        model.fit(x[bootstrap_indices])
+        return model
 
-        For each sample, this method:
-        1. Finds all bootstrap models where the sample was out-of-bag
-        2. Uses those models to predict the sample's anomaly score
-        3. Aggregates the predictions using the specified aggregation method
+    def _train_models_parallel(
+        self, 
+        detector: BaseDetector, 
+        x: pd.DataFrame | np.ndarray, 
+        all_bootstrap_indices: np.ndarray, 
+        seed: int | None, 
+        n_jobs: int, 
+        logger
+    ) -> None:
+        """Train bootstrap models in parallel."""
+        train_func = partial(
+            self._train_single_model, 
+            detector, 
+            x, 
+            seed=seed
+        )
+        
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            futures = {
+                executor.submit(
+                    train_func, 
+                    all_bootstrap_indices[i], 
+                    i
+                ): i for i in range(self._n_bootstraps)
+            }
+            
+            for future in tqdm(
+                as_completed(futures),
+                total=self._n_bootstraps,
+                desc=f"Parallel bootstrap training ({self._n_bootstraps} iterations)",
+                disable=not logger.isEnabledFor(logging.INFO),
+            ):
+                i = futures[future]
+                self._bootstrap_models[i] = future.result()
+
+    def _compute_oob_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
+        """Compute out-of-bag calibration scores for JaB+ method using vectorized operations.
+
+        This optimized version:
+        1. Uses pre-computed boolean mask for OOB membership
+        2. Batches predictions for each model across all its OOB samples
+        3. Uses vectorized aggregation operations
 
         Args:
             x (Union[pd.DataFrame, np.ndarray]): Input data matrix.
@@ -205,35 +263,52 @@ class JackknifeBootstrap(BaseStrategy):
             ValueError: If a sample has no out-of-bag predictions (very unlikely).
         """
         n_samples = len(x)
-        oob_scores = np.zeros(n_samples)
-
-        for i in range(n_samples):
-            # Find models where sample i was out-of-bag
-            oob_model_indices = []
-            for j, oob_set in enumerate(self._oob_indices):
-                if i in oob_set:
-                    oob_model_indices.append(j)
-
-            if not oob_model_indices:
-                # This is extremely unlikely with bootstrap sampling
-                raise ValueError(
-                    f"Sample {i} has no out-of-bag predictions. "
-                    "Consider increasing n_bootstraps."
-                )
-
-            # Get predictions from OOB models
-            sample_predictions = []
-            for model_idx in oob_model_indices:
-                model = self._bootstrap_models[model_idx]
-                pred = model.decision_function(x[i].reshape(1, -1))[0]
-                sample_predictions.append(pred)
-
-            # Aggregate predictions
-            if self._aggregation_method == Aggregation.MEAN:
-                oob_scores[i] = np.mean(sample_predictions)
-            else:  # Aggregation.MEDIAN
-                oob_scores[i] = np.median(sample_predictions)
-
+        
+        # Initialize prediction accumulator and count arrays
+        prediction_sum = np.zeros(n_samples)
+        prediction_count = np.zeros(n_samples, dtype=int)
+        
+        # For median calculation, we need to store all predictions
+        if self._aggregation_method == Aggregation.MEDIAN:
+            all_predictions = [[] for _ in range(n_samples)]
+        
+        # Process each bootstrap model
+        for model_idx, model in enumerate(self._bootstrap_models):
+            # Get OOB samples for this model
+            oob_samples = self._oob_mask[model_idx]
+            oob_indices = np.where(oob_samples)[0]
+            
+            if len(oob_indices) > 0:
+                # Batch predict all OOB samples for this model
+                oob_predictions = model.decision_function(x[oob_indices])
+                
+                if self._aggregation_method == Aggregation.MEAN:
+                    # Accumulate for mean calculation
+                    prediction_sum[oob_indices] += oob_predictions
+                    prediction_count[oob_indices] += 1
+                else:
+                    # Store for median calculation
+                    for idx, pred in zip(oob_indices, oob_predictions):
+                        all_predictions[idx].append(pred)
+        
+        # Check for samples with no OOB predictions
+        if self._aggregation_method == Aggregation.MEAN:
+            no_predictions = prediction_count == 0
+        else:
+            no_predictions = np.array([len(preds) == 0 for preds in all_predictions])
+        
+        if np.any(no_predictions):
+            raise ValueError(
+                f"Samples {np.where(no_predictions)[0]} have no out-of-bag predictions. "
+                "Consider increasing n_bootstraps."
+            )
+        
+        # Compute final scores
+        if self._aggregation_method == Aggregation.MEAN:
+            oob_scores = prediction_sum / prediction_count
+        else:
+            oob_scores = np.array([np.median(preds) for preds in all_predictions])
+        
         return oob_scores
 
     @property

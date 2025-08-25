@@ -43,17 +43,18 @@ from nonconform.estimation import StandardConformalDetector
 from nonconform.utils.data import load_shuttle
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True, seed=42)  # built-in dataset setup
+x_train, x_test, y_test = load_shuttle(setup=True, seed=42)
 
 estimator = StandardConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(n_calib=1_000)
+    strategy=Split(n_calib=2_000),
+    seed=42
 )
 
 estimator.fit(x_train)
 
 estimates = estimator.predict(x_test)
-decisions = false_discovery_control(estimates, method='bh') <= 0.1
+decisions = false_discovery_control(estimates, method='bh') <= 0.2
 
 print(f"Empirical False Discovery Rate: {false_discovery_rate(y=y_test, y_hat=decisions)}")
 print(f"Empirical Statistical Power (Recall): {statistical_power(y=y_test, y_hat=decisions)}")
@@ -61,77 +62,14 @@ print(f"Empirical Statistical Power (Recall): {statistical_power(y=y_test, y_hat
 
 Output:
 ```text
-Empirical False Discovery Rate: 0.058
+Empirical False Discovery Rate: 0.198
 Empirical Statistical Power (Recall): 0.97
 ```
 
 # :hatched_chick: Advanced Methods
 
-Other conformal detector wrappers exist for advanced use cases, including ``WeightedConformalDetector()`` (robust to covariate shifts) and sophisticated calibration strategies like ``Bootstrap()`` for improved results.
+Other conformal detector wrappers exist for advanced use cases, including ``WeightedConformalDetector()`` (robust to covariate shifts) and sophisticated calibration strategies like ``JackknifeBootstrap()`` for improved results.
 
-```python
-from pyod.models.iforest import IForest
-from scipy.stats import false_discovery_control
-
-from nonconform.strategy import Bootstrap, Split
-from nonconform.estimation import StandardConformalDetector, WeightedConformalDetector
-from nonconform.utils.data import load_shuttle
-from nonconform.utils.stat import false_discovery_rate, statistical_power
-
-x_train, x_test, y_test = load_shuttle(setup=True, seed=42)
-SPLIT = 2500  # fixed calibration set size
-
-ssd = StandardConformalDetector(
-    detector=IForest(behaviour="new"),
-    strategy=Split(n_calib=SPLIT)
-)
-
-# Standard Split Strategy
-ssd.fit(x_train)
-ssd_estimates = ssd.predict(x_test)
-ssd_decisions = false_discovery_control(ssd_estimates, method='bh') <= 0.1
-
-print(f"[Standard Split] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=ssd_decisions)}")
-print(f"[Standard Split] Empirical Power: {statistical_power(y=y_test, y_hat=ssd_decisions)}")
-
-# Bootstrapping Strategy
-sbt = StandardConformalDetector(
-    detector=IForest(behaviour="new"),
-    strategy=Bootstrap(n_bootstraps=20, n_calib=SPLIT)
-)
-
-sbt.fit(x_train)
-sbt_estimates = sbt.predict(x_test)
-sbt_decisions = false_discovery_control(sbt_estimates, method='bh') <= 0.1
-
-print(f"[Standard Boot] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=sbt_decisions)}")
-print(f"[Standard Boot] Empirical Power: {statistical_power(y=y_test, y_hat=sbt_decisions)}")
-
-# Weighted Strategy (Covariate Shift Robustness)
-wcd = WeightedConformalDetector(
-    detector=IForest(behaviour="new"),
-    strategy=Split(n_calib=SPLIT)
-)
-
-wcd.fit(x_train)
-wcd_estimates = wcd.predict(x_test)
-wcd_decisions = false_discovery_control(wcd_estimates, method='bh') <= 0.1
-
-print(f"[Weighted Split] Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcd_decisions)}")
-print(f"[Weighted Split] Empirical Power: {statistical_power(y=y_test, y_hat=wcd_decisions)}")
-```
-
-Output:
-```text
-[Standard Split] Empirical FDR: 0.085
-[Standard Split] Empirical Power: 0.97
-
-[Standard Boot] Empirical FDR: 0.139
-[Standard Boot] Empirical Power: 0.99
-
-[Weighted Split] Empirical FDR: 0.031
-[Weighted Split] Empirical Power: 0.95
-```
 
 # Beyond Static Data
 
@@ -172,15 +110,6 @@ If you find this repository useful for your research, please cite the following 
 	doi          = {10.1214/22-aos2244},
 	issn         = {0090-5364},
 	url          = {http://dx.doi.org/10.1214/22-AOS2244}
-}
-```
-##### Model-free Selective Inference under Covariate Shift via Weighted Conformal p-Values
-```text
-@inproceedings{Jin2023,
-	title        = {Model-free selective inference under covariate shift via weighted conformal p-values},
-	author       = {Ying Jin and Emmanuel J. Cand{\`e}s},
-	year         = 2023,
-	url          = {https://api.semanticscholar.org/CorpusID:259950903}
 }
 ```
 
