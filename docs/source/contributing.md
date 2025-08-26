@@ -47,7 +47,7 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 3. **Install in development mode**
    ```bash
-   pip install -e ".[dev,docs,all]"
+   pip install -e ".[dev,all]"
    ```
 
 4. **Run tests to verify setup**
@@ -95,13 +95,13 @@ We welcome contributions to nonconform! This guide will help you get started.
    ```bash
    # Format code
    black nonconform/ tests/
-   
+
    # Check imports
    isort nonconform/ tests/
-   
+
    # Lint code
    flake8 nonconform/ tests/
-   
+
    # Type checking
    mypy nonconform/
    ```

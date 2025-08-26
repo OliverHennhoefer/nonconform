@@ -9,7 +9,7 @@ maintainers = [
   { name = "Oliver Hennhoefer", email = "oliver.hennhoefer@mail.de" }
 ]
 license = { file = "LICENSE" }
-readme = { file = "./docs/pypi/README.md", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 keywords = [
     "conformal inference",
     "anomaly detection",
@@ -49,9 +49,7 @@ dev = [
     "ruff",
     "pre-commit",
     "twine",
-    "build"
-]
-docs = [
+    "build",
     "sphinx",
     "furo",
     "sphinx-autoapi",
@@ -64,7 +62,7 @@ fdr = [
     "online-fdr>=0.0.3"
 ]
 all = [
-    "nonconform[data,dev,docs,deep,fdr]"
+    "nonconform[data,dev,deep,fdr]"
 ]
 
 [project.urls]

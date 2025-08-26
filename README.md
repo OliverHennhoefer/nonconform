@@ -1,5 +1,10 @@
+<!-- start-github-only -->
 ![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
 ![Logo](./docs/img/banner_light.png#gh-light-mode-only)
+<!-- end-github-only -->
+<!-- start-pypi-only -->
+![Logo](https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner_light.png)
+<!-- end-pypi-only -->
 
 ---
 
@@ -119,8 +124,7 @@ _For additional features, you might need optional dependencies:_
 - `pip install nonconform[data]` - Includes pyarrow for loading example data (via remote download)
 - `pip install nonconform[deep]` - Includes deep learning dependencies (PyTorch)
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[dev]` - Includes development tools (black, ruff, pre-commit)
-- `pip install nonconform[docs]` - Includes documentation building tools (sphinx, furo, etc.)
+- `pip install nonconform[dev]` - Includes development tools (black, ruff, pre-commit) and documentation tools (sphinx, furo, etc.)
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
