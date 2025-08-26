@@ -3,10 +3,8 @@ import unittest
 from scipy.stats import false_discovery_control
 
 from nonconform.estimation import WeightedConformalDetector
-from nonconform.estimation.standard_conformal import StandardConformalDetector
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.data import load_shuttle
-from nonconform.utils.data.load import load_breast
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 

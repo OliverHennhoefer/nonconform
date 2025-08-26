@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file (from `0.9.1
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.165 (2025-08-26)
+
+### Changed
+- ``JackknifeBootstrap()`` uses now vectorized operations for the calibration procedure.
+
 ## 0.9.164 (2025-08-21)
 
 ### Fixed
