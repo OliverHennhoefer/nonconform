@@ -45,6 +45,34 @@ class TestDataGenerators(unittest.TestCase):
             with self.subTest(batch=i):
                 self.assertEqual(y_batch.sum(), 1)  # Exactly 1 anomaly per batch
 
+        # Test case 3: 0.5% anomalies with large batch to get exactly 1
+        batch_gen_half = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=200,
+            anomaly_proportion=0.005,  # 0.5%
+            anomaly_mode="proportional",
+            n_batches=2,
+            seed=42,
+        )
+
+        for i, (x_batch, y_batch) in enumerate(batch_gen_half.generate()):
+            with self.subTest(batch=i):
+                self.assertEqual(y_batch.sum(), 1)  # Exactly 1 anomaly per batch
+
+        # Test case 4: 0.25% anomalies
+        batch_gen_quarter = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=400,
+            anomaly_proportion=0.0025,  # 0.25%
+            anomaly_mode="proportional",
+            n_batches=2,
+            seed=42,
+        )
+
+        for i, (x_batch, y_batch) in enumerate(batch_gen_quarter.generate()):
+            with self.subTest(batch=i):
+                self.assertEqual(y_batch.sum(), 1)  # Exactly 1 anomaly per batch
+
     def test_batch_generator_probabilistic_mode(self):
         """Test batch generator probabilistic mode ensures exact global proportion."""
         # 5% anomalies over 10 batches of 50 = exactly 25 anomalies total
@@ -78,6 +106,32 @@ class TestDataGenerators(unittest.TestCase):
             1,
             "Probabilistic mode should produce variable anomaly counts per batch",
         )
+
+        # Test small proportions with probabilistic mode
+        batch_gen_small = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=100,
+            anomaly_proportion=0.005,  # 0.5%
+            anomaly_mode="probabilistic",
+            n_batches=10,  # 1000 total instances
+            seed=42,
+        )
+
+        total_anomalies = sum(y.sum() for _, y in batch_gen_small.generate())
+        self.assertEqual(total_anomalies, 5)  # Exactly 0.5% of 1000
+
+        # Test 0.25% with probabilistic mode
+        batch_gen_quarter = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=100,
+            anomaly_proportion=0.0025,  # 0.25%
+            anomaly_mode="probabilistic",
+            n_batches=20,  # 2000 total instances
+            seed=42,
+        )
+
+        total_anomalies = sum(y.sum() for _, y in batch_gen_quarter.generate())
+        self.assertEqual(total_anomalies, 5)  # Exactly 0.25% of 2000
 
     def test_online_generator_exact_proportion(self):
         """Test online generator ensures exact global anomaly proportion."""
@@ -120,6 +174,30 @@ class TestDataGenerators(unittest.TestCase):
             total_anomalies += y_label
 
         self.assertEqual(total_anomalies, 1)  # Exactly 1 anomaly
+
+        # Test case 3: 0.5% anomalies over 1000 instances
+        online_gen_half = OnlineGenerator(
+            load_data_func=load_shuttle,
+            anomaly_proportion=0.005,
+            n_instances=1000,
+            seed=42,
+        )
+
+        total_anomalies = sum(y for _, y in online_gen_half.generate(n_instances=1000))
+        self.assertEqual(total_anomalies, 5)  # Exactly 0.5% of 1000
+
+        # Test case 4: 0.25% anomalies over 2000 instances
+        online_gen_quarter = OnlineGenerator(
+            load_data_func=load_shuttle,
+            anomaly_proportion=0.0025,
+            n_instances=2000,
+            seed=42,
+        )
+
+        total_anomalies = sum(
+            y for _, y in online_gen_quarter.generate(n_instances=2000)
+        )
+        self.assertEqual(total_anomalies, 5)  # Exactly 0.25% of 2000
 
     def test_batch_generator_parameterization_validation(self):
         """Test batch generator parameter validation."""
@@ -288,6 +366,49 @@ class TestDataGenerators(unittest.TestCase):
         online_gen.reset()
         instances3 = list(online_gen.generate(n_instances=10))
         self.assertEqual(len(instances3), 10)
+
+    def test_small_proportion_truncation_behavior(self):
+        """Test behavior with small proportions that may truncate to zero."""
+        # Test 0.5% with batch_size=100 (truncates to 0)
+        with self.assertLogs(
+            "nonconform.nonconform.utils.data.generator.batch", level="WARNING"
+        ):
+            batch_gen = BatchGenerator(
+                load_data_func=load_shuttle,
+                batch_size=100,
+                anomaly_proportion=0.005,  # 0.5%
+                anomaly_mode="proportional",
+                n_batches=1,
+                seed=42,
+            )
+
+        # Verify it produces 0 anomalies
+        x_batch, y_batch = next(batch_gen.generate())
+        self.assertEqual(y_batch.sum(), 0)
+
+        # Test 0.5% with batch_size=200 (produces 1 anomaly)
+        batch_gen = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=200,
+            anomaly_proportion=0.005,
+            anomaly_mode="proportional",
+            n_batches=1,
+            seed=42,
+        )
+        x_batch, y_batch = next(batch_gen.generate())
+        self.assertEqual(y_batch.sum(), 1)
+
+        # Test 0.25% with batch_size=400 (produces 1 anomaly)
+        batch_gen = BatchGenerator(
+            load_data_func=load_shuttle,
+            batch_size=400,
+            anomaly_proportion=0.0025,
+            anomaly_mode="proportional",
+            n_batches=1,
+            seed=42,
+        )
+        x_batch, y_batch = next(batch_gen.generate())
+        self.assertEqual(y_batch.sum(), 1)
 
     def test_edge_case_anomaly_proportions(self):
         """Test edge cases for anomaly proportions."""

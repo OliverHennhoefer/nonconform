@@ -142,7 +142,7 @@ class StandardConformalDetector(BaseConformalDetector):
                 self.detector_set,
                 total=len(self.detector_set),
                 desc=f"Aggregating {len(self.detector_set)} models",
-                disable=not logger.isEnabledFor(logging.INFO),
+                disable=not logger.isEnabledFor(logging.DEBUG),
             )
         ]
 

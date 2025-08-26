@@ -3,7 +3,11 @@ from typing import Literal
 
 import pandas as pd
 
+from nonconform.utils.func.logger import get_logger
+
 from .base import BaseDataGenerator
+
+logger = get_logger("nonconform.utils.data.generator.batch")
 
 
 class BatchGenerator(BaseDataGenerator):
@@ -110,6 +114,17 @@ class BatchGenerator(BaseDataGenerator):
         if anomaly_mode == "proportional":
             self.n_anomaly_per_batch = int(batch_size * anomaly_proportion)
             self.n_normal_per_batch = batch_size - self.n_anomaly_per_batch
+
+            # Warn if anomaly proportion truncates to zero
+            if anomaly_proportion > 0 and self.n_anomaly_per_batch == 0:
+                min_batch_size = int(1 / anomaly_proportion)
+                logger.warning(
+                    f"Batch size {batch_size} with proportion {anomaly_proportion:.2%} "
+                    f"results in 0 anomalies per batch due to truncation. "
+                    f"Consider using batch_size >= {min_batch_size} "
+                    f"or use anomaly_mode='probabilistic' for exact global proportion."
+                )
+
             self._validate_batch_config()
 
     def _validate_batch_config(self) -> None:

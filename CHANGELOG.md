@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file (from `0.9.1
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.166 (Unreleased)
+
+### Added
+- Warning system for `BatchGenerator` when small anomaly proportions truncate to zero anomalies per batch.
+  - Users receive actionable guidance suggesting minimum batch size or probabilistic mode.
+- Test coverage for small anomaly proportions (0.5%, 0.25%) across all generator modes.
+  - Validates exact proportion handling in both proportional and probabilistic modes.
+
+### Changed
+- Simplified logging system to use standard Python logging conventions.
+  - Default INFO level shows warnings and errors by default.
+  - Users can control verbosity with `logging.getLogger("nonconform").setLevel(level)`.
+  - Progress bars (tqdm) remain always visible regardless of logging level.
+- "Aggregating models" progress bars now only appear at DEBUG level to reduce verbosity during inference.
+
 ## 0.9.165 (2025-08-26)
 
 ### Changed
