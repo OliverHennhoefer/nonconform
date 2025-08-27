@@ -1,10 +1,10 @@
-<!-- start-github-only -->
+<!-- start-github -->
 ![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
 ![Logo](./docs/img/banner_light.png#gh-light-mode-only)
-<!-- end-github-only -->
-<!-- start-pypi-only -->
+<!-- end-github -->
+<!-- start-pypi -->
 ![Logo](https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner_light.png)
-<!-- end-pypi-only -->
+<!-- end-pypi -->
 
 ---
 
