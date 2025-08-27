@@ -1,5 +1,4 @@
-![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
-![Logo](./docs/img/banner_light.png#gh-light-mode-only)
+![Logo](https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner_light.png)
 
 ---
 
