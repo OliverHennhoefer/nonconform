@@ -2,11 +2,11 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import CrossValidation
-from nonconform.utils.data import load_ionosphere
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.qmcd import QMCD
 
-x_train, x_test, y_test = load_ionosphere(setup=True)
+x_train, x_test, y_test = load(Dataset.IONOSPHERE, setup=True)
 
 ce = StandardConformalDetector(detector=QMCD(), strategy=CrossValidation(k=15))
 

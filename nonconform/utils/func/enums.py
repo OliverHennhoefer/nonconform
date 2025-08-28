@@ -45,3 +45,45 @@ class Aggregation(Enum):
     MEDIAN = "median"
     MINIMUM = "minimum"
     MAXIMUM = "maximum"
+
+
+class Dataset(Enum):
+    """Available datasets for anomaly detection experiments.
+
+    This enumeration provides all built-in datasets that can be loaded
+    using the load() function. Each dataset is preprocessed for anomaly
+    detection tasks with normal and anomalous samples.
+
+    Usage:
+        from nonconform.utils.data import load, Dataset
+        df = load(Dataset.FRAUD, setup=True, seed=42)
+    """
+
+    ANNTHYROID = "annthyroid"
+    BACKDOOR = "backdoor"
+    BREAST = "breast"
+    CARDIO = "cardio"
+    COVER = "cover"
+    DONORS = "donors"
+    FRAUD = "fraud"
+    GLASS = "glass"
+    HEPATITIS = "hepatitis"
+    HTTP = "http"
+    IONOSPHERE = "ionosphere"
+    LETTER = "letter"
+    LYMPHOGRAPHY = "lymphography"
+    MAGIC_GAMMA = "magic_gamma"
+    MAMMOGRAPHY = "mammography"
+    MNIST = "mnist"
+    MUSK = "musk"
+    OPTDIGITS = "optdigits"
+    PAGEBLOCKS = "pageblocks"
+    PENDIGITS = "pendigits"
+    SATIMAGE2 = "satimage2"
+    SHUTTLE = "shuttle"
+    SMTP = "smtp"
+    STAMPS = "stamps"
+    THYROID = "thyroid"
+    VOWELS = "vowels"
+    WBC = "wbc"
+    WINE = "wine"

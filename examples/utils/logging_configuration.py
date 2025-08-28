@@ -3,21 +3,20 @@ import logging
 from scipy.stats import false_discovery_control
 
 from nonconform.estimation import StandardConformalDetector
-from nonconform.strategy import Randomized
-from nonconform.utils.data import load_wbc
-from nonconform.utils.func.enums import Distribution
+from nonconform.strategy import JackknifeBootstrap
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
-    # Configure logging to be more verbose (default: WARNING)
-    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("nonconform").setLevel(logging.ERROR)  # silent the package
 
-    x_train, x_test, y_test = load_wbc(setup=True)
+    x_train, x_test, y_test = load(Dataset.WBC, setup=True)
+
     ce = StandardConformalDetector(
         detector=IForest(behaviour="new"),
-        strategy=Randomized(n_calib=1_000, sampling_distr=Distribution.BETA_BINOMIAL),
+        strategy=JackknifeBootstrap(n_bootstraps=100),
     )
 
     ce.fit(x_train)

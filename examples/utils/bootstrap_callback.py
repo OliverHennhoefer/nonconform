@@ -9,13 +9,13 @@ from scipy.stats import (
 
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Bootstrap
-from nonconform.utils.data import load_fraud
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
-    x_train, x_test, y_test = load_fraud(setup=True, seed=1)
+    x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
     # Track iterations with multiple convergence metrics
     all_scores = []
@@ -70,7 +70,7 @@ if __name__ == "__main__":
                 kde_kl_divergences.append(np.nan)
 
     model = IForest(behaviour="new")
-    strategy = Bootstrap(n_calib=2_000, resampling_ratio=0.9999)
+    strategy = Bootstrap(n_calib=5_000, resampling_ratio=0.995)
     ce = StandardConformalDetector(detector=model, strategy=strategy)
     ce.fit(x_train, iteration_callback=track_iterations)
     estimates = ce.predict(x_test)

@@ -7,10 +7,10 @@ This guide will get you started with `nonconform` in just a few minutes.
 For quick experimentation, nonconform includes several benchmark anomaly detection datasets. Install with `pip install nonconform[data]` to enable dataset functionality.
 
 ```python
-from nonconform.utils.data import load_breast, load_shuttle, load_fraud
+from nonconform.utils.data import load, Dataset
 
 # Load a dataset - automatically downloads and caches
-x_train, x_test, y_test = load_breast(setup=True)
+x_train, x_test, y_test = load(Dataset.BREAST, setup=True)
 
 print(f"Training data shape: {x_train.shape}")
 print(f"Test data shape: {x_test.shape}")
@@ -19,7 +19,7 @@ print(f"Anomaly ratio in test set: {y_test.mean():.2%}")
 
 **Note**: Datasets are downloaded on first use and cached both in memory and on disk for faster subsequent loads.
 
-Available datasets: `load_breast`, `load_fraud`, `load_ionosphere`, `load_mammography`, `load_musk`, `load_shuttle`, `load_thyroid`, `load_wbc`.
+Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `BREAST`, `FRAUD`, `IONOSPHERE`, `MAMMOGRAPHY`, `MUSK`, `SHUTTLE`, `THYROID`, `WBC`.
 
 ## Basic Usage
 

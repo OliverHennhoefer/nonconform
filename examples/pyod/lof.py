@@ -2,11 +2,11 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Jackknife
-from nonconform.utils.data import load_musk
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.lof import LOF
 
-x_train, x_test, y_test = load_musk(setup=True)
+x_train, x_test, y_test = load(Dataset.MUSK, setup=True)
 
 ce = StandardConformalDetector(detector=LOF(), strategy=Jackknife(plus=True))
 

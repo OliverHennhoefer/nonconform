@@ -7,8 +7,8 @@ from online_fdr.batching.prds import BatchPRDS
 from nonconform.estimation.extreme_conformal import ExtremeConformalDetector
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.strategy.split import Split
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.data.generator.batch import BatchGenerator
-from nonconform.utils.data.load import load_fraud, load_shuttle
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
@@ -17,7 +17,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
     def test_extreme_split_batch_bh_shuttle(self):
 
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=300,
             n_batches=10,
             anomaly_proportion=0.13,
@@ -56,7 +56,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
     def test_extreme_split_batch_st_bh_shuttle(self):
 
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=300,
             n_batches=10,
             anomaly_proportion=0.01,
@@ -95,7 +95,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
     def test_extreme_split_batch_st_bh_single_anomaly_batch_shuttle(self):
 
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=1000,
             n_batches=10,
             anomaly_proportion=0.001,
@@ -134,7 +134,7 @@ class TestCaseExtremeSplit(unittest.TestCase):
     def test_extreme_split_batch_st_bh_single_anomaly_batch_musk(self):
 
         batch_gen = BatchGenerator(
-            load_data_func=load_fraud,
+            load_data_func=lambda **kwargs: load(Dataset.FRAUD, **kwargs),
             batch_size=250,
             n_batches=10,
             anomaly_proportion=0.02,

@@ -1,7 +1,7 @@
 import unittest
 
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.data.generator import BatchGenerator, OnlineGenerator
-from nonconform.utils.data.load import load_breast, load_shuttle
 
 
 class TestDataGenerators(unittest.TestCase):
@@ -11,7 +11,7 @@ class TestDataGenerators(unittest.TestCase):
         """Test batch generator proportional mode ensures exact anomalies per batch."""
         # Test case 1: 10% anomalies with batch size 100 = exactly 10 per batch
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=100,
             anomaly_proportion=0.1,
             anomaly_mode="proportional",
@@ -33,7 +33,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 2: 1% anomalies with batch size 100 = exactly 1 per batch
         batch_gen_small = BatchGenerator(
-            load_data_func=load_breast,
+            load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
             batch_size=100,
             anomaly_proportion=0.01,
             anomaly_mode="proportional",
@@ -47,7 +47,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 3: 0.5% anomalies with large batch to get exactly 1
         batch_gen_half = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=200,
             anomaly_proportion=0.005,  # 0.5%
             anomaly_mode="proportional",
@@ -61,7 +61,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 4: 0.25% anomalies
         batch_gen_quarter = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=400,
             anomaly_proportion=0.0025,  # 0.25%
             anomaly_mode="proportional",
@@ -77,7 +77,7 @@ class TestDataGenerators(unittest.TestCase):
         """Test batch generator probabilistic mode ensures exact global proportion."""
         # 5% anomalies over 10 batches of 50 = exactly 25 anomalies total
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=50,
             anomaly_proportion=0.05,
             anomaly_mode="probabilistic",
@@ -109,7 +109,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test small proportions with probabilistic mode
         batch_gen_small = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=100,
             anomaly_proportion=0.005,  # 0.5%
             anomaly_mode="probabilistic",
@@ -122,7 +122,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test 0.25% with probabilistic mode
         batch_gen_quarter = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=100,
             anomaly_proportion=0.0025,  # 0.25%
             anomaly_mode="probabilistic",
@@ -137,7 +137,7 @@ class TestDataGenerators(unittest.TestCase):
         """Test online generator ensures exact global anomaly proportion."""
         # Test case 1: 2% anomalies over 1000 instances = exactly 20 anomalies
         online_gen = OnlineGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             anomaly_proportion=0.02,
             n_instances=1000,
             seed=42,
@@ -163,7 +163,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 2: 1% anomalies over 100 instances = exactly 1 anomaly
         online_gen_small = OnlineGenerator(
-            load_data_func=load_breast,
+            load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
             anomaly_proportion=0.01,
             n_instances=100,
             seed=42,
@@ -177,7 +177,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 3: 0.5% anomalies over 1000 instances
         online_gen_half = OnlineGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             anomaly_proportion=0.005,
             n_instances=1000,
             seed=42,
@@ -188,7 +188,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test case 4: 0.25% anomalies over 2000 instances
         online_gen_quarter = OnlineGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             anomaly_proportion=0.0025,
             n_instances=2000,
             seed=42,
@@ -204,7 +204,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test invalid batch size
         with self.assertRaises(ValueError):
             BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=0,
                 anomaly_proportion=0.1,
                 seed=42,
@@ -213,7 +213,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test invalid anomaly proportion
         with self.assertRaises(ValueError):
             BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=100,
                 anomaly_proportion=1.5,  # > 1.0
                 seed=42,
@@ -222,7 +222,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test invalid anomaly mode
         with self.assertRaises(ValueError):
             BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=100,
                 anomaly_proportion=0.1,
                 anomaly_mode="invalid_mode",
@@ -232,7 +232,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test probabilistic mode without n_batches
         with self.assertRaises(ValueError):
             BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=100,
                 anomaly_proportion=0.1,
                 anomaly_mode="probabilistic",
@@ -245,7 +245,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test invalid anomaly proportion
         with self.assertRaises(ValueError):
             OnlineGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 anomaly_proportion=-0.1,  # < 0
                 n_instances=100,
                 seed=42,
@@ -254,7 +254,7 @@ class TestDataGenerators(unittest.TestCase):
         # Test invalid n_instances
         with self.assertRaises(ValueError):
             OnlineGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 anomaly_proportion=0.1,
                 n_instances=0,  # <= 0
                 seed=42,
@@ -262,7 +262,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test exceeding n_instances in generate
         online_gen = OnlineGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             anomaly_proportion=0.1,
             n_instances=100,
             seed=42,
@@ -273,10 +273,13 @@ class TestDataGenerators(unittest.TestCase):
 
     def test_different_datasets_compatibility(self):
         """Test generators work with different datasets."""
-        datasets = [load_shuttle, load_breast]
+        datasets = [
+            lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
+            lambda **kwargs: load(Dataset.BREAST, **kwargs),
+        ]
 
         for load_func in datasets:
-            with self.subTest(dataset=load_func.__name__):
+            with self.subTest(dataset=load_func):
                 # Test batch generator
                 batch_gen = BatchGenerator(
                     load_data_func=load_func,
@@ -314,7 +317,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test batch generator reset - focus on reproducible properties
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=50,
             anomaly_proportion=0.1,
             anomaly_mode="proportional",
@@ -343,7 +346,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test online generator reset
         online_gen = OnlineGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             anomaly_proportion=0.1,
             n_instances=20,
             seed=42,
@@ -374,7 +377,7 @@ class TestDataGenerators(unittest.TestCase):
             "nonconform.nonconform.utils.data.generator.batch", level="WARNING"
         ):
             batch_gen = BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=100,
                 anomaly_proportion=0.005,  # 0.5%
                 anomaly_mode="proportional",
@@ -388,7 +391,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test 0.5% with batch_size=200 (produces 1 anomaly)
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=200,
             anomaly_proportion=0.005,
             anomaly_mode="proportional",
@@ -400,7 +403,7 @@ class TestDataGenerators(unittest.TestCase):
 
         # Test 0.25% with batch_size=400 (produces 1 anomaly)
         batch_gen = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=400,
             anomaly_proportion=0.0025,
             anomaly_mode="proportional",
@@ -414,7 +417,7 @@ class TestDataGenerators(unittest.TestCase):
         """Test edge cases for anomaly proportions."""
         # Test 0% anomalies (all normal)
         batch_gen_zero = BatchGenerator(
-            load_data_func=load_shuttle,
+            load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
             batch_size=100,
             anomaly_proportion=0.0,
             n_batches=1,
@@ -429,7 +432,7 @@ class TestDataGenerators(unittest.TestCase):
         # so we test a high proportion
         try:
             batch_gen_high = BatchGenerator(
-                load_data_func=load_shuttle,
+                load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
                 batch_size=10,  # Small batch to avoid data issues
                 anomaly_proportion=0.5,  # 50% anomalies
                 n_batches=1,

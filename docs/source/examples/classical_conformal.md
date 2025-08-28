@@ -11,10 +11,10 @@ from scipy.stats import false_discovery_control
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
-from nonconform.utils.data import load_breast
+from nonconform.utils.data import load, Dataset
 
 # Load example data - downloads automatically and caches in memory
-x_train, x_test, y_test = load_breast(setup=True)
+x_train, x_test, y_test = load(Dataset.BREAST, setup=True)
 print(f"Training samples: {len(x_train)}, Test samples: {len(x_test)}")
 ```
 
@@ -101,7 +101,7 @@ for agg_method in aggregation_methods:
     )
     detector.fit(x_train)
     p_vals = detector.predict(x_test, raw=False)
-    
+
     # Apply FDR control
     fdr_controlled = false_discovery_control(p_vals, method='bh')
     print(f"{agg_method.value} aggregation: {(fdr_controlled < 0.05).sum()} detections")
@@ -124,7 +124,7 @@ plt.title('P-value Distribution')
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.scatter(range(len(p_values)), p_values, c=p_values < 0.05, 
+plt.scatter(range(len(p_values)), p_values, c=p_values < 0.05,
             cmap='coolwarm', alpha=0.6)
 plt.axhline(y=0.05, color='red', linestyle='--', label='α=0.05')
 plt.xlabel('Sample Index')

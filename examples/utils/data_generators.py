@@ -1,5 +1,6 @@
+from nonconform.utils.data import Dataset
 from nonconform.utils.data.generator import BatchGenerator, OnlineGenerator
-from nonconform.utils.data.load import load_breast, load_shuttle
+from nonconform.utils.data.load import load
 
 
 def demonstrate_batch_generation():
@@ -9,7 +10,7 @@ def demonstrate_batch_generation():
     # Proportional mode - fixed 10% anomalies per batch
     print("1. Proportional Mode (10% anomalies per batch):")
     batch_gen = BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=100,
         anomaly_proportion=0.1,
         anomaly_mode="proportional",
@@ -30,7 +31,7 @@ def demonstrate_batch_generation():
     # Probabilistic mode - global target across all batches
     print("\n2. Probabilistic Mode (5% anomalies globally across 10 batches):")
     batch_gen_prob = BatchGenerator(
-        load_data_func=load_breast,
+        load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
         batch_size=50,
         anomaly_proportion=0.05,
         anomaly_mode="probabilistic",
@@ -65,7 +66,7 @@ def demonstrate_online_generation():
     # Online generator always uses probabilistic mode for exact global proportion
     print("Online Generator (exactly 2% anomalies over 1000 instances):")
     online_gen = OnlineGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         anomaly_proportion=0.02,
         n_instances=1000,
         seed=42,
@@ -90,7 +91,7 @@ def demonstrate_online_generation():
     # Smaller example to show exact control
     print("\nSmaller Example (exactly 1% anomalies over 100 instances):")
     online_gen_small = OnlineGenerator(
-        load_data_func=load_breast,
+        load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
         anomaly_proportion=0.01,
         n_instances=100,
         seed=42,
@@ -117,7 +118,7 @@ def demonstrate_integration_workflow():
 
     # Create batch generator
     batch_gen = BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=200,
         anomaly_proportion=0.08,
         anomaly_mode="proportional",
@@ -150,7 +151,10 @@ def demonstrate_different_datasets():
     """Show generators working with different datasets."""
     print("=== Different Datasets Example ===")
 
-    datasets = [(load_shuttle, "Shuttle"), (load_breast, "Breast Cancer")]
+    datasets = [
+        (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), "Shuttle"),
+        (lambda **kwargs: load(Dataset.BREAST, **kwargs), "Breast Cancer"),
+    ]
 
     for load_func, name in datasets:
         print(f"{name} Dataset:")

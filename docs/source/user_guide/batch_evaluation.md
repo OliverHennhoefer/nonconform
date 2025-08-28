@@ -11,12 +11,12 @@ The `BatchGenerator` creates evaluation batches with configurable anomaly propor
 ## Basic Usage
 
 ```python
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import load, Dataset
 from nonconform.utils.data.generator import BatchGenerator
 
 # Create batch generator with proportional mode (default)
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.1,  # 10% anomalies per batch
     seed=42
@@ -43,7 +43,7 @@ Ensures exact number of anomalies in each batch:
 ```python
 # Infinite generation - exactly 15 anomalies per batch of 100
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.15,
     anomaly_mode="proportional",  # Default mode
@@ -58,7 +58,7 @@ for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
 
 # Limited generation - exactly 5 batches with 15 anomalies each
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.15,
     anomaly_mode="proportional",
@@ -78,7 +78,7 @@ Ensures exact global proportion across all batches:
 ```python
 # Exactly 5% anomalies globally across 10 batches
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=50,
     anomaly_proportion=0.05,
     anomaly_mode="probabilistic",
@@ -108,7 +108,7 @@ from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 # Create batch generator
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=200,
     anomaly_proportion=0.08,
     train_size=0.7,  # Use 70% of normal data for training
@@ -157,13 +157,13 @@ print(f"Average FDR: {mean_fdr:.3f}, Average Power: {mean_power:.3f}")
 ### Different Datasets
 
 ```python
-from nonconform.utils.data import load_breast, load_fraud
+from nonconform.utils.data import load, Dataset
 
 # Test with different datasets - limited generation example
 datasets = [
-    (load_shuttle, "Shuttle"),
-    (load_breast, "Breast Cancer"),
-    (load_fraud, "Credit Fraud")
+    (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), "Shuttle"),
+    (lambda **kwargs: load(Dataset.BREAST, **kwargs), "Breast Cancer"),
+    (lambda **kwargs: load(Dataset.FRAUD, **kwargs), "Credit Fraud")
 ]
 
 for load_func, name in datasets:
@@ -192,7 +192,7 @@ for load_func, name in datasets:
 ```python
 # Create generator with specific seed and limited batches
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.1,
     n_batches=3,  # Exactly 3 batches
@@ -227,7 +227,7 @@ performance_results = {}
 
 for contamination in contamination_levels:
     batch_gen = BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=150,
         anomaly_proportion=contamination,
         seed=42
@@ -246,8 +246,8 @@ for contamination in contamination_levels:
     powers = []
 
     for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    if i >= 4:  # Stop after 5 batches
-        break
+        if i >= 4:  # Stop after 5 batches
+            break
         p_values = detector.predict(x_batch)
         decisions = p_values < 0.05
 
@@ -275,7 +275,7 @@ for contamination, results in performance_results.items():
 ```python
 # Check generator configuration
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.1,
     seed=42
@@ -299,7 +299,7 @@ if batch_gen.anomaly_mode == "proportional":
 try:
     # Invalid batch size
     BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=0,  # Invalid
         anomaly_proportion=0.1
     )
@@ -309,7 +309,7 @@ except ValueError as e:
 try:
     # Invalid anomaly proportion
     BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=100,
         anomaly_proportion=1.5  # > 1.0
     )
@@ -319,7 +319,7 @@ except ValueError as e:
 try:
     # Probabilistic mode without max_batches
     BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=100,
         anomaly_proportion=0.1,
         anomaly_mode="probabilistic"
@@ -345,7 +345,7 @@ from scipy.stats import false_discovery_control
 
 # Generate batches and apply FDR control
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=200,
     anomaly_proportion=0.1,
     seed=42

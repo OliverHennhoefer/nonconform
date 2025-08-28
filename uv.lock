@@ -860,15 +860,13 @@ deep = [
 dev = [
     { name = "black" },
     { name = "build" },
-    { name = "pre-commit" },
-    { name = "ruff" },
-    { name = "twine" },
-]
-docs = [
     { name = "furo" },
     { name = "myst-parser" },
+    { name = "pre-commit" },
+    { name = "ruff" },
     { name = "sphinx" },
     { name = "sphinx-autoapi" },
+    { name = "twine" },
 ]
 fdr = [
     { name = "online-fdr" },
@@ -881,9 +879,9 @@ requires-dist = [
     { name = "build", marker = "extra == 'all'" },
     { name = "build", marker = "extra == 'dev'" },
     { name = "furo", marker = "extra == 'all'" },
-    { name = "furo", marker = "extra == 'docs'" },
+    { name = "furo", marker = "extra == 'dev'" },
     { name = "myst-parser", marker = "extra == 'all'" },
-    { name = "myst-parser", marker = "extra == 'docs'" },
+    { name = "myst-parser", marker = "extra == 'dev'" },
     { name = "numpy", specifier = ">=2.2.0,<2.3" },
     { name = "online-fdr", marker = "extra == 'all'", specifier = ">=0.0.3" },
     { name = "online-fdr", marker = "extra == 'fdr'", specifier = ">=0.0.3" },
@@ -898,16 +896,16 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.5.2,<1.6" },
     { name = "scipy", specifier = ">=1.13.0" },
     { name = "sphinx", marker = "extra == 'all'" },
-    { name = "sphinx", marker = "extra == 'docs'" },
+    { name = "sphinx", marker = "extra == 'dev'" },
     { name = "sphinx-autoapi", marker = "extra == 'all'" },
-    { name = "sphinx-autoapi", marker = "extra == 'docs'" },
+    { name = "sphinx-autoapi", marker = "extra == 'dev'" },
     { name = "torch", marker = "extra == 'all'", specifier = ">=2.7.0" },
     { name = "torch", marker = "extra == 'deep'", specifier = ">=2.7.0" },
     { name = "tqdm", specifier = ">=4.66.2" },
     { name = "twine", marker = "extra == 'all'" },
     { name = "twine", marker = "extra == 'dev'" },
 ]
-provides-extras = ["all", "data", "deep", "dev", "docs", "fdr"]
+provides-extras = ["all", "data", "deep", "dev", "fdr"]
 
 [[package]]
 name = "numba"

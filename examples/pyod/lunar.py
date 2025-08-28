@@ -2,11 +2,11 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import CrossValidation
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.lunar import LUNAR
 
-x_train, x_test, y_test = load_shuttle(setup=True)
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
 ce = StandardConformalDetector(detector=LUNAR(), strategy=CrossValidation(k=10))
 

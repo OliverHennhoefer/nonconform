@@ -3,12 +3,12 @@ import unittest
 import pandas as pd
 from pandas._testing import assert_frame_equal, assert_series_equal
 
-from nonconform.utils.data.load import load_wbc
+from nonconform.utils.data import Dataset, load
 
 
 class TestDatasetSetup(unittest.TestCase):
     def test_dataset_setup_wbc(self):
-        x_train, x_test, y_test = load_wbc(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.WBC, setup=True, seed=1)
 
         data = {
             "V1": [3.0, 3.0, 1.0],
@@ -42,9 +42,9 @@ class TestDatasetSetup(unittest.TestCase):
         x_test_ref = pd.DataFrame(data, index=index)
         assert_frame_equal(x_test.iloc[[3, 22, 33], :], x_test_ref)
 
-        data = [0.0, 1.0, 1.0, 1.0]
+        data = [0, 1, 1, 1]
         index = [31, 32, 33, 34]
-        y_test_ref = pd.Series(data, index=index, dtype="float64", name="Class")
+        y_test_ref = pd.Series(data, index=index, dtype="int32", name="Class")
         assert_series_equal(y_test.iloc[31:], y_test_ref)
 
 

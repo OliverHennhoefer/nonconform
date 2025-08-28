@@ -19,7 +19,7 @@
 *   **Control False Positives:** Reliably control metrics like the False Discovery Rate (FDR).
 *   **[*PyOD*](https://pyod.readthedocs.io/en/latest/) Compatibility:** Works with most PyOD anomaly detectors (see [Supported Estimators](#supported-estimators)).
 
-# :hatching_chick: Getting Started
+# Getting Started
 
 Installation via [PyPI](https://pypi.org/project/nonconform/):
 ```sh
@@ -39,10 +39,10 @@ from scipy.stats import false_discovery_control
 
 from nonconform.strategy import Split
 from nonconform.estimation import StandardConformalDetector
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import load, Dataset
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load_shuttle(setup=True, seed=42)
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
 
 estimator = StandardConformalDetector(
     detector=IForest(behaviour="new"),
@@ -65,7 +65,7 @@ Empirical False Discovery Rate: 0.198
 Empirical Statistical Power (Recall): 0.97
 ```
 
-# :hatched_chick: Advanced Methods
+# Advanced Methods
 
 Other conformal detector wrappers exist for advanced use cases, including ``WeightedConformalDetector()`` (robust to covariate shifts) and sophisticated calibration strategies like ``JackknifeBootstrap()`` for improved results.
 

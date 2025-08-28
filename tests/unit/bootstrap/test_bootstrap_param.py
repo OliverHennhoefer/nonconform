@@ -2,13 +2,13 @@ import unittest
 
 from nonconform.estimation.standard_conformal import StandardConformalDetector
 from nonconform.strategy.experimental.bootstrap import Bootstrap
-from nonconform.utils.data.load import load_shuttle
+from nonconform.utils.data import Dataset, load
 from pyod.models.iforest import IForest
 
 
 class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_compute_n_bootstraps(self):
-        x_train, _, _ = load_shuttle(setup=True)
+        x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
@@ -26,7 +26,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         self.assertEqual(ce.strategy._n_bootstraps, nb)
 
     def test_bootstrap_conformal_compute_n_calib(self):
-        x_train, _, _ = load_shuttle(setup=True)
+        x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
@@ -41,7 +41,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         self.assertEqual(ce.strategy._n_calib, rs)
 
     def test_bootstrap_conformal_compute_resampling_ratio(self):
-        x_train, _, _ = load_shuttle(setup=True)
+        x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),

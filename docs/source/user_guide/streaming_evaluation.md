@@ -15,12 +15,12 @@ Key features:
 ## Basic Usage
 
 ```python
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import load, Dataset
 from nonconform.utils.data.generator import OnlineGenerator
 
 # Create online generator with exact 2% anomalies over 1000 instances
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.02,
     n_instances=1000,
     seed=42
@@ -50,7 +50,7 @@ proportions = [0.01, 0.05, 0.1, 0.15]
 
 for prop in proportions:
     online_gen = OnlineGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         anomaly_proportion=prop,
         n_instances=500,
         seed=42
@@ -75,7 +75,7 @@ from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 # Create online generator
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.03,
     n_instances=2000,
     train_size=0.6,  # Use 60% of normal data for training
@@ -135,7 +135,7 @@ Analyze performance over sliding windows:
 ```python
 # Streaming evaluation with sliding window analysis
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.05,
     n_instances=1000,
     seed=42
@@ -206,7 +206,7 @@ import numpy as np
 
 # Performance measurement setup
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.02,
     n_instances=1000,
     seed=42
@@ -256,7 +256,7 @@ Monitor for changes in performance over time:
 ```python
 # Monitor for concept drift using performance metrics
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.04,
     n_instances=1500,
     seed=42
@@ -334,7 +334,7 @@ from nonconform.utils.data.generator import BatchGenerator
 
 # Streaming evaluation
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.06,
     n_instances=600,
     seed=42
@@ -362,7 +362,7 @@ online_power = statistical_power(online_labels, online_decisions)
 
 # Batch evaluation using same data source
 batch_gen = BatchGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     batch_size=100,
     anomaly_proportion=0.06,
     anomaly_mode="probabilistic",
@@ -403,13 +403,13 @@ print(f"  Total Anomalies: {sum(sum(y_batch.values) for _, y_batch in batch_gen.
 ### Different Datasets and Training Splits
 
 ```python
-from nonconform.utils.data import load_breast, load_fraud
+from nonconform.utils.data import load, Dataset
 
 # Test with different datasets and training split ratios
 configs = [
-    (load_shuttle, 0.5, "Shuttle"),
-    (load_breast, 0.6, "Breast Cancer"),
-    (load_fraud, 0.7, "Credit Fraud")
+    (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), 0.5, "Shuttle"),
+    (lambda **kwargs: load(Dataset.BREAST, **kwargs), 0.6, "Breast Cancer"),
+    (lambda **kwargs: load(Dataset.FRAUD, **kwargs), 0.7, "Credit Fraud")
 ]
 
 for load_func, train_split, name in configs:
@@ -440,7 +440,7 @@ for load_func, train_split, name in configs:
 ```python
 # Test reproducibility
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.05,
     n_instances=200,
     seed=42
@@ -477,7 +477,7 @@ from scipy.stats import false_discovery_control
 
 # Streaming with batch FDR control
 online_gen = OnlineGenerator(
-    load_data_func=load_shuttle,
+    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
     anomaly_proportion=0.04,
     n_instances=500,
     seed=42

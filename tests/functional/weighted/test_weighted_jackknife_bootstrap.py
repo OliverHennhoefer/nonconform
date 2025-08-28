@@ -4,7 +4,7 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation import WeightedConformalDetector
 from nonconform.strategy import JackknifeBootstrap
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
@@ -12,7 +12,7 @@ from pyod.models.iforest import IForest
 class TestCaseJackknifeConformal(unittest.TestCase):
 
     def test_jackknife_bootstrap_conformal_breast(self):
-        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),

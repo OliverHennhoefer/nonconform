@@ -2,15 +2,16 @@ from online_fdr import BatchPRDS
 
 from nonconform.estimation import ExtremeConformalDetector, StandardConformalDetector
 from nonconform.strategy import Split
+from nonconform.utils.data import Dataset
 from nonconform.utils.data.generator import BatchGenerator
-from nonconform.utils.data.load import load_shuttle
+from nonconform.utils.data.load import load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
 
     batch_gen = BatchGenerator(
-        load_data_func=load_shuttle,
+        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=100,
         n_batches=10,
         anomaly_proportion=0.01,

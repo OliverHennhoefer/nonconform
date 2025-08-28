@@ -4,14 +4,14 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation.weighted_conformal import WeightedConformalDetector
 from nonconform.strategy.split import Split
-from nonconform.utils.data.load import load_fraud, load_shuttle
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 
 class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_fraud(self):
-        x_train, x_test, y_test = load_fraud(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"), strategy=Split(n_calib=10_000), seed=1
@@ -25,7 +25,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.71)
 
     def test_split_conformal_shuttle(self):
-        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"), strategy=Split(n_calib=10_000), seed=1

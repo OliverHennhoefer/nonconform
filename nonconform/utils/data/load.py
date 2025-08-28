@@ -1,4 +1,5 @@
-import gzip
+"""Modern dataset loading module with DatasetManager architecture."""
+
 import io
 import os
 import shutil
@@ -7,644 +8,424 @@ from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from tqdm import tqdm
 
+from nonconform.utils.data.registry import DATASET_REGISTRY, DatasetInfo
+from nonconform.utils.func.enums import Dataset
 from nonconform.utils.func.logger import get_logger
 
 logger = get_logger("utils.data.load")
 
-DATASET_VERSION = os.environ.get("UNQUAD_DATASET_VERSION", "v.0.8.1-datasets")
-DATASET_BASE_URL = os.environ.get(
-    "UNQUAD_DATASET_URL",
-    f"https://github.com/OliverHennhoefer/nonconform/releases/download/{DATASET_VERSION}/",
-)
-DATASET_SUFFIX = ".parquet.gz"
-_DATASET_CACHE: dict[str, bytes] = {}  # In-memory cache for downloaded datasets
 
-# Disk cache directory (version-aware) - created lazily
-_CACHE_DIR = None
+class DatasetManager:
+    """Manages dataset loading, caching, and metadata."""
 
-
-def _get_cache_dir() -> Path:
-    """Get cache directory, creating it lazily."""
-    global _CACHE_DIR
-    if _CACHE_DIR is None:
-        _CACHE_DIR = (
-            Path(
-                os.environ.get(
-                    "UNQUAD_CACHE_DIR", Path.home() / ".cache" / "nonconform"
-                )
-            )
-            / DATASET_VERSION
+    def __init__(self) -> None:
+        """Initialize the DatasetManager with configuration."""
+        self.version: str = os.environ.get("UNQUAD_DATASET_VERSION", "v0.9.17-datasets")
+        self.base_url: str = os.environ.get(
+            "UNQUAD_DATASET_URL",
+            f"https://github.com/OliverHennhoefer/nonconform/releases/download/{self.version}/",
         )
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    return _CACHE_DIR
+        self.suffix: str = ".npz"
+        self._memory_cache: dict[str, bytes] = {}
+        self._cache_dir: Path | None = None
 
+    @property
+    def cache_dir(self) -> Path:
+        """Get cache directory, creating it lazily."""
+        if self._cache_dir is None:
+            self._cache_dir = (
+                Path(
+                    os.environ.get(
+                        "UNQUAD_CACHE_DIR", Path.home() / ".cache" / "nonconform"
+                    )
+                )
+                / self.version
+            )
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        return self._cache_dir
 
-# Check if pyarrow is available for reading parquet files
-try:
-    import pyarrow  # noqa: F401
+    def load(
+        self, dataset: Dataset, setup: bool = False, seed: int | None = None
+    ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+        """
+        Load a dataset by enum value.
 
-    _PYARROW_AVAILABLE = True
-except ImportError:
-    _PYARROW_AVAILABLE = False
+        Args:
+            dataset: The dataset to load (use Dataset enum values).
+            setup: If True, splits the data into training and testing sets
+                   for anomaly detection tasks.
+            seed: Random seed for data splitting if setup is True.
 
+        Returns
+        -------
+            If setup is False, returns the complete dataset as a DataFrame.
+            If setup is True, returns a tuple: (x_train, x_test, y_test).
 
-def load_breast(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Breast Cancer Wisconsin (Diagnostic) dataset.
+        Raises
+        ------
+            ValueError: If the dataset is not found in the registry.
+            URLError: If dataset download fails.
+        """
+        name = dataset.value  # Extract string value from enum
 
-    This dataset contains features computed from a digitized image of a
-    fine needle aspirate (FNA) of a breast mass. They describe
-    characteristics of the cell nuclei present in the image. The "Class"
-    column typically indicates malignant (1) or benign (0).
+        if name not in DATASET_REGISTRY:
+            available = ", ".join(sorted(DATASET_REGISTRY.keys()))
+            raise ValueError(
+                f"Dataset '{name}' not found. Available datasets: {available}"
+            )
 
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
+        filename = DATASET_REGISTRY[name].filename
 
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"breast{DATASET_SUFFIX}"), setup, seed)
+        # Download or retrieve from cache
+        data_bytes = self._download(filename)
 
+        # Load NPZ file from bytes
+        buffer = io.BytesIO(data_bytes)
+        npz_file = np.load(buffer)
 
-def load_fraud(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load a credit card fraud detection dataset.
+        # Extract data and labels
+        data = npz_file["X"]
+        labels = npz_file["y"]
 
-    This dataset typically contains transactions made by European cardholders.
-    It presents transactions that occurred in two days, where it has features
-    that are numerical input variables, the result of a PCA transformation.
-    The "Class" column indicates fraudulent (1) or legitimate (0) transactions.
+        # Convert integer types to float32 for PyOD compatibility
+        if data.dtype in [
+            np.int8,
+            np.int16,
+            np.int32,
+            np.int64,
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
+        ]:
+            data = data.astype(np.float32)
 
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
+        # Create DataFrame with programmatic column names
+        column_names = [f"V{i+1}" for i in range(data.shape[1])]
+        df = pd.DataFrame(data, columns=column_names)
+        df["Class"] = labels
 
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"fraud{DATASET_SUFFIX}"), setup, seed)
+        if setup:
+            return self._create_setup(df, seed)
 
+        return df
 
-def load_ionosphere(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Ionosphere dataset.
+    def _download(self, filename: str) -> bytes:
+        """
+        Download dataset with memory and disk caching.
 
-    This radar data was collected by a system in Goose Bay, Labrador.
-    The targets were free electrons in the ionosphere. "Good" radar returns
-    are those showing evidence of some type of structure in the ionosphere.
-    "Bad" returns are those that do not; their signals pass through the
-    ionosphere. The "Class" column indicates "good" (0) or "bad" (1, anomaly).
+        Args:
+            filename: Name of the dataset file (e.g., "breast.npz").
 
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
+        Returns
+        -------
+            Bytes content of the dataset file.
 
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"ionosphere{DATASET_SUFFIX}"), setup, seed)
+        Raises
+        ------
+            URLError: If download fails.
+        """
+        # Check memory cache first
+        if filename in self._memory_cache:
+            logger.debug("Loading %s from memory cache", filename)
+            return self._memory_cache[filename]
 
+        # Check disk cache second
+        cache_file = self.cache_dir / filename
+        if cache_file.exists():
+            logger.debug("Loading %s from disk cache (v%s)", filename, self.version)
+            with open(cache_file, "rb") as f:
+                data = f.read()
+            self._memory_cache[filename] = data
+            return data
 
-def load_mammography(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Mammography dataset.
+        # Clean old versions before downloading
+        self._cleanup_old_versions()
 
-    This dataset is used for detecting breast cancer based on mammographic
-    findings. It contains features related to BI-RADS assessment, age,
-    shape, margin, and density. The "Class" column usually indicates
-    benign (0) or malignant (1, anomaly).
+        # Download file
+        url = urljoin(self.base_url, filename)
+        logger.info("Downloading %s from %s...", filename, url)
 
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
+        try:
+            # Add headers to avoid GitHub rate limiting
+            req = Request(url, headers={"User-Agent": "nonconform-dataset-loader"})
 
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"mammography{DATASET_SUFFIX}"), setup, seed)
-
-
-def load_musk(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Musk (Version 2) dataset.
-
-    This dataset describes a set of 102 molecules of which 39 are judged
-    by human experts to be musks and the remaining 63 molecules are
-    judged to be non-musks. The 166 features describe the three-dimensional
-    conformation of the molecules. The "Class" indicates musk (1, anomaly)
-    or non-musk (0).
-
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
-
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"musk{DATASET_SUFFIX}"), setup, seed)
-
-
-def load_shuttle(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Shuttle dataset.
-
-    This dataset contains data from a NASA space shuttle mission concerning
-    the position of radiators in the shuttle. The "Class" column indicates
-    normal (0) or anomalous (1) states. The original dataset has multiple
-    anomaly classes; this version typically simplifies it to binary.
-
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
-
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"shuttle{DATASET_SUFFIX}"), setup, seed)
-
-
-def load_thyroid(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Thyroid Disease (ann-thyroid) dataset.
-
-    This dataset is used for diagnosing thyroid conditions based on patient
-    attributes and test results. The "Class" column indicates normal (0)
-    or some form of thyroid disease (1, anomaly).
-
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
-
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"thyroid{DATASET_SUFFIX}"), setup, seed)
-
-
-def load_wbc(
-    setup: bool = False, seed: int | None = None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load the Wisconsin Breast Cancer (Original) (WBC) dataset.
-
-    This dataset contains features derived from clinical observations of
-    breast cancer, such as clump thickness, cell size uniformity, etc.
-    The "Class" column indicates benign (0) or malignant (1, anomaly).
-    Note: This is distinct from the "breast" dataset which is often the
-    Diagnostic version.
-
-    Args:
-        setup (bool, optional): If ``True``, splits the data into training
-            and testing sets according to a specific experimental setup,
-            returning (x_train, x_test, y_test). `x_train` contains only
-            normal samples. Defaults to ``False``, which returns the full
-            DataFrame.
-        seed (int, optional): Seed for random number generation used
-            in data splitting if `setup` is ``True``. Defaults to ``None``
-            for true randomness.
-
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
-    """
-    return _load_dataset(Path(f"wbc{DATASET_SUFFIX}"), setup, seed)
-
-
-def _download_dataset(filename: str, show_progress: bool = True) -> io.BytesIO:
-    """Download dataset with memory and disk caching.
-
-    Args:
-        filename: Name of the dataset file (e.g., "breast.parquet.gz")
-        show_progress: Whether to show download progress
-
-    Returns
-    -------
-        BytesIO object containing the compressed dataset
-
-    Raises
-    ------
-        URLError: If download fails
-    """
-    # Check memory cache first
-    if filename in _DATASET_CACHE:
-        return io.BytesIO(_DATASET_CACHE[filename])
-
-    # Check disk cache second
-    cache_dir = _get_cache_dir()
-    cache_file = cache_dir / filename
-    if cache_file.exists():
-        logger.debug("Loading %s from disk cache (v%s)", filename, DATASET_VERSION)
-        with open(cache_file, "rb") as f:
-            data = f.read()
-        _DATASET_CACHE[filename] = data
-        return io.BytesIO(data)
-
-    # Clean old versions before downloading
-    _cleanup_old_versions()
-
-    # Download file
-    url = urljoin(DATASET_BASE_URL, filename)
-    logger.info("Downloading %s from %s...", filename, url)
-
-    try:
-        # Add headers to avoid GitHub rate limiting
-        req = Request(url, headers={"User-Agent": "nonconform-dataset-loader"})
-
-        with urlopen(req) as response:
-            total_size = int(response.headers.get("Content-Length", 0))
-
-            # Download with progress bar if requested
-            if show_progress and total_size > 0:
-                try:
-                    with tqdm(
-                        total=total_size, unit="B", unit_scale=True, desc=filename
-                    ) as pbar:
-                        # Use bytearray for efficient concatenation, then convert
-                        data_buffer = bytearray()
-                        while True:
-                            chunk = response.read(8192)
-                            if not chunk:
-                                break
-                            data_buffer.extend(chunk)
-                            pbar.update(len(chunk))
-                        data = bytes(data_buffer)
-                except ImportError:
-                    # Fallback to simple download without progress bar
-                    data = response.read()
-            else:
+            with urlopen(req) as response:
                 data = response.read()
 
-    except URLError as e:
-        raise URLError(f"Failed to download {filename}: {e!s}") from e
+        except URLError as e:
+            raise URLError(f"Failed to download {filename}: {e!s}") from e
 
-    # Cache in memory and on disk
-    _DATASET_CACHE[filename] = data
-    # Ensure cache directory exists before writing (important for tests)
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_file, "wb") as f:
-        f.write(data)
+        # Cache in memory and on disk
+        self._memory_cache[filename] = data
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "wb") as f:
+            f.write(data)
 
-    logger.debug("Successfully cached %s (%.1f KB)", filename, len(data) / 1024)
-    return io.BytesIO(data)
+        logger.debug("Successfully cached %s (%.1f KB)", filename, len(data) / 1024)
+        return data
 
+    def _create_setup(
+        self, df: pd.DataFrame, seed: int | None
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+        """
+        Create an experimental train/test split from a dataset.
 
-def _load_dataset(
-    file_path, setup: bool, seed: int | None
-) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Load a dataset from a gzipped Parquet file and optionally sets it up.
+        This setup creates a scenario for anomaly detection where:
+        - The training set contains only normal samples (Class 0).
+        - The test set contains a mix of normal and anomaly samples.
 
-    This is a helper function used by the specific dataset loaders. It downloads
-    the dataset from GitHub releases and caches it in memory, then reads the
-    Parquet file compressed with gzip. If `setup` is true, it calls
-    `_create_setup` to split the data.
+        Args:
+            df: The input DataFrame with a "Class" column.
+            seed: Random seed for data splitting.
 
-    Args:
-        file_path: The path object (used to extract filename).
-        setup (bool): If ``True``, the data is processed by `_create_setup`
-            to produce training and testing sets.
-        seed (int | None): Seed for random number generation, used if
-            `setup` is ``True``. None for true randomness.
+        Returns
+        -------
+            A tuple (x_train, x_test, y_test).
+        """
+        normal = df[df["Class"] == 0]
+        n_train = len(normal) // 2
+        n_test = min(1000, n_train // 3)
+        n_test_outlier = n_test // 10
+        n_test_normal = n_test - n_test_outlier
 
-    Returns
-    -------
-        Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.Series]]:
-            If `setup` is ``False``, returns the complete dataset as a
-            DataFrame. If `setup` is ``True``, returns a tuple:
-            (x_train, x_test, y_test).
+        x_train_full, test_set_normal_pool = train_test_split(
+            normal, train_size=n_train, random_state=seed
+        )
+        x_train = x_train_full.drop(columns=["Class"])
 
-    Raises
-    ------
-        ImportError: If pyarrow is not available for reading parquet files.
-        URLError: If dataset download fails.
-    """
-    if not _PYARROW_AVAILABLE:
-        raise ImportError(
-            "The datasets functionality requires pyarrow to read parquet files. "
-            "Please install the data dependencies with: pip install nonconform[data]"
+        # Ensure enough samples are available
+        actual_n_test_normal = min(n_test_normal, len(test_set_normal_pool))
+        test_normal = test_set_normal_pool.sample(
+            n=actual_n_test_normal, random_state=seed
         )
 
-    # Extract filename from the provided path
-    filename = file_path.name
+        outliers_available = df[df["Class"] == 1]
+        actual_n_test_outlier = min(n_test_outlier, len(outliers_available))
+        test_outliers = outliers_available.sample(
+            n=actual_n_test_outlier, random_state=seed
+        )
 
-    # Download dataset to memory
-    compressed_stream = _download_dataset(filename)
+        test_set = pd.concat([test_normal, test_outliers], ignore_index=True)
 
-    # GzipFile is not seekable, which is required by pyarrow.
-    # Decompress to an in-memory buffer to allow seeking.
-    with gzip.open(compressed_stream, "rb") as f_gz:
-        buffer = io.BytesIO(f_gz.read())
-    df = pd.read_parquet(buffer)
+        x_test = test_set.drop(columns=["Class"])
+        y_test = test_set["Class"]
 
-    if setup:
-        return _create_setup(df, seed=seed)
+        return x_train, x_test, y_test
 
-    return df
+    def _cleanup_old_versions(self) -> None:
+        """Remove cache directories from old dataset versions."""
+        cache_root = self.cache_dir.parent
+        if not cache_root.exists():
+            return
+
+        current_version = self.version
+        removed_count = 0
+
+        for version_dir in cache_root.iterdir():
+            if version_dir.is_dir() and version_dir.name != current_version:
+                try:
+                    shutil.rmtree(version_dir)
+                    removed_count += 1
+                except PermissionError:
+                    # Skip directories with permission issues
+                    pass
+
+        if removed_count > 0:
+            logger.info("Cleaned up %d old dataset versions", removed_count)
+
+    def clear_cache(
+        self, dataset: str | None = None, all_versions: bool = False
+    ) -> None:
+        """
+        Clear dataset cache.
+
+        Args:
+            dataset: Specific dataset name to clear. If None, clears all.
+            all_versions: If True, clears cache for all dataset versions.
+        """
+        if all_versions:
+            # Clear entire cache directory (all versions)
+            cache_root = self.cache_dir.parent
+            if cache_root.exists():
+                try:
+                    shutil.rmtree(cache_root)
+                    logger.info("Cleared all dataset cache (all versions)")
+                except PermissionError:
+                    logger.warning("Could not clear all cache due to file permissions")
+            self._memory_cache.clear()
+            return
+
+        if dataset is not None:
+            # Clear specific dataset
+            filename = f"{dataset}{self.suffix}"
+
+            # Remove from memory cache
+            self._memory_cache.pop(filename, None)
+
+            # Remove from disk cache
+            cache_file = self.cache_dir / filename
+            if cache_file.exists():
+                cache_file.unlink()
+                logger.info("Cleared cache for dataset: %s", dataset)
+            else:
+                logger.info("No cache found for dataset: %s", dataset)
+        else:
+            # Clear all datasets for current version
+            if self.cache_dir.exists():
+                try:
+                    shutil.rmtree(self.cache_dir)
+                    logger.info("Cleared all dataset cache (v%s)", self.version)
+                except PermissionError:
+                    logger.warning(
+                        "Could not clear cache directory (v%s) due to file permissions",
+                        self.version,
+                    )
+            self._memory_cache.clear()
+
+    def list_available(self) -> list[str]:
+        """
+        Get a list of all available dataset names.
+
+        Returns
+        -------
+            Sorted list of dataset names.
+        """
+        return sorted(DATASET_REGISTRY.keys())
+
+    def get_info(self, dataset: Dataset) -> DatasetInfo:
+        """
+        Get metadata for a specific dataset.
+
+        Args:
+            dataset: The dataset to get info for (use Dataset enum values).
+
+        Returns
+        -------
+            DatasetInfo object with dataset metadata.
+
+        Raises
+        ------
+            ValueError: If the dataset is not found.
+        """
+        name = dataset.value  # Extract string value from enum
+
+        if name not in DATASET_REGISTRY:
+            available = ", ".join(sorted(DATASET_REGISTRY.keys()))
+            raise ValueError(
+                f"Dataset '{name}' not found. Available datasets: {available}"
+            )
+        return DATASET_REGISTRY[name]
+
+    def get_cache_location(self) -> str:
+        """
+        Get the cache directory path.
+
+        Returns
+        -------
+            String path to the cache directory.
+        """
+        return str(self.cache_dir)
 
 
-def _create_setup(
-    df: pd.DataFrame, seed: int | None
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """Create an experimental train/test split from a dataset.
+# Create singleton instance
+_manager = DatasetManager()
 
-    This setup aims to create a scenario for anomaly detection where:
-    - The training set (`x_train`) contains only normal samples (Class 0).
-    - The test set (`x_test`, `y_test`) contains a mix of normal samples
-      and a smaller proportion of outlier samples (Class 1).
 
-    The sizes are determined as follows:
-    - `n_train`: Half of the available normal samples.
-    - `n_test`: The minimum of 1000 or one-third of `n_train`.
-    - `n_test_outlier`: 10% of `n_test`.
-    - `n_test_normal`: The remaining 90% of `n_test`.
-
-    The "Class" column is dropped from `x_train` and `x_test`.
+# Public API functions
+def load(
+    dataset: Dataset, setup: bool = False, seed: int | None = None
+) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
+    """
+    Load a dataset from the collection.
 
     Args:
-        df (pandas.DataFrame): The input DataFrame, expected to have a "Class"
-            column where 0 indicates normal and 1 indicates an outlier.
-        seed (int | None): Seed for random number generation used in
-            splitting and sampling. None for true randomness.
+        dataset: The dataset to load (use Dataset enum values).
+        setup: If True, split data for anomaly detection tasks.
+        seed: Random seed for data splitting.
 
     Returns
     -------
-    Tuple[pandas.DataFrame, pandas.DataFrame, pandas.Series]:
-        A tuple (x_train, x_test, y_test):
+        A pandas DataFrame or a tuple of (x_train, x_test, y_test).
 
-        - `x_train`: DataFrame of training features (normal samples only).
-        - `x_test`: DataFrame of test features.
-        - `y_test`: Series of test labels (0 for normal, 1 for outlier).
+    Examples
+    --------
+        >>> from nonconform.utils.data import Dataset
+        >>> df = load(Dataset.BREAST)
+        >>> x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=42)
     """
-    normal = df[df["Class"] == 0]
-    n_train = len(normal) // 2
-    n_test = min(1000, n_train // 3)
-    n_test_outlier = n_test // 10
-    n_test_normal = n_test - n_test_outlier
-
-    x_train_full, test_set_normal_pool = train_test_split(
-        normal, train_size=n_train, random_state=seed
-    )
-    x_train = x_train_full.drop(columns=["Class"])
-
-    # Ensure enough samples are available for sampling
-    # These checks could raise errors or adjust sample sizes if needed
-    actual_n_test_normal = min(n_test_normal, len(test_set_normal_pool))
-    test_normal = test_set_normal_pool.sample(n=actual_n_test_normal, random_state=seed)
-
-    outliers_available = df[df["Class"] == 1]
-    actual_n_test_outlier = min(n_test_outlier, len(outliers_available))
-    test_outliers = outliers_available.sample(
-        n=actual_n_test_outlier, random_state=seed
-    )
-
-    test_set = pd.concat([test_normal, test_outliers], ignore_index=True)
-
-    x_test = test_set.drop(columns=["Class"])
-    y_test = test_set["Class"]
-
-    return x_train, x_test, y_test
+    return _manager.load(dataset, setup=setup, seed=seed)
 
 
-def _cleanup_old_versions() -> None:
-    """Remove cache directories from old dataset versions."""
-    cache_dir = _get_cache_dir()
-    cache_root = cache_dir.parent
-    if not cache_root.exists():
-        return
+def list_available() -> list[str]:
+    """
+    Get a list of all available dataset names.
 
-    current_version = DATASET_VERSION
-    removed_count = 0
+    Returns
+    -------
+        Sorted list of dataset names.
 
-    for version_dir in cache_root.iterdir():
-        if version_dir.is_dir() and version_dir.name != current_version:
-            try:
-                shutil.rmtree(version_dir)
-                removed_count += 1
-            except PermissionError:
-                # On Windows, files may be locked by other processes (e.g., swap files)
-                # Skip these directories to avoid test failures
-                pass
+    Examples
+    --------
+        >>> datasets = list_available()
+        >>> print(datasets)
+        ['breast', 'fraud', 'ionosphere', ...]
+    """
+    return _manager.list_available()
 
-    if removed_count > 0:
-        logger.info("Cleaned up %d old dataset versions", removed_count)
+
+def get_info(dataset: Dataset) -> DatasetInfo:
+    """
+    Get detailed metadata for a specific dataset.
+
+    Args:
+        dataset: The dataset to get info for (use Dataset enum values).
+
+    Returns
+    -------
+        DatasetInfo object with dataset metadata.
+
+    Examples
+    --------
+        >>> from nonconform.utils.data import Dataset
+        >>> info = get_info(Dataset.BREAST)
+        >>> print(info.description)
+    """
+    return _manager.get_info(dataset)
 
 
 def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
-    """Clear dataset cache.
+    """
+    Clear dataset cache.
 
     Args:
-        dataset: Specific dataset name to clear (e.g., "breast").
-                If None, clears all datasets for current version.
+        dataset: Specific dataset name to clear. If None, clears all.
         all_versions: If True, clears cache for all dataset versions.
-                     If False, only clears current version.
+
+    Examples
+    --------
+        >>> clear_cache("breast")  # Clear specific dataset
+        >>> clear_cache()  # Clear all datasets
+        >>> clear_cache(all_versions=True)  # Clear all versions
     """
-    global _DATASET_CACHE
-
-    if all_versions:
-        # Clear entire cache directory (all versions)
-        cache_root = _get_cache_dir().parent
-        if cache_root.exists():
-            try:
-                shutil.rmtree(cache_root)
-                logger.info("Cleared all dataset cache (all versions)")
-            except PermissionError:
-                # On Windows, files may be locked by other processes
-                logger.warning("Could not clear all cache due to file permissions")
-        _DATASET_CACHE.clear()
-        return
-
-    if dataset is not None:
-        # Clear specific dataset
-        filename = f"{dataset}{DATASET_SUFFIX}"
-
-        # Remove from memory cache
-        _DATASET_CACHE.pop(filename, None)
-
-        # Remove from disk cache
-        cache_dir = _get_cache_dir()
-        cache_file = cache_dir / filename
-        if cache_file.exists():
-            cache_file.unlink()
-            logger.info("Cleared cache for dataset: %s", dataset)
-        else:
-            logger.info("No cache found for dataset: %s", dataset)
-    else:
-        # Clear all datasets for current version
-        cache_dir = _get_cache_dir()
-        if cache_dir.exists():
-            try:
-                shutil.rmtree(cache_dir)
-                logger.info("Cleared all dataset cache (v%s)", DATASET_VERSION)
-            except PermissionError:
-                # On Windows, files may be locked by other processes
-                logger.warning(
-                    "Could not clear cache directory (v%s) due to file permissions",
-                    DATASET_VERSION,
-                )
-        _DATASET_CACHE.clear()
-
-
-def list_cached_datasets() -> list[str]:
-    """List all datasets cached (memory + disk).
-
-    Returns
-    -------
-        List of cached dataset names (without .parquet.gz extension)
-    """
-    cached_names = set()
-
-    # Add from memory cache
-    cached_names.update(
-        filename.removesuffix(DATASET_SUFFIX) for filename in _DATASET_CACHE.keys()
-    )
-
-    # Add from disk cache
-    cache_dir = _get_cache_dir()
-    if cache_dir.exists():
-        cached_names.update(
-            f.name.removesuffix(DATASET_SUFFIX)
-            for f in cache_dir.glob(f"*{DATASET_SUFFIX}")
-        )
-
-    return sorted(cached_names)
-
-
-def get_cache_info() -> dict:
-    """Get comprehensive cache information.
-
-    Returns
-    -------
-        Dictionary with memory and disk cache information
-    """
-    cache_dir = _get_cache_dir()
-    cache_root = cache_dir.parent
-
-    # Memory cache info
-    memory_info = {
-        "datasets": list(_DATASET_CACHE.keys()),
-        "count": len(_DATASET_CACHE),
-        "size_mb": round(
-            sum(len(data) for data in _DATASET_CACHE.values()) / (1024 * 1024), 2
-        ),
-    }
-
-    # Disk cache info
-    disk_info = {
-        "cache_dir": str(cache_dir),
-        "current_version": DATASET_VERSION,
-        "datasets": [],
-        "total_size_mb": 0,
-    }
-
-    if cache_dir.exists():
-        total_size = 0
-        for cache_file in cache_dir.glob(f"*{DATASET_SUFFIX}"):
-            size = cache_file.stat().st_size
-            total_size += size
-            size_mb = size / (1024 * 1024)
-            # Use more precision for small files to avoid rounding to 0
-            precision = 6 if size_mb < 0.01 else 2
-            disk_info["datasets"].append(
-                {
-                    "name": cache_file.name.removesuffix(DATASET_SUFFIX),
-                    "size_mb": round(size_mb, precision),
-                }
-            )
-        disk_info["total_size_mb"] = round(total_size / (1024 * 1024), 2)
-
-    # Check for old versions
-    old_versions = []
-    if cache_root.exists():
-        for version_dir in cache_root.iterdir():
-            if version_dir.is_dir() and version_dir.name != DATASET_VERSION:
-                old_versions.append(version_dir.name)
-
-    return {"memory": memory_info, "disk": disk_info, "old_versions": old_versions}
+    _manager.clear_cache(dataset=dataset, all_versions=all_versions)
 
 
 def get_cache_location() -> str:
-    """Get the cache directory path."""
-    return str(_get_cache_dir())
+    """
+    Get the cache directory path.
+
+    Returns
+    -------
+        String path to the cache directory.
+
+    Examples
+    --------
+        >>> location = get_cache_location()
+        >>> print(f"Cache stored at: {location}")
+    """
+    return _manager.get_cache_location()

@@ -12,12 +12,12 @@ from pyod.models.iforest import IForest
 from pyod.models.ocsvm import OCSVM
 from nonconform.estimation import ExtremeConformalDetector, StandardConformalDetector
 from nonconform.strategy import Split
-from nonconform.utils.data import load_shuttle
+from nonconform.utils.data import load, Dataset
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from scipy.stats import false_discovery_control
 
 # Load dataset
-x_train, x_test, y_test = load_shuttle(setup=True)
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 print(f"Training set: {x_train.shape}")
 print(f"Test set: {x_test.shape}")
 print(f"Anomaly rate: {y_test.mean():.3f}")
@@ -92,12 +92,12 @@ for alpha in significance_levels:
     extreme_decisions = p_values < alpha
     extreme_fdr = false_discovery_rate(y_test, extreme_decisions)
     extreme_power = statistical_power(y_test, extreme_decisions)
-    
+
     # Standard conformal decisions
     std_decisions = p_values_standard < alpha
     std_fdr = false_discovery_rate(y_test, std_decisions)
     std_power = statistical_power(y_test, std_decisions)
-    
+
     results.append({
         'alpha': alpha,
         'extreme_fdr': extreme_fdr,
@@ -137,16 +137,16 @@ for method, value in threshold_methods:
         evt_min_tail_size=10,
         seed=42
     )
-    
+
     detector.fit(x_train)
-    
+
     # Check if EVT fitting succeeded
     if detector.gpd_params is not None:
         p_vals = detector.predict(x_test)
         decisions = p_vals < 0.05
         fdr = false_discovery_rate(y_test, decisions)
         power = statistical_power(y_test, decisions)
-        
+
         threshold_results.append({
             'method': f"{method}({value})",
             'evt_threshold': detector.evt_threshold,
@@ -199,15 +199,15 @@ for name, base_detector in detectors:
         evt_threshold_value=0.95,
         seed=42
     )
-    
+
     extreme_det.fit(x_train)
-    
+
     if extreme_det.gpd_params is not None:
         p_vals = extreme_det.predict(x_test)
         decisions = p_vals < 0.05
         fdr = false_discovery_rate(y_test, decisions)
         power = statistical_power(y_test, decisions)
-        
+
         detector_results.append({
             'detector': name,
             'extreme_success': True,
@@ -261,7 +261,7 @@ if custom_detector.gpd_params is not None:
     decisions_custom = p_vals_custom < 0.05
     fdr_custom = false_discovery_rate(y_test, decisions_custom)
     power_custom = statistical_power(y_test, decisions_custom)
-    
+
     print(f"Custom Extreme - FDR: {fdr_custom:.3f}, Power: {power_custom:.3f}")
 ```
 

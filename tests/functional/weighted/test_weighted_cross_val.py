@@ -4,15 +4,14 @@ from scipy.stats import false_discovery_control
 
 from nonconform.estimation.weighted_conformal import WeightedConformalDetector
 from nonconform.strategy.cross_val import CrossValidation
-from nonconform.utils.data import load_shuttle, load_thyroid
-from nonconform.utils.data.load import load_fraud
+from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 
 class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_fraud(self):
-        x_train, x_test, y_test = load_fraud(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"), strategy=CrossValidation(k=5), seed=1
@@ -26,7 +25,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.22)
 
     def test_cross_val_conformal_plus_fraud(self):
-        x_train, x_test, y_test = load_fraud(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
@@ -42,7 +41,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.24)
 
     def test_cross_val_conformal_shuttle(self):
-        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
@@ -58,7 +57,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.98)
 
     def test_cross_val_conformal_plus_shuttle(self):
-        x_train, x_test, y_test = load_shuttle(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
@@ -74,7 +73,7 @@ class TestCaseSplitConformal(unittest.TestCase):
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.98)
 
     def test_cross_val_conformal_thyroid(self):
-        x_train, x_test, y_test = load_thyroid(setup=True, seed=1)
+        x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
