@@ -7,29 +7,26 @@ import numpy as np
 import pandas as pd
 
 
-def performance_conversion(*arg_names: str) -> Callable:
+def _performance_conversion(*arg_names: str) -> Callable:
     """Create a decorator to convert specified arguments and return values.
 
-    This decorator factory produces a decorator that, when applied to a
-    function, automatically converts specified input arguments from Python
-    lists to ``numpy.ndarray`` objects before the function call. It also
-    converts ``numpy.ndarray`` objects found in the function's return
-    value (including those nested within lists or tuples) back into
-    Python lists.
-
-    Argument conversion applies to both positional and keyword arguments
-    identified by `arg_names`. If a list cannot be directly converted to a
-    ``numpy.ndarray`` due to heterogeneous data (raising a ``ValueError``),
-    it attempts to convert nested lists within the main list individually.
+    **Internal use only.** This decorator factory produces a decorator that
+    converts specified input arguments from Python lists to numpy arrays before function
+    calls and converts numpy arrays in return values back to Python lists.
 
     Args:
-        *arg_names (str): One or more names of the arguments in the
-            decorated function that should be converted from lists to
-            ``numpy.ndarray``.
+        *arg_names: One or more names of the arguments in the decorated function
+            that should be converted from lists to numpy.ndarray.
 
     Returns
     -------
-        Callable: The actual decorator that can be applied to a function.
+        The actual decorator that can be applied to a function.
+
+    Note:
+        This is an internal utility function. Argument conversion applies to both
+        positional and keyword arguments. If a list cannot be directly converted
+        to numpy array due to heterogeneous data, it attempts to convert nested
+        lists individually.
     """
 
     def decorator(func: Callable) -> Callable:
@@ -84,23 +81,24 @@ def performance_conversion(*arg_names: str) -> Callable:
     return decorator
 
 
-def ensure_numpy_array(func: Callable) -> Callable:
-    """Ensure a specific input argument is a ``numpy.ndarray``.
+def _ensure_numpy_array(func: Callable) -> Callable:
+    """Ensure a specific input argument is a numpy array.
 
-    This decorator is designed for methods where the first argument after
-    `self` (conventionally named `x`) is expected to be a ``numpy.ndarray``.
-    If this argument is a ``pandas.DataFrame``, it is converted to a
-    ``numpy.ndarray`` using its ``.values`` attribute. If it's already a
-    ``numpy.ndarray``, it is passed through unchanged.
+    **Internal use only.** This decorator is designed for methods where the first
+    argument after `self` (conventionally named `x`) is expected to be a numpy array.
+    Automatically converts pandas DataFrame to numpy array using .values attribute.
 
     Args:
-        func (Callable): The method to be decorated. It is assumed to have
-            `self` as its first parameter, followed by the data argument `x`.
+        func: The method to be decorated. Must have `self` as first parameter,
+            followed by the data argument `x`.
 
     Returns
     -------
-        Callable: The wrapped method, which will receive `x` as a
-            ``numpy.ndarray``.
+        The wrapped method that will receive `x` as a numpy array.
+
+    Note:
+        This is an internal utility decorator used throughout the package to ensure
+        consistent data types for detector methods.
     """
 
     @wraps(func)

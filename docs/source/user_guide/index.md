@@ -7,6 +7,8 @@ Comprehensive documentation for using Nonconform effectively.
 - [Conformal Inference](conformal_inference.md) - Theoretical foundations
 - [Statistical Concepts](statistical_concepts.md) - Key statistical principles
 - [Conformalization Strategies](conformalization_strategies.md) - Available calibration strategies
+- [Choosing Strategies](choosing_strategies.md) - Strategy selection guide
+- [Detector Compatibility](detector_compatibility.md) - PyOD detector guide
 
 ## Advanced Topics
 

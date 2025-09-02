@@ -340,23 +340,50 @@ _manager = DatasetManager()
 def load(
     dataset: Dataset, setup: bool = False, seed: int | None = None
 ) -> pd.DataFrame | tuple[pd.DataFrame, pd.DataFrame, pd.Series]:
-    """
-    Load a dataset from the collection.
+    """Load a benchmark anomaly detection dataset.
+
+    Provides access to curated datasets commonly used for anomaly detection research.
+    Datasets are automatically downloaded and cached locally for efficient reuse.
 
     Args:
-        dataset: The dataset to load (use Dataset enum values).
-        setup: If True, split data for anomaly detection tasks.
-        seed: Random seed for data splitting.
+        dataset: Dataset to load using Dataset enum (e.g., Dataset.SHUTTLE, ...).
+        setup: If True, automatically splits data for anomaly detection workflow.
+               Returns (x_train, x_test, y_test), x_train contains only normal samples.
+        seed: Random seed for reproducible train/test splitting when setup=True.
 
     Returns
     -------
-        A pandas DataFrame or a tuple of (x_train, x_test, y_test).
+        - If setup=False: Complete dataset as pd.DataFrame with 'label' column
+        - If setup=True: Tuple of (x_train, x_test, y_test) where:
+            - x_train: Normal samples for training (features only)
+            - x_test: Mixed test samples (features only)
+            - y_test: True labels for test samples (0=normal, 1=anomaly)
 
     Examples
     --------
-        >>> from nonconform.utils.data import Dataset
-        >>> df = load(Dataset.BREAST)
-        >>> x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=42)
+        Load complete dataset for exploration:
+        ```python
+        from nonconform.utils.data import load, Dataset
+
+        # Load full dataset with labels
+        df = load(Dataset.MAMMOGRAPHY)
+        print(f"Dataset shape: {df.shape}")
+        print(f"Anomaly rate: {df['label'].mean():.1%}")
+        ```
+
+        Load split data ready for conformal detection:
+        ```python
+        # Get training/test split for anomaly detection
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
+
+        # x_train contains only normal samples for detector training
+        print(f"Training samples: {len(x_train)} (all normal)")
+        print(f"Test samples: {len(x_test)} ({np.sum(y_test)} anomalies)")
+        ```
+
+    Available Datasets:
+        Use `list_available()` to see all available datasets, or check enum values:
+        Dataset.MAMMOGRAPHY, Dataset.SHUTTLE, Dataset.FRAUD, etc.
     """
     return _manager.load(dataset, setup=setup, seed=seed)
 

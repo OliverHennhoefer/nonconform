@@ -57,6 +57,8 @@ nav:
     - user_guide/index.md
     - Conformal Inference: user_guide/conformal_inference.md
     - Conformalization Strategies: user_guide/conformalization_strategies.md
+    - Choosing Strategies: user_guide/choosing_strategies.md
+    - Detector Compatibility: user_guide/detector_compatibility.md
     - Weighted Conformal: user_guide/weighted_conformal.md
     - FDR Control: user_guide/fdr_control.md
     - Batch Evaluation: user_guide/batch_evaluation.md
@@ -86,7 +88,7 @@ plugins:
       handlers:
         python:
           options:
-            docstring_style: numpy
+            docstring_style: google
             docstring_options:
               ignore_init_summary: true
             merge_init_into_class: true
@@ -98,6 +100,8 @@ plugins:
             members_order: source
             separate_signature: true
             show_signature_annotations: true
+            filters:
+              - "!^_"  # Exclude internal functions starting with underscore
 
 markdown_extensions:
   - admonition

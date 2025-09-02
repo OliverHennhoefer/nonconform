@@ -9,48 +9,60 @@ from tqdm import tqdm
 
 from nonconform.estimation.base import BaseConformalDetector
 from nonconform.strategy.base import BaseStrategy
-from nonconform.utils.func.decorator import ensure_numpy_array
+from nonconform.utils.func.decorator import _ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
-from nonconform.utils.func.params import set_params
+from nonconform.utils.func.params import _set_params
 from nonconform.utils.stat.aggregation import aggregate
 from nonconform.utils.stat.statistical import calculate_weighted_p_val
 from pyod.models.base import BaseDetector
 
 
 class WeightedConformalDetector(BaseConformalDetector):
-    """Weighted conformal anomaly detector with covariate shift adaptation.
+    """Weighted conformal anomaly detector for handling covariate shift.
 
-    This detector inherits from BaseConformalDetector and implements a conformal
-    prediction framework for anomaly detection, incorporating weights to adapt to
-    potential covariate shifts between calibration and test data. It leverages an
-    underlying PyOD detector and a calibration strategy.
+    Adapts conformal prediction to scenarios where test data distribution differs from
+    training data (covariate shift) by incorporating importance weights. This ensures
+    valid p-values and FDR control even when the exchangeability assumption is violated.
 
-    The weighting mechanism estimates the density ratio between calibration
-    and test instances using a logistic regression model trained to
-    distinguish between them. These weights are then used in the calculation
-    of p-values.
+    The detector automatically estimates density ratios between calibration and test
+    distributions using logistic regression, then applies these weights to maintain
+    statistical validity under distribution shift.
 
-    The methodology is inspired by concepts for handling covariate shift in
-    conformal prediction, adapted for anomaly detection.
+    Example:
+        Using weighted conformal for data with suspected distribution shift:
+
+        ```python
+        from pyod.models.lof import LOF
+        from nonconform.estimation import WeightedConformalDetector
+        from nonconform.strategy import Split
+
+        # Create weighted conformal detector
+        detector = WeightedConformalDetector(
+            detector=LOF(n_neighbors=20), strategy=Split(n_calib=0.2), seed=42
+        )
+
+        # Fit on training data (normal samples only)
+        detector.fit(X_train)
+
+        # Get weighted p-values that account for distribution shift
+        p_values = detector.predict(X_test)
+
+        # Apply FDR control as usual
+        from scipy.stats import false_discovery_control
+
+        decisions = false_discovery_control(p_values, method="bh") <= 0.1
+        ```
 
     Attributes
     ----------
-        detector (BaseDetector): The underlying PyOD anomaly detection model,
-            initialized with the specified seed.
-        strategy (BaseStrategy): The calibration strategy (e.g., Bootstrap,
-            CrossValidation) used to generate calibration scores and identify
-            calibration samples.
-        aggregation (Aggregation): Method used for aggregating scores from
-            multiple detector models.
-        seed (int): Random seed for reproducibility in stochastic processes.
-        detector_set (List[BaseDetector]): A list of one or more trained
-            detector instances, populated by the `fit` method via the strategy.
-        calibration_set (List[float]): A list of non-conformity scores obtained
-            from the calibration process, populated by the `fit` method.
-        calibration_samples (numpy.ndarray): The actual data instances from the
-            input `x` that were used for calibration, identified by the
-            strategy. Populated by the `fit` method.
+        detector: The underlying PyOD anomaly detection model.
+        strategy: The calibration strategy for computing weighted p-values.
+        aggregation: Method for combining scores from multiple models.
+        seed: Random seed for reproducible results.
+        detector_set: List of trained detector models (populated after fit).
+        calibration_set: Calibration scores for p-value computation (populated by fit).
+        calibration_samples: Data instances used for calibration (+ weight computation).
     """
 
     def __init__(
@@ -83,7 +95,7 @@ class WeightedConformalDetector(BaseConformalDetector):
                 f"aggregation must be an Aggregation enum, got {type(aggregation)}"
             )
 
-        self.detector: BaseDetector = set_params(detector, seed)
+        self.detector: BaseDetector = _set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
@@ -92,7 +104,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         self.calibration_set: list[float] = []
         self.calibration_samples: np.ndarray = np.array([])  # Initialize as empty
 
-    @ensure_numpy_array
+    @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
         """Fits the detector and prepares for conformal prediction.
 
@@ -105,7 +117,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         Args:
             x (Union[pandas.DataFrame, numpy.ndarray]): The input data used for
                 training/fitting the detector(s) and for calibration. The
-                `@ensure_numpy_array` decorator converts `x` to a
+                `@_ensure_numpy_array` decorator converts `x` to a
                 ``numpy.ndarray`` internally.
             iteration_callback (callable, optional): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
@@ -127,7 +139,7 @@ class WeightedConformalDetector(BaseConformalDetector):
             # This might happen if the strategy doesn't yield IDs or x is too small
             self.calibration_samples = np.array([])
 
-    @ensure_numpy_array
+    @_ensure_numpy_array
     def predict(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -146,7 +158,7 @@ class WeightedConformalDetector(BaseConformalDetector):
 
         Args:
             x (Union[pandas.DataFrame, numpy.ndarray]): The input data for which
-                anomaly estimates are to be generated. The `@ensure_numpy_array`
+                anomaly estimates are to be generated. The `@_ensure_numpy_array`
                 decorator converts `x` to a ``numpy.ndarray`` internally.
             raw (bool, optional): Whether to return raw anomaly scores or
                 weighted p-values. Defaults to False.

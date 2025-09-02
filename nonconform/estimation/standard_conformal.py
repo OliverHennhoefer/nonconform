@@ -6,39 +6,56 @@ from tqdm import tqdm
 
 from nonconform.estimation.base import BaseConformalDetector
 from nonconform.strategy.base import BaseStrategy
-from nonconform.utils.func.decorator import ensure_numpy_array
+from nonconform.utils.func.decorator import _ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
-from nonconform.utils.func.params import set_params
+from nonconform.utils.func.params import _set_params
 from nonconform.utils.stat.aggregation import aggregate
 from nonconform.utils.stat.statistical import calculate_p_val
 from pyod.models.base import BaseDetector as PyODBaseDetector  # Alias for clarity
 
 
 class StandardConformalDetector(BaseConformalDetector):
-    """Calibrates an anomaly detector using conformal prediction.
+    """Standard conformal anomaly detector with statistical guarantees.
 
-    This detector inherits from BaseConformalDetector and uses an underlying
-    anomaly detection model and a specified strategy (e.g., split conformal, CV+)
-    to calibrate non-conformity scores. It then uses these calibrated scores to
-    generate anomaly estimates on new data, providing options for raw scores or
-    p-values.
+    Provides distribution-free anomaly detection with valid p-values and False Discovery
+    Rate (FDR) control by wrapping any PyOD detector with conformal inference.
+    The detector uses calibration data to convert anomaly scores into
+    statistically valid p-values.
+
+    Example:
+        Basic usage with Isolation Forest and Split calibration:
+
+        ```python
+        from pyod.models.iforest import IForest
+        from nonconform.estimation import StandardConformalDetector
+        from nonconform.strategy import Split
+
+        # Create conformal detector
+        detector = StandardConformalDetector(
+            detector=IForest(), strategy=Split(n_calib=0.2), seed=42
+        )
+
+        # Fit on normal training data
+        detector.fit(X_train)
+
+        # Get p-values for test data
+        p_values = detector.predict(X_test)
+
+        # Apply FDR control
+        from scipy.stats import false_discovery_control
+
+        decisions = false_discovery_control(p_values, method="bh") <= 0.1
+        ```
 
     Attributes
     ----------
-        detector (PyODBaseDetector): The underlying anomaly detection model,
-            initialized with a specific seed.
-        strategy (BaseStrategy): The strategy used to fit and calibrate the
-            detector (e.g., split conformal, cross-validation).
-        aggregation (Aggregation): Method used for aggregating scores from
-            multiple detector models.
-        seed (int): Random seed for reproducibility in stochastic processes.
-        detector_set (List[PyODBaseDetector]): A list of trained anomaly detector
-            models. Populated after the `fit` method is called. Depending on
-            the strategy, this might contain one or multiple models.
-        calibration_set (List[float]): A list of calibration scores
-            (non-conformity scores) obtained from the calibration data.
-            Populated after the `fit` method is called.
+        detector: The underlying PyOD anomaly detection model.
+        strategy: The calibration strategy for computing p-values.
+        aggregation: Method for combining scores from multiple models.
+        seed: Random seed for reproducible results.
+        detector_set: List of trained detector models (populated after fit).
+        calibration_set: Calibration scores for p-value computation (populated by fit).
     """
 
     def __init__(
@@ -72,7 +89,7 @@ class StandardConformalDetector(BaseConformalDetector):
                 f"aggregation must be an Aggregation enum, got {type(aggregation)}"
             )
 
-        self.detector: PyODBaseDetector = set_params(detector, seed)
+        self.detector: PyODBaseDetector = _set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
@@ -80,7 +97,7 @@ class StandardConformalDetector(BaseConformalDetector):
         self.detector_set: list[PyODBaseDetector] = []
         self.calibration_set: list[float] = []
 
-    @ensure_numpy_array
+    @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
         """Fits the detector model(s) and computes calibration scores.
 
@@ -106,7 +123,7 @@ class StandardConformalDetector(BaseConformalDetector):
             iteration_callback=iteration_callback,
         )
 
-    @ensure_numpy_array
+    @_ensure_numpy_array
     def predict(
         self,
         x: pd.DataFrame | np.ndarray,

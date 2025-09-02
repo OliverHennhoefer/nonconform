@@ -6,7 +6,7 @@ and error control metrics like False Discovery Rate (FDR) for PyOD detectors.
 Main Components:
 - Conformal detectors with uncertainty quantification
 - Calibration strategies for different data scenarios
-- Extreme Value Theory enhanced detection
+- Weighted conformal detection for covariate shift
 - Statistical utilities and data handling tools
 
 Logging Control:

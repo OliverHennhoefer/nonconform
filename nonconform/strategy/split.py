@@ -7,25 +7,27 @@ from pyod.models.base import BaseDetector
 
 
 class Split(BaseStrategy):
-    """Split-based conformal anomaly detection strategy.
+    """Split conformal strategy for fast anomaly detection with statistical guarantees.
 
-    This strategy implements conformal prediction by splitting the input data
-    into a single training set and a single calibration set. An anomaly
-    detector is trained on the training set, and its non-conformity scores
-    are then obtained from the calibration set.
+    Implements the classical split conformal approach by dividing training data into
+    separate fitting and calibration sets. This provides the fastest conformal inference
+    at the cost of using less data for calibration compared to other strategies.
+
+    Example:
+        ```python
+        from nonconform.strategy import Split
+
+        # Use 20% of data for calibration
+        strategy = Split(n_calib=0.2)
+
+        # Use exactly 1000 samples for calibration
+        strategy = Split(n_calib=1000)
+        ```
 
     Attributes
     ----------
-        _calib_size (Union[float, int]): Defines the size of the calibration
-            set. If a float between 0.0 and 1.0, it represents the
-            proportion of the dataset to allocate to the calibration set.
-            If an integer, it represents the absolute number of samples for
-            the calibration set.
-        _calibration_ids (Optional[List[int]]): Indices of the samples from
-            the input data `x` that formed the calibration set. This is
-            populated by :meth:`fit_calibrate` only if `weighted` is ``True``
-            during the call, otherwise it remains ``None``. Accessible via the
-            :attr:`calibration_ids` property.
+        _calib_size: Size or proportion of data used for calibration.
+        _calibration_ids: Indices of calibration samples (for weighted conformal).
     """
 
     def __init__(self, n_calib: float | int = 0.1) -> None:

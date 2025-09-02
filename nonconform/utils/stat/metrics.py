@@ -1,9 +1,9 @@
 import numpy as np
 
-from nonconform.utils.func.decorator import performance_conversion
+from nonconform.utils.func.decorator import _performance_conversion
 
 
-@performance_conversion("y", "y_hat")
+@_performance_conversion("y", "y_hat")
 def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
     """Calculate the False Discovery Rate (FDR) for binary classification.
 
@@ -43,7 +43,7 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> floa
     return round(fdr, dec)
 
 
-@performance_conversion("y", "y_hat")
+@_performance_conversion("y", "y_hat")
 def statistical_power(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
     """Calculate statistical power (recall or true positive rate).
 

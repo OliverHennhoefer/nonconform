@@ -11,7 +11,7 @@ from tqdm import tqdm
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
-from nonconform.utils.func.params import set_params
+from nonconform.utils.func.params import _set_params
 from pyod.models.base import BaseDetector
 
 
@@ -22,20 +22,6 @@ class JackknifeBootstrap(BaseStrategy):
     for ensemble models trained on bootstrap samples. The key insight is that
     JaB+ uses the out-of-bag (OOB) samples from bootstrap iterations to compute
     calibration scores without requiring additional model training.
-
-    The method works as follows:
-    1. Generate B bootstrap samples from the training data
-    2. Train B models, one on each bootstrap sample
-    3. For each original training sample, use the models where that sample was
-       out-of-bag to compute calibration scores
-    4. Train a final aggregated model on all data for prediction
-    5. Use the calibration scores to convert predictions to p-values
-
-    This provides the coverage guarantees of Jackknife+ but with the computational
-    efficiency of bootstrap methods.
-
-    Note: JaB+ is only valid with plus=False (single final model), not with
-    ensemble prediction (plus=True).
 
     Attributes
     ----------
@@ -183,7 +169,7 @@ class JackknifeBootstrap(BaseStrategy):
 
         # Step 3: Train final model on all data
         final_model = deepcopy(detector)
-        final_model = set_params(
+        final_model = _set_params(
             final_model,
             seed=seed,
             random_iteration=True,
@@ -208,7 +194,9 @@ class JackknifeBootstrap(BaseStrategy):
     ) -> BaseDetector:
         """Train a single bootstrap model."""
         model = deepcopy(detector)
-        model = set_params(model, seed=seed, random_iteration=True, iteration=iteration)
+        model = _set_params(
+            model, seed=seed, random_iteration=True, iteration=iteration
+        )
         model.fit(x[bootstrap_indices])
         return model
 

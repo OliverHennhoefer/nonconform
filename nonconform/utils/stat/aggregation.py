@@ -1,10 +1,10 @@
 import numpy as np
 
-from nonconform.utils.func.decorator import performance_conversion
+from nonconform.utils.func.decorator import _performance_conversion
 from nonconform.utils.func.enums import Aggregation
 
 
-@performance_conversion("scores")
+@_performance_conversion("scores")
 def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
     """Aggregate anomaly scores using a specified method.
 

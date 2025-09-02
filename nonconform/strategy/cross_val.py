@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.logger import get_logger
-from nonconform.utils.func.params import set_params
+from nonconform.utils.func.params import _set_params
 from pyod.models.base import BaseDetector
 
 
@@ -120,7 +120,7 @@ class CrossValidation(BaseStrategy):
             self._calibration_ids.extend(calib_idx.tolist())
 
             model = copy(_detector)
-            model = set_params(model, seed=seed, random_iteration=True, iteration=i)
+            model = _set_params(model, seed=seed, random_iteration=True, iteration=i)
             model.fit(x[train_idx])
 
             if self._plus:
@@ -129,7 +129,7 @@ class CrossValidation(BaseStrategy):
 
         if not self._plus:
             model = copy(_detector)
-            model = set_params(
+            model = _set_params(
                 model,
                 seed=seed,
                 random_iteration=True,

@@ -9,7 +9,7 @@ from tqdm import tqdm
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.enums import Distribution
 from nonconform.utils.func.logger import get_logger
-from nonconform.utils.func.params import set_params
+from nonconform.utils.func.params import _set_params
 from pyod.models.base import BaseDetector
 
 
@@ -370,7 +370,7 @@ class Randomized(BaseStrategy):
 
                 # Train model on training set
                 model = copy(_detector)
-                model = set_params(
+                model = _set_params(
                     model, seed=seed, random_iteration=True, iteration=actual_iterations
                 )
                 model.fit(x[train_idx])
@@ -414,7 +414,7 @@ class Randomized(BaseStrategy):
         # If not in plus mode, train final model on all data
         if not self._plus:
             final_model = copy(_detector)
-            final_model = set_params(
+            final_model = _set_params(
                 final_model,
                 seed=seed,
                 random_iteration=True,

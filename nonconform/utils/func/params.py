@@ -30,7 +30,7 @@ forbidden_model_list: list[type[BaseDetector]] = [
 ]
 
 
-def set_params(
+def _set_params(
     detector: BaseDetector,
     seed: int,
     random_iteration: bool = False,
@@ -38,36 +38,28 @@ def set_params(
 ) -> BaseDetector:
     """Configure a PyOD detector with specific default and dynamic parameters.
 
-    This function modifies the provided PyOD detector instance by setting common
-    parameters. It sets 'contamination' to a very small value (effectively
-    for one-class classification behavior), 'n_jobs' to utilize all available
-    CPU cores, and 'random_state' for reproducibility. The 'random_state'
-    can be fixed or varied per iteration.
-
-    The function will raise an error if the detector's class is present in
-    the module-level `forbidden_model_list`.
+    **Internal use only.** This function modifies PyOD detector instances by setting
+    common parameters for one-class conformal prediction: contamination to zero,
+    n_jobs to use all cores, and random_state for reproducibility.
 
     Args:
-        detector (BaseDetector): The PyOD detector instance to configure.
-        seed (int): The base random seed for reproducibility. If
-            `random_iteration` is ``False`` or `iteration` is ``None``,
-            this seed is directly used for `random_state`.
-        random_iteration (bool, optional): If ``True`` and `iteration` is
-            provided, the `random_state` for the detector will be set to a
-            hash of `iteration` and `seed`, allowing for different random
-            states across iterations. Defaults to ``False``.
-        iteration (int | None, optional): The current iteration number. Used in
-            conjunction with `random_iteration` to generate a dynamic
-            `random_state`. Defaults to ``None``.
+        detector: The PyOD detector instance to configure.
+        seed: The base random seed for reproducibility.
+        random_iteration: If True and iteration is provided, creates varying
+            random_state per iteration.
+        iteration: Current iteration number for dynamic random_state generation.
 
     Returns
     -------
-        BaseDetector: The configured detector instance with updated parameters.
+        The configured detector instance with updated parameters.
 
     Raises
     ------
-        ValueError: If the class of the `detector` is found in the
-            `forbidden_model_list`.
+        ValueError: If the detector class is in the forbidden_model_list.
+
+    Note:
+        Forbidden models (CBLOF, COF, RGraph, Sampling, SOS) require clustering
+        or grouping which is incompatible with one-class training.
     """
     if detector.__class__ in forbidden_model_list:
         raise ValueError(
