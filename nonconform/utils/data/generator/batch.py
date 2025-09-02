@@ -39,10 +39,7 @@ class BatchGenerator(BaseDataGenerator):
     >>>
     >>> # Proportional mode - 10% anomalies per batch
     >>> batch_gen = BatchGenerator(
-    ...     load_data_func=load_shuttle,
-    ...     batch_size=100,
-    ...     anomaly_proportion=0.1,
-    ...     seed=42
+    ...     load_data_func=load_shuttle, batch_size=100, anomaly_proportion=0.1, seed=42
     ... )
     >>>
     >>> # Proportional mode with limited batches - 10% anomalies for exactly 5 batches
@@ -52,7 +49,7 @@ class BatchGenerator(BaseDataGenerator):
     ...     anomaly_proportion=0.1,
     ...     anomaly_mode="proportional",
     ...     n_batches=5,
-    ...     seed=42
+    ...     seed=42,
     ... )
     >>>
     >>> # Probabilistic mode - 5% anomalies across 10 batches
@@ -62,7 +59,7 @@ class BatchGenerator(BaseDataGenerator):
     ...     anomaly_proportion=0.05,
     ...     anomaly_mode="probabilistic",
     ...     n_batches=10,
-    ...     seed=42
+    ...     seed=42,
     ... )
     >>>
     >>> # Get training data

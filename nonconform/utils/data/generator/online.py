@@ -34,7 +34,7 @@ class OnlineGenerator(BaseDataGenerator):
     ...     load_data_func=load_shuttle,
     ...     anomaly_proportion=0.01,
     ...     n_instances=1000,
-    ...     seed=42
+    ...     seed=42,
     ... )
     >>>
     >>> # Get training data

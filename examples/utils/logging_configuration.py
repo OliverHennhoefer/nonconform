@@ -9,7 +9,6 @@ from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
-
     logging.getLogger("nonconform").setLevel(logging.ERROR)  # silent the package
 
     x_train, x_test, y_test = load(Dataset.WBC, setup=True)

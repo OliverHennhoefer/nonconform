@@ -8,7 +8,6 @@ This section provides practical examples demonstrating different conformal anoma
 - [Bootstrap Conformal](bootstrap_conformal.md) - Bootstrap-after-Jackknife+ strategy
 - [Cross-Validation Conformal](cross_val_conformal.md) - K-fold cross-validation approach
 - [Jackknife Conformal](jackknife_conformal.md) - Jackknife+ conformal strategy
-- [Extreme Conformal](extreme_conformal.md) - Extreme value theory-based detection
 - [Weighted Conformal](weighted_conformal.md) - Handling non-exchangeable data
 - [FDR Control](fdr_control.md) - False Discovery Rate control for multiple testing
 

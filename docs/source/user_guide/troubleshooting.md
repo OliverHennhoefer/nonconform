@@ -113,12 +113,12 @@ def validate_p_values(p_values):
     print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")
     print(f"P-value mean: {p_values.mean():.4f}")
     print(f"P-value std: {p_values.std():.4f}")
-    
+
     # Check for uniform distribution (expected under null hypothesis)
     from scipy.stats import kstest
     ks_stat, ks_p = kstest(p_values, 'uniform')
     print(f"KS test for uniformity: stat={ks_stat:.4f}, p={ks_p:.4f}")
-    
+
     if ks_p < 0.05:
         print("WARNING: P-values may not be well-calibrated")
 ```
@@ -279,25 +279,25 @@ def validate_input_data(X):
     print("=== Data Validation ===")
     print(f"Shape: {X.shape}")
     print(f"Data type: {X.dtype}")
-    
+
     # Check for NaN values
     nan_count = np.isnan(X).sum()
     print(f"NaN values: {nan_count}")
-    
+
     # Check for infinite values
     inf_count = np.isinf(X).sum()
     print(f"Infinite values: {inf_count}")
-    
+
     # Check data ranges
     print(f"Data range: [{X.min():.4f}, {X.max():.4f}]")
-    
+
     # Check for constant features
     constant_features = np.sum(X.std(axis=0) == 0)
     print(f"Constant features: {constant_features}")
-    
+
     if nan_count > 0 or inf_count > 0:
         print("WARNING: Data contains NaN or infinite values")
-    
+
     if constant_features > 0:
         print("WARNING: Data contains constant features")
 
@@ -374,20 +374,20 @@ def optimized_batch_processing(detector, X, batch_size=1000):
     """Optimized batch processing for large datasets."""
     n_samples = len(X)
     n_batches = (n_samples + batch_size - 1) // batch_size
-    
+
     results = np.empty(n_samples)
-    
+
     for i in range(n_batches):
         start_idx = i * batch_size
         end_idx = min((i + 1) * batch_size, n_samples)
         batch = X[start_idx:end_idx]
-        
+
         batch_results = detector.predict(batch, raw=False)
         results[start_idx:end_idx] = batch_results
-        
+
         if i % 10 == 0:  # Progress update
             print(f"Processed {i + 1}/{n_batches} batches")
-    
+
     return results
 ```
 
@@ -516,7 +516,7 @@ logging.basicConfig(
 )
 
 # This will show all internal operations and warnings
-detector = ExtremeConformalDetector(detector=LOF(), strategy=Bootstrap())
+detector = StandardConformalDetector(detector=LOF(), strategy=Bootstrap())
 detector.fit(X_train)
 ```
 

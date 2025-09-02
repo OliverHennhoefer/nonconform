@@ -17,7 +17,6 @@
 - **PyOD Integration**: Works with popular anomaly detection library
 - **Multiple Strategies**: Split, Bootstrap, Cross-validation, Jackknife+
 - **FDR Control**: False Discovery Rate control for multiple testing
-- **Extreme Value Theory**: Advanced conformal methods for rare events
 - **Weighted Conformal**: Handle non-exchangeable data
 
 ## Getting Started

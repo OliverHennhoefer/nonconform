@@ -25,7 +25,7 @@ def demonstrate_batch_generation():
     for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
         anomaly_count = y_batch.sum()
         print(
-            f"   Batch {i+1}: {x_batch.shape}, Anomalies: {anomaly_count} ({anomaly_count/len(x_batch)*100:.1f}%)"
+            f"   Batch {i + 1}: {x_batch.shape}, Anomalies: {anomaly_count} ({anomaly_count / len(x_batch) * 100:.1f}%)"
         )
 
     # Probabilistic mode - global target across all batches
@@ -49,12 +49,12 @@ def demonstrate_batch_generation():
         total_anomalies += anomaly_count
         if i < 3:  # Show first 3 batches
             print(
-                f"   Batch {i+1}: {x_batch.shape}, Anomalies: {anomaly_count} ({anomaly_count/len(x_batch)*100:.1f}%)"
+                f"   Batch {i + 1}: {x_batch.shape}, Anomalies: {anomaly_count} ({anomaly_count / len(x_batch) * 100:.1f}%)"
             )
 
     print("   ... (7 more batches)")
     print(
-        f"   Total: {total_instances} instances, {total_anomalies} anomalies ({total_anomalies/total_instances*100:.1f}%)"
+        f"   Total: {total_instances} instances, {total_anomalies} anomalies ({total_anomalies / total_instances * 100:.1f}%)"
     )
     print()
 
@@ -81,7 +81,7 @@ def demonstrate_online_generation():
     for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
         anomaly_count += y_label
         if i < 5:  # Show first 5 instances
-            print(f"   Instance {i+1}: {x_instance.shape}, Label: {y_label}")
+            print(f"   Instance {i + 1}: {x_instance.shape}, Label: {y_label}")
 
     print("   ... (995 more instances)")
     print(
@@ -103,7 +103,7 @@ def demonstrate_online_generation():
     ):
         anomaly_count += y_label
         if i < 5:  # Show first 5 instances
-            print(f"   Instance {i+1}: {x_instance.shape}, Label: {y_label}")
+            print(f"   Instance {i + 1}: {x_instance.shape}, Label: {y_label}")
 
     print("   ... (95 more instances)")
     print(
@@ -141,7 +141,7 @@ def demonstrate_integration_workflow():
         anomaly_count = y_batch.sum()
         batch_mean = x_batch.mean().mean()
         print(
-            f"   Batch {i+1}: {x_batch.shape}, Anomalies: {anomaly_count}, Mean features: {batch_mean:.3f}"
+            f"   Batch {i + 1}: {x_batch.shape}, Anomalies: {anomaly_count}, Mean features: {batch_mean:.3f}"
         )
 
     print()

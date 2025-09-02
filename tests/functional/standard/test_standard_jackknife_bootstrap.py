@@ -10,7 +10,6 @@ from pyod.models.iforest import IForest
 
 
 class TestCaseJackknifeConformal(unittest.TestCase):
-
     def test_jackknife_bootstrap_conformal_breast(self):
         x_train, x_test, y_test = load(Dataset.BREAST, setup=True, seed=1)
 

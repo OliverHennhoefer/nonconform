@@ -105,7 +105,7 @@ class DatasetManager:
             data = data.astype(np.float32)
 
         # Create DataFrame with programmatic column names
-        column_names = [f"V{i+1}" for i in range(data.shape[1])]
+        column_names = [f"V{i + 1}" for i in range(data.shape[1])]
         df = pd.DataFrame(data, columns=column_names)
         df["Class"] = labels
 

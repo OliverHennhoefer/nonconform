@@ -14,7 +14,6 @@ from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
-
     x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
     # Track iterations with multiple convergence metrics

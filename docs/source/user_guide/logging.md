@@ -19,8 +19,7 @@ nonconform uses a hierarchical logger structure:
 nonconform                    # Root logger
 ├── estimation                # Detector logging
 │   ├── standard_conformal    # Standard detector
-│   ├── weighted_conformal    # Weighted detector
-│   └── extreme_conformal     # Extreme value detector
+│   └── weighted_conformal    # Weighted detector
 ├── strategy                  # Strategy logging
 │   ├── bootstrap             # Bootstrap strategy
 │   ├── cross_val             # Cross-validation strategy
@@ -81,10 +80,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from nonconform.estimation import ExtremeConformalDetector
+from nonconform.estimation import StandardConformalDetector
 from nonconform.strategy import Bootstrap
 
-detector = ExtremeConformalDetector(
+detector = StandardConformalDetector(
     detector=IForest(),
     strategy=Bootstrap(n_calib=100, resampling_ratio=0.8)
 )
@@ -151,7 +150,7 @@ import sys
 
 class CustomFormatter(logging.Formatter):
     """Custom formatter with emojis and colors."""
-    
+
     def format(self, record):
         if record.levelno >= logging.ERROR:
             prefix = "❌"
@@ -161,7 +160,7 @@ class CustomFormatter(logging.Formatter):
             prefix = "ℹ️ "
         else:
             prefix = "🔍"
-        
+
         return f"{prefix} {record.getMessage()}"
 
 # Apply custom formatter

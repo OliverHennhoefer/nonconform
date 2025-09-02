@@ -25,8 +25,8 @@ def get_logger(name: str) -> logging.Logger:
 
     Examples
     --------
-    >>> logger = get_logger("estimation.extreme_conformal")
-    >>> logger.warning("GPD fitting failed, using standard approach")
+    >>> logger = get_logger("estimation.standard_conformal")
+    >>> logger.info("Calibration completed successfully")
 
     >>> # To silence warnings:
     >>> logging.getLogger("nonconform").setLevel(logging.ERROR)

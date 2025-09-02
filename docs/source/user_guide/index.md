@@ -10,7 +10,6 @@ Comprehensive documentation for using Nonconform effectively.
 
 ## Advanced Topics
 
-- [Extreme Conformal](extreme_conformal.md) - Extreme value theory methods
 - [Weighted Conformal](weighted_conformal.md) - Non-exchangeable data handling
 - [FDR Control](fdr_control.md) - Multiple testing correction
 

@@ -7,8 +7,7 @@ Examples
 
    classical_conformal
    weighted_conformal
-   extreme_conformal
    fdr_control
    bootstrap_conformal
    cross_val_conformal
-   jackknife_conformal 
+   jackknife_conformal

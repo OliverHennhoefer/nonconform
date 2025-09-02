@@ -1,6 +1,3 @@
-from collections.abc import Callable
-from typing import Literal
-
 import numpy as np
 
 from nonconform.utils.func.decorator import performance_conversion
@@ -96,58 +93,3 @@ def calculate_weighted_p_val(
         numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0
     )
     return p_values
-
-
-@performance_conversion("scores", "calibration_set")
-def calculate_evt_p_val(
-    scores: np.ndarray,
-    calibration_set: np.ndarray,
-    threshold_method: Literal["percentile", "top_k", "mean_excess", "custom"],
-    threshold_value: float | Callable[[np.ndarray], float],
-    min_tail_size: int,
-    gpd_params: tuple[float, float, float],
-    threshold: float,
-) -> list[float]:
-    """Calculate p-values using EVT-enhanced hybrid approach.
-
-    This function computes p-values by combining empirical distribution for
-    bulk scores and Generalized Pareto Distribution for extreme scores.
-    For scores below the threshold, it uses the standard empirical approach.
-    For scores above the threshold, it uses GPD-based tail probability.
-
-    The `@performance_conversion` decorator ensures that `scores` and
-    `calibration_set` are ``numpy.ndarray`` objects internally and that the
-    returned ``numpy.ndarray`` of p-values is converted to a ``list[float]``.
-
-    Args:
-        scores (numpy.ndarray): A 1D array of test scores for which p-values
-            are to be calculated. Can be passed as a list, which the
-            decorator will convert.
-        calibration_set (numpy.ndarray): A 1D array of calibration scores
-            used as the reference distribution. Can be passed as a list,
-            which the decorator will convert.
-        threshold_method (Literal): Method used for threshold selection.
-        threshold_value (Union[float, Callable]): Parameter for threshold method.
-        min_tail_size (int): Minimum number of exceedances required for GPD fitting.
-        gpd_params (Tuple[float, float, float]): Fitted parameters (shape, loc, scale).
-        threshold (float): Threshold separating bulk and tail distributions.
-
-    Returns
-    -------
-        list[float]: A list of p-values, each corresponding to an input score
-            from `scores`.
-
-    Notes
-    -----
-        The p-value calculation uses a hybrid approach:
-        - For scores <= threshold: empirical p-value from calibration set
-        - For scores > threshold: GPD-based tail probability
-    """
-    from nonconform.utils.stat.extreme import calculate_hybrid_p_value
-
-    p_values = []
-    for score in scores:
-        p_val = calculate_hybrid_p_value(score, calibration_set, threshold, gpd_params)
-        p_values.append(p_val)
-
-    return np.array(p_values)

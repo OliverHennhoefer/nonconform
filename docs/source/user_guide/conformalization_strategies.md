@@ -125,7 +125,6 @@ All strategies work with any conformal detector:
 ```python
 from nonconform.estimation.standard_conformal import StandardConformalDetector
 from nonconform.estimation.weighted_conformal import WeightedConformalDetector
-from nonconform.estimation.extreme_conformal import ExtremeConformalDetector
 from pyod.models.lof import LOF
 
 # Standard conformal with cross-validation
@@ -139,10 +138,4 @@ detector = WeightedConformalDetector(
     detector=LOF(),
     strategy=Bootstrap(n_bootstraps=100)
 )
-
-# EVT conformal with split
-detector = ExtremeConformalDetector(
-    detector=LOF(),
-    strategy=Split(calib_size=0.2)
-)
-``` 
+```
