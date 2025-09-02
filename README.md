@@ -119,7 +119,7 @@ _For additional features, you might need optional dependencies:_
 - `pip install nonconform[data]` - Includes pyarrow for loading example data (via remote download)
 - `pip install nonconform[deep]` - Includes deep learning dependencies (PyTorch)
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[dev]` - Includes development tools (black, ruff, pre-commit) and documentation tools (sphinx, furo, etc.)
+- `pip install nonconform[dev]` - Includes development tools (ruff, pre-commit) and documentation tools (sphinx, furo, etc.)
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
