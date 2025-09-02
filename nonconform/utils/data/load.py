@@ -60,12 +60,12 @@ class DatasetManager:
                    for anomaly detection tasks.
             seed: Random seed for data splitting if setup is True.
 
-        Returns
+        Returns:
         -------
             If setup is False, returns the complete dataset as a DataFrame.
             If setup is True, returns a tuple: (x_train, x_test, y_test).
 
-        Raises
+        Raises:
         ------
             ValueError: If the dataset is not found in the registry.
             URLError: If dataset download fails.
@@ -121,11 +121,11 @@ class DatasetManager:
         Args:
             filename: Name of the dataset file (e.g., "breast.npz").
 
-        Returns
+        Returns:
         -------
             Bytes content of the dataset file.
 
-        Raises
+        Raises:
         ------
             URLError: If download fails.
         """
@@ -183,7 +183,7 @@ class DatasetManager:
             df: The input DataFrame with a "Class" column.
             seed: Random seed for data splitting.
 
-        Returns
+        Returns:
         -------
             A tuple (x_train, x_test, y_test).
         """
@@ -291,7 +291,7 @@ class DatasetManager:
         """
         Get a list of all available dataset names.
 
-        Returns
+        Returns:
         -------
             Sorted list of dataset names.
         """
@@ -304,11 +304,11 @@ class DatasetManager:
         Args:
             dataset: The dataset to get info for (use Dataset enum values).
 
-        Returns
+        Returns:
         -------
             DatasetInfo object with dataset metadata.
 
-        Raises
+        Raises:
         ------
             ValueError: If the dataset is not found.
         """
@@ -325,7 +325,7 @@ class DatasetManager:
         """
         Get the cache directory path.
 
-        Returns
+        Returns:
         -------
             String path to the cache directory.
         """
@@ -351,7 +351,7 @@ def load(
                Returns (x_train, x_test, y_test), x_train contains only normal samples.
         seed: Random seed for reproducible train/test splitting when setup=True.
 
-    Returns
+    Returns:
     -------
         - If setup=False: Complete dataset as pd.DataFrame with 'label' column
         - If setup=True: Tuple of (x_train, x_test, y_test) where:
@@ -359,7 +359,7 @@ def load(
             - x_test: Mixed test samples (features only)
             - y_test: True labels for test samples (0=normal, 1=anomaly)
 
-    Examples
+    Examples:
     --------
         Load complete dataset for exploration:
         ```python
@@ -392,11 +392,11 @@ def list_available() -> list[str]:
     """
     Get a list of all available dataset names.
 
-    Returns
+    Returns:
     -------
         Sorted list of dataset names.
 
-    Examples
+    Examples:
     --------
         >>> datasets = list_available()
         >>> print(datasets)
@@ -412,11 +412,11 @@ def get_info(dataset: Dataset) -> DatasetInfo:
     Args:
         dataset: The dataset to get info for (use Dataset enum values).
 
-    Returns
+    Returns:
     -------
         DatasetInfo object with dataset metadata.
 
-    Examples
+    Examples:
     --------
         >>> from nonconform.utils.data import Dataset
         >>> info = get_info(Dataset.BREAST)
@@ -433,7 +433,7 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
         dataset: Specific dataset name to clear. If None, clears all.
         all_versions: If True, clears cache for all dataset versions.
 
-    Examples
+    Examples:
     --------
         >>> clear_cache("breast")  # Clear specific dataset
         >>> clear_cache()  # Clear all datasets
@@ -446,11 +446,11 @@ def get_cache_location() -> str:
     """
     Get the cache directory path.
 
-    Returns
+    Returns:
     -------
         String path to the cache directory.
 
-    Examples
+    Examples:
     --------
         >>> location = get_cache_location()
         >>> print(f"Cache stored at: {location}")

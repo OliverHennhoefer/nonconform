@@ -23,11 +23,16 @@ class JackknifeBootstrap(BaseStrategy):
     JaB+ uses the out-of-bag (OOB) samples from bootstrap iterations to compute
     calibration scores without requiring additional model training.
 
-    Attributes
+    The strategy can operate in two modes:
+    1. Plus mode (plus=True): Uses ensemble of models for prediction (recommended)
+    2. Standard mode (plus=False): Uses single model trained on all data
+
+    Attributes:
     ----------
         _n_bootstraps (int): Number of bootstrap iterations
         _aggregation_method (Aggregation): How to aggregate OOB predictions
-        _detector_list (list[BaseDetector]): List containing the final trained detector
+        _plus (bool): Whether to use the plus variant (ensemble of models)
+        _detector_list (list[BaseDetector]): List of trained detectors (ensemble/single)
         _calibration_set (list[float]): List of calibration scores from JaB+ procedure
         _calibration_ids (list[int]): Indices of samples used for calibration
         _bootstrap_models (list[BaseDetector]): Models trained on each bootstrap sample
@@ -39,6 +44,7 @@ class JackknifeBootstrap(BaseStrategy):
         self,
         n_bootstraps: int = 100,
         aggregation_method: Aggregation = Aggregation.MEAN,
+        plus: bool = True,
     ):
         """Initialize the Bootstrap (JaB+) strategy.
 
@@ -48,19 +54,32 @@ class JackknifeBootstrap(BaseStrategy):
             aggregation_method (Aggregation, optional): Method to aggregate out-of-bag
                 predictions. Options are Aggregation.MEAN or Aggregation.MEDIAN.
                 Defaults to Aggregation.MEAN.
+            plus (bool, optional): If True, uses ensemble of bootstrap models for
+                prediction (maintains statistical validity). If False, uses single
+                model trained on all data. Strongly recommended to use True.
+                Defaults to True.
 
-        Raises
+        Raises:
         ------
             ValueError: If aggregation_method is not a valid Aggregation enum value.
             ValueError: If n_bootstraps is less than 1.
         """
-        super().__init__(plus=False)
+        super().__init__(plus=plus)
 
         if n_bootstraps < 1:
             raise ValueError("Number of bootstraps must be at least 1.")
         if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
             raise ValueError(
                 "aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN"
+            )
+
+        # Warn if plus=False to alert about potential validity issues
+        if not plus:
+            logger = get_logger("strategy.jackknife_bootstrap")
+            logger.warning(
+                "Setting plus=False may compromise conformal validity. "
+                "The plus variant (plus=True) is recommended "
+                "for statistical guarantees."
             )
 
         self._n_bootstraps: int = n_bootstraps
@@ -105,10 +124,10 @@ class JackknifeBootstrap(BaseStrategy):
             n_jobs (int, optional): Number of parallel jobs for bootstrap
                 training. If None, uses sequential processing. Defaults to None.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
-                * List with single trained detector model
+                * List of trained detector models (if plus=True, single if plus=False)
                 * List of calibration scores from JaB+ procedure
         """
         n_samples = len(x)
@@ -167,20 +186,29 @@ class JackknifeBootstrap(BaseStrategy):
         self._calibration_set = oob_scores.tolist()
         self._calibration_ids = list(range(n_samples))
 
-        # Step 3: Train final model on all data
-        final_model = deepcopy(detector)
-        final_model = _set_params(
-            final_model,
-            seed=seed,
-            random_iteration=True,
-            iteration=self._n_bootstraps,
-        )
-        final_model.fit(x)
-        self._detector_list = [final_model]
-
-        logger.info(
-            f"JaB+ calibration completed with {len(self._calibration_set)} scores"
-        )
+        # Step 3: Handle plus variant
+        if self._plus:
+            # Plus variant: Use ensemble of bootstrap models for prediction
+            self._detector_list = self._bootstrap_models.copy()
+            logger.info(
+                f"JaB+ calibration completed with {len(self._calibration_set)} scores "
+                f"using ensemble of {len(self._bootstrap_models)} models"
+            )
+        else:
+            # Standard variant: Train final model on all data
+            final_model = deepcopy(detector)
+            final_model = _set_params(
+                final_model,
+                seed=seed,
+                random_iteration=True,
+                iteration=self._n_bootstraps,
+            )
+            final_model.fit(x)
+            self._detector_list = [final_model]
+            logger.info(
+                f"JaB+ calibration completed with {len(self._calibration_set)} scores "
+                f"using single model trained on all data"
+            )
 
         return self._detector_list, self._calibration_set
 
@@ -238,11 +266,11 @@ class JackknifeBootstrap(BaseStrategy):
         Args:
             x (Union[pd.DataFrame, np.ndarray]): Input data matrix.
 
-        Returns
+        Returns:
         -------
             np.ndarray: Array of calibration scores for each sample.
 
-        Raises
+        Raises:
         ------
             ValueError: If a sample has no out-of-bag predictions (very unlikely).
         """
@@ -302,7 +330,7 @@ class JackknifeBootstrap(BaseStrategy):
         In JaB+, all original training samples contribute to calibration
         through the out-of-bag mechanism.
 
-        Returns
+        Returns:
         -------
             list[int]: List of integer indices (0 to n_samples-1).
         """

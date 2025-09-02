@@ -15,7 +15,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=JackknifeBootstrap(n_bootstraps=50),
+            strategy=JackknifeBootstrap(n_bootstraps=50, plus=True),
             seed=1,
         )
 
@@ -23,7 +23,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.067)
+        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.117)
         self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.98)
 
 

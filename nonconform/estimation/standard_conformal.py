@@ -48,7 +48,7 @@ class StandardConformalDetector(BaseConformalDetector):
         decisions = false_discovery_control(p_values, method="bh") <= 0.1
         ```
 
-    Attributes
+    Attributes:
     ----------
         detector: The underlying PyOD anomaly detection model.
         strategy: The calibration strategy for computing p-values.
@@ -77,7 +77,7 @@ class StandardConformalDetector(BaseConformalDetector):
             seed (int | None, optional): Random seed for reproducibility.
                 Defaults to None.
 
-        Raises
+        Raises:
         ------
             ValueError: If seed is negative.
             TypeError: If aggregation is not an Aggregation enum.
@@ -145,7 +145,7 @@ class StandardConformalDetector(BaseConformalDetector):
                 * If False: Returns the p-values for each data point based on
                   the calibration set.
 
-        Returns
+        Returns:
         -------
             np.ndarray: An array containing the anomaly estimates. The content of the
             array depends on the `raw` argument:

@@ -8,7 +8,7 @@ class Distribution(Enum):
     validation set sizes in randomized leave-p-out conformal prediction
     strategies.
 
-    Attributes
+    Attributes:
     ----------
         BETA_BINOMIAL: Beta-binomial distribution for drawing validation fractions.
             Allows tunable mean and variance through alpha/beta parameters.
@@ -29,7 +29,7 @@ class Aggregation(Enum):
     This enumeration lists strategies for aggregating data, commonly employed
     in ensemble methods to combine predictions or scores from several models.
 
-    Attributes
+    Attributes:
     ----------
         MEAN: Represents aggregation by calculating the arithmetic mean.
             The underlying value is typically ``"mean"``.

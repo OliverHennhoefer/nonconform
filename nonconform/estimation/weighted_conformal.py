@@ -54,7 +54,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         decisions = false_discovery_control(p_values, method="bh") <= 0.1
         ```
 
-    Attributes
+    Attributes:
     ----------
         detector: The underlying PyOD anomaly detection model.
         strategy: The calibration strategy for computing weighted p-values.
@@ -83,7 +83,7 @@ class WeightedConformalDetector(BaseConformalDetector):
             seed (int | None, optional): Random seed for reproducibility.
                 Defaults to None.
 
-        Raises
+        Raises:
         ------
             ValueError: If seed is negative.
             TypeError: If aggregation is not an Aggregation enum.
@@ -167,7 +167,7 @@ class WeightedConformalDetector(BaseConformalDetector):
                 * If False: Returns the weighted p-values for each data point,
                   accounting for covariate shift between calibration and test data.
 
-        Returns
+        Returns:
         -------
             numpy.ndarray: An array containing the anomaly estimates. The content of the
             array depends on the `raw` argument:
@@ -216,7 +216,7 @@ class WeightedConformalDetector(BaseConformalDetector):
             test_instances (numpy.ndarray): The test data instances for which
                 weights need to be computed.
 
-        Returns
+        Returns:
         -------
             Tuple[numpy.ndarray, numpy.ndarray]:
                 A tuple containing:

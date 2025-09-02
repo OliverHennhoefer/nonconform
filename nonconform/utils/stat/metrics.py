@@ -22,7 +22,7 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> floa
         dec (int, optional): The number of decimal places to which the
             resulting FDR should be rounded. Defaults to ``3``.
 
-    Returns
+    Returns:
     -------
         float: The calculated False Discovery Rate, rounded to `dec`
             decimal places.
@@ -64,7 +64,7 @@ def statistical_power(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
         dec (int, optional): The number of decimal places to which the
             resulting power should be rounded. Defaults to ``3``.
 
-    Returns
+    Returns:
     -------
         float: The calculated statistical power, rounded to `dec` decimal
             places.

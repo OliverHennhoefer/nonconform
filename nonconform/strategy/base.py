@@ -13,19 +13,21 @@ class BaseStrategy(abc.ABC):
     applied to anomaly detectors. Subclasses must implement the core
     calibration logic and define how calibration data is identified and used.
 
-    Attributes
+    Attributes:
     ----------
         _plus (bool): A flag, typically set during initialization, that may
             influence calibration behavior in subclasses (e.g., by applying
             an adjustment).
     """
 
-    def __init__(self, plus: bool = False):
+    def __init__(self, plus: bool = True):
         """Initialize the base calibration strategy.
 
         Args:
-            plus (bool, optional): A flag that can be used by subclasses to
-                modify their calibration behavior. Defaults to ``False``.
+            plus (bool, optional): A flag that enables the "plus" variant which
+                maintains statistical validity by retaining calibration models for
+                inference. Strongly recommended for proper conformal guarantees.
+                Defaults to ``True``.
         """
         self._plus: bool = plus
         self._calibration_ids: list[int]
@@ -61,7 +63,7 @@ class BaseStrategy(abc.ABC):
             iteration_callback (Optional[callable]): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
 
-        Raises
+        Raises:
         ------
             NotImplementedError: If the subclass does not implement this method.
         """
@@ -79,11 +81,11 @@ class BaseStrategy(abc.ABC):
         original input data (provided to `fit_calibrate`) were selected or
         designated as the calibration set.
 
-        Returns
+        Returns:
         -------
             List[int]: A list of integer indices for the calibration data.
 
-        Raises
+        Raises:
         ------
             NotImplementedError: If the subclass does not implement this
                 property.

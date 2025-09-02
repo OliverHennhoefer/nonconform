@@ -32,7 +32,7 @@ class BatchGenerator(BaseDataGenerator):
     seed : int, optional
         Seed for random number generator.
 
-    Examples
+    Examples:
     --------
     >>> from nonconform.utils.data.load import load_shuttle
     >>> from nonconform.utils.data.generator import BatchGenerator
@@ -146,7 +146,7 @@ class BatchGenerator(BaseDataGenerator):
         - For probabilistic mode: generates exactly n_batches batches
           (required in constructor)
 
-        Yields
+        Yields:
         ------
         x_batch : pd.DataFrame
             Feature matrix for the batch.

@@ -24,7 +24,7 @@ class OnlineGenerator(BaseDataGenerator):
     seed : int, optional
         Seed for random number generator.
 
-    Examples
+    Examples:
     --------
     >>> from nonconform.utils.data.load import load_shuttle
     >>> from nonconform.utils.data.generator import OnlineGenerator
@@ -74,7 +74,7 @@ class OnlineGenerator(BaseDataGenerator):
         n_instances : int, optional
             Number of instances to generate. If None, generates up to max_instances.
 
-        Yields
+        Yields:
         ------
         x_instance : pd.DataFrame
             Single instance feature vector.

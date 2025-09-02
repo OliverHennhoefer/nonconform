@@ -33,7 +33,7 @@ class BaseDataGenerator(ABC):
     seed : int, optional
         Seed for random number generator.
 
-    Attributes
+    Attributes:
     ----------
     x_train : pd.DataFrame
         Training data (normal instances only).
@@ -155,7 +155,7 @@ class BaseDataGenerator(ABC):
     def get_training_data(self) -> pd.DataFrame:
         """Get training data (normal instances only).
 
-        Returns
+        Returns:
         -------
         pd.DataFrame
             Training data without anomalies.
@@ -207,7 +207,7 @@ class BaseDataGenerator(ABC):
         is_anomaly : bool
             Whether to sample an anomaly or normal instance.
 
-        Returns
+        Returns:
         -------
         tuple[pd.DataFrame, int]
             Instance data and label (0=normal, 1=anomaly).

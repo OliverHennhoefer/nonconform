@@ -24,7 +24,7 @@ class Split(BaseStrategy):
         strategy = Split(n_calib=1000)
         ```
 
-    Attributes
+    Attributes:
     ----------
         _calib_size: Size or proportion of data used for calibration.
         _calibration_ids: Indices of calibration samples (for weighted conformal).
@@ -74,7 +74,7 @@ class Split(BaseStrategy):
             iteration_callback (callable, optional): Not used in Split strategy.
                 Defaults to None.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * A list containing the single trained PyOD detector instance.
@@ -103,7 +103,7 @@ class Split(BaseStrategy):
         method. It will be ``None`` if `fit_calibrate` was called with
         `weighted=False` or if `fit_calibrate` has not yet been called.
 
-        Returns
+        Returns:
         -------
             list[int] | None: A list of integer indices, or ``None``.
         """

@@ -18,7 +18,7 @@ class Jackknife(BaseStrategy):
     It internally uses a :class:`~nonconform.strategy.cross_val.CrossValidation`
     strategy, dynamically setting its `_k` parameter to the dataset size.
 
-    Attributes
+    Attributes:
     ----------
         _plus (bool): If ``True``, each model trained (one for each left-out
             sample) is retained. If ``False``, a single model trained on the
@@ -38,16 +38,29 @@ class Jackknife(BaseStrategy):
             strategy.
     """
 
-    def __init__(self, plus: bool = False):
+    def __init__(self, plus: bool = True):
         """Initialize the Jackknife strategy.
 
         Args:
             plus (bool, optional): If ``True``, instructs the internal
                 cross-validation strategy to retain all models trained during
-                the leave-one-out process. Defaults to ``False``.
+                the leave-one-out process. Strongly recommended for statistical
+                validity. Defaults to ``True``.
         """
         super().__init__(plus)
         self._plus: bool = plus
+
+        # Warn if plus=False to alert about potential validity issues
+        if not plus:
+            from nonconform.utils.func.logger import get_logger
+
+            logger = get_logger("strategy.jackknife")
+            logger.warning(
+                "Setting plus=False may compromise conformal validity. "
+                "The plus variant (plus=True) is recommended "
+                "for statistical guarantees."
+            )
+
         self._strategy: CrossValidation = CrossValidation(k=1, plus=plus)
         self._calibration_ids: list[int] | None = None
 
@@ -84,7 +97,7 @@ class Jackknife(BaseStrategy):
             iteration_callback (callable, optional): Not used in Jackknife strategy.
                 Defaults to None.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * A list of trained PyOD detector models.
@@ -108,7 +121,7 @@ class Jackknife(BaseStrategy):
         In jackknife (leave-one-out), each sample is used once for
         calibration. The list is populated after `fit_calibrate` is called.
 
-        Returns
+        Returns:
         -------
             list[int] | None: A list of integer indices, or ``None`` if
                 `fit_calibrate` has not been called.

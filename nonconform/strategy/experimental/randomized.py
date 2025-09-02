@@ -26,7 +26,7 @@ class Randomized(BaseStrategy):
     1. Standard mode: Uses a single model trained on all data for prediction
     2. Plus mode: Uses an ensemble of models, each trained on a different subset
 
-    Attributes
+    Attributes:
     ----------
         _sampling_distr (Distribution): Distribution type for drawing holdout sizes
         _n_iterations (int | None): Number of rLpO iterations
@@ -84,7 +84,7 @@ class Randomized(BaseStrategy):
                 different subsets. If False, uses single model trained on all data.
                 Defaults to True.
 
-        Raises
+        Raises:
         ------
             ValueError: If required parameters for the chosen distribution are missing,
                 if both n_iterations and n_calib are specified, or neither.
@@ -141,7 +141,7 @@ class Randomized(BaseStrategy):
 
         Sets default parameters where appropriate and logs when defaults are used.
 
-        Raises
+        Raises:
         ------
             ValueError: If required parameters are missing for the distribution.
         """
@@ -218,7 +218,7 @@ class Randomized(BaseStrategy):
         Args:
             generator (np.random.Generator): Random number generator.
 
-        Returns
+        Returns:
         -------
             int: Holdout set size.
         """
@@ -296,14 +296,14 @@ class Randomized(BaseStrategy):
                 per-iteration scores for performance analysis. Can be accessed
                 via get_iteration_info(). Defaults to False.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either multiple models in plus
                   mode or a single model in standard mode)
                 * List of calibration scores from all iterations
 
-        Raises
+        Raises:
         ------
             ValueError: If holdout set size would leave insufficient training data.
         """
@@ -475,13 +475,14 @@ class Randomized(BaseStrategy):
         used for performance analysis, plotting vs. holdout size, or understanding
         the distribution of holdout set sizes used.
 
-        Returns
+        Returns:
         -------
             tuple[list[int], list[list[float]]] | None: A tuple containing:
                 * List of holdout sizes for each iteration
                 * List of score arrays, one per iteration
                 Returns None if track_p_values was False during fit_calibrate.
-        Example
+
+        Example:
         -------
             >>> from nonconform.utils.func.enums import Distribution
             >>> strategy = Randomized(n_calib=1000)
@@ -505,7 +506,7 @@ class Randomized(BaseStrategy):
         :meth:`fit_calibrate`. The list contains indices of all holdout
         samples encountered during rLpO iterations.
 
-        Returns
+        Returns:
         -------
             list[int]: A list of integer indices for calibration samples.
         """

@@ -54,7 +54,7 @@ class BaseConformalDetector(ABC):
             raw (bool, optional): Whether to return raw anomaly scores or
                 processed anomaly estimates (e.g., p-values). Defaults to False.
 
-        Returns
+        Returns:
         -------
             np.ndarray: An array containing the anomaly estimates.
         """

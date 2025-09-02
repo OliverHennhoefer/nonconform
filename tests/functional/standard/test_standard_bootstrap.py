@@ -16,7 +16,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
         )
 
@@ -32,7 +32,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
         )
 
@@ -48,7 +48,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
         )
 
@@ -64,7 +64,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
         )
 
@@ -80,7 +80,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=HBOS(),
-            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000),
+            strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
         )
 

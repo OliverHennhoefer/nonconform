@@ -24,12 +24,12 @@ def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> list[flo
             used as the reference distribution. Can be passed as a list,
             which the decorator will convert.
 
-    Returns
+    Returns:
     -------
         list[float]: A list of p-values, each corresponding to an input score
             from `scores`.
 
-    Notes
+    Notes:
     -----
         The p-value for each score is computed using the formula:
         p_value = (1 + count(calibration_score >= score)) / (1 + N_calibration)
@@ -71,7 +71,7 @@ def calculate_weighted_p_val(
         w_calib (numpy.ndarray): A 1D array of weights corresponding to each
             score in `calibration_set`. Must be a ``numpy.ndarray``.
 
-    Returns
+    Returns:
     -------
         list[float]: A list of weighted p-values corresponding to the input
             `scores`.

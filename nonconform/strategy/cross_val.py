@@ -22,7 +22,7 @@ class CrossValidation(BaseStrategy):
     1. Standard mode: Uses a single model trained on all data for prediction
     2. Plus mode: Uses an ensemble of k models, each trained on k-1 folds
 
-    Attributes
+    Attributes:
     ----------
         _k (int): Number of folds for cross-validation
         _plus (bool): Whether to use the plus variant (ensemble of models)
@@ -31,7 +31,7 @@ class CrossValidation(BaseStrategy):
         _calibration_ids (list[int]): Indices of samples used for calibration
     """
 
-    def __init__(self, k: int, plus: bool = False):
+    def __init__(self, k: int, plus: bool = True):
         """Initialize the CrossValidation strategy.
 
         Args:
@@ -42,12 +42,23 @@ class CrossValidation(BaseStrategy):
                 to `_detector_list`, creating an ensemble. If ``False``,
                 `_detector_list` will contain one model trained on all data
                 after calibration scores are collected. The plus variant
-                typically provides better performance but requires more memory.
-                Defaults to ``False``.
+                maintains statistical validity and is strongly recommended.
+                Defaults to ``True``.
         """
         super().__init__(plus)
         self._k: int = k
         self._plus: bool = plus
+
+        # Warn if plus=False to alert about potential validity issues
+        if not plus:
+            from nonconform.utils.func.logger import get_logger
+
+            logger = get_logger("strategy.cross_val")
+            logger.warning(
+                "Setting plus=False may compromise conformal validity. "
+                "The plus variant (plus=True) is recommended "
+                "for statistical guarantees."
+            )
 
         self._detector_list: list[BaseDetector] = []
         self._calibration_set: list[float] = []
@@ -86,14 +97,14 @@ class CrossValidation(BaseStrategy):
                 strategy.
                 Defaults to None.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either k models in plus mode or
                   a single model in standard mode)
                 * List of calibration scores from all folds
 
-        Raises
+        Raises:
         ------
             ValueError: If k is less than 2 or if the data size is too small
                 for the specified number of folds.
@@ -150,7 +161,7 @@ class CrossValidation(BaseStrategy):
         typically covering all indices from 0 to len(x)-1, but ordered by
         fold processing.
 
-        Returns
+        Returns:
         -------
             list[int]: A list of integer indices.
         """

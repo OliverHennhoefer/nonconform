@@ -17,7 +17,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Randomized(n_calib=100_000),
+            strategy=Randomized(n_calib=100_000, plus=True),
             seed=1,
         )
 
@@ -33,7 +33,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Randomized(n_calib=100_000),
+            strategy=Randomized(n_calib=100_000, plus=True),
             seed=1,
         )
 
@@ -49,7 +49,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Randomized(n_calib=10_000),
+            strategy=Randomized(n_calib=10_000, plus=True),
             seed=1,
         )
 
@@ -65,7 +65,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=ECOD(),
-            strategy=Randomized(n_calib=100_000),
+            strategy=Randomized(n_calib=100_000, plus=True),
             seed=1,
         )
 
@@ -81,7 +81,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
 
         ce = WeightedConformalDetector(
             detector=HBOS(),
-            strategy=Randomized(n_calib=10_000),
+            strategy=Randomized(n_calib=10_000, plus=True),
             seed=1,
         )
 

@@ -15,7 +15,9 @@ class TestCaseSplitConformal(unittest.TestCase):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
         ce = StandardConformalDetector(
-            detector=IForest(behaviour="new"), strategy=CrossValidation(k=5), seed=1
+            detector=IForest(behaviour="new"),
+            strategy=CrossValidation(k=5, plus=False),
+            seed=1,
         )
 
         ce.fit(x_train)
@@ -46,7 +48,7 @@ class TestCaseSplitConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=CrossValidation(k=5),
+            strategy=CrossValidation(k=5, plus=False),
             seed=1,
         )
 
@@ -78,7 +80,7 @@ class TestCaseSplitConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=CrossValidation(k=5),
+            strategy=CrossValidation(k=5, plus=False),
             seed=1,
         )
 
@@ -110,7 +112,7 @@ class TestCaseSplitConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=CrossValidation(k=5),
+            strategy=CrossValidation(k=5, plus=False),
             seed=1,
         )
 
@@ -142,7 +144,7 @@ class TestCaseSplitConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=HBOS(),
-            strategy=CrossValidation(k=5),
+            strategy=CrossValidation(k=5, plus=False),
             seed=1,
         )
 

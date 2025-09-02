@@ -171,9 +171,8 @@ fixable = [
 ]
 unfixable = []
 
-# Configure pydocstyle (D rules)
 [tool.ruff.lint.pydocstyle]
-convention = "numpy"
+convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"

@@ -15,7 +15,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
 
         ce = StandardConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=JackknifeBootstrap(n_bootstraps=50),
+            strategy=JackknifeBootstrap(n_bootstraps=50, plus=False),
             seed=1,
         )
 

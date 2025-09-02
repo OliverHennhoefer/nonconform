@@ -27,7 +27,7 @@ class Bootstrap(BaseStrategy):
     1. Standard mode: Uses a single model trained on all data for prediction
     2. Plus mode: Uses an ensemble of models, each trained on a bootstrap sample
 
-    Attributes
+    Attributes:
     ----------
         _resampling_ratio (float): Proportion of data to use for training in each
             bootstrap iteration
@@ -119,14 +119,14 @@ class Bootstrap(BaseStrategy):
                 iteration with the iteration number and calibration scores.
                 Defaults to None.
 
-        Returns
+        Returns:
         -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either n_bootstraps models in plus
                   mode or a single model in standard mode)
                 * List of calibration scores from all bootstrap iterations
 
-        Raises
+        Raises:
         ------
             ValueError: If resampling_ratio is not between 0 and 1, or if
                 n_bootstraps is less than 1, or if n_calib is less than 1
@@ -202,7 +202,7 @@ class Bootstrap(BaseStrategy):
         parameter is derived from these two and the dataset size by
         `_configure`.
 
-        Raises
+        Raises:
         ------
             ValueError: If not exactly two of the three parameters
                 (resampling_ratio, n_bootstraps, n_calib) are defined.
@@ -228,11 +228,11 @@ class Bootstrap(BaseStrategy):
             num_bootstraps (int): Number of bootstrap iterations.
             res_ratio (float): Resampling ratio for training.
 
-        Returns
+        Returns:
         -------
             int: Target number of calibration samples.
 
-        Raises
+        Raises:
         ------
             ValueError: If resampling ratio is not between 0 and 1, or if
                 number of bootstraps is less than 1.
@@ -291,7 +291,7 @@ class Bootstrap(BaseStrategy):
         Args:
             n (int): The total number of samples in the dataset.
 
-        Raises
+        Raises:
         ------
             ValueError: If `_sanity_check` fails (i.e., not exactly two
                 parameters were initially defined), or if calculated
@@ -344,7 +344,7 @@ class Bootstrap(BaseStrategy):
         be a subsample of all encountered IDs, corresponding to the
         subsampled `_calibration_set`.
 
-        Returns
+        Returns:
         -------
             List[int]: A list of integer indices.
         """

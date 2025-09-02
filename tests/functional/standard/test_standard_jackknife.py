@@ -14,7 +14,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
         x_train, x_test, y_test = load(Dataset.BREAST, setup=True, seed=1)
 
         ce = StandardConformalDetector(
-            detector=IForest(behaviour="new"), strategy=Jackknife()
+            detector=IForest(behaviour="new"), strategy=Jackknife(plus=False)
         )
 
         ce.fit(x_train)

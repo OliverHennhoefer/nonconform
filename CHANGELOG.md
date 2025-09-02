@@ -8,9 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.91.0 (Unreleased)
 
 ### Changed
-- Migration from ```sphinx``` to ``Material for MkDocs``
-  - Publication on GitHub Pages
-- Formatting with ``black`` was entirely replaced by ``ruff`` (e.g. pre-commits)
+- Migration from ```sphinx``` to ``Material for MkDocs``.
+  - Publication on GitHub Pages.
+- Formatting with ``black`` was entirely replaced by ``ruff`` (e.g. pre-commits).
+- Changed ``plus`` parameter defaults (``true``) and warning for manual override (to ``False``).
+  - This is due to the lacking statistical guarantees if calibration scores and models are not aligned.
+
+### Fixed
+- Bug Fix in ```JackknifeBootstrap()``` regarding the original plus-variant.
 
 ## 0.9.200 (2025-08-28)
 
