@@ -49,10 +49,9 @@ dev = [
     "pre-commit",
     "twine",
     "build",
-    "sphinx",
-    "furo",
-    "sphinx-autoapi",
-    "myst-parser"
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]"
 ]
 deep = [
     "torch>=2.7.0"
@@ -60,8 +59,13 @@ deep = [
 fdr = [
     "online-fdr>=0.0.3"
 ]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]"
+]
 all = [
-    "nonconform[data,dev,deep,fdr]"
+    "nonconform[data,dev,docs,deep,fdr]"
 ]
 
 [project.urls]

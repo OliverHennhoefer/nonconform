@@ -20,10 +20,8 @@ __pycache__
 # Auto-generated during builds
 /src/hatch/_version.py
 
-# Sphinx documentation
-docs/build/
-docs/source/api/ # If using sphinx-apidoc and generating into source
-docs/source/_autosummary_generated/ # If using autosummary
+# MkDocs documentation
+docs/site/
 
 # Claude Code
 CLAUDE.md

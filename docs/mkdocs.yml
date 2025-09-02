@@ -1,0 +1,106 @@
+site_name: Nonconform
+site_description: Conformal Anomaly Detection
+site_author: Oliver Hennhöfer
+site_url: https://oliverhennhoefer.github.io/nonconform
+repo_url: https://github.com/OliverHennhoefer/nonconform
+repo_name: OliverHennhoefer/nonconform
+
+docs_dir: source
+site_dir: site
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quick Start: quickstart.md
+  - User Guide:
+    - user_guide/index.md
+    - Conformal Inference: user_guide/conformal_inference.md
+    - Conformalization Strategies: user_guide/conformalization_strategies.md
+    - Extreme Conformal: user_guide/extreme_conformal.md
+    - Weighted Conformal: user_guide/weighted_conformal.md
+    - FDR Control: user_guide/fdr_control.md
+    - Batch Evaluation: user_guide/batch_evaluation.md
+    - Streaming Evaluation: user_guide/streaming_evaluation.md
+    - Statistical Concepts: user_guide/statistical_concepts.md
+    - Best Practices: user_guide/best_practices.md
+    - Logging: user_guide/logging.md
+    - Troubleshooting: user_guide/troubleshooting.md
+  - Examples:
+    - examples/index.md
+    - Classical Conformal: examples/classical_conformal.md
+    - Bootstrap Conformal: examples/bootstrap_conformal.md
+    - Cross-Validation Conformal: examples/cross_val_conformal.md
+    - Jackknife Conformal: examples/jackknife_conformal.md
+    - Extreme Conformal: examples/extreme_conformal.md
+    - Weighted Conformal: examples/weighted_conformal.md
+    - FDR Control: examples/fdr_control.md
+  - API Reference:
+    - api/index.md
+  - Contributing: contributing.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            docstring_options:
+              ignore_init_summary: true
+            merge_init_into_class: true
+            show_submodules: true
+            show_source: true
+            show_bases: true
+            show_root_heading: true
+            heading_level: 2
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/OliverHennhoefer
