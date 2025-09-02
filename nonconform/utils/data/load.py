@@ -322,6 +322,27 @@ class DatasetManager:
         """
         return str(self.cache_dir)
 
+    @property
+    def memory_cache_size(self) -> int:
+        """Returns the number of datasets cached in memory.
+
+        Returns:
+            int: Number of datasets currently in memory cache.
+        """
+        return len(self._memory_cache)
+
+    @property
+    def is_cache_enabled(self) -> bool:
+        """Returns whether disk caching is enabled.
+
+        Returns:
+            bool: True if cache directory exists and is writable.
+        """
+        try:
+            return self.cache_dir.exists() and os.access(self.cache_dir, os.W_OK)
+        except (OSError, PermissionError):
+            return False
+
 
 # Create singleton instance
 _manager = DatasetManager()

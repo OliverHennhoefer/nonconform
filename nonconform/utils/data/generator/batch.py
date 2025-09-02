@@ -93,7 +93,11 @@ class BatchGenerator(BaseDataGenerator):
 
         # Validate batch size
         if batch_size <= 0:
-            raise ValueError(f"batch_size must be positive, got {batch_size}")
+            raise ValueError(
+                f"batch_size must be positive, got {batch_size}. "
+                f"Typical values are 32-1000 depending on dataset size"
+                f" and memory constraints."
+            )
 
         # Initialize base class
         super().__init__(

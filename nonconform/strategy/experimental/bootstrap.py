@@ -232,9 +232,16 @@ class Bootstrap(BaseStrategy):
                 number of bootstraps is less than 1.
         """
         if not (0 < res_ratio < 1):
-            raise ValueError("Resampling ratio must be between 0 and 1.")
+            raise ValueError(
+                f"Resampling ratio must be between 0 and 1, got {res_ratio}. "
+                f"Typical values are 0.5-0.9. This controls the proportion of data "
+                f"used for training in each bootstrap iteration."
+            )
         if num_bootstraps < 1:
-            raise ValueError("Number of bootstraps must be at least 1.")
+            raise ValueError(
+                f"Number of bootstraps must be at least 1, got {num_bootstraps}. "
+                f"Typical values are 50-200 for good statistical properties."
+            )
         return math.ceil(num_bootstraps * n_data * (1.0 - res_ratio))
 
     @staticmethod
@@ -242,7 +249,11 @@ class Bootstrap(BaseStrategy):
         n_data: int, num_calib_target: int, res_ratio: float
     ) -> int:
         if not (0 < res_ratio < 1):
-            raise ValueError("Resampling ratio must be between 0 and 1.")
+            raise ValueError(
+                f"Resampling ratio must be between 0 and 1, got {res_ratio}. "
+                f"Typical values are 0.5-0.9. This controls the proportion of data "
+                f"used for training in each bootstrap iteration."
+            )
         if n_data * (1.0 - res_ratio) <= 0:
             raise ValueError(
                 "Product n_data * (1 - res_ratio) must be positive for "
@@ -258,7 +269,10 @@ class Bootstrap(BaseStrategy):
         n_data: int, num_bootstraps: int, num_calib_target: int
     ) -> float:
         if num_bootstraps < 1:
-            raise ValueError("Number of bootstraps must be at least 1.")
+            raise ValueError(
+                f"Number of bootstraps must be at least 1, got {num_bootstraps}. "
+                f"Typical values are 50-200 for good statistical properties."
+            )
         if n_data <= 0 or num_bootstraps * n_data == 0:
             raise ValueError("Product n_data * num_bootstraps must be positive.")
 
@@ -341,3 +355,39 @@ class Bootstrap(BaseStrategy):
             List[int]: A list of integer indices.
         """
         return self._calibration_ids
+
+    @property
+    def resampling_ratio(self) -> float:
+        """Returns the resampling ratio.
+
+        Returns:
+            float: Proportion of data used for training in each bootstrap iteration.
+        """
+        return self._resampling_ratio
+
+    @property
+    def n_bootstraps(self) -> int:
+        """Returns the number of bootstrap iterations.
+
+        Returns:
+            int: Number of bootstrap iterations.
+        """
+        return self._n_bootstraps
+
+    @property
+    def n_calib(self) -> int:
+        """Returns the target calibration set size.
+
+        Returns:
+            int: Target number of calibration samples.
+        """
+        return self._n_calib
+
+    @property
+    def plus(self) -> bool:
+        """Returns whether the plus variant is enabled.
+
+        Returns:
+            bool: True if using ensemble mode, False if using single model.
+        """
+        return self._plus

@@ -61,6 +61,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         seed: Random seed for reproducible results.
         detector_set: List of trained detector models (populated after fit).
         calibration_set: Calibration scores for p-value computation (populated by fit).
+        is_fitted: Whether the detector has been fitted.
         calibration_samples: Data instances used for calibration (+ weight computation).
     """
 
@@ -89,8 +90,13 @@ class WeightedConformalDetector(BaseConformalDetector):
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
         if not isinstance(aggregation, Aggregation):
+            valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
             raise TypeError(
-                f"aggregation must be an Aggregation enum, got {type(aggregation)}"
+                f"aggregation must be an Aggregation enum, "
+                f"got {type(aggregation).__name__}. "
+                f"Valid options: {valid_methods}. "
+                f"Example: WeightedConformalDetector(detector=model,"
+                f" strategy=strategy, aggregation=Aggregation.MEDIAN)"
             )
 
         self.detector: BaseDetector = _set_params(detector, seed)
@@ -98,9 +104,9 @@ class WeightedConformalDetector(BaseConformalDetector):
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
-        self.detector_set: list[BaseDetector] = []
-        self.calibration_set: list[float] = []
-        self.calibration_samples: np.ndarray = np.array([])  # Initialize as empty
+        self._detector_set: list[BaseDetector] = []
+        self._calibration_set: list[float] = []
+        self._calibration_samples: np.ndarray = np.array([])  # Initialize as empty
 
     @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
@@ -120,7 +126,7 @@ class WeightedConformalDetector(BaseConformalDetector):
             iteration_callback (callable | None): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
         """
-        self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
+        self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             x=x,
             detector=self.detector,
             weighted=True,
@@ -131,11 +137,11 @@ class WeightedConformalDetector(BaseConformalDetector):
             self.strategy.calibration_ids is not None
             and len(self.strategy.calibration_ids) > 0
         ):
-            self.calibration_samples = x[self.strategy.calibration_ids]
+            self._calibration_samples = x[self.strategy.calibration_ids]
         else:
             # Handle case where calibration_ids might be empty or None
             # This might happen if the strategy doesn't yield IDs or x is too small
-            self.calibration_samples = np.array([])
+            self._calibration_samples = np.array([])
 
     @_ensure_numpy_array
     def predict(
@@ -175,9 +181,9 @@ class WeightedConformalDetector(BaseConformalDetector):
         scores_list = [
             model.decision_function(x)
             for model in tqdm(
-                self.detector_set,
-                total=len(self.detector_set),
-                desc=f"Aggregating {len(self.detector_set)} models",
+                self._detector_set,
+                total=len(self._detector_set),
+                desc=f"Aggregating {len(self._detector_set)} models",
                 disable=not logger.isEnabledFor(logging.DEBUG),
             )
         ]
@@ -190,7 +196,7 @@ class WeightedConformalDetector(BaseConformalDetector):
             if raw
             else calculate_weighted_p_val(
                 np.array(estimates),
-                np.array(self.calibration_set),
+                np.array(self._calibration_set),
                 np.array(w_x),
                 np.array(w_cal),
             )
@@ -219,14 +225,17 @@ class WeightedConformalDetector(BaseConformalDetector):
                 * clipped_w_calib: Clipped weights for calibration samples.
                 * clipped_w_tests: Clipped weights for test instances.
         """
-        if self.calibration_samples.shape[0] == 0:
+        if self._calibration_samples.shape[0] == 0:
             raise ValueError(
                 "Calibration samples are empty. Weights cannot be computed. "
                 "Ensure fit() was called and strategy provided calibration_ids."
             )
 
         calib_labeled = np.hstack(
-            (self.calibration_samples, np.zeros((self.calibration_samples.shape[0], 1)))
+            (
+                self._calibration_samples,
+                np.zeros((self._calibration_samples.shape[0], 1)),
+            )
         )
         tests_labeled = np.hstack(
             (test_instances, np.ones((test_instances.shape[0], 1)))
@@ -250,7 +259,7 @@ class WeightedConformalDetector(BaseConformalDetector):
         )
         model.fit(x_joint, y_joint)
 
-        calib_prob = model.predict_proba(self.calibration_samples)
+        calib_prob = model.predict_proba(self._calibration_samples)
         tests_prob = model.predict_proba(test_instances)
 
         # Density ratio w(z) = p_test(z) / p_calib(z)
@@ -269,3 +278,39 @@ class WeightedConformalDetector(BaseConformalDetector):
         clipped_w_tests = np.clip(w_tests, 0.35, 45.0)
 
         return clipped_w_calib, clipped_w_tests
+
+    @property
+    def detector_set(self) -> list[BaseDetector]:
+        """Returns the list of trained detector models.
+
+        Returns:
+            list[BaseDetector]: List of trained detectors populated after fit().
+        """
+        return self._detector_set
+
+    @property
+    def calibration_set(self) -> list[float]:
+        """Returns the list of calibration scores.
+
+        Returns:
+            list[float]: List of calibration scores populated after fit().
+        """
+        return self._calibration_set
+
+    @property
+    def calibration_samples(self) -> np.ndarray:
+        """Returns the calibration samples used for weight computation.
+
+        Returns:
+            np.ndarray: Data instances used for calibration.
+        """
+        return self._calibration_samples
+
+    @property
+    def is_fitted(self) -> bool:
+        """Returns whether the detector has been fitted.
+
+        Returns:
+            bool: True if fit() has been called and models are trained.
+        """
+        return len(self._detector_set) > 0 and len(self._calibration_set) > 0

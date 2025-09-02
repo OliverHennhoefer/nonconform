@@ -7,6 +7,42 @@ import numpy as np
 import pandas as pd
 
 
+def _convert_to_numpy(value: Any) -> Any:
+    """Convert a value to numpy array if it's a list.
+
+    Args:
+        value: The value to potentially convert.
+
+    Returns:
+        The converted value or original value if no conversion needed.
+    """
+    if isinstance(value, list):
+        try:
+            return np.array(value)
+        except ValueError:
+            # Handle nested lists by converting each individually
+            return [np.array(v) if isinstance(v, list) else v for v in value]
+    return value
+
+
+def _convert_from_numpy(result: Any) -> Any:
+    """Convert numpy arrays in result back to lists recursively.
+
+    Args:
+        result: The result to convert.
+
+    Returns:
+        The converted result with numpy arrays as lists.
+    """
+    if isinstance(result, np.ndarray):
+        return result.tolist()
+    elif isinstance(result, tuple):
+        return tuple(_convert_from_numpy(x) for x in result)
+    elif isinstance(result, list):
+        return [_convert_from_numpy(x) for x in result]
+    return result
+
+
 def _performance_conversion(*arg_names: str) -> Callable:
     """Create a decorator to convert specified arguments and return values.
 
@@ -31,49 +67,26 @@ def _performance_conversion(*arg_names: str) -> Callable:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs) -> Any:
-            # Internal helper to convert values to numpy arrays
-            def convert_to_array(value: Any) -> Any:
-                if isinstance(value, list):
-                    try:
-                        return np.array(value)
-                    except ValueError:
-                        # Attempt to convert nested lists if direct conversion fails
-                        return [
-                            np.array(v) if isinstance(v, list) else v for v in value
-                        ]
-                return value
-
             # Convert specified keyword arguments
-            new_kwargs = {
-                k: convert_to_array(v) if k in arg_names else v
+            converted_kwargs = {
+                k: _convert_to_numpy(v) if k in arg_names else v
                 for k, v in kwargs.items()
             }
 
-            # Convert specified positional arguments
-            # Use inspect module for more robust parameter inspection
+            # Convert specified positional arguments using function signature
             sig = inspect.signature(func)
             param_names = list(sig.parameters.keys())
-            new_args = []
-            for i, arg_val in enumerate(args):
-                if i < len(param_names) and param_names[i] in arg_names:
-                    new_args.append(convert_to_array(arg_val))
-                else:
-                    new_args.append(arg_val)
-            args = tuple(new_args)
+            converted_args = []
 
-            result = func(*args, **new_kwargs)
+            for i, arg_value in enumerate(args):
+                should_convert = i < len(param_names) and param_names[i] in arg_names
+                converted_args.append(
+                    _convert_to_numpy(arg_value) if should_convert else arg_value
+                )
 
-            # Internal helper to convert numpy arrays in results back to lists
-            def convert_result(r: Any) -> Any:
-                if isinstance(r, np.ndarray):
-                    return r.tolist()
-                elif isinstance(r, tuple):
-                    return tuple(convert_result(x) for x in r)
-                elif isinstance(r, list):
-                    return [convert_result(x) for x in r]
-                return r
-
-            return convert_result(result)
+            # Execute function and convert result
+            result = func(*converted_args, **converted_kwargs)
+            return _convert_from_numpy(result)
 
         return wrapper
 

@@ -55,6 +55,7 @@ class StandardConformalDetector(BaseConformalDetector):
         seed: Random seed for reproducible results.
         detector_set: List of trained detector models (populated after fit).
         calibration_set: Calibration scores for p-value computation (populated by fit).
+        is_fitted: Whether the detector has been fitted.
     """
 
     def __init__(
@@ -83,8 +84,13 @@ class StandardConformalDetector(BaseConformalDetector):
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
         if not isinstance(aggregation, Aggregation):
+            valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
             raise TypeError(
-                f"aggregation must be an Aggregation enum, got {type(aggregation)}"
+                f"aggregation must be an Aggregation enum, "
+                f"got {type(aggregation).__name__}. "
+                f"Valid options: {valid_methods}. "
+                f"Example: StandardConformalDetector(detector=model, "
+                f"strategy=strategy, aggregation=Aggregation.MEDIAN)"
             )
 
         self.detector: PyODBaseDetector = _set_params(detector, seed)
@@ -92,8 +98,8 @@ class StandardConformalDetector(BaseConformalDetector):
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
-        self.detector_set: list[PyODBaseDetector] = []
-        self.calibration_set: list[float] = []
+        self._detector_set: list[PyODBaseDetector] = []
+        self._calibration_set: list[float] = []
 
     @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
@@ -103,7 +109,7 @@ class StandardConformalDetector(BaseConformalDetector):
         on parts of the provided data and then calculates non-conformity
         scores on other parts (calibration set) to establish a baseline for
         typical behavior. The resulting trained models and calibration scores
-        are stored in `self.detector_set` and `self.calibration_set`.
+        are stored in `self._detector_set` and `self._calibration_set`.
 
         Args:
             x (pd.DataFrame | np.ndarray): The dataset used for
@@ -113,7 +119,7 @@ class StandardConformalDetector(BaseConformalDetector):
                 for strategies that support iteration tracking (e.g., Bootstrap).
                 Called after each iteration with (iteration, scores). Defaults to None.
         """
-        self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
+        self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             x=x,
             detector=self.detector,
             weighted=False,
@@ -153,9 +159,9 @@ class StandardConformalDetector(BaseConformalDetector):
         scores_list = [
             model.decision_function(x)
             for model in tqdm(
-                self.detector_set,
-                total=len(self.detector_set),
-                desc=f"Aggregating {len(self.detector_set)} models",
+                self._detector_set,
+                total=len(self._detector_set),
+                desc=f"Aggregating {len(self._detector_set)} models",
                 disable=not logger.isEnabledFor(logging.DEBUG),
             )
         ]
@@ -164,5 +170,34 @@ class StandardConformalDetector(BaseConformalDetector):
         return (
             estimates
             if raw
-            else calculate_p_val(scores=estimates, calibration_set=self.calibration_set)
+            else calculate_p_val(
+                scores=estimates, calibration_set=self._calibration_set
+            )
         )
+
+    @property
+    def detector_set(self) -> list[PyODBaseDetector]:
+        """Returns the list of trained detector models.
+
+        Returns:
+            list[PyODBaseDetector]: List of trained detectors populated after fit().
+        """
+        return self._detector_set
+
+    @property
+    def calibration_set(self) -> list[float]:
+        """Returns the list of calibration scores.
+
+        Returns:
+            list[float]: List of calibration scores populated after fit().
+        """
+        return self._calibration_set
+
+    @property
+    def is_fitted(self) -> bool:
+        """Returns whether the detector has been fitted.
+
+        Returns:
+            bool: True if fit() has been called and models are trained.
+        """
+        return len(self._detector_set) > 0 and len(self._calibration_set) > 0

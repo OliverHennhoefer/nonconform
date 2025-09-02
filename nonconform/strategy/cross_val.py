@@ -162,3 +162,21 @@ class CrossValidation(BaseStrategy):
             list[int]: A list of integer indices.
         """
         return self._calibration_ids
+
+    @property
+    def k(self) -> int:
+        """Returns the number of folds for cross-validation.
+
+        Returns:
+            int: Number of folds specified during initialization.
+        """
+        return self._k
+
+    @property
+    def plus(self) -> bool:
+        """Returns whether the plus variant is enabled.
+
+        Returns:
+            bool: True if using ensemble mode, False if using single model.
+        """
+        return self._plus

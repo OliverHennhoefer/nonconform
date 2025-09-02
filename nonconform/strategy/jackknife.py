@@ -124,3 +124,12 @@ class Jackknife(BaseStrategy):
                 `fit_calibrate` has not been called.
         """
         return self._calibration_ids
+
+    @property
+    def plus(self) -> bool:
+        """Returns whether the plus variant is enabled.
+
+        Returns:
+            bool: True if using ensemble mode, False if using single model.
+        """
+        return self._plus

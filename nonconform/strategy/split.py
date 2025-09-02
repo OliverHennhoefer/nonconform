@@ -105,3 +105,14 @@ class Split(BaseStrategy):
             list[int] | None: A list of integer indices, or ``None``.
         """
         return self._calibration_ids
+
+    @property
+    def calib_size(self) -> float | int:
+        """Returns the calibration size or proportion.
+
+        Returns:
+            float | int: The calibration size as specified during initialization.
+                If float (0.0-1.0), represents proportion of data.
+                If int, represents absolute number of samples.
+        """
+        return self._calib_size

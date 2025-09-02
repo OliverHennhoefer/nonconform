@@ -65,10 +65,15 @@ class JackknifeBootstrap(BaseStrategy):
         super().__init__(plus=plus)
 
         if n_bootstraps < 1:
-            raise ValueError("Number of bootstraps must be at least 1.")
+            raise ValueError(
+                f"Number of bootstraps must be at least 1, got {n_bootstraps}. "
+                f"Typical values are 50-200 for jackknife-after-bootstrap."
+            )
         if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
             raise ValueError(
-                "aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN"
+                f"aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN, "
+                f"got {aggregation_method}. These are the only statistically valid "
+                f"methods for combining out-of-bag predictions in JackknifeBootstrap()."
             )
 
         # Warn if plus=False to alert about potential validity issues

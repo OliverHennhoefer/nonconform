@@ -39,7 +39,12 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
 
     func = aggregation_methods.get(method)
     if not func:
-        raise ValueError(f"Unsupported aggregation method: {method}")
+        valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
+        raise ValueError(
+            f"Unsupported aggregation method: {method}. "
+            f"Valid methods are: {valid_methods}. "
+            f"Example: aggregate(Aggregation.MEAN, scores)"
+        )
 
     aggregated_scores: np.ndarray = func(scores)
     return aggregated_scores

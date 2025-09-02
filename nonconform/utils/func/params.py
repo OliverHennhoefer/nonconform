@@ -59,8 +59,12 @@ def _set_params(
         or grouping which is incompatible with one-class training.
     """
     if detector.__class__ in forbidden_model_list:
+        forbidden_names = ", ".join([cls.__name__ for cls in forbidden_model_list])
         raise ValueError(
-            f"{detector.__class__.__name__} is not supported by set_params."
+            f"{detector.__class__.__name__} is not supported for conformal prediction. "
+            f"Forbidden detectors: {forbidden_names}. "
+            f"These models require clustering or grouping which is incompatible with "
+            f"one-class training. Use detectors like IForest, HBOS, or ECOD instead."
         )
 
     # Set contamination to the smallest possible float for one-class classification

@@ -98,12 +98,23 @@ class Randomized(BaseStrategy):
             )
             n_iterations = None
         elif n_iterations is None and n_calib is None:
-            raise ValueError("Must specify either n_iterations or n_calib")
+            raise ValueError(
+                "Must specify either n_iterations or n_calib. "
+                "n_iterations controls the number of random leave-p-out iterations, "
+                "while n_calib sets a target number of calibration samples to collect. "
+                "Example: Randomized(n_iterations=1000) or Randomized(n_calib=5000)"
+            )
 
         if n_iterations is not None and n_iterations < 1:
-            raise ValueError("n_iterations must be at least 1")
+            raise ValueError(
+                f"n_iterations must be at least 1, got {n_iterations}. "
+                f"Typical values are 100-10000 depending on dataset size."
+            )
         if n_calib is not None and n_calib < 1:
-            raise ValueError("n_calib must be at least 1")
+            raise ValueError(
+                f"n_calib must be at least 1, got {n_calib}. "
+                f"Typical values are 1000-100000 depending on desired precision."
+            )
 
         self._n_iterations: int | None = n_iterations
         self._sampling_distr: Distribution = sampling_distr
@@ -154,12 +165,23 @@ class Randomized(BaseStrategy):
                     "favoring smaller holdout sizes."
                 )
         elif self._sampling_distr == Distribution.GRID and self._grid_probs is None:
-            raise ValueError("grid_probs required for grid distribution")
+            raise ValueError(
+                "grid_probs required for grid distribution. "
+                "Provide a tuple of (p_values, probabilities) where p_values "
+                "are holdout sizes "
+                "and probabilities are their selection weights. "
+                "Example: grid_probs=([0.1, 0.2, 0.3], [0.5, 0.3, 0.2])"
+            )
 
         if self._beta_params is not None:
             alpha, beta = self._beta_params
             if alpha <= 0 or beta <= 0:
-                raise ValueError("Beta parameters must be positive")
+                raise ValueError(
+                    f"Beta params must be positive, got alpha={alpha}, beta={beta}. "
+                    f"Alpha and beta control the shape of the beta distribution. "
+                    f"Typical values: alpha=2, beta=5 (favors smaller holdouts) or "
+                    f"alpha=5, beta=2 (favors larger holdout sizes)."
+                )
 
         if self._grid_probs is not None:
             p_values, probabilities = self._grid_probs
@@ -502,3 +524,69 @@ class Randomized(BaseStrategy):
             list[int]: A list of integer indices for calibration samples.
         """
         return self._calibration_ids
+
+    @property
+    def n_iterations(self) -> int | None:
+        """Returns the number of iterations.
+
+        Returns:
+            int | None: Number of iterations, or None if using n_calib mode.
+        """
+        return self._n_iterations
+
+    @property
+    def n_calib(self) -> int | None:
+        """Returns the target calibration set size.
+
+        Returns:
+            int | None: Target number of calibration samples,
+            or None if using n_iterations mode.
+        """
+        return self._n_calib
+
+    @property
+    def sampling_distr(self) -> Distribution:
+        """Returns the sampling distribution type.
+
+        Returns:
+            Distribution: Distribution used for drawing holdout sizes.
+        """
+        return self._sampling_distr
+
+    @property
+    def holdout_size_range(self) -> tuple[float, float]:
+        """Returns the holdout size range.
+
+        Returns:
+            tuple[float, float]: Min and max holdout set sizes.
+        """
+        return self._holdout_size_range
+
+    @property
+    def beta_params(self) -> tuple[float, float] | None:
+        """Returns the beta distribution parameters.
+
+        Returns:
+            tuple[float, float] | None: Alpha and beta parameters,
+            or None if not using beta distribution.
+        """
+        return self._beta_params
+
+    @property
+    def grid_probs(self) -> tuple[list[int], list[float]] | None:
+        """Returns the grid probabilities.
+
+        Returns:
+            tuple[list[int], list[float]] | None: Holdout sizes and probabilities,
+             or None if not using grid distribution.
+        """
+        return self._grid_probs
+
+    @property
+    def plus(self) -> bool:
+        """Returns whether the plus variant is enabled.
+
+        Returns:
+            bool: True if using ensemble mode, False if using single model.
+        """
+        return self._plus
