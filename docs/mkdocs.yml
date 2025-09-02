@@ -5,6 +5,8 @@ site_url: https://oliverhennhoefer.github.io/nonconform
 repo_url: https://github.com/OliverHennhoefer/nonconform
 repo_name: OliverHennhoefer/nonconform
 
+copyright: Copyright © 2025 Oliver Hennhöfer
+
 docs_dir: source
 site_dir: site
 
@@ -13,18 +15,17 @@ theme:
   icon:
     repo: fontawesome/brands/github
   palette:
-    # Palette toggle for light mode
-    - scheme: default
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    # Palette toggle for dark mode
+    # Dark mode as default
     - scheme: slate
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    # Light mode toggle
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
   features:
-    - navigation.tabs
     - navigation.sections
     - navigation.expand
     - navigation.path
@@ -104,3 +105,7 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/OliverHennhoefer
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/oliver-hennhoefer
+    - icon: fontawesome/brands/x-twitter
+      link: https://twitter.com/OHennhoefer
