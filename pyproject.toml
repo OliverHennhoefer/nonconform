@@ -50,7 +50,7 @@ dev = [
     "twine",
     "build",
     "mkdocs",
-    "mkdocs-material",
+    "mkdocs-material[imaging]",
     "mkdocstrings[python]"
 ]
 deep = [
@@ -61,7 +61,7 @@ fdr = [
 ]
 docs = [
     "mkdocs",
-    "mkdocs-material",
+    "mkdocs-material[imaging]",
     "mkdocstrings[python]"
 ]
 all = [

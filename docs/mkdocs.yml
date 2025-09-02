@@ -4,6 +4,7 @@ site_author: Oliver Hennhöfer
 site_url: https://oliverhennhoefer.github.io/nonconform
 repo_url: https://github.com/OliverHennhoefer/nonconform
 repo_name: OliverHennhoefer/nonconform
+edit_uri: edit/main/docs/source/
 
 copyright: Copyright © 2025 Oliver Hennhöfer
 
@@ -17,22 +18,36 @@ theme:
   palette:
     # Dark mode as default
     - scheme: slate
+      primary: indigo
+      accent: blue
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
     # Light mode toggle
     - scheme: default
+      primary: indigo
+      accent: blue
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
   features:
-    - navigation.sections
-    - navigation.expand
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
     - navigation.path
     - navigation.top
+    - navigation.footer
+    - header.autohide
     - search.highlight
+    - search.suggest
     - search.share
     - content.code.copy
+    - content.code.select
+    - content.code.annotate
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+    - toc.follow
 
 nav:
   - Home: index.md
@@ -61,7 +76,10 @@ nav:
     - Weighted Conformal: examples/weighted_conformal.md
     - FDR Control: examples/fdr_control.md
   - API Reference:
-    - api/index.md
+    - Overview: api/index.md
+    - Estimation Module: api/index.md#estimation
+    - Strategy Module: api/index.md#strategy
+    - Utils Module: api/index.md#utils
   - Contributing: contributing.md
 
 plugins:
@@ -94,6 +112,9 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: material.extensions.emoji.twemoji
+      emoji_generator: material.extensions.emoji.to_svg
   - attr_list
   - md_in_html
   - tables
