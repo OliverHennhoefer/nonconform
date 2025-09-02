@@ -19,7 +19,6 @@ class Jackknife(BaseStrategy):
     strategy, dynamically setting its `_k` parameter to the dataset size.
 
     Attributes:
-    ----------
         _plus (bool): If ``True``, each model trained (one for each left-out
             sample) is retained. If ``False``, a single model trained on the
             full dataset (after leave-one-out calibration) is retained. This
@@ -27,7 +26,7 @@ class Jackknife(BaseStrategy):
         _strategy (CrossValidation): An instance of the
             :class:`~nonconform.strategy.cross_val.CrossValidation` strategy,
             configured for leave-one-out behavior.
-        _calibration_ids (Optional[List[int]]): Indices of the samples from
+        _calibration_ids (list[int] | None): Indices of the samples from
             the input data `x` used for calibration. Populated after
             :meth:`fit_calibrate` and accessible via :attr:`calibration_ids`.
             Initially ``None``.
@@ -87,7 +86,7 @@ class Jackknife(BaseStrategy):
         sample IDs are retrieved from the internal strategy.
 
         Args:
-            x (Union[pandas.DataFrame, numpy.ndarray]): The input data.
+            x (pd.DataFrame | np.ndarray): The input data.
             detector (BaseDetector): The PyOD base detector instance.
             weighted (bool, optional): Passed to the internal `CrossValidation`
                 strategy's `fit_calibrate` method. Its effect depends on the
@@ -98,7 +97,6 @@ class Jackknife(BaseStrategy):
                 Defaults to None.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * A list of trained PyOD detector models.
                 * A list of calibration scores (one per sample in `x`).
@@ -122,7 +120,6 @@ class Jackknife(BaseStrategy):
         calibration. The list is populated after `fit_calibrate` is called.
 
         Returns:
-        -------
             list[int] | None: A list of integer indices, or ``None`` if
                 `fit_calibrate` has not been called.
         """

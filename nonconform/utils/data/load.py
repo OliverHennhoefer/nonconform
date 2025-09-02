@@ -61,12 +61,10 @@ class DatasetManager:
             seed: Random seed for data splitting if setup is True.
 
         Returns:
-        -------
             If setup is False, returns the complete dataset as a DataFrame.
             If setup is True, returns a tuple: (x_train, x_test, y_test).
 
         Raises:
-        ------
             ValueError: If the dataset is not found in the registry.
             URLError: If dataset download fails.
         """
@@ -122,22 +120,20 @@ class DatasetManager:
             filename: Name of the dataset file (e.g., "breast.npz").
 
         Returns:
-        -------
             Bytes content of the dataset file.
 
         Raises:
-        ------
             URLError: If download fails.
         """
         # Check memory cache first
         if filename in self._memory_cache:
-            logger.debug("Loading %s from memory cache", filename)
+            logger.debug(f"Loading {filename} from memory cache")
             return self._memory_cache[filename]
 
         # Check disk cache second
         cache_file = self.cache_dir / filename
         if cache_file.exists():
-            logger.debug("Loading %s from disk cache (v%s)", filename, self.version)
+            logger.debug(f"Loading {filename} from disk cache (v{self.version})")
             with open(cache_file, "rb") as f:
                 data = f.read()
             self._memory_cache[filename] = data
@@ -148,7 +144,7 @@ class DatasetManager:
 
         # Download file
         url = urljoin(self.base_url, filename)
-        logger.info("Downloading %s from %s...", filename, url)
+        logger.info(f"Downloading {filename} from {url}...")
 
         try:
             # Add headers to avoid GitHub rate limiting
@@ -166,7 +162,7 @@ class DatasetManager:
         with open(cache_file, "wb") as f:
             f.write(data)
 
-        logger.debug("Successfully cached %s (%.1f KB)", filename, len(data) / 1024)
+        logger.debug(f"Successfully cached {filename} ({len(data) / 1024:.1f} KB)")
         return data
 
     def _create_setup(
@@ -184,7 +180,6 @@ class DatasetManager:
             seed: Random seed for data splitting.
 
         Returns:
-        -------
             A tuple (x_train, x_test, y_test).
         """
         normal = df[df["Class"] == 0]
@@ -236,7 +231,7 @@ class DatasetManager:
                     pass
 
         if removed_count > 0:
-            logger.info("Cleaned up %d old dataset versions", removed_count)
+            logger.info(f"Cleaned up {removed_count} old dataset versions")
 
     def clear_cache(
         self, dataset: str | None = None, all_versions: bool = False
@@ -271,19 +266,19 @@ class DatasetManager:
             cache_file = self.cache_dir / filename
             if cache_file.exists():
                 cache_file.unlink()
-                logger.info("Cleared cache for dataset: %s", dataset)
+                logger.info(f"Cleared cache for dataset: {dataset}")
             else:
-                logger.info("No cache found for dataset: %s", dataset)
+                logger.info(f"No cache found for dataset: {dataset}")
         else:
             # Clear all datasets for current version
             if self.cache_dir.exists():
                 try:
                     shutil.rmtree(self.cache_dir)
-                    logger.info("Cleared all dataset cache (v%s)", self.version)
+                    logger.info(f"Cleared all dataset cache (v{self.version})")
                 except PermissionError:
                     logger.warning(
-                        "Could not clear cache directory (v%s) due to file permissions",
-                        self.version,
+                        f"Could not clear cache directory (v{self.version}) "
+                        f"due to file permissions"
                     )
             self._memory_cache.clear()
 
@@ -292,7 +287,6 @@ class DatasetManager:
         Get a list of all available dataset names.
 
         Returns:
-        -------
             Sorted list of dataset names.
         """
         return sorted(DATASET_REGISTRY.keys())
@@ -305,11 +299,9 @@ class DatasetManager:
             dataset: The dataset to get info for (use Dataset enum values).
 
         Returns:
-        -------
             DatasetInfo object with dataset metadata.
 
         Raises:
-        ------
             ValueError: If the dataset is not found.
         """
         name = dataset.value  # Extract string value from enum
@@ -326,7 +318,6 @@ class DatasetManager:
         Get the cache directory path.
 
         Returns:
-        -------
             String path to the cache directory.
         """
         return str(self.cache_dir)
@@ -352,7 +343,6 @@ def load(
         seed: Random seed for reproducible train/test splitting when setup=True.
 
     Returns:
-    -------
         - If setup=False: Complete dataset as pd.DataFrame with 'label' column
         - If setup=True: Tuple of (x_train, x_test, y_test) where:
             - x_train: Normal samples for training (features only)
@@ -360,7 +350,6 @@ def load(
             - y_test: True labels for test samples (0=normal, 1=anomaly)
 
     Examples:
-    --------
         Load complete dataset for exploration:
         ```python
         from nonconform.utils.data import load, Dataset
@@ -393,11 +382,9 @@ def list_available() -> list[str]:
     Get a list of all available dataset names.
 
     Returns:
-    -------
         Sorted list of dataset names.
 
     Examples:
-    --------
         >>> datasets = list_available()
         >>> print(datasets)
         ['breast', 'fraud', 'ionosphere', ...]
@@ -413,11 +400,9 @@ def get_info(dataset: Dataset) -> DatasetInfo:
         dataset: The dataset to get info for (use Dataset enum values).
 
     Returns:
-    -------
         DatasetInfo object with dataset metadata.
 
     Examples:
-    --------
         >>> from nonconform.utils.data import Dataset
         >>> info = get_info(Dataset.BREAST)
         >>> print(info.description)
@@ -434,7 +419,6 @@ def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:
         all_versions: If True, clears cache for all dataset versions.
 
     Examples:
-    --------
         >>> clear_cache("breast")  # Clear specific dataset
         >>> clear_cache()  # Clear all datasets
         >>> clear_cache(all_versions=True)  # Clear all versions
@@ -447,11 +431,9 @@ def get_cache_location() -> str:
     Get the cache directory path.
 
     Returns:
-    -------
         String path to the cache directory.
 
     Examples:
-    --------
         >>> location = get_cache_location()
         >>> print(f"Cache stored at: {location}")
     """

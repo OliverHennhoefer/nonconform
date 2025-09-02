@@ -25,7 +25,6 @@ class Split(BaseStrategy):
         ```
 
     Attributes:
-    ----------
         _calib_size: Size or proportion of data used for calibration.
         _calibration_ids: Indices of calibration samples (for weighted conformal).
     """
@@ -34,7 +33,7 @@ class Split(BaseStrategy):
         """Initialize the Split strategy.
 
         Args:
-            n_calib (Union[float, int], optional): The size or proportion
+            n_calib (float | int): The size or proportion
                 of the dataset to use for the calibration set. If a float,
                 it must be between 0.0 and 1.0 (exclusive of 0.0 and 1.0
                 in practice for `train_test_split`). If an int, it's the
@@ -64,7 +63,7 @@ class Split(BaseStrategy):
         remains ``None``.
 
         Args:
-            x (Union[pandas.DataFrame, numpy.ndarray]): The input data.
+            x (pd.DataFrame | np.ndarray): The input data.
             detector (BaseDetector): The PyOD base detector instance to train.
                 This instance is modified in place by fitting.
             weighted (bool, optional): If ``True``, the indices of the
@@ -75,7 +74,6 @@ class Split(BaseStrategy):
                 Defaults to None.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * A list containing the single trained PyOD detector instance.
                 * A list of calibration scores from the calibration set.
@@ -104,7 +102,6 @@ class Split(BaseStrategy):
         `weighted=False` or if `fit_calibrate` has not yet been called.
 
         Returns:
-        -------
             list[int] | None: A list of integer indices, or ``None``.
         """
         return self._calibration_ids

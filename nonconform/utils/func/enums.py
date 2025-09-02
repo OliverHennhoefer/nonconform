@@ -9,7 +9,6 @@ class Distribution(Enum):
     strategies.
 
     Attributes:
-    ----------
         BETA_BINOMIAL: Beta-binomial distribution for drawing validation fractions.
             Allows tunable mean and variance through alpha/beta parameters.
         UNIFORM: Discrete uniform distribution over a specified range.
@@ -30,7 +29,6 @@ class Aggregation(Enum):
     in ensemble methods to combine predictions or scores from several models.
 
     Attributes:
-    ----------
         MEAN: Represents aggregation by calculating the arithmetic mean.
             The underlying value is typically ``"mean"``.
         MEDIAN: Represents aggregation by calculating the median.

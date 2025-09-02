@@ -23,7 +23,6 @@ class CrossValidation(BaseStrategy):
     2. Plus mode: Uses an ensemble of k models, each trained on k-1 folds
 
     Attributes:
-    ----------
         _k (int): Number of folds for cross-validation
         _plus (bool): Whether to use the plus variant (ensemble of models)
         _detector_list (list[BaseDetector]): List of trained detectors
@@ -86,7 +85,7 @@ class CrossValidation(BaseStrategy):
         providing a more robust estimate of the calibration scores.
 
         Args:
-            x (Union[pd.DataFrame, np.ndarray]): Input data matrix of shape
+            x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
             detector (BaseDetector): The base anomaly detector to be used.
             weighted (bool, optional): Whether to use weighted calibration.
@@ -98,14 +97,12 @@ class CrossValidation(BaseStrategy):
                 Defaults to None.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either k models in plus mode or
                   a single model in standard mode)
                 * List of calibration scores from all folds
 
         Raises:
-        ------
             ValueError: If k is less than 2 or if the data size is too small
                 for the specified number of folds.
         """
@@ -162,7 +159,6 @@ class CrossValidation(BaseStrategy):
         fold processing.
 
         Returns:
-        -------
             list[int]: A list of integer indices.
         """
         return self._calibration_ids

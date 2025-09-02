@@ -14,7 +14,6 @@ class BaseStrategy(abc.ABC):
     calibration logic and define how calibration data is identified and used.
 
     Attributes:
-    ----------
         _plus (bool): A flag, typically set during initialization, that may
             influence calibration behavior in subclasses (e.g., by applying
             an adjustment).
@@ -49,22 +48,21 @@ class BaseStrategy(abc.ABC):
         involves determining thresholds or adjusting scores.
 
         Args:
-            x (Union[pandas.DataFrame, numpy.ndarray]): The input data, which
+            x (pd.DataFrame | np.ndarray): The input data, which
                 may be used for both fitting the detector and deriving
                 calibration data.
             detector (BaseDetector): The PyOD anomaly detection model to be
                 fitted and/or calibrated.
-            weighted (Optional[bool]): A flag indicating whether a weighted
+            weighted (bool | None): A flag indicating whether a weighted
                 approach should be used during calibration, if applicable to
                 the subclass implementation.
-            seed (Optional[int]): A random seed for ensuring reproducibility
+            seed (int | None): A random seed for ensuring reproducibility
                 in stochastic parts of the fitting or calibration process.
                 Defaults to None.
-            iteration_callback (Optional[callable]): Optional callback function
+            iteration_callback (callable | None): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
 
         Raises:
-        ------
             NotImplementedError: If the subclass does not implement this method.
         """
         raise NotImplementedError(
@@ -82,11 +80,9 @@ class BaseStrategy(abc.ABC):
         designated as the calibration set.
 
         Returns:
-        -------
             List[int]: A list of integer indices for the calibration data.
 
         Raises:
-        ------
             NotImplementedError: If the subclass does not implement this
                 property.
         """

@@ -28,7 +28,6 @@ class Bootstrap(BaseStrategy):
     2. Plus mode: Uses an ensemble of models, each trained on a bootstrap sample
 
     Attributes:
-    ----------
         _resampling_ratio (float): Proportion of data to use for training in each
             bootstrap iteration
         _n_bootstraps (int): Number of bootstrap iterations
@@ -52,11 +51,11 @@ class Bootstrap(BaseStrategy):
         should be provided. The third will be calculated by `_configure`.
 
         Args:
-            resampling_ratio (Optional[float], optional): The proportion of
+            resampling_ratio (float | None): The proportion of
                 data to use for training in each bootstrap. Defaults to ``None``.
-            n_bootstraps (Optional[int], optional): The number of bootstrap
+            n_bootstraps (int | None): The number of bootstrap
                 iterations. Defaults to ``None``.
-            n_calib (Optional[int], optional): The desired size of the final
+            n_calib (int | None): The desired size of the final
                 calibration set. If set, collected scores/IDs might be
                 subsampled. Defaults to ``None``.
             plus (bool, optional): If ``True``, appends each bootstrapped model
@@ -106,7 +105,7 @@ class Bootstrap(BaseStrategy):
         the data and model training.
 
         Args:
-            x (Union[pd.DataFrame, np.ndarray]): Input data matrix of shape
+            x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
             detector (BaseDetector): The base anomaly detector to be used.
             weighted (bool, optional): Whether to use weighted calibration.
@@ -120,14 +119,12 @@ class Bootstrap(BaseStrategy):
                 Defaults to None.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either n_bootstraps models in plus
                   mode or a single model in standard mode)
                 * List of calibration scores from all bootstrap iterations
 
         Raises:
-        ------
             ValueError: If resampling_ratio is not between 0 and 1, or if
                 n_bootstraps is less than 1, or if n_calib is less than 1
                 when specified.
@@ -203,7 +200,6 @@ class Bootstrap(BaseStrategy):
         `_configure`.
 
         Raises:
-        ------
             ValueError: If not exactly two of the three parameters
                 (resampling_ratio, n_bootstraps, n_calib) are defined.
         """
@@ -229,11 +225,9 @@ class Bootstrap(BaseStrategy):
             res_ratio (float): Resampling ratio for training.
 
         Returns:
-        -------
             int: Target number of calibration samples.
 
         Raises:
-        ------
             ValueError: If resampling ratio is not between 0 and 1, or if
                 number of bootstraps is less than 1.
         """
@@ -292,7 +286,6 @@ class Bootstrap(BaseStrategy):
             n (int): The total number of samples in the dataset.
 
         Raises:
-        ------
             ValueError: If `_sanity_check` fails (i.e., not exactly two
                 parameters were initially defined), or if calculated
                 `resampling_ratio` is not within (0, 1) or `n_bootstraps` < 1.
@@ -345,7 +338,6 @@ class Bootstrap(BaseStrategy):
         subsampled `_calibration_set`.
 
         Returns:
-        -------
             List[int]: A list of integer indices.
         """
         return self._calibration_ids

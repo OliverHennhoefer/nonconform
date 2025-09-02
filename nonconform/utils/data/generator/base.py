@@ -15,8 +15,7 @@ class BaseDataGenerator(ABC):
     contamination. It supports both batch and online generation modes with
     different anomaly proportion control strategies.
 
-    Parameters
-    ----------
+    Parameters:
     load_data_func : Callable[[], pd.DataFrame]
         Function from nonconform.utils.data.load (e.g., load_shuttle, load_breast).
     anomaly_proportion : float
@@ -34,7 +33,6 @@ class BaseDataGenerator(ABC):
         Seed for random number generator.
 
     Attributes:
-    ----------
     x_train : pd.DataFrame
         Training data (normal instances only).
     x_normal : pd.DataFrame
@@ -156,7 +154,6 @@ class BaseDataGenerator(ABC):
         """Get training data (normal instances only).
 
         Returns:
-        -------
         pd.DataFrame
             Training data without anomalies.
         """
@@ -203,12 +200,10 @@ class BaseDataGenerator(ABC):
         """Sample a single instance.
 
         Parameters
-        ----------
         is_anomaly : bool
             Whether to sample an anomaly or normal instance.
 
         Returns:
-        -------
         tuple[pd.DataFrame, int]
             Instance data and label (0=normal, 1=anomaly).
         """

@@ -21,7 +21,6 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray) -> float:
             predicted positive and 0 indicates a predicted negative.
 
     Returns:
-    -------
         float: The calculated False Discovery Rate.
     """
     y_true = y.astype(bool)
@@ -60,7 +59,6 @@ def statistical_power(y: np.ndarray, y_hat: np.ndarray) -> float:
             predicted positive and 0 indicates a predicted negative.
 
     Returns:
-    -------
         float: The calculated statistical power.
     """
     y_bool = y.astype(bool)  # Or y == 1

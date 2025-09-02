@@ -28,7 +28,6 @@ class JackknifeBootstrap(BaseStrategy):
     2. Standard mode (plus=False): Uses single model trained on all data
 
     Attributes:
-    ----------
         _n_bootstraps (int): Number of bootstrap iterations
         _aggregation_method (Aggregation): How to aggregate OOB predictions
         _plus (bool): Whether to use the plus variant (ensemble of models)
@@ -60,7 +59,6 @@ class JackknifeBootstrap(BaseStrategy):
                 Defaults to True.
 
         Raises:
-        ------
             ValueError: If aggregation_method is not a valid Aggregation enum value.
             ValueError: If n_bootstraps is less than 1.
         """
@@ -111,7 +109,7 @@ class JackknifeBootstrap(BaseStrategy):
         4. Train final model on all data
 
         Args:
-            x (Union[pd.DataFrame, np.ndarray]): Input data matrix of shape
+            x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
             detector (BaseDetector): The base anomaly detector to be used.
             seed (int | None, optional): Random seed for reproducibility.
@@ -125,7 +123,6 @@ class JackknifeBootstrap(BaseStrategy):
                 training. If None, uses sequential processing. Defaults to None.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detector models (if plus=True, single if plus=False)
                 * List of calibration scores from JaB+ procedure
@@ -264,14 +261,12 @@ class JackknifeBootstrap(BaseStrategy):
         3. Uses vectorized aggregation operations
 
         Args:
-            x (Union[pd.DataFrame, np.ndarray]): Input data matrix.
+            x (pd.DataFrame | np.ndarray): Input data matrix.
 
         Returns:
-        -------
             np.ndarray: Array of calibration scores for each sample.
 
         Raises:
-        ------
             ValueError: If a sample has no out-of-bag predictions (very unlikely).
         """
         n_samples = len(x)
@@ -331,7 +326,6 @@ class JackknifeBootstrap(BaseStrategy):
         through the out-of-bag mechanism.
 
         Returns:
-        -------
             list[int]: List of integer indices (0 to n_samples-1).
         """
         return self._calibration_ids

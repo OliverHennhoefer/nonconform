@@ -6,25 +6,21 @@ import logging
 def get_logger(name: str) -> logging.Logger:
     """Get a logger for the nonconform package.
 
-    Parameters
-    ----------
+    Parameters:
     name : str
         The name of the logger, typically the module name.
 
     Returns:
-    -------
     logging.Logger
         A logger instance for the nonconform package.
 
     Notes:
-    -----
     This function creates loggers with the naming convention "nonconform.{name}".
     By default, shows INFO level and above (INFO, WARNING, ERROR, CRITICAL).
     Users can control verbosity with standard logging:
     logging.getLogger("nonconform").setLevel(level).
 
     Examples:
-    --------
     >>> logger = get_logger("estimation.standard_conformal")
     >>> logger.info("Calibration completed successfully")
 

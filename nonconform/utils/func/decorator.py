@@ -19,7 +19,6 @@ def _performance_conversion(*arg_names: str) -> Callable:
             that should be converted from lists to numpy.ndarray.
 
     Returns:
-    -------
         The actual decorator that can be applied to a function.
 
     Note:
@@ -93,7 +92,6 @@ def _ensure_numpy_array(func: Callable) -> Callable:
             followed by the data argument `x`.
 
     Returns:
-    -------
         The wrapped method that will receive `x` as a numpy array.
 
     Note:

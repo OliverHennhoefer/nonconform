@@ -11,8 +11,7 @@ class OnlineGenerator(BaseDataGenerator):
     Online generators use probabilistic anomaly control to ensure exact global
     proportion over a specified number of instances.
 
-    Parameters
-    ----------
+    Parameters:
     load_data_func : Callable[[], pd.DataFrame]
         Function from nonconform.utils.data.load (e.g., load_shuttle).
     anomaly_proportion : float
@@ -25,7 +24,6 @@ class OnlineGenerator(BaseDataGenerator):
         Seed for random number generator.
 
     Examples:
-    --------
     >>> from nonconform.utils.data.load import load_shuttle
     >>> from nonconform.utils.data.generator import OnlineGenerator
     >>>
@@ -69,13 +67,11 @@ class OnlineGenerator(BaseDataGenerator):
     ) -> Iterator[tuple[pd.DataFrame, int]]:
         """Generate stream of single instances with exact anomaly proportion.
 
-        Parameters
-        ----------
+        Parameters:
         n_instances : int, optional
             Number of instances to generate. If None, generates up to max_instances.
 
         Yields:
-        ------
         x_instance : pd.DataFrame
             Single instance feature vector.
         y_label : int

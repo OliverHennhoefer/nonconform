@@ -5,7 +5,6 @@ including handling a list of models that are restricted or unsupported
 for use with conformal anomaly detection.
 
 Attributes:
-----------
     forbidden_model_list (list[type[BaseDetector]]): A list of PyOD detector
         classes that are considered unsupported or restricted for use by
         the `set_params` function. These models are not suitable for
@@ -50,11 +49,9 @@ def _set_params(
         iteration: Current iteration number for dynamic random_state generation.
 
     Returns:
-    -------
         The configured detector instance with updated parameters.
 
     Raises:
-    ------
         ValueError: If the detector class is in the forbidden_model_list.
 
     Note:

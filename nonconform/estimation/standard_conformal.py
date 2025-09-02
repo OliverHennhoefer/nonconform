@@ -49,7 +49,6 @@ class StandardConformalDetector(BaseConformalDetector):
         ```
 
     Attributes:
-    ----------
         detector: The underlying PyOD anomaly detection model.
         strategy: The calibration strategy for computing p-values.
         aggregation: Method for combining scores from multiple models.
@@ -78,7 +77,6 @@ class StandardConformalDetector(BaseConformalDetector):
                 Defaults to None.
 
         Raises:
-        ------
             ValueError: If seed is negative.
             TypeError: If aggregation is not an Aggregation enum.
         """
@@ -108,10 +106,10 @@ class StandardConformalDetector(BaseConformalDetector):
         are stored in `self.detector_set` and `self.calibration_set`.
 
         Args:
-            x (typing.Union[pd.DataFrame, np.ndarray]): The dataset used for
+            x (pd.DataFrame | np.ndarray): The dataset used for
                 fitting the model(s) and determining calibration scores.
                 The strategy will dictate how this data is split or used.
-            iteration_callback (callable, optional): Optional callback function
+            iteration_callback (callable | None): Optional callback function
                 for strategies that support iteration tracking (e.g., Bootstrap).
                 Called after each iteration with (iteration, scores). Defaults to None.
         """
@@ -136,7 +134,7 @@ class StandardConformalDetector(BaseConformalDetector):
         indicating how unusual each point is.
 
         Args:
-            x (typing.Union[pd.DataFrame, np.ndarray]): The new data instances
+            x (pd.DataFrame | np.ndarray): The new data instances
                 for which to generate anomaly estimates.
             raw (bool, optional): Whether to return raw anomaly scores or
                 p-values. Defaults to False.
@@ -146,7 +144,6 @@ class StandardConformalDetector(BaseConformalDetector):
                   the calibration set.
 
         Returns:
-        -------
             np.ndarray: An array containing the anomaly estimates. The content of the
             array depends on the `raw` argument:
             - If raw=True, an array of anomaly scores (float).

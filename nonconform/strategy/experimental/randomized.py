@@ -27,7 +27,6 @@ class Randomized(BaseStrategy):
     2. Plus mode: Uses an ensemble of models, each trained on a different subset
 
     Attributes:
-    ----------
         _sampling_distr (Distribution): Distribution type for drawing holdout sizes
         _n_iterations (int | None): Number of rLpO iterations
         _holdout_size_range (tuple): Range of holdout sizes (relative or absolute)
@@ -85,7 +84,6 @@ class Randomized(BaseStrategy):
                 Defaults to True.
 
         Raises:
-        ------
             ValueError: If required parameters for the chosen distribution are missing,
                 if both n_iterations and n_calib are specified, or neither.
         """
@@ -142,7 +140,6 @@ class Randomized(BaseStrategy):
         Sets default parameters where appropriate and logs when defaults are used.
 
         Raises:
-        ------
             ValueError: If required parameters are missing for the distribution.
         """
         logger = get_logger("strategy.randomized")
@@ -219,7 +216,6 @@ class Randomized(BaseStrategy):
             generator (np.random.Generator): Random number generator.
 
         Returns:
-        -------
             int: Holdout set size.
         """
         if self._sampling_distr == Distribution.UNIFORM:
@@ -282,7 +278,7 @@ class Randomized(BaseStrategy):
         6. If using n_calib mode, stopping when target calibration size is reached
 
         Args:
-            x (Union[pd.DataFrame, np.ndarray]): Input data matrix of shape
+            x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
             detector (BaseDetector): The base anomaly detector to be used.
             seed (int | None, optional): Random seed for reproducibility.
@@ -297,14 +293,12 @@ class Randomized(BaseStrategy):
                 via get_iteration_info(). Defaults to False.
 
         Returns:
-        -------
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either multiple models in plus
                   mode or a single model in standard mode)
                 * List of calibration scores from all iterations
 
         Raises:
-        ------
             ValueError: If holdout set size would leave insufficient training data.
         """
         self._configure_holdout_size_range(len(x))
@@ -476,14 +470,12 @@ class Randomized(BaseStrategy):
         the distribution of holdout set sizes used.
 
         Returns:
-        -------
             tuple[list[int], list[list[float]]] | None: A tuple containing:
                 * List of holdout sizes for each iteration
                 * List of score arrays, one per iteration
                 Returns None if track_p_values was False during fit_calibrate.
 
         Example:
-        -------
             >>> from nonconform.utils.func.enums import Distribution
             >>> strategy = Randomized(n_calib=1000)
             >>> strategy.fit_calibrate(X, detector, track_p_values=True)
@@ -507,7 +499,6 @@ class Randomized(BaseStrategy):
         samples encountered during rLpO iterations.
 
         Returns:
-        -------
             list[int]: A list of integer indices for calibration samples.
         """
         return self._calibration_ids

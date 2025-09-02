@@ -23,12 +23,10 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
             Aggregation is performed along ``axis=0``.
 
     Returns:
-    -------
         list[float]: A list of aggregated anomaly scores. The length of the list
             will correspond to the number of columns in the input `scores` array.
 
     Raises:
-    ------
         ValueError: If the `method` is not a supported aggregation type
             defined in the internal mapping.
     """

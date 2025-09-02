@@ -13,8 +13,7 @@ logger = get_logger("nonconform.utils.data.generator.batch")
 class BatchGenerator(BaseDataGenerator):
     """Generate batches with configurable anomaly contamination.
 
-    Parameters
-    ----------
+    Parameters:
     load_data_func : Callable[[], pd.DataFrame]
         Function from nonconform.utils.data.load (e.g., load_shuttle).
     batch_size : int
@@ -33,7 +32,6 @@ class BatchGenerator(BaseDataGenerator):
         Seed for random number generator.
 
     Examples:
-    --------
     >>> from nonconform.utils.data.load import load_shuttle
     >>> from nonconform.utils.data.generator import BatchGenerator
     >>>
@@ -147,7 +145,6 @@ class BatchGenerator(BaseDataGenerator):
           (required in constructor)
 
         Yields:
-        ------
         x_batch : pd.DataFrame
             Feature matrix for the batch.
         y_batch : pd.Series
@@ -156,7 +153,7 @@ class BatchGenerator(BaseDataGenerator):
         batch_count = 0
 
         # Determine stopping condition based on mode and n_batches
-        def _should_continue():
+        def _should_continue() -> bool:
             if self.anomaly_mode == "proportional":
                 # Proportional: stop when n_batches reached (if specified),
                 # otherwise infinite

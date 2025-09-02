@@ -34,7 +34,7 @@ class BaseConformalDetector(ABC):
         """Fit the detector model(s) and compute calibration scores.
 
         Args:
-            x (typing.Union[pd.DataFrame, np.ndarray]): The dataset used for
+            x (pd.DataFrame | np.ndarray): The dataset used for
                 fitting the model(s) and determining calibration scores.
         """
         pass
@@ -49,13 +49,12 @@ class BaseConformalDetector(ABC):
         """Generate anomaly estimates or p-values for new data.
 
         Args:
-            x (typing.Union[pd.DataFrame, np.ndarray]): The new data instances
+            x (pd.DataFrame | np.ndarray): The new data instances
                 for which to make anomaly estimates.
             raw (bool, optional): Whether to return raw anomaly scores or
                 processed anomaly estimates (e.g., p-values). Defaults to False.
 
         Returns:
-        -------
             np.ndarray: An array containing the anomaly estimates.
         """
         pass

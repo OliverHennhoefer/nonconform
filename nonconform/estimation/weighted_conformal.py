@@ -55,7 +55,6 @@ class WeightedConformalDetector(BaseConformalDetector):
         ```
 
     Attributes:
-    ----------
         detector: The underlying PyOD anomaly detection model.
         strategy: The calibration strategy for computing weighted p-values.
         aggregation: Method for combining scores from multiple models.
@@ -84,7 +83,6 @@ class WeightedConformalDetector(BaseConformalDetector):
                 Defaults to None.
 
         Raises:
-        ------
             ValueError: If seed is negative.
             TypeError: If aggregation is not an Aggregation enum.
         """
@@ -115,11 +113,11 @@ class WeightedConformalDetector(BaseConformalDetector):
         calibration sample identification is required.
 
         Args:
-            x (Union[pandas.DataFrame, numpy.ndarray]): The input data used for
+            x (pd.DataFrame | np.ndarray): The input data used for
                 training/fitting the detector(s) and for calibration. The
                 `@_ensure_numpy_array` decorator converts `x` to a
                 ``numpy.ndarray`` internally.
-            iteration_callback (callable, optional): Optional callback function
+            iteration_callback (callable | None): Optional callback function
                 for strategies that support iteration tracking. Defaults to None.
         """
         self.detector_set, self.calibration_set = self.strategy.fit_calibrate(
@@ -157,7 +155,7 @@ class WeightedConformalDetector(BaseConformalDetector):
            calibration scores, and computed weights.
 
         Args:
-            x (Union[pandas.DataFrame, numpy.ndarray]): The input data for which
+            x (pd.DataFrame | np.ndarray): The input data for which
                 anomaly estimates are to be generated. The `@_ensure_numpy_array`
                 decorator converts `x` to a ``numpy.ndarray`` internally.
             raw (bool, optional): Whether to return raw anomaly scores or
@@ -168,7 +166,6 @@ class WeightedConformalDetector(BaseConformalDetector):
                   accounting for covariate shift between calibration and test data.
 
         Returns:
-        -------
             numpy.ndarray: An array containing the anomaly estimates. The content of the
             array depends on the `raw` argument:
             - If raw=True, an array of anomaly scores (float).
@@ -217,7 +214,6 @@ class WeightedConformalDetector(BaseConformalDetector):
                 weights need to be computed.
 
         Returns:
-        -------
             Tuple[numpy.ndarray, numpy.ndarray]:
                 A tuple containing:
                 * clipped_w_calib: Clipped weights for calibration samples.
