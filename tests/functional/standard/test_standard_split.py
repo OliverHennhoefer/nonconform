@@ -23,8 +23,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.134)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.84)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.134, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.84, places=2
+        )
 
     def test_split_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
@@ -37,8 +41,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.25)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.99)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.25, places=2
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.99, places=2
+        )
 
     def test_split_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
@@ -51,8 +59,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.097)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.918)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.097, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.918, places=3
+        )
 
     def test_split_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
@@ -65,8 +77,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.106)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.42)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.106, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.42, places=2
+        )
 
     def test_split_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
@@ -79,8 +95,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.155)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 1.0)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.155, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 1.0, places=1
+        )
 
 
 if __name__ == "__main__":

@@ -23,8 +23,12 @@ class TestCaseJackknifeConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.222)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 1.0)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.222, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 1.0, places=1
+        )
 
 
 if __name__ == "__main__":

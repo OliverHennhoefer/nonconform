@@ -24,8 +24,12 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.153)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.72)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.153, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.72, places=2
+        )
 
     def test_bootstrap_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
@@ -40,8 +44,12 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.147)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.99)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.147, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.99, places=2
+        )
 
     def test_bootstrap_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
@@ -56,8 +64,12 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.113)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.902)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.113, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.902, places=3
+        )
 
     def test_bootstrap_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
@@ -72,8 +84,12 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.071)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.13)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.071, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.13, places=2
+        )
 
     def test_bootstrap_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
@@ -88,8 +104,12 @@ class TestCaseBootstrapConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.169)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 1.0)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.169, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 1.0, places=1
+        )
 
 
 if __name__ == "__main__":

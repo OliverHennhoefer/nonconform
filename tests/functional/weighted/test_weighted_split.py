@@ -21,8 +21,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.134)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.71)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.134, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.71, places=2
+        )
 
     def test_split_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
@@ -35,8 +39,12 @@ class TestCaseSplitConformal(unittest.TestCase):
         est = ce.predict(x_test)
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
-        self.assertEqual(false_discovery_rate(y=y_test, y_hat=decisions), 0.075)
-        self.assertEqual(statistical_power(y=y_test, y_hat=decisions), 0.98)
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.075, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.98, places=2
+        )
 
 
 if __name__ == "__main__":

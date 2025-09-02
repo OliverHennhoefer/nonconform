@@ -4,7 +4,7 @@ from nonconform.utils.func.decorator import _performance_conversion
 
 
 @_performance_conversion("y", "y_hat")
-def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
+def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray) -> float:
     """Calculate the False Discovery Rate (FDR) for binary classification.
 
     The False Discovery Rate is the proportion of false positives among all
@@ -19,13 +19,10 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> floa
             (e.g., normal).
         y_hat (numpy.ndarray): Predicted binary labels, where 1 indicates a
             predicted positive and 0 indicates a predicted negative.
-        dec (int, optional): The number of decimal places to which the
-            resulting FDR should be rounded. Defaults to ``3``.
 
     Returns:
     -------
-        float: The calculated False Discovery Rate, rounded to `dec`
-            decimal places.
+        float: The calculated False Discovery Rate.
     """
     y_true = y.astype(bool)
     y_pred = y_hat.astype(bool)
@@ -40,11 +37,11 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> floa
     else:
         fdr = false_positives / total_predicted_positives
 
-    return round(fdr, dec)
+    return fdr
 
 
 @_performance_conversion("y", "y_hat")
-def statistical_power(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
+def statistical_power(y: np.ndarray, y_hat: np.ndarray) -> float:
     """Calculate statistical power (recall or true positive rate).
 
     Statistical power, also known as recall or true positive rate (TPR),
@@ -61,13 +58,10 @@ def statistical_power(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
             (e.g., normal).
         y_hat (numpy.ndarray): Predicted binary labels, where 1 indicates a
             predicted positive and 0 indicates a predicted negative.
-        dec (int, optional): The number of decimal places to which the
-            resulting power should be rounded. Defaults to ``3``.
 
     Returns:
     -------
-        float: The calculated statistical power, rounded to `dec` decimal
-            places.
+        float: The calculated statistical power.
     """
     y_bool = y.astype(bool)  # Or y == 1
     y_hat_bool = y_hat.astype(bool)  # Or y_hat == 1
@@ -81,4 +75,4 @@ def statistical_power(y: np.ndarray, y_hat: np.ndarray, dec: int = 3) -> float:
     else:
         power = true_positives / total_actual_positives
 
-    return round(power, dec)
+    return power
