@@ -15,16 +15,10 @@ repos:
       - id: check-merge-conflict # Checks for files that contain merge conflict strings.
       - id: debug-statements # Checks for leftover debugger imports and calls (e.g., pdb, breakpoint()).
 
-  # Black for code formatting
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-      - id: black
-
-  # Ruff for linting
+  # Ruff for linting and formatting
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Check for updates: https://github.com/astral-sh/ruff-pre-commit/releases
-    rev: v0.4.4 # Make sure to use the latest version compatible with your setup
+    rev: v0.12.11
     hooks:
       # Run Ruff's linter.
       - id: ruff
@@ -35,3 +29,6 @@ repos:
         args: [--fix, --exit-non-zero-on-fix]
         # Ruff will automatically find and use your pyproject.toml configuration
         # for selected rules, exclusions, target version, etc.
+      # Run Ruff's formatter (replaces Black).
+      - id: ruff-format
+        name: ruff (formatter)

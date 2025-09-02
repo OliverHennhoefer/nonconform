@@ -45,7 +45,6 @@ data = [
     "pyarrow>=16.1.0",
 ]
 dev = [
-    "black",
     "ruff",
     "pre-commit",
     "twine",
@@ -69,11 +68,6 @@ all = [
 "Homepage" = "https://github.com/OliverHennhoefer/nonconform"
 "Bugs" = "https://github.com/OliverHennhoefer/nonconform/issues"
 
-[tool.black]
-line-length = 88
-target-version = [
-    'py312'
-]
 
 [tool.ruff]
 line-length = 88
