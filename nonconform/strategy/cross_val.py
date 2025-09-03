@@ -116,14 +116,16 @@ class CrossValidation(BaseStrategy):
 
         last_iteration_index = 0
         logger = get_logger("strategy.cross_val")
-        for i, (train_idx, calib_idx) in enumerate(
+        fold_iterator = (
             tqdm(
                 folds.split(x),
                 total=self._k,
                 desc=f"CV fold training ({self._k} folds)",
-                disable=not logger.isEnabledFor(logging.INFO),
             )
-        ):
+            if logger.isEnabledFor(logging.INFO)
+            else folds.split(x)
+        )
+        for i, (train_idx, calib_idx) in enumerate(fold_iterator):
             last_iteration_index = i
             self._calibration_ids.extend(calib_idx.tolist())
 
@@ -150,7 +152,7 @@ class CrossValidation(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int]:
-        """Returns the list of indices from `x` used for calibration.
+        """Returns a copy of the list of indices from `x` used for calibration.
 
         In k-fold cross-validation, every sample in the input data `x` is
         used exactly once as part of a calibration set (when its fold is
@@ -159,9 +161,12 @@ class CrossValidation(BaseStrategy):
         fold processing.
 
         Returns:
-            list[int]: A list of integer indices.
+            list[int]: A copy of integer indices.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return self._calibration_ids.copy()
 
     @property
     def k(self) -> int:

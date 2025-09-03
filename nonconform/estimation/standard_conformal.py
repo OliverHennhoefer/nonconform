@@ -156,15 +156,16 @@ class StandardConformalDetector(BaseConformalDetector):
             - If raw=False, an array of p-values (float).
         """
         logger = get_logger("estimation.standard_conformal")
-        scores_list = [
-            model.decision_function(x)
-            for model in tqdm(
+        iterable = (
+            tqdm(
                 self._detector_set,
                 total=len(self._detector_set),
                 desc=f"Aggregating {len(self._detector_set)} models",
-                disable=not logger.isEnabledFor(logging.DEBUG),
             )
-        ]
+            if logger.isEnabledFor(logging.DEBUG)
+            else self._detector_set
+        )
+        scores_list = [model.decision_function(x) for model in iterable]
 
         estimates = aggregate(method=self.aggregation, scores=scores_list)
         return (
@@ -177,21 +178,27 @@ class StandardConformalDetector(BaseConformalDetector):
 
     @property
     def detector_set(self) -> list[PyODBaseDetector]:
-        """Returns the list of trained detector models.
+        """Returns a copy of the list of trained detector models.
 
         Returns:
-            list[PyODBaseDetector]: List of trained detectors populated after fit().
+            list[PyODBaseDetector]: Copy of trained detectors populated after fit().
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._detector_set
+        return self._detector_set.copy()
 
     @property
     def calibration_set(self) -> list[float]:
-        """Returns the list of calibration scores.
+        """Returns a copy of the list of calibration scores.
 
         Returns:
-            list[float]: List of calibration scores populated after fit().
+            list[float]: Copy of calibration scores populated after fit().
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_set
+        return self._calibration_set.copy()
 
     @property
     def is_fitted(self) -> bool:

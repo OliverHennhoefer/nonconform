@@ -145,14 +145,16 @@ class Bootstrap(BaseStrategy):
             0  # To ensure unique iteration for final model if not _plus
         )
         logger = get_logger("strategy.bootstrap")
-        for i, (train_idx, calib_idx) in enumerate(
+        fold_iterator = (
             tqdm(
                 folds.split(x),
                 total=n_folds,
                 desc=f"Bootstrap training ({n_folds} folds)",
-                disable=not logger.isEnabledFor(logging.INFO),
             )
-        ):
+            if logger.isEnabledFor(logging.INFO)
+            else folds.split(x)
+        )
+        for i, (train_idx, calib_idx) in enumerate(fold_iterator):
             last_iteration_index = i
             self._calibration_ids.extend(calib_idx.tolist())
 
@@ -342,7 +344,7 @@ class Bootstrap(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int]:
-        """Returns the list of indices used for calibration.
+        """Returns a copy of the list of indices used for calibration.
 
         These are indices relative to the original input data `x` provided to
         :meth:`fit_calibrate`. The list contains indices of all out-of-bag
@@ -352,9 +354,12 @@ class Bootstrap(BaseStrategy):
         subsampled `_calibration_set`.
 
         Returns:
-            List[int]: A list of integer indices.
+            List[int]: A copy of integer indices.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return self._calibration_ids.copy()
 
     @property
     def resampling_ratio(self) -> float:

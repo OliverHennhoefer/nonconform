@@ -94,7 +94,7 @@ class Split(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int] | None:
-        """Returns indices from `x` used for the calibration set.
+        """Returns a copy of indices from `x` used for the calibration set.
 
         This property provides the list of indices corresponding to the samples
         that were allocated to the calibration set during the `fit_calibrate`
@@ -102,9 +102,14 @@ class Split(BaseStrategy):
         `weighted=False` or if `fit_calibrate` has not yet been called.
 
         Returns:
-            list[int] | None: A list of integer indices, or ``None``.
+            list[int] | None: A copy of integer indices, or ``None``.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return (
+            self._calibration_ids.copy() if self._calibration_ids is not None else None
+        )
 
     @property
     def calib_size(self) -> float | int:

@@ -162,11 +162,15 @@ class JackknifeBootstrap(BaseStrategy):
         # Train models (with optional parallelization)
         if n_jobs is None or n_jobs == 1:
             # Sequential training
-            for i in tqdm(
-                range(self._n_bootstraps),
-                desc=f"Bootstrap training ({self._n_bootstraps} iterations)",
-                disable=not logger.isEnabledFor(logging.INFO),
-            ):
+            bootstrap_iterator = (
+                tqdm(
+                    range(self._n_bootstraps),
+                    desc=f"Bootstrap training ({self._n_bootstraps} iterations)",
+                )
+                if logger.isEnabledFor(logging.INFO)
+                else range(self._n_bootstraps)
+            )
+            for i in bootstrap_iterator:
                 bootstrap_indices = all_bootstrap_indices[i]
                 model = self._train_single_model(
                     detector, x, bootstrap_indices, seed, i
@@ -248,12 +252,16 @@ class JackknifeBootstrap(BaseStrategy):
                 for i in range(self._n_bootstraps)
             }
 
-            for future in tqdm(
-                as_completed(futures),
-                total=self._n_bootstraps,
-                desc=f"Parallel bootstrap training ({self._n_bootstraps} iterations)",
-                disable=not logger.isEnabledFor(logging.INFO),
-            ):
+            future_iterator = (
+                tqdm(
+                    as_completed(futures),
+                    total=self._n_bootstraps,
+                    desc=f"Parallel bootstrap training ({self._n_bootstraps} iter)",
+                )
+                if logger.isEnabledFor(logging.INFO)
+                else as_completed(futures)
+            )
+            for future in future_iterator:
                 i = futures[future]
                 self._bootstrap_models[i] = future.result()
 
@@ -325,15 +333,18 @@ class JackknifeBootstrap(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int]:
-        """Returns the list of indices used for calibration.
+        """Returns a copy of the list of indices used for calibration.
 
         In JaB+, all original training samples contribute to calibration
         through the out-of-bag mechanism.
 
         Returns:
-            list[int]: List of integer indices (0 to n_samples-1).
+            list[int]: Copy of integer indices (0 to n_samples-1).
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return self._calibration_ids.copy()
 
     @property
     def n_bootstraps(self) -> int:

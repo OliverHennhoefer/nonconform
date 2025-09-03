@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from collections.abc import Callable
 from copy import copy, deepcopy
@@ -344,11 +345,12 @@ class Randomized(BaseStrategy):
 
         actual_iterations = 0
         running_holdout_sum = 0
-        with tqdm(
-            total=total_for_progress,
-            desc=base_desc,
-            disable=not logger.isEnabledFor(logging.INFO),
-        ) as pbar:
+        progress_context = (
+            tqdm(total=total_for_progress, desc=base_desc)
+            if logger.isEnabledFor(logging.INFO)
+            else contextlib.nullcontext()
+        )
+        with progress_context as pbar:
             while True:
                 # Check stopping condition
                 if self._use_n_calib_mode:
@@ -415,17 +417,18 @@ class Randomized(BaseStrategy):
                 avg_holdout = running_holdout_sum / actual_iterations
 
                 # Update progress bar based on mode
-                if self._use_n_calib_mode:
-                    # Update progress to show current calibration samples
-                    pbar.n = min(len(self._calibration_set), self._n_calib)
-                    pbar.desc = (
-                        f"{base_desc} | iter: {actual_iterations}, "
-                        f"avg_holdout: {avg_holdout:.1f}"
-                    )
-                    pbar.refresh()
-                else:
-                    pbar.update(1)
-                    pbar.desc = f"{base_desc} | avg_holdout: {avg_holdout:.1f}"
+                if pbar is not None:
+                    if self._use_n_calib_mode:
+                        # Update progress to show current calibration samples
+                        pbar.n = min(len(self._calibration_set), self._n_calib)
+                        pbar.desc = (
+                            f"{base_desc} | iter: {actual_iterations}, "
+                            f"avg_holdout: {avg_holdout:.1f}"
+                        )
+                        pbar.refresh()
+                    else:
+                        pbar.update(1)
+                        pbar.desc = f"{base_desc} | avg_holdout: {avg_holdout:.1f}"
 
         # If not in plus mode, train final model on all data
         if not self._plus:
@@ -514,16 +517,19 @@ class Randomized(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int]:
-        """Returns the list of indices used for calibration.
+        """Returns a copy of the list of indices used for calibration.
 
         These are indices relative to the original input data `x` provided to
         :meth:`fit_calibrate`. The list contains indices of all holdout
         samples encountered during rLpO iterations.
 
         Returns:
-            list[int]: A list of integer indices for calibration samples.
+            list[int]: A copy of integer indices for calibration samples.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return self._calibration_ids.copy()
 
     @property
     def n_iterations(self) -> int | None:

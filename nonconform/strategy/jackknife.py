@@ -113,17 +113,22 @@ class Jackknife(BaseStrategy):
 
     @property
     def calibration_ids(self) -> list[int] | None:
-        """Returns indices from `x` used for calibration via jackknife.
+        """Returns a copy of indices from `x` used for calibration via jackknife.
 
         These are the indices of samples used to obtain calibration scores.
         In jackknife (leave-one-out), each sample is used once for
         calibration. The list is populated after `fit_calibrate` is called.
 
         Returns:
-            list[int] | None: A list of integer indices, or ``None`` if
+            list[int] | None: A copy of integer indices, or ``None`` if
                 `fit_calibrate` has not been called.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_ids
+        return (
+            self._calibration_ids.copy() if self._calibration_ids is not None else None
+        )
 
     @property
     def plus(self) -> bool:

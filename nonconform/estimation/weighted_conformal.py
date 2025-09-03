@@ -178,15 +178,16 @@ class WeightedConformalDetector(BaseConformalDetector):
             - If raw=False, an array of weighted p-values (float).
         """
         logger = get_logger("estimation.weighted_conformal")
-        scores_list = [
-            model.decision_function(x)
-            for model in tqdm(
+        iterable = (
+            tqdm(
                 self._detector_set,
                 total=len(self._detector_set),
                 desc=f"Aggregating {len(self._detector_set)} models",
-                disable=not logger.isEnabledFor(logging.DEBUG),
             )
-        ]
+            if logger.isEnabledFor(logging.DEBUG)
+            else self._detector_set
+        )
+        scores_list = [model.decision_function(x) for model in iterable]
 
         w_cal, w_x = self._compute_weights(x)
         estimates = aggregate(self.aggregation, np.array(scores_list))
@@ -281,30 +282,39 @@ class WeightedConformalDetector(BaseConformalDetector):
 
     @property
     def detector_set(self) -> list[BaseDetector]:
-        """Returns the list of trained detector models.
+        """Returns a copy of the list of trained detector models.
 
         Returns:
-            list[BaseDetector]: List of trained detectors populated after fit().
+            list[BaseDetector]: Copy of trained detectors populated after fit().
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._detector_set
+        return self._detector_set.copy()
 
     @property
     def calibration_set(self) -> list[float]:
-        """Returns the list of calibration scores.
+        """Returns a copy of the list of calibration scores.
 
         Returns:
-            list[float]: List of calibration scores populated after fit().
+            list[float]: Copy of calibration scores populated after fit().
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_set
+        return self._calibration_set.copy()
 
     @property
     def calibration_samples(self) -> np.ndarray:
-        """Returns the calibration samples used for weight computation.
+        """Returns a copy of the calibration samples used for weight computation.
 
         Returns:
-            np.ndarray: Data instances used for calibration.
+            np.ndarray: Copy of data instances used for calibration.
+
+        Note:
+            Returns a defensive copy to prevent external modification of internal state.
         """
-        return self._calibration_samples
+        return self._calibration_samples.copy()
 
     @property
     def is_fitted(self) -> bool:
