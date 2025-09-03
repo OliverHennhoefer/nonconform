@@ -78,7 +78,7 @@ class Bootstrap(BaseStrategy):
             )
 
         self._detector_list: list[BaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
 
     def fit_calibrate(
@@ -88,7 +88,7 @@ class Bootstrap(BaseStrategy):
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fit and calibrate the detector using bootstrap resampling.
 
         This method implements the bootstrap strategy by:
@@ -122,7 +122,7 @@ class Bootstrap(BaseStrategy):
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either n_bootstraps models in plus
                   mode or a single model in standard mode)
-                * List of calibration scores from all bootstrap iterations
+                * Array of calibration scores from all bootstrap iterations
 
         Raises:
             ValueError: If resampling_ratio is not between 0 and 1, or if
@@ -170,7 +170,14 @@ class Bootstrap(BaseStrategy):
 
             if self._plus:
                 self._detector_list.append(deepcopy(model))
-            self._calibration_set.extend(current_scores)
+
+            # Concatenate calibration scores
+            if len(self._calibration_set) == 0:
+                self._calibration_set = current_scores
+            else:
+                self._calibration_set = np.concatenate(
+                    [self._calibration_set, current_scores]
+                )
 
         if not self._plus:
             model = copy(_detector)
@@ -187,7 +194,7 @@ class Bootstrap(BaseStrategy):
             ids = _generator.choice(
                 len(self._calibration_set), size=self._n_calib, replace=False
             )
-            self._calibration_set = [self._calibration_set[i] for i in ids]
+            self._calibration_set = self._calibration_set[ids]
             if weighted:
                 self._calibration_ids = [self._calibration_ids[i] for i in ids]
 

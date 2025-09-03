@@ -99,7 +99,7 @@ class StandardConformalDetector(BaseConformalDetector):
         self.seed: int | None = seed
 
         self._detector_set: list[PyODBaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
 
     @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
@@ -189,11 +189,11 @@ class StandardConformalDetector(BaseConformalDetector):
         return self._detector_set.copy()
 
     @property
-    def calibration_set(self) -> list[float]:
-        """Returns a copy of the list of calibration scores.
+    def calibration_set(self) -> np.ndarray:
+        """Returns a copy of the calibration scores.
 
         Returns:
-            list[float]: Copy of calibration scores populated after fit().
+            numpy.ndarray: Copy of calibration scores populated after fit().
 
         Note:
             Returns a defensive copy to prevent external modification of internal state.

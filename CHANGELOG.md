@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed ``plus`` parameter defaults (``true``) and warning for manual override (to ``False``).
   - This is due to the lacking statistical guarantees if calibration scores and models are not aligned.
 - Removed the `dec` parameter from `false_discovery_rate` and `statistical_power` to separate calculation from presentation.
+- Refactored to follow a numpy-first approach for better efficiency and consistency
+  - Further code quality improvements
 
 ### Fixed
 - Bug Fix in ```JackknifeBootstrap()``` regarding the original plus-variant.

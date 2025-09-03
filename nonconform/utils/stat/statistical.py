@@ -1,10 +1,7 @@
 import numpy as np
 
-from nonconform.utils.func.decorator import _performance_conversion
 
-
-@_performance_conversion("scores", "calibration_set")
-def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> list[float]:
+def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> np.ndarray:
     """Calculate p-values for scores based on a calibration set.
 
     This function computes a p-value for each score in the `scores` array by
@@ -12,20 +9,14 @@ def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> list[flo
     The p-value represents the proportion of calibration scores that are
     greater than or equal to the given score, with a small adjustment.
 
-    The `@_performance_conversion` decorator ensures that `scores` and
-    `calibration_set` are ``numpy.ndarray`` objects internally and that the
-    returned ``numpy.ndarray`` of p-values is converted to a ``list[float]``.
-
     Args:
         scores (numpy.ndarray): A 1D array of test scores for which p-values
-            are to be calculated. Can be passed as a list, which the
-            decorator will convert.
+            are to be calculated.
         calibration_set (numpy.ndarray): A 1D array of calibration scores
-            used as the reference distribution. Can be passed as a list,
-            which the decorator will convert.
+            used as the reference distribution.
 
     Returns:
-        list[float]: A list of p-values, each corresponding to an input score
+        numpy.ndarray: An array of p-values, each corresponding to an input score
             from `scores`.
 
     Notes:
@@ -38,13 +29,12 @@ def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> list[flo
     return (1.0 + sum_smaller) / (1.0 + len(calibration_set))
 
 
-@_performance_conversion("scores", "calibration_set")
 def calculate_weighted_p_val(
     scores: np.ndarray,
     calibration_set: np.ndarray,
     w_scores: np.ndarray,
     w_calib: np.ndarray,
-) -> list[float]:
+) -> np.ndarray:
     """Calculate weighted p-values for scores using a weighted calibration set.
 
     This function computes p-values by comparing input `scores` (with
@@ -53,24 +43,16 @@ def calculate_weighted_p_val(
     calibration scores exceeding each test score, incorporating the weights
     of both the test scores and calibration scores.
 
-    The `@_performance_conversion` decorator handles `scores` and
-    `calibration_set`, converting them to ``numpy.ndarray`` if they are lists
-    and converting the ``numpy.ndarray`` result to ``list[float]``.
-    Note: `w_scores` and `w_calib` are NOT automatically converted by this
-    decorator instance and must be provided as ``numpy.ndarray`` objects.
-
     Args:
-        scores (numpy.ndarray): A 1D array of test scores. The decorator
-            allows passing a list.
+        scores (numpy.ndarray): A 1D array of test scores.
         calibration_set (numpy.ndarray): A 1D array of calibration scores.
-            The decorator allows passing a list.
         w_scores (numpy.ndarray): A 1D array of weights corresponding to each
-            score in `scores`. Must be a ``numpy.ndarray``.
+            score in `scores`.
         w_calib (numpy.ndarray): A 1D array of weights corresponding to each
-            score in `calibration_set`. Must be a ``numpy.ndarray``.
+            score in `calibration_set`.
 
     Returns:
-        list[float]: A list of weighted p-values corresponding to the input
+        numpy.ndarray: An array of weighted p-values corresponding to the input
             `scores`.
     """
     # Create comparison matrix: True where calibration_set[j] >= scores[i]
@@ -86,7 +68,6 @@ def calculate_weighted_p_val(
     denominator = np.sum(w_calib) + w_scores
 
     # Handle division by zero
-    p_values = np.divide(
+    return np.divide(
         numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0
     )
-    return p_values

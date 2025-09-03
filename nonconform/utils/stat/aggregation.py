@@ -1,11 +1,9 @@
 import numpy as np
 
-from nonconform.utils.func.decorator import _performance_conversion
 from nonconform.utils.func.enums import Aggregation
 
 
-@_performance_conversion("scores")
-def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
+def aggregate(method: Aggregation, scores: np.ndarray) -> np.ndarray:
     """Aggregate anomaly scores using a specified method.
 
     This function applies a chosen aggregation technique to a 2D array of
@@ -23,8 +21,8 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
             Aggregation is performed along ``axis=0``.
 
     Returns:
-        list[float]: A list of aggregated anomaly scores. The length of the list
-            will correspond to the number of columns in the input `scores` array.
+        numpy.ndarray: An array of aggregated anomaly scores. The length of the
+            array will correspond to the number of columns in the input `scores` array.
 
     Raises:
         ValueError: If the `method` is not a supported aggregation type
@@ -46,5 +44,4 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> list[float]:
             f"Example: aggregate(Aggregation.MEAN, scores)"
         )
 
-    aggregated_scores: np.ndarray = func(scores)
-    return aggregated_scores
+    return func(scores)

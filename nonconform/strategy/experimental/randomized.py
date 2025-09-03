@@ -138,7 +138,7 @@ class Randomized(BaseStrategy):
         self._validate_distribution_params()
 
         self._detector_list: list[BaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
         self._n_data: int = 0
         self._holdout_sizes: list[int] = []
@@ -289,7 +289,7 @@ class Randomized(BaseStrategy):
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
         track_p_values: bool = False,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fit and calibrate the detector using randomized leave-p-out resampling.
 
         This method implements the rLpO strategy by:
@@ -319,7 +319,7 @@ class Randomized(BaseStrategy):
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either multiple models in plus
                   mode or a single model in standard mode)
-                * List of calibration scores from all iterations
+                * Array of calibration scores from all iterations
 
         Raises:
             ValueError: If holdout set size would leave insufficient training data.
@@ -405,7 +405,12 @@ class Randomized(BaseStrategy):
                     self._detector_list.append(deepcopy(model))
 
                 # Store calibration scores
-                self._calibration_set.extend(current_scores.tolist())
+                if len(self._calibration_set) == 0:
+                    self._calibration_set = current_scores
+                else:
+                    self._calibration_set = np.concatenate(
+                        [self._calibration_set, current_scores]
+                    )
 
                 # Track holdout sizes and per-iteration scores if requested
                 if track_p_values:
@@ -458,7 +463,7 @@ class Randomized(BaseStrategy):
                     f"less than target {self._n_calib}"
                 )
 
-            self._calibration_set = [self._calibration_set[i] for i in ids]
+            self._calibration_set = self._calibration_set[ids]
             if weighted:
                 self._calibration_ids = [self._calibration_ids[i] for i in ids]
 

@@ -60,7 +60,7 @@ class CrossValidation(BaseStrategy):
             )
 
         self._detector_list: list[BaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
 
     def fit_calibrate(
@@ -70,7 +70,7 @@ class CrossValidation(BaseStrategy):
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fit and calibrate the detector using k-fold cross-validation.
 
         This method implements the cross-validation strategy by:
@@ -100,13 +100,18 @@ class CrossValidation(BaseStrategy):
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either k models in plus mode or
                   a single model in standard mode)
-                * List of calibration scores from all folds
+                * Array of calibration scores from all folds
 
         Raises:
             ValueError: If k is less than 2 or if the data size is too small
                 for the specified number of folds.
         """
         _detector = detector
+        n_samples = len(x)
+
+        # Pre-allocate calibration array for efficiency
+        self._calibration_set = np.empty(n_samples, dtype=np.float64)
+        calibration_offset = 0
 
         folds = KFold(
             n_splits=self._k,
@@ -135,7 +140,13 @@ class CrossValidation(BaseStrategy):
 
             if self._plus:
                 self._detector_list.append(deepcopy(model))
-            self._calibration_set.extend(model.decision_function(x[calib_idx]))
+
+            # Store calibration scores efficiently using pre-allocated array
+            fold_scores = model.decision_function(x[calib_idx])
+            n_fold_samples = len(fold_scores)
+            end_idx = calibration_offset + n_fold_samples
+            self._calibration_set[calibration_offset:end_idx] = fold_scores
+            calibration_offset += n_fold_samples
 
         if not self._plus:
             model = copy(_detector)

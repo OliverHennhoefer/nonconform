@@ -50,7 +50,7 @@ class Split(BaseStrategy):
         weighted: bool = False,
         seed: int | None = None,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fits a detector and generates calibration scores using a data split.
 
         The input data `x` is split into a training set and a calibration
@@ -74,9 +74,9 @@ class Split(BaseStrategy):
                 Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], list[float]]: A tuple containing:
+            tuple[list[BaseDetector], np.ndarray]: A tuple containing:
                 * A list containing the single trained PyOD detector instance.
-                * A list of calibration scores from the calibration set.
+                * An array of calibration scores from the calibration set.
         """
         x_id = np.arange(len(x))
         train_id, calib_id = train_test_split(
@@ -90,7 +90,7 @@ class Split(BaseStrategy):
             self._calibration_ids = calib_id.tolist()  # Ensure it's a list
         else:
             self._calibration_ids = None
-        return [detector], calibration_set.tolist()  # Ensure list return
+        return [detector], calibration_set  # Return numpy array directly
 
     @property
     def calibration_ids(self) -> list[int] | None:

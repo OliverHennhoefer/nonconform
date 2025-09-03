@@ -32,7 +32,7 @@ class Jackknife(BaseStrategy):
             Initially ``None``.
         _detector_list (List[BaseDetector]): A list of trained detector models,
             populated by :meth:`fit_calibrate` via the internal strategy.
-        _calibration_set (List[float]): A list of calibration scores, one for
+        _calibration_set (numpy.ndarray): An array of calibration scores, one for
             each sample, populated by :meth:`fit_calibrate` via the internal
             strategy.
     """
@@ -64,7 +64,7 @@ class Jackknife(BaseStrategy):
         self._calibration_ids: list[int] | None = None
 
         self._detector_list: list[BaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
 
     def fit_calibrate(
         self,
@@ -73,7 +73,7 @@ class Jackknife(BaseStrategy):
         weighted: bool = False,  # Parameter passed to internal strategy
         seed: int | None = None,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fits detector(s) and gets calibration scores using jackknife.
 
         This method configures the internal
@@ -97,9 +97,9 @@ class Jackknife(BaseStrategy):
                 Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], list[float]]: A tuple containing:
+            tuple[list[BaseDetector], np.ndarray]: A tuple containing:
                 * A list of trained PyOD detector models.
-                * A list of calibration scores (one per sample in `x`).
+                * An array of calibration scores (one per sample in `x`).
         """
         self._strategy._k = len(x)
         (

@@ -39,7 +39,7 @@ class BaseStrategy(abc.ABC):
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fits the detector and performs calibration.
 
         This abstract method must be implemented by subclasses to define the

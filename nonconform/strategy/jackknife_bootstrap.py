@@ -89,7 +89,7 @@ class JackknifeBootstrap(BaseStrategy):
         self._aggregation_method: Aggregation = aggregation_method
 
         self._detector_list: list[BaseDetector] = []
-        self._calibration_set: list[float] = []
+        self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
 
         # Internal state for JaB+ computation
@@ -104,7 +104,7 @@ class JackknifeBootstrap(BaseStrategy):
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
         n_jobs: int | None = None,
-    ) -> tuple[list[BaseDetector], list[float]]:
+    ) -> tuple[list[BaseDetector], np.ndarray]:
         """Fit and calibrate using Jackknife+-after-Bootstrap method.
 
         This method implements the JaB+ algorithm:
@@ -130,7 +130,7 @@ class JackknifeBootstrap(BaseStrategy):
         Returns:
             tuple[list[BaseDetector], list[float]]: A tuple containing:
                 * List of trained detector models (if plus=True, single if plus=False)
-                * List of calibration scores from JaB+ procedure
+                * Array of calibration scores from JaB+ procedure
         """
         n_samples = len(x)
         logger = get_logger("strategy.bootstrap")
@@ -189,7 +189,7 @@ class JackknifeBootstrap(BaseStrategy):
         if iteration_callback is not None:
             iteration_callback(self._n_bootstraps, oob_scores)
 
-        self._calibration_set = oob_scores.tolist()
+        self._calibration_set = oob_scores
         self._calibration_ids = list(range(n_samples))
 
         # Step 3: Handle plus variant
