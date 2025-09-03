@@ -65,16 +65,28 @@ class JackknifeBootstrap(BaseStrategy):
         super().__init__(plus=plus)
 
         if n_bootstraps < 1:
-            raise ValueError(
+            exc = ValueError(
                 f"Number of bootstraps must be at least 1, got {n_bootstraps}. "
                 f"Typical values are 50-200 for jackknife-after-bootstrap."
             )
+            exc.add_note(f"Received n_bootstraps={n_bootstraps}, which is invalid.")
+            exc.add_note(
+                "Jackknife-after-Bootstrap requires at least one bootstrap iteration."
+            )
+            exc.add_note("Consider using n_bootstraps=100 as a balanced default.")
+            raise exc
         if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
-            raise ValueError(
+            exc = ValueError(
                 f"aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN, "
                 f"got {aggregation_method}. These are the only statistically valid "
                 f"methods for combining out-of-bag predictions in JackknifeBootstrap()."
             )
+            exc.add_note(f"Received aggregation_method={aggregation_method}")
+            exc.add_note("Valid options are: Aggregation.MEAN, Aggregation.MEDIAN")
+            exc.add_note(
+                "These methods ensure statistical validity of the JaB+ procedure."
+            )
+            raise exc
 
         # Warn if plus=False to alert about potential validity issues
         if not plus:
@@ -265,13 +277,36 @@ class JackknifeBootstrap(BaseStrategy):
                 i = futures[future]
                 self._bootstrap_models[i] = future.result()
 
-    def _compute_oob_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
-        """Compute out-of-bag calibration scores for JaB+ method using vectorization.
+    def _aggregate_predictions(self, predictions: list | np.ndarray) -> float:
+        """Aggregate predictions using the configured method.
 
-        This optimized version:
-        1. Uses pre-computed boolean mask for OOB membership
-        2. Batches predictions for each model across all its OOB samples
-        3. Uses vectorized aggregation operations
+        This centralizes the aggregation logic to follow DRY principle.
+
+        Args:
+            predictions: List or array of predictions to aggregate
+
+        Returns:
+            float: Aggregated value (mean or median)
+        """
+        if len(predictions) == 0:
+            return np.nan
+
+        match self._aggregation_method:
+            case Aggregation.MEAN:
+                return np.mean(predictions)
+            case Aggregation.MEDIAN:
+                return np.median(predictions)
+            case _:
+                # Should not happen due to validation in __init__
+                raise ValueError(
+                    f"Unsupported aggregation method: {self._aggregation_method}"
+                )
+
+    def _compute_oob_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
+        """Compute out-of-bag calibration scores using centralized aggregation.
+
+        This version eliminates code duplication by using a single helper method
+        for all aggregation logic, following the DRY principle.
 
         Args:
             x (pd.DataFrame | np.ndarray): Input data matrix.
@@ -284,51 +319,31 @@ class JackknifeBootstrap(BaseStrategy):
         """
         n_samples = len(x)
 
-        # Initialize prediction accumulator and count arrays
-        prediction_sum = np.zeros(n_samples)
-        prediction_count = np.zeros(n_samples, dtype=int)
-
-        # For median calculation, we need to store all predictions
-        if self._aggregation_method == Aggregation.MEDIAN:
-            all_predictions = [[] for _ in range(n_samples)]
+        # Collect all predictions per sample
+        all_predictions = [[] for _ in range(n_samples)]
 
         # Process each bootstrap model
         for model_idx, model in enumerate(self._bootstrap_models):
-            # Get OOB samples for this model
             oob_samples = self._oob_mask[model_idx]
             oob_indices = np.where(oob_samples)[0]
 
             if len(oob_indices) > 0:
-                # Batch predict all OOB samples for this model
                 oob_predictions = model.decision_function(x[oob_indices])
-
-                if self._aggregation_method == Aggregation.MEAN:
-                    # Accumulate for mean calculation
-                    prediction_sum[oob_indices] += oob_predictions
-                    prediction_count[oob_indices] += 1
-                else:
-                    # Store for median calculation
-                    for idx, pred in zip(oob_indices, oob_predictions):
-                        all_predictions[idx].append(pred)
+                for idx, pred in zip(oob_indices, oob_predictions):
+                    all_predictions[idx].append(pred)
 
         # Check for samples with no OOB predictions
-        if self._aggregation_method == Aggregation.MEAN:
-            no_predictions = prediction_count == 0
-        else:
-            no_predictions = np.array([len(preds) == 0 for preds in all_predictions])
-
+        no_predictions = np.array([len(preds) == 0 for preds in all_predictions])
         if np.any(no_predictions):
             raise ValueError(
                 f"Samples {np.where(no_predictions)[0]} have no OOB predictions. "
                 "Consider increasing n_bootstraps."
             )
 
-        # Compute final scores
-        if self._aggregation_method == Aggregation.MEAN:
-            oob_scores = prediction_sum / prediction_count
-        else:
-            oob_scores = np.array([np.median(preds) for preds in all_predictions])
-
+        # Use centralized aggregation logic
+        oob_scores = np.array(
+            [self._aggregate_predictions(preds) for preds in all_predictions]
+        )
         return oob_scores
 
     @property

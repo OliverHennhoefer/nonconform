@@ -5,7 +5,7 @@ import os
 import shutil
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
 
 import numpy as np
@@ -25,9 +25,12 @@ class DatasetManager:
     def __init__(self) -> None:
         """Initialize the DatasetManager with configuration."""
         self.version: str = os.environ.get("UNQUAD_DATASET_VERSION", "v0.9.17-datasets")
+        base_repo_url = (
+            "https://github.com/OliverHennhoefer/nonconform/releases/download/"
+        )
         self.base_url: str = os.environ.get(
             "UNQUAD_DATASET_URL",
-            f"https://github.com/OliverHennhoefer/nonconform/releases/download/{self.version}/",
+            urljoin(base_repo_url, quote(self.version, safe="") + "/"),
         )
         self.suffix: str = ".npz"
         self._memory_cache: dict[str, bytes] = {}
@@ -340,7 +343,7 @@ class DatasetManager:
         """
         try:
             return self.cache_dir.exists() and os.access(self.cache_dir, os.W_OK)
-        except (OSError, PermissionError):
+        except OSError:
             return False
 
 

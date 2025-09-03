@@ -93,11 +93,18 @@ class BatchGenerator(BaseDataGenerator):
 
         # Validate batch size
         if batch_size <= 0:
-            raise ValueError(
+            exc = ValueError(
                 f"batch_size must be positive, got {batch_size}. "
                 f"Typical values are 32-1000 depending on dataset size"
                 f" and memory constraints."
             )
+            exc.add_note(f"Received batch_size={batch_size}, which is invalid.")
+            exc.add_note("Batch size must be a positive integer (≥ 1).")
+            exc.add_note(
+                "Common values: batch_size=32 (small),"
+                " batch_size=100 (medium), batch_size=1000 (large)."
+            )
+            raise exc
 
         # Initialize base class
         super().__init__(
@@ -130,15 +137,37 @@ class BatchGenerator(BaseDataGenerator):
         """Validate batch-specific configuration."""
         if self.anomaly_mode == "proportional":
             if self.n_normal_per_batch > self.n_normal:
-                raise ValueError(
+                exc = ValueError(
                     f"Not enough normal instances ({self.n_normal}) for "
                     f"batch size ({self.n_normal_per_batch} needed per batch)"
                 )
+                exc.add_note(
+                    f"Dataset has {self.n_normal} normal instances,"
+                    f" but need {self.n_normal_per_batch} per batch."
+                )
+                exc.add_note(
+                    "Either reduce batch_size or increase normal instances in dataset."
+                )
+                exc.add_note(
+                    f"Maximum feasible batch_size for this dataset: {self.n_normal}"
+                )
+                raise exc
             if self.n_anomaly_per_batch > self.n_anomaly:
-                raise ValueError(
+                exc = ValueError(
                     f"Not enough anomaly instances ({self.n_anomaly}) for "
                     f"batch size ({self.n_anomaly_per_batch} needed per batch)"
                 )
+                exc.add_note(
+                    f"Dataset has {self.n_anomaly} anomaly instances,"
+                    f" but need {self.n_anomaly_per_batch} per batch."
+                )
+                exc.add_note(
+                    "Reduce batch_size/anomaly_proportion or increase anomalies."
+                )
+                exc.add_note(
+                    f"Current anomaly_proportion={self.anomaly_proportion}, reduce it."
+                )
+                raise exc
 
     def generate(self) -> Iterator[tuple[pd.DataFrame, pd.Series]]:
         """Generate batches with mixed normal and anomalous instances.
@@ -167,52 +196,56 @@ class BatchGenerator(BaseDataGenerator):
                 return batch_count < self.n_batches
 
         while _should_continue():
-            if self.anomaly_mode == "proportional":
-                # Proportional mode: exact number of anomalies per batch
-                batch_data = []
-                batch_labels = []
+            match self.anomaly_mode:
+                case "proportional":
+                    # Proportional mode: exact number of anomalies per batch
+                    batch_data = []
+                    batch_labels = []
 
-                # Generate exact number of normal instances
-                for _ in range(self.n_normal_per_batch):
-                    instance, label = self._sample_instance(False)
-                    batch_data.append(instance)
-                    batch_labels.append(label)
+                    # Generate exact number of normal instances
+                    for _ in range(self.n_normal_per_batch):
+                        instance, label = self._sample_instance(False)
+                        batch_data.append(instance)
+                        batch_labels.append(label)
 
-                # Generate exact number of anomaly instances
-                for _ in range(self.n_anomaly_per_batch):
-                    instance, label = self._sample_instance(True)
-                    batch_data.append(instance)
-                    batch_labels.append(label)
+                    # Generate exact number of anomaly instances
+                    for _ in range(self.n_anomaly_per_batch):
+                        instance, label = self._sample_instance(True)
+                        batch_data.append(instance)
+                        batch_labels.append(label)
 
-                # Combine and shuffle
-                x_batch = pd.concat(batch_data, axis=0, ignore_index=True)
-                y_batch = pd.Series(batch_labels, dtype=int)
+                    # Combine and shuffle
+                    x_batch = pd.concat(batch_data, axis=0, ignore_index=True)
+                    y_batch = pd.Series(batch_labels, dtype=int)
 
-                # Shuffle the batch to mix normal and anomalous instances
-                shuffle_idx = self.rng.permutation(self.batch_size)
-                x_batch = x_batch.iloc[shuffle_idx].reset_index(drop=True)
-                y_batch = y_batch.iloc[shuffle_idx].reset_index(drop=True)
+                    # Shuffle the batch to mix normal and anomalous instances
+                    shuffle_idx = self.rng.permutation(self.batch_size)
+                    x_batch = x_batch.iloc[shuffle_idx].reset_index(drop=True)
+                    y_batch = y_batch.iloc[shuffle_idx].reset_index(drop=True)
 
-            else:  # probabilistic mode
-                # Probabilistic mode: use global tracking to ensure exact proportion
-                batch_data = []
-                batch_labels = []
+                case "probabilistic":
+                    # Probabilistic mode: use global tracking to ensure exact proportion
+                    batch_data = []
+                    batch_labels = []
 
-                # Generate instances for this batch
-                for _ in range(self.batch_size):
-                    is_anomaly = self._should_generate_anomaly()
-                    instance, label = self._sample_instance(is_anomaly)
+                    # Generate instances for this batch
+                    for _ in range(self.batch_size):
+                        is_anomaly = self._should_generate_anomaly()
+                        instance, label = self._sample_instance(is_anomaly)
 
-                    batch_data.append(instance)
-                    batch_labels.append(label)
+                        batch_data.append(instance)
+                        batch_labels.append(label)
 
-                    # Update tracking
-                    self._current_anomalies += label
-                    self._items_generated += 1
+                        # Update tracking
+                        self._current_anomalies += label
+                        self._items_generated += 1
 
-                # Combine into batch
-                x_batch = pd.concat(batch_data, axis=0, ignore_index=True)
-                y_batch = pd.Series(batch_labels, dtype=int)
+                    # Combine into batch
+                    x_batch = pd.concat(batch_data, axis=0, ignore_index=True)
+                    y_batch = pd.Series(batch_labels, dtype=int)
+
+                case _:
+                    raise ValueError(f"Unknown anomaly_mode: {self.anomaly_mode}")
 
             yield x_batch, y_batch
             batch_count += 1

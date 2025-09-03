@@ -109,6 +109,35 @@ class CrossValidation(BaseStrategy):
         _detector = detector
         n_samples = len(x)
 
+        # Validate k before creating KFold
+        if self._k < 2:
+            exc = ValueError(
+                f"k must be at least 2 for k-fold cross-validation, got {self._k}"
+            )
+            exc.add_note(f"Received k={self._k}, which is invalid.")
+            exc.add_note(
+                "Cross-validation requires at least one split"
+                " for training and one for calibration."
+            )
+            exc.add_note(
+                f"With {n_samples} samples, consider k=min(10,"
+                f" {n_samples // 10}) for balanced folds."
+            )
+            raise exc
+
+        if n_samples < self._k:
+            exc = ValueError(
+                f"Not enough samples ({n_samples}) for "
+                f"k-fold cross-validation with k={self._k}"
+            )
+            exc.add_note(
+                f"Each fold needs at least 1 sample, but {n_samples} < {self._k}."
+            )
+            exc.add_note(
+                f"Either increase your dataset size or reduce k to at most {n_samples}."
+            )
+            raise exc
+
         # Pre-allocate calibration array for efficiency
         self._calibration_set = np.empty(n_samples, dtype=np.float64)
         calibration_offset = 0

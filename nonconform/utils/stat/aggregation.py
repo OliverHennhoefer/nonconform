@@ -28,20 +28,19 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> np.ndarray:
         ValueError: If the `method` is not a supported aggregation type
             defined in the internal mapping.
     """
-    aggregation_methods = {
-        Aggregation.MEAN: lambda x: np.mean(x, axis=0),
-        Aggregation.MEDIAN: lambda x: np.median(x, axis=0),
-        Aggregation.MINIMUM: lambda x: np.min(x, axis=0),
-        Aggregation.MAXIMUM: lambda x: np.max(x, axis=0),
-    }
-
-    func = aggregation_methods.get(method)
-    if not func:
-        valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
-        raise ValueError(
-            f"Unsupported aggregation method: {method}. "
-            f"Valid methods are: {valid_methods}. "
-            f"Example: aggregate(Aggregation.MEAN, scores)"
-        )
-
-    return func(scores)
+    match method:
+        case Aggregation.MEAN:
+            return np.mean(scores, axis=0)
+        case Aggregation.MEDIAN:
+            return np.median(scores, axis=0)
+        case Aggregation.MINIMUM:
+            return np.min(scores, axis=0)
+        case Aggregation.MAXIMUM:
+            return np.max(scores, axis=0)
+        case _:
+            valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
+            raise ValueError(
+                f"Unsupported aggregation method: {method}. "
+                f"Valid methods are: {valid_methods}. "
+                f"Example: aggregate(Aggregation.MEAN, scores)"
+            )

@@ -60,11 +60,12 @@ scores = detector.predict(X, raw=True)     # Get raw scores
 - Use sparse data structures when possible
 
 ```python
+import itertools
+
 def process_in_batches(detector, X, batch_size=1000):
     """Process large datasets in batches."""
     results = []
-    for i in range(0, len(X), batch_size):
-        batch = X[i:i + batch_size]
+    for batch in itertools.batched(X, batch_size):
         batch_results = detector.predict(batch, raw=False)
         results.extend(batch_results)
     return np.array(results)
@@ -370,23 +371,22 @@ def debug_weighted_conformal(detector, X_train, X_test):
 ### 1. Batch Processing
 
 ```python
+import itertools
+
 def optimized_batch_processing(detector, X, batch_size=1000):
     """Optimized batch processing for large datasets."""
     n_samples = len(X)
-    n_batches = (n_samples + batch_size - 1) // batch_size
-
     results = np.empty(n_samples)
 
-    for i in range(n_batches):
-        start_idx = i * batch_size
-        end_idx = min((i + 1) * batch_size, n_samples)
-        batch = X[start_idx:end_idx]
-
+    start_idx = 0
+    for i, batch in enumerate(itertools.batched(X, batch_size)):
         batch_results = detector.predict(batch, raw=False)
+        end_idx = start_idx + len(batch)
         results[start_idx:end_idx] = batch_results
+        start_idx = end_idx
 
         if i % 10 == 0:  # Progress update
-            print(f"Processed {i + 1}/{n_batches} batches")
+            print(f"Processed {i + 1} batches")
 
     return results
 ```

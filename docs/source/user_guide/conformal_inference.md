@@ -82,7 +82,7 @@ This means that if we declare $X_{test}$ anomalous when $p_{classical}(X_{test})
 The p-value answers the question: "If this test instance were actually normal, what's the probability of observing an anomaly score at least as extreme as what we observed?"
 
 - **High p-value (e.g., 0.8)**: The test instance looks very similar to calibration data
-- **Medium p-value (e.g., 0.3)**: The test instance is somewhat unusual but not clearly anomalous  
+- **Medium p-value (e.g., 0.3)**: The test instance is somewhat unusual but not clearly anomalous
 - **Low p-value (e.g., 0.02)**: The test instance is very different from calibration data
 
 ## Exchangeability Assumption
@@ -117,7 +117,7 @@ Under exchangeability, standard conformal p-values provide exact finite-sample f
 
 **Statistical consequence**: When exchangeability fails, standard conformal p-values lose their coverage guarantees and may become systematically miscalibrated.
 
-**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data, potentially restoring valid inference under **specific types of covariate shift**. **Key limitations**: 
+**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data, potentially restoring valid inference under **specific types of covariate shift**. **Key limitations**:
 
 1. **Assumption**: Requires that P(Y|X) remains constant while only P(X) changes
 2. **Density ratio estimation errors**: Inaccurate weight estimation can degrade or even worsen performance
@@ -180,7 +180,7 @@ for i, p_val in enumerate(p_values[:5]):
     if p_val < 0.01:
         print(f"Instance {i}: p={p_val:.4f} - Strong evidence of anomaly")
     elif p_val < 0.05:
-        print(f"Instance {i}: p={p_val:.4f} - Moderate evidence of anomaly") 
+        print(f"Instance {i}: p={p_val:.4f} - Moderate evidence of anomaly")
     elif p_val < 0.1:
         print(f"Instance {i}: p={p_val:.4f} - Weak evidence of anomaly")
     else:
@@ -279,7 +279,7 @@ detector = StandardConformalDetector(
 - **Solution**: Apply Benjamini-Hochberg FDR control instead of raw thresholding
 - **Best practice**: Always use `scipy.stats.false_discovery_control` for multiple comparisons
 
-### 5. Improper Thresholding  
+### 5. Improper Thresholding
 - **Problem**: Using simple p-value thresholds without FDR control
 - **Solution**: Apply proper multiple testing correction for all anomaly detection scenarios
 - **Implementation**: Use `false_discovery_control(p_values, method='bh')` before thresholding
@@ -323,7 +323,7 @@ for agg_method in aggregation_methods:
     )
     detector.fit(X_train)
     p_values = detector.predict(X_test, raw=False)
-    
+
     print(f"{agg_method.value}: {(p_values < 0.05).sum()} detections")
 ```
 
@@ -338,20 +338,20 @@ from pyod.models.base import BaseDetector
 
 class CustomDetector(BaseDetector):
     """Custom anomaly detector following PyOD interface."""
-    
+
     def __init__(self, contamination=0.1):
         super().__init__(contamination=contamination)
-    
+
     def fit(self, X, y=None):
         # Your custom fitting logic here
         self.decision_scores_ = self._compute_scores(X)
         self._process_decision_scores()
         return self
-    
+
     def decision_function(self, X):
         # Your custom scoring logic here
         return self._compute_scores(X)
-    
+
     def _compute_scores(self, X):
         # Higher scores should indicate more anomalous behavior
         # This is a dummy implementation
@@ -385,7 +385,7 @@ strategies = {
 
 for name, strategy in strategies.items():
     start_time = time.time()
-    
+
     detector = StandardConformalDetector(
         detector=base_detector,
         strategy=strategy,
@@ -395,7 +395,7 @@ for name, strategy in strategies.items():
     )
     detector.fit(X_train)
     p_values = detector.predict(X_test, raw=False)
-    
+
     elapsed = time.time() - start_time
     print(f"{name}: {elapsed:.2f}s ({(p_values < 0.05).sum()} detections)")
 ```
@@ -406,18 +406,15 @@ For large datasets, consider:
 
 ```python
 # Use batch processing for very large test sets
+import itertools
+
 def predict_in_batches(detector, X_test, batch_size=1000):
-    n_batches = (len(X_test) + batch_size - 1) // batch_size
     all_p_values = []
-    
-    for i in range(n_batches):
-        start_idx = i * batch_size
-        end_idx = min((i + 1) * batch_size, len(X_test))
-        batch = X_test[start_idx:end_idx]
-        
+
+    for batch in itertools.batched(X_test, batch_size):
         batch_p_values = detector.predict(batch, raw=False)
         all_p_values.extend(batch_p_values)
-    
+
     return np.array(all_p_values)
 
 # Usage for large datasets

@@ -22,11 +22,11 @@ def prepare_data(X):
     # Handle missing values
     imputer = SimpleImputer(strategy='median')
     X_clean = imputer.fit_transform(X)
-    
+
     # Standardize features
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_clean)
-    
+
     return X_scaled, imputer, scaler
 ```
 
@@ -45,18 +45,18 @@ from sklearn.preprocessing import LabelEncoder
 def engineer_features(X, categorical_cols=None, k_best=None):
     """Feature engineering pipeline."""
     X_engineered = X.copy()
-    
+
     # Handle categorical variables
     if categorical_cols:
         encoder = LabelEncoder()
         for col in categorical_cols:
             X_engineered[:, col] = encoder.fit_transform(X_engineered[:, col])
-    
+
     # Feature selection
     if k_best:
         selector = SelectKBest(f_classif, k=k_best)
         X_engineered = selector.fit_transform(X_engineered, y_normal_indicator)
-    
+
     return X_engineered
 ```
 
@@ -230,11 +230,11 @@ def validate_calibration_data(X_train, contamination_rate=0.05):
     temp_detector = IForest(contamination=contamination_rate)
     temp_detector.fit(X_train)
     anomaly_scores = temp_detector.decision_function(X_train)
-    
+
     # Keep only the most normal samples for calibration
     normal_threshold = np.percentile(anomaly_scores, (1 - contamination_rate) * 100)
     clean_indices = anomaly_scores >= normal_threshold
-    
+
     return X_train[clean_indices]
 ```
 
@@ -266,15 +266,15 @@ def apply_fdr_control(p_values, alpha=0.05, method='bh'):
     # Validate p-values
     if np.any(p_values < 0) or np.any(p_values > 1):
         raise ValueError("P-values must be between 0 and 1")
-    
+
     # Apply FDR control
     adjusted_p_values = false_discovery_control(p_values, method=method, alpha=alpha)
     discoveries = adjusted_p_values < alpha
-    
+
     print(f"Original detections: {(p_values < alpha).sum()}")
     print(f"FDR-controlled discoveries: {discoveries.sum()}")
     print(f"Reduction: {(p_values < alpha).sum() - discoveries.sum()}")
-    
+
     return discoveries, adjusted_p_values
 ```
 
@@ -287,20 +287,20 @@ def calculate_performance_metrics(y_true, discoveries):
     """Calculate comprehensive performance metrics."""
     if len(y_true) != len(discoveries):
         raise ValueError("y_true and discoveries must have same length")
-    
+
     true_positives = np.sum(discoveries & (y_true == 1))
     false_positives = np.sum(discoveries & (y_true == 0))
     true_negatives = np.sum(~discoveries & (y_true == 0))
     false_negatives = np.sum(~discoveries & (y_true == 1))
-    
+
     # Calculate metrics
     precision = true_positives / max(1, true_positives + false_positives)
     recall = true_positives / max(1, true_positives + false_negatives)
     f1_score = 2 * precision * recall / max(1e-10, precision + recall)
-    
+
     # FDR calculation
     fdr = false_positives / max(1, true_positives + false_positives)
-    
+
     return {
         'precision': precision,
         'recall': recall,
@@ -321,24 +321,24 @@ import os
 
 class PerformanceMonitor:
     """Monitor detector performance over time."""
-    
+
     def __init__(self):
         self.metrics_history = []
-    
+
     def monitor_prediction(self, detector, X_test, y_true=None):
         """Monitor a single prediction run."""
         # Time the prediction
         start_time = time.time()
         start_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
-        
+
         p_values = detector.predict(X_test, raw=False)
-        
+
         end_time = time.time()
         end_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
-        
+
         # Apply FDR control
         discoveries, _ = apply_fdr_control(p_values)
-        
+
         metrics = {
             'timestamp': time.time(),
             'prediction_time': end_time - start_time,
@@ -352,12 +352,12 @@ class PerformanceMonitor:
                 'std': p_values.std()
             }
         }
-        
+
         # Add performance metrics if ground truth available
         if y_true is not None:
             perf_metrics = calculate_performance_metrics(y_true, discoveries)
             metrics.update(perf_metrics)
-        
+
         self.metrics_history.append(metrics)
         return metrics
 ```
@@ -372,26 +372,26 @@ from scipy.stats import ks_2samp
 
 class ModelDriftDetector:
     """Detect when model needs updating due to drift."""
-    
+
     def __init__(self, baseline_data, drift_threshold=0.05):
         self.baseline_data = baseline_data
         self.drift_threshold = drift_threshold
-    
+
     def detect_drift(self, new_data):
         """Detect distribution drift using KS test."""
         drift_detected = False
         p_values = []
-        
+
         for i in range(new_data.shape[1]):
             _, p_value = ks_2samp(
-                self.baseline_data[:, i], 
+                self.baseline_data[:, i],
                 new_data[:, i]
             )
             p_values.append(p_value)
-            
+
             if p_value < self.drift_threshold:
                 drift_detected = True
-        
+
         return drift_detected, p_values
 ```
 
@@ -400,17 +400,17 @@ class ModelDriftDetector:
 ```python
 class ScalableAnomalyDetector:
     """Scalable anomaly detection for production."""
-    
+
     def __init__(self, detector_config, batch_size=1000):
         self.detector_config = detector_config
         self.batch_size = batch_size
         self.detector = None
-    
+
     def fit(self, X_train):
         """Fit detector on training data."""
         # Use appropriate strategy based on data size
         strategy = choose_calibration_strategy(len(X_train))
-        
+
         self.detector = ConformalDetector(
             detector=self.detector_config['detector'],
             strategy=strategy,
@@ -418,24 +418,19 @@ class ScalableAnomalyDetector:
             seed=self.detector_config['seed'],
             silent=self.detector_config.get('silent', True)
         )
-        
+
         self.detector.fit(X_train)
-    
+
     def predict_batch(self, X_test):
         """Predict on large datasets using batching."""
-        n_samples = len(X_test)
-        n_batches = (n_samples + self.batch_size - 1) // self.batch_size
-        
+        import itertools
+
         all_p_values = []
-        
-        for i in range(n_batches):
-            start_idx = i * self.batch_size
-            end_idx = min((i + 1) * self.batch_size, n_samples)
-            batch = X_test[start_idx:end_idx]
-            
+
+        for batch in itertools.batched(X_test, self.batch_size):
             batch_p_values = self.detector.predict(batch, raw=False)
             all_p_values.extend(batch_p_values)
-        
+
         return np.array(all_p_values)
 ```
 
@@ -479,37 +474,37 @@ from pyod.models.ocsvm import OCSVM
 
 class AnomalyDetectionPipeline:
     """Complete anomaly detection pipeline."""
-    
+
     DETECTOR_MAP = {
         'iforest': IForest,
         'lof': LOF,
         'ocsvm': OCSVM
     }
-    
+
     def __init__(self, config: AnomalyDetectionConfig):
         self.config = config
         self.detector = None
         self.performance_monitor = PerformanceMonitor()
         self.drift_detector = None
-    
+
     def _create_detector(self):
         """Create base detector from configuration."""
         detector_class = self.DETECTOR_MAP[self.config.detector_type]
         return detector_class(contamination=0.1)
-    
+
     def _create_strategy(self, n_samples):
         """Create strategy based on dataset size."""
         return choose_calibration_strategy(n_samples)
-    
+
     def fit(self, X_train):
         """Fit the complete pipeline."""
         # Validate and prepare data
         X_clean = validate_calibration_data(X_train)
-        
+
         # Create components
         base_detector = self._create_detector()
         strategy = self._create_strategy(len(X_clean))
-        
+
         # Create conformal detector
         self.detector = ConformalDetector(
             detector=base_detector,
@@ -518,54 +513,54 @@ class AnomalyDetectionPipeline:
             seed=self.config.seed,
             silent=self.config.silent
         )
-        
+
         # Fit detector
         self.detector.fit(X_clean)
-        
+
         # Initialize drift detector
         self.drift_detector = ModelDriftDetector(X_clean)
-        
+
         print(f"Pipeline fitted with {len(X_clean)} samples")
         print(f"Strategy: {type(strategy).__name__}")
         print(f"Calibration set size: {len(self.detector.calibration_set)}")
-    
+
     def predict(self, X_test, y_true=None, check_drift=True):
         """Make predictions with full monitoring."""
         if self.detector is None:
             raise ValueError("Pipeline must be fitted before prediction")
-        
+
         # Check for drift
         if check_drift and self.drift_detector:
             drift_detected, _ = self.drift_detector.detect_drift(X_test)
             if drift_detected:
                 print("WARNING: Distribution drift detected!")
-        
+
         # Make predictions
         if len(X_test) > self.config.batch_size:
             # Use batch processing for large datasets
             p_values = self._predict_batch(X_test)
         else:
             p_values = self.detector.predict(X_test, raw=False)
-        
+
         # Apply FDR control
         discoveries, adjusted_p_values = apply_fdr_control(
-            p_values, 
+            p_values,
             alpha=self.config.alpha,
             method=self.config.fdr_method
         )
-        
+
         # Monitor performance
         metrics = self.performance_monitor.monitor_prediction(
             self.detector, X_test, y_true
         )
-        
+
         return {
             'discoveries': discoveries,
             'p_values': p_values,
             'adjusted_p_values': adjusted_p_values,
             'metrics': metrics
         }
-    
+
     def _predict_batch(self, X_test):
         """Batch prediction for large datasets."""
         scalable_detector = ScalableAnomalyDetector(
@@ -577,7 +572,7 @@ class AnomalyDetectionPipeline:
             },
             batch_size=self.config.batch_size
         )
-        
+
         # Note: In practice, you'd want to reuse the fitted detector
         # This is simplified for demonstration
         return scalable_detector.predict_batch(X_test)

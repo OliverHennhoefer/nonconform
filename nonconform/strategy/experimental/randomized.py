@@ -241,32 +241,33 @@ class Randomized(BaseStrategy):
         Returns:
             int: Holdout set size.
         """
-        if self._sampling_distr == Distribution.UNIFORM:
-            min_size, max_size = self._holdout_size_range_abs
-            return generator.integers(min_size, max_size + 1)
+        match self._sampling_distr:
+            case Distribution.UNIFORM:
+                min_size, max_size = self._holdout_size_range_abs
+                return generator.integers(min_size, max_size + 1)
 
-        elif self._sampling_distr == Distribution.BETA_BINOMIAL:
-            alpha, beta = self._beta_params
-            # Draw from Beta distribution and scale to holdout range
-            v = generator.beta(alpha, beta)
-            min_size, max_size = self._holdout_size_range_abs
-            range_size = max_size - min_size
-            size = max(min_size, min(max_size, int(v * range_size + min_size)))
-            return size
+            case Distribution.BETA_BINOMIAL:
+                alpha, beta = self._beta_params
+                # Draw from Beta distribution and scale to holdout range
+                v = generator.beta(alpha, beta)
+                min_size, max_size = self._holdout_size_range_abs
+                range_size = max_size - min_size
+                size = max(min_size, min(max_size, int(v * range_size + min_size)))
+                return size
 
-        elif self._sampling_distr == Distribution.GRID:
-            holdout_sizes, probabilities = self._grid_probs
-            # Convert relative sizes to absolute if needed
-            abs_sizes = []
-            for size in holdout_sizes:
-                if size < 1.0:
-                    abs_sizes.append(max(1, int(size * self._n_data)))
-                else:
-                    abs_sizes.append(int(size))
-            return generator.choice(abs_sizes, p=probabilities)
+            case Distribution.GRID:
+                holdout_sizes, probabilities = self._grid_probs
+                # Convert relative sizes to absolute if needed
+                abs_sizes = []
+                for size in holdout_sizes:
+                    if size < 1.0:
+                        abs_sizes.append(max(1, int(size * self._n_data)))
+                    else:
+                        abs_sizes.append(int(size))
+                return generator.choice(abs_sizes, p=probabilities)
 
-        else:
-            raise ValueError(f"Unknown sampling_distr: {self._sampling_distr}")
+            case _:
+                raise ValueError(f"Unknown sampling_distr: {self._sampling_distr}")
 
     def _log_configuration(self) -> None:
         """Log configuration information at initialization."""
