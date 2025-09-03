@@ -27,7 +27,7 @@ To control logging verbosity, use standard Python logging:
     logging.getLogger("nonconform").setLevel(logging.CRITICAL)
 """
 
-__version__ = "0.9.200"
+__version__ = "0.10.0"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

@@ -3,6 +3,7 @@
 import io
 import os
 import shutil
+from collections import OrderedDict
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import quote, urljoin
@@ -33,8 +34,17 @@ class DatasetManager:
             urljoin(base_repo_url, quote(self.version, safe="") + "/"),
         )
         self.suffix: str = ".npz"
-        self._memory_cache: dict[str, bytes] = {}
+        self._memory_cache: OrderedDict[str, bytes] = OrderedDict()
+        self.max_cache_size: int = 16  # Limit memory cache to 16 datasets
         self._cache_dir: Path | None = None
+
+    def _add_to_memory_cache(self, filename: str, data: bytes) -> None:
+        """Add an item to the LRU memory cache and evict if over capacity."""
+        self._memory_cache[filename] = data
+        self._memory_cache.move_to_end(filename)
+        if len(self._memory_cache) > self.max_cache_size:
+            popped_filename, _ = self._memory_cache.popitem(last=False)
+            logger.debug(f"Evicted {popped_filename} from memory cache")
 
     @property
     def cache_dir(self) -> Path:
@@ -131,6 +141,7 @@ class DatasetManager:
         # Check memory cache first
         if filename in self._memory_cache:
             logger.debug(f"Loading {filename} from memory cache")
+            self._memory_cache.move_to_end(filename)  # Mark as recently used
             return self._memory_cache[filename]
 
         # Check disk cache second
@@ -139,7 +150,7 @@ class DatasetManager:
             logger.debug(f"Loading {filename} from disk cache (v{self.version})")
             with open(cache_file, "rb") as f:
                 data = f.read()
-            self._memory_cache[filename] = data
+            self._add_to_memory_cache(filename, data)
             return data
 
         # Clean old versions before downloading
@@ -160,7 +171,7 @@ class DatasetManager:
             raise URLError(f"Failed to download {filename}: {e!s}") from e
 
         # Cache in memory and on disk
-        self._memory_cache[filename] = data
+        self._add_to_memory_cache(filename, data)
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         with open(cache_file, "wb") as f:
             f.write(data)
