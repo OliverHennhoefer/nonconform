@@ -123,8 +123,8 @@ strategy = Jackknife(plus=True)
 All strategies work with any conformal detector:
 
 ```python
-from nonconform.estimation.standard_conformal import StandardConformalDetector
-from nonconform.estimation.weighted_conformal import WeightedConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation.weighted import WeightedConformalDetector
 from pyod.models.lof import LOF
 
 # Standard conformal with cross-validation

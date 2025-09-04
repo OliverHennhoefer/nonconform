@@ -102,7 +102,7 @@ accurate_detectors = {
 Consider using multiple detectors for improved robustness:
 
 ```python
-from nonconform.estimation.standard_conformal import StandardConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
 from nonconform.strategy.split import Split
 from nonconform.utils.func.enums import Aggregation
 from scipy.stats import false_discovery_control

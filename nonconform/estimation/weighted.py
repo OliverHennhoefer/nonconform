@@ -2,12 +2,10 @@ import logging
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 from nonconform.estimation.base import BaseConformalDetector
+from nonconform.estimation.weight import BaseWeightEstimator, LogisticWeightEstimator
 from nonconform.strategy.base import BaseStrategy
 from nonconform.utils.func.decorator import _ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
@@ -57,18 +55,20 @@ class WeightedConformalDetector(BaseConformalDetector):
     Attributes:
         detector: The underlying PyOD anomaly detection model.
         strategy: The calibration strategy for computing weighted p-values.
+        weight_estimator: Weight estimator for handling covariate shift.
         aggregation: Method for combining scores from multiple models.
         seed: Random seed for reproducible results.
         detector_set: List of trained detector models (populated after fit).
         calibration_set: Calibration scores for p-value computation (populated by fit).
         is_fitted: Whether the detector has been fitted.
-        calibration_samples: Data instances used for calibration (+ weight computation).
+        calibration_samples: Data instances used for calibration.
     """
 
     def __init__(
         self,
         detector: BaseDetector,
         strategy: BaseStrategy,
+        weight_estimator: BaseWeightEstimator | None = None,
         aggregation: Aggregation = Aggregation.MEDIAN,
         seed: int | None = None,
     ):
@@ -78,6 +78,8 @@ class WeightedConformalDetector(BaseConformalDetector):
             detector (BaseDetector): A PyOD anomaly detector instance. It will
                 be configured with the specified seed.
             strategy (BaseStrategy): A calibration strategy instance.
+            weight_estimator (BaseWeightEstimator | None, optional): Weight estimator
+                for handling covariate shift. Defaults is LogisticWeightEstimator.
             aggregation (Aggregation, optional): Method used for aggregating
                 scores from multiple detector models. Defaults to Aggregation.MEDIAN.
             seed (int | None, optional): Random seed for reproducibility.
@@ -101,6 +103,11 @@ class WeightedConformalDetector(BaseConformalDetector):
 
         self.detector: BaseDetector = _set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
+        self.weight_estimator: BaseWeightEstimator = (
+            weight_estimator
+            if weight_estimator is not None
+            else LogisticWeightEstimator(seed=seed)
+        )
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
@@ -189,7 +196,9 @@ class WeightedConformalDetector(BaseConformalDetector):
         )
         scores_list = [model.decision_function(x) for model in iterable]
 
-        w_cal, w_x = self._compute_weights(x)
+        # Compute weights using the configured weight estimator
+        self.weight_estimator.fit(self._calibration_samples, x)
+        w_cal, w_x = self.weight_estimator.get_weights()
         estimates = aggregate(self.aggregation, np.array(scores_list))
 
         return (
@@ -202,83 +211,6 @@ class WeightedConformalDetector(BaseConformalDetector):
                 np.array(w_cal),
             )
         )
-
-    def _compute_weights(
-        self, test_instances: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Compute importance weights for calibration and test instances.
-
-        This method trains a logistic regression classifier to distinguish
-        between samples from the calibration distribution and samples from the
-        test distribution. The probabilities from this classifier are used
-        to estimate the density ratio w(z) = p_test(z) / p_calib(z).
-
-        The weights are clipped to a predefined range [0.35, 45] to prevent
-        extreme values.
-
-        Args:
-            test_instances (numpy.ndarray): The test data instances for which
-                weights need to be computed.
-
-        Returns:
-            Tuple[numpy.ndarray, numpy.ndarray]:
-                A tuple containing:
-                * clipped_w_calib: Clipped weights for calibration samples.
-                * clipped_w_tests: Clipped weights for test instances.
-        """
-        if self._calibration_samples.shape[0] == 0:
-            raise ValueError(
-                "Calibration samples are empty. Weights cannot be computed. "
-                "Ensure fit() was called and strategy provided calibration_ids."
-            )
-
-        calib_labeled = np.hstack(
-            (
-                self._calibration_samples,
-                np.zeros((self._calibration_samples.shape[0], 1)),
-            )
-        )
-        tests_labeled = np.hstack(
-            (test_instances, np.ones((test_instances.shape[0], 1)))
-        )
-
-        joint_labeled = np.vstack((calib_labeled, tests_labeled))
-        rng = np.random.default_rng(seed=self.seed)
-        rng.shuffle(joint_labeled)
-
-        x_joint = joint_labeled[:, :-1]
-        y_joint = joint_labeled[:, -1]
-
-        model = make_pipeline(
-            StandardScaler(),
-            LogisticRegression(
-                max_iter=1_000,
-                random_state=self.seed,
-                verbose=0,
-                class_weight="balanced",
-            ),
-        )
-        model.fit(x_joint, y_joint)
-
-        calib_prob = model.predict_proba(self._calibration_samples)
-        tests_prob = model.predict_proba(test_instances)
-
-        # Density ratio w(z) = p_test(z) / p_calib(z)
-        # p_calib(z) = P(label=0 | z) ; p_test(z) = P(label=1 | z)
-        # For calibration samples, weight is P(label=1 | z_calib) / P(label=0 | z_calib)
-        # For test samples, weight is P(label=1 | z_test) / P(label=0 | z_test)
-        # These are likelihood ratios p(z | test) / p(z | calib)
-        w_calib = calib_prob[:, 1] / (
-            calib_prob[:, 0] + 1e-9
-        )  # Add epsilon for stability
-        w_tests = tests_prob[:, 1] / (
-            tests_prob[:, 0] + 1e-9
-        )  # Add epsilon for stability
-
-        clipped_w_calib = np.clip(w_calib, 0.35, 45.0)
-        clipped_w_tests = np.clip(w_tests, 0.35, 45.0)
-
-        return clipped_w_calib, clipped_w_tests
 
     @property
     def detector_set(self) -> list[BaseDetector]:

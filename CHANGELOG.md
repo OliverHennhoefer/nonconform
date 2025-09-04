@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the `dec` parameter from `false_discovery_rate` and `statistical_power` to separate calculation from presentation.
 - Refactored to follow a numpy-first approach for better efficiency and consistency
   - Further code quality improvements
+- Refactored weight computation in `WeightedConformalDetector` to use pluggable weight estimators.
+  - Extracted weight computation logic into separate `BaseWeightEstimator` classes.
+  - Added `LogisticWeightEstimator`, `ForestWeightEstimator`, and `IdentityWeightEstimator`.
+  - `WeightedConformalDetector` now accepts `weight_estimator` parameter for flexible covariate shift handling.
 
 ### Fixed
 - Bug Fix in ```JackknifeBootstrap()``` regarding the original plus-variant.

@@ -30,7 +30,8 @@ dependencies = [
     "scikit-learn>=1.5.2,<1.6",
     "pyod==2.0.5",
     "scipy>=1.13.0",
-    "tqdm>=4.66.2"
+    "tqdm>=4.66.2",
+    "ruff>=0.12.9",
 ]
 
 [build-system]

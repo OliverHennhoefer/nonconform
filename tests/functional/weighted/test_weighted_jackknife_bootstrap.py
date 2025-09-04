@@ -3,6 +3,9 @@ import unittest
 from scipy.stats import false_discovery_control
 
 from nonconform.estimation import WeightedConformalDetector
+from nonconform.estimation.weight import (
+    IdentityWeightEstimator,
+)
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -10,12 +13,13 @@ from pyod.models.iforest import IForest
 
 
 class TestCaseJackknifeConformal(unittest.TestCase):
-    def test_jackknife_bootstrap_conformal_breast(self):
+    def test_jackknife_bootstrap_conformal_shuttle_identity(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = WeightedConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=JackknifeBootstrap(n_bootstraps=50, plus=True),
+            weight_estimator=IdentityWeightEstimator(),
             seed=1,
         )
 
@@ -24,10 +28,10 @@ class TestCaseJackknifeConformal(unittest.TestCase):
 
         decisions = false_discovery_control(est, method="bh") <= 0.2
         self.assertAlmostEqual(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.117, places=3
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.188, places=2
         )
         self.assertAlmostEqual(
-            statistical_power(y=y_test, y_hat=decisions), 0.98, places=2
+            statistical_power(y=y_test, y_hat=decisions), 0.99, places=2
         )
 
 

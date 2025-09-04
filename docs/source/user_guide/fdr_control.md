@@ -11,7 +11,7 @@ FDR control is a statistical method for handling multiple hypothesis testing. In
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform.estimation.standard_conformal import StandardConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
 from nonconform.strategy.split import Split
 from nonconform.utils.func.enums import Aggregation
 from pyod.models.lof import LOF
@@ -134,7 +134,7 @@ adjusted_p_vals = false_discovery_control(all_p_values, method='bh', alpha=0.05)
 FDR control works naturally with conformal prediction p-values:
 
 ```python
-from nonconform.estimation.weighted_conformal import WeightedConformalDetector
+from nonconform.estimation.weighted import WeightedConformalDetector
 
 # Use with weighted conformal detection
 weighted_detector = WeightedConformalDetector(
@@ -162,20 +162,20 @@ def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     # Apply FDR control
     adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
     discoveries = adjusted_p_vals < alpha
-    
+
     # Calculate metrics
     true_positives = np.sum(discoveries & (true_labels == 1))
     false_positives = np.sum(discoveries & (true_labels == 0))
-    
+
     if discoveries.sum() > 0:
         empirical_fdr = false_positives / discoveries.sum()
         precision = true_positives / discoveries.sum()
     else:
         empirical_fdr = 0
         precision = 0
-    
+
     recall = true_positives / np.sum(true_labels == 1) if np.sum(true_labels == 1) > 0 else 0
-    
+
     return {
         'discoveries': discoveries.sum(),
         'true_positives': true_positives,
@@ -220,7 +220,7 @@ for batch in data_batches:
     p_vals = detector.predict(batch, raw=False)
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     discoveries = adj_p_vals < 0.05
-    
+
     if len(true_labels_batch) > 0:  # If ground truth available
         metrics = evaluate_fdr_control(p_vals, true_labels_batch)
         fdr_history.append(metrics['empirical_fdr'])
@@ -263,7 +263,7 @@ for detector in detectors:
 
 # Combine p-values using Fisher's method
 combined_stats, combined_p_values = combine_pvalues(
-    np.array(p_values_list).T, 
+    np.array(p_values_list).T,
     method='fisher'
 )
 
@@ -287,22 +287,22 @@ from onlinefdr import Alpha_investing, LORD
 # Example with streaming conformal p-values
 def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
     """Online FDR control for streaming anomaly detection."""
-    
+
     # Initialize online FDR method
     # Alpha-investing: adapts alpha based on discoveries
     online_fdr = Alpha_investing(alpha=alpha, w0=0.05)
-    
+
     discoveries = []
-    
+
     for batch in data_stream:
         # Get p-values for current batch
         p_values = detector.predict(batch, raw=False)
-        
+
         # Apply online FDR control
         for p_val in p_values:
             decision = online_fdr.run_single(p_val)
             discoveries.append(decision)
-    
+
     return discoveries
 ```
 
@@ -317,7 +317,7 @@ for t, (batch, p_values) in enumerate(stream_with_pvalues):
     for p_val in p_values:
         # LORD adapts rejection threshold based on recent discoveries
         reject = lord_fdr.run_single(p_val)
-        
+
         if reject:
             print(f"Anomaly detected at time {t} with p-value {p_val:.4f}")
 ```

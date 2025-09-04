@@ -21,7 +21,7 @@ detector = ConformalDetector(
 )
 
 # New API
-from nonconform.estimation.standard_conformal import StandardConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
 from nonconform.strategy.split import SplitStrategy
 from nonconform.utils.func.enums import Aggregation
 
@@ -335,7 +335,7 @@ def debug_weighted_conformal(detector, X_train, X_test):
     print("=== Weighted Conformal Debug ===")
 
     # Check if it's actually a weighted detector
-    from nonconform.estimation.weighted_conformal import WeightedConformalDetector
+    from nonconform.estimation.weighted import WeightedConformalDetector
     if not isinstance(detector, WeightedConformalDetector):
         print("WARNING: Not a WeightedConformalDetector")
         return

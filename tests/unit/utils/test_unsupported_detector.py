@@ -1,6 +1,6 @@
 import unittest
 
-from nonconform.estimation.standard_conformal import StandardConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
 from nonconform.strategy.split import Split
 from pyod.models.cblof import CBLOF
 

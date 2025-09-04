@@ -5,8 +5,8 @@ PyOD detectors with uncertainty quantification capabilities.
 """
 
 from .base import BaseConformalDetector
-from .standard_conformal import StandardConformalDetector
-from .weighted_conformal import WeightedConformalDetector
+from .standard import StandardConformalDetector
+from .weighted import WeightedConformalDetector
 
 __all__ = [
     "BaseConformalDetector",

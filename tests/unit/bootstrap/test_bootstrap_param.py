@@ -1,6 +1,6 @@
 import unittest
 
-from nonconform.estimation.standard_conformal import StandardConformalDetector
+from nonconform.estimation.standard import StandardConformalDetector
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data import Dataset, load
 from pyod.models.iforest import IForest
