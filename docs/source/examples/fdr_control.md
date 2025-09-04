@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -26,7 +26,7 @@ y = data.target
 base_detector = LOF()
 strategy = Split(calib_size=0.2)
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -57,7 +57,7 @@ for method in fdr_methods:
     adjusted_p_vals = false_discovery_control(p_values, method=method)
     discoveries = adjusted_p_vals < 0.05
     results[method] = discoveries.sum()
-    
+
     print(f"{method.upper()} method: {results[method]} discoveries")
 
 # Compare with no adjustment
@@ -79,7 +79,7 @@ print("-" * 40)
 for alpha in fdr_levels:
     adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
     discoveries = adjusted_p_vals < alpha
-    
+
     print(f"{alpha:<12} {discoveries.sum():<12} {adjusted_p_vals.min():.6f}")
 ```
 
@@ -114,12 +114,12 @@ print("-" * 80)
 for alpha in fdr_levels:
     adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
     discoveries = adjusted_p_vals < alpha
-    
+
     true_positives = np.sum(discoveries & (y_true == 1))
     false_positives = np.sum(discoveries & (y_true == 0))
     precision = true_positives / max(1, discoveries.sum())
     empirical_fdr = false_positives / max(1, discoveries.sum())
-    
+
     print(f"{alpha:<10} {discoveries.sum():<12} {true_positives:<10} {false_positives:<10} "
           f"{precision:<10.3f} {empirical_fdr:<12.3f}")
 ```
@@ -161,15 +161,15 @@ print("-" * 60)
 for name, p_vals in all_p_values.items():
     # Raw detections
     raw_detections = (p_vals < 0.05).sum()
-    
+
     # FDR controlled detections
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     fdr_discoveries = adj_p_vals < 0.05
-    
+
     # Performance metrics
     true_pos = np.sum(fdr_discoveries & (y_true == 1))
     precision = true_pos / max(1, fdr_discoveries.sum())
-    
+
     print(f"{name:<10} {raw_detections:<10} {fdr_discoveries.sum():<10} {true_pos:<10} {precision:<10.3f}")
 ```
 
@@ -248,7 +248,7 @@ for alpha in fdr_levels:
     discoveries_at_levels.append((adj_p_vals < alpha).sum())
 
 axes[1, 1].plot(fdr_levels, discoveries_at_levels, 'o-', linewidth=2)
-axes[1, 1].axhline(y=(p_values < 0.05).sum(), color='red', linestyle='--', 
+axes[1, 1].axhline(y=(p_values < 0.05).sum(), color='red', linestyle='--',
                    label='Raw (α=0.05)')
 axes[1, 1].set_xlabel('FDR Level')
 axes[1, 1].set_ylabel('Number of Discoveries')
@@ -273,7 +273,7 @@ for effect_size in effect_sizes:
     X_anom = np.random.normal(effect_size, 1, (100, 2))
     X_test = np.vstack([X_norm, X_anom])
     y_test = np.hstack([np.zeros(500), np.ones(100)])
-    
+
     # Fit detector and get p-values
     detector = ConformalDetector(
         detector=LOF(contamination=0.1),
@@ -283,11 +283,11 @@ for effect_size in effect_sizes:
     )
     detector.fit(X_norm)
     p_vals = detector.predict(X_test, raw=False)
-    
+
     # Apply FDR control
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     discoveries = adj_p_vals < 0.05
-    
+
     # Calculate power (true positive rate)
     power = np.sum(discoveries & (y_test == 1)) / np.sum(y_test == 1)
     power_results[effect_size] = power

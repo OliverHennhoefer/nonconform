@@ -102,7 +102,7 @@ accurate_detectors = {
 Consider using multiple detectors for improved robustness:
 
 ```python
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation.standard import ConformalDetector
 from nonconform.strategy.split import Split
 from nonconform.utils.func.enums import Aggregation
 from scipy.stats import false_discovery_control
@@ -119,7 +119,7 @@ all_p_values = {}
 strategy = SplitStrategy(calibration_size=0.2)
 
 for name, detector in detectors.items():
-    conf_detector = StandardConformalDetector(
+    conf_detector = ConformalDetector(
         detector=detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,

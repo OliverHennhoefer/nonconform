@@ -1,6 +1,6 @@
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Jackknife
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
@@ -8,7 +8,7 @@ from pyod.models.ocsvm import OCSVM
 
 x_train, x_test, y_test = load(Dataset.IONOSPHERE, setup=True)
 
-ce = StandardConformalDetector(detector=OCSVM(), strategy=Jackknife())
+ce = ConformalDetector(detector=OCSVM(), strategy=Jackknife())
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)

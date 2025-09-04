@@ -102,7 +102,7 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 
 ```python
 from pyod.models.lof import LOF
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
@@ -117,7 +117,7 @@ batch_gen = BatchGenerator(
 
 # Get training data and train detector
 x_train = batch_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=LOF(n_neighbors=20),
     strategy=Split(n_calib=0.3)
 )
@@ -235,7 +235,7 @@ for contamination in contamination_levels:
 
     # Train detector
     x_train = batch_gen.get_training_data()
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=LOF(n_neighbors=20),
         strategy=Split(calib_size=0.3)
     )
@@ -352,7 +352,7 @@ batch_gen = BatchGenerator(
 )
 
 x_train = batch_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=LOF(n_neighbors=20),
     strategy=Split(calib_size=0.3)
 )

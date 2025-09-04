@@ -245,13 +245,13 @@ detector = OCSVM(gamma='auto')
 ### Basic Compatibility Check
 
 ```python
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 
 def test_detector_compatibility(detector, X_train, X_test):
     """Test if a detector works with nonconform."""
     try:
-        conformal_detector = StandardConformalDetector(
+        conformal_detector = ConformalDetector(
             detector=detector,
             strategy=Split(n_calib=0.2),
             seed=42
@@ -277,7 +277,7 @@ from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 def benchmark_detector(detector, X_train, X_test, y_test):
     """Benchmark detector performance with conformal prediction."""
-    conformal_detector = StandardConformalDetector(
+    conformal_detector = ConformalDetector(
         detector=detector,
         strategy=Split(n_calib=0.2),
         seed=42

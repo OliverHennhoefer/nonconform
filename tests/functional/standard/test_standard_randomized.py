@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.experimental.randomized import Randomized
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -15,7 +15,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_fraud(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=2_000, plus=True),
             seed=1,
@@ -35,7 +35,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=1_000, plus=True),
             seed=1,
@@ -55,7 +55,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=1_000, plus=True),
             seed=1,
@@ -75,7 +75,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=ECOD(),
             strategy=Randomized(n_calib=1_000, plus=True),
             seed=1,
@@ -95,7 +95,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=Randomized(n_calib=1_000, plus=True),
             seed=1,

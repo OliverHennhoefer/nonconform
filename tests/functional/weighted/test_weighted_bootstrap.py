@@ -2,8 +2,12 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.weight import ForestWeightEstimator, IdentityWeightEstimator
-from nonconform.estimation.weighted import WeightedConformalDetector
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import (
+    ForestWeightEstimator,
+    IdentityWeightEstimator,
+    LogisticWeightEstimator,
+)
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -16,7 +20,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_fraud_forest(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.975, n_calib=10_000, plus=True),
             weight_estimator=ForestWeightEstimator(seed=1),
@@ -37,9 +41,10 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_shuttle_logistic(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.99, n_calib=1_000, plus=True),
+            weight_estimator=LogisticWeightEstimator(seed=1),
             seed=1,
         )
 
@@ -57,7 +62,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_thyroid_identity(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_bootstraps=25, n_calib=1_000, plus=True),
             weight_estimator=IdentityWeightEstimator(),
@@ -78,7 +83,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_mammography_forest(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=ECOD(),
             strategy=Bootstrap(resampling_ratio=0.99, n_calib=1_000, plus=True),
             weight_estimator=ForestWeightEstimator(seed=1),
@@ -99,7 +104,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_musk_identity(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=Bootstrap(n_bootstraps=25, n_calib=1_000, plus=True),
             weight_estimator=IdentityWeightEstimator(),

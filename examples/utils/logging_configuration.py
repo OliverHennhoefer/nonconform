@@ -2,7 +2,7 @@ import logging
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     x_train, x_test, y_test = load(Dataset.WBC, setup=True)
 
-    ce = StandardConformalDetector(
+    ce = ConformalDetector(
         detector=IForest(behaviour="new"),
         strategy=JackknifeBootstrap(n_bootstraps=100),
     )

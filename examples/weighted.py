@@ -1,23 +1,28 @@
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import StandardConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.strategy import Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
 if __name__ == "__main__":
     # Example Setup
-    x_train, x_test, y_test = load(Dataset.FRAUD, setup=True)
+    x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
     # One-Class Classification
     model = IForest(behaviour="new")
 
     # Conformal Strategy
-    strategy = Bootstrap(n_calib=1_000, resampling_ratio=0.95)
+    strategy = Split(n_calib=10_000)
 
-    # Conformal Anomaly Detector
-    ce = StandardConformalDetector(detector=model, strategy=strategy)
+    # Weighted Conformal Anomaly Detector
+    ce = ConformalDetector(
+        detector=model,
+        strategy=strategy,
+        weight_estimator=LogisticWeightEstimator(seed=42),
+    )
     ce.fit(x_train)
     estimates = ce.predict(x_test)
 

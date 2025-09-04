@@ -41,11 +41,11 @@ import logging
 # Enable progress bars and informational messages
 logging.getLogger('nonconform').setLevel(logging.INFO)
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import CrossValidation
 from pyod.models.iforest import IForest
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(),
     strategy=CrossValidation(k=5)
 )
@@ -61,7 +61,7 @@ import logging
 # Hide progress bars, show only warnings and errors
 logging.getLogger('nonconform').setLevel(logging.WARNING)
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(),
     strategy=CrossValidation(k=5)
 )
@@ -80,10 +80,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Bootstrap
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(),
     strategy=Bootstrap(n_calib=100, resampling_ratio=0.8)
 )
@@ -249,7 +249,7 @@ logging.basicConfig(
 )
 
 # Your nonconform code here
-detector = StandardConformalDetector(...)
+detector = ConformalDetector(...)
 detector.fit(X)  # Shows progress bars
 ```
 
@@ -336,7 +336,7 @@ If you're migrating from code that used the `silent` parameter:
 **Before:**
 ```python
 # Old API with silent parameter
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(),
     strategy=Split(n_calib=0.2),
     silent=True  # Hide progress bars
@@ -350,7 +350,7 @@ import logging
 # New API with logging control
 logging.getLogger('nonconform').setLevel(logging.WARNING)  # Hide progress bars
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(),
     strategy=Split(n_calib=0.2)
     # No silent parameter needed

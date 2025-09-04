@@ -9,7 +9,8 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.estimation import WeightedConformalDetector
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -27,10 +28,11 @@ base_detector = LOF()
 
 # Create weighted conformal detector
 strategy = Split(calib_size=0.2)
-detector = WeightedConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42,
 )
 
@@ -56,10 +58,11 @@ np.random.seed(42)
 X_shifted = X + np.random.normal(0, 0.1, X.shape)
 
 # Create a new detector for shifted data
-detector_shifted = WeightedConformalDetector(
+detector_shifted = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 
@@ -77,10 +80,8 @@ print(f"Number of anomalies detected: {(p_values_shifted < 0.05).sum()}")
 ## Comparison with Standard Conformal Detection
 
 ```python
-from nonconform.estimation import StandardConformalDetector
-
 # Standard conformal detector for comparison
-standard_detector = StandardConformalDetector(
+standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -103,11 +104,11 @@ print(f"Difference: {(p_values_shifted < 0.05).sum() - (standard_p_values < 0.05
 
 ```python
 # Create training data from one distribution
-X_train, _ = make_blobs(n_samples=500, centers=1, cluster_std=1.0, 
+X_train, _ = make_blobs(n_samples=500, centers=1, cluster_std=1.0,
                         center_box=(0.0, 1.0), random_state=42)
 
 # Create test data from a shifted distribution
-X_test, _ = make_blobs(n_samples=200, centers=1, cluster_std=1.0, 
+X_test, _ = make_blobs(n_samples=200, centers=1, cluster_std=1.0,
                        center_box=(2.0, 3.0), random_state=123)
 
 # Add some anomalies to test set
@@ -118,7 +119,7 @@ X_test_with_anomalies = np.vstack([X_test, X_anomalies])
 y_true = np.hstack([np.zeros(len(X_test)), np.ones(len(X_anomalies))])
 
 # Standard conformal detector
-standard_detector = StandardConformalDetector(
+standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -128,10 +129,11 @@ standard_detector.fit(X_train)
 standard_p_values = standard_detector.predict(X_test_with_anomalies, raw=False)
 
 # Weighted conformal detector
-weighted_detector = WeightedConformalDetector(
+weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 weighted_detector.fit(X_train)
@@ -180,7 +182,7 @@ axes[0, 0].set_ylabel('Feature 2')
 
 # Test data with anomalies
 colors = ['green' if label == 0 else 'red' for label in y_true]
-axes[0, 1].scatter(X_test_with_anomalies[:, 0], X_test_with_anomalies[:, 1], 
+axes[0, 1].scatter(X_test_with_anomalies[:, 0], X_test_with_anomalies[:, 1],
                    alpha=0.6, c=colors, s=20)
 axes[0, 1].set_title('Test Data (Green=Normal, Red=Anomaly)')
 axes[0, 1].set_xlabel('Feature 1')
@@ -216,15 +218,16 @@ plt.show()
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
-    detector = WeightedConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=agg_method,
+        weight_estimator=LogisticWeightEstimator(seed=42),
         seed=42
     )
     detector.fit(X_train)
     p_vals = detector.predict(X_test_with_anomalies, raw=False)
-    
+
     print(f"{agg_method.value} aggregation: {(p_vals < 0.05).sum()} detections")
 ```
 
@@ -236,10 +239,11 @@ from nonconform.strategy import Bootstrap
 # Use bootstrap strategy for better stability
 bootstrap_strategy = Bootstrap(n_bootstraps=50, resampling_ratio=0.8)
 
-weighted_bootstrap_detector = WeightedConformalDetector(
+weighted_bootstrap_detector = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 

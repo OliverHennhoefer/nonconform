@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Bootstrap
 from nonconform.utils.func import Aggregation
 
@@ -32,7 +32,7 @@ bootstrap_strategy = Bootstrap(
 )
 
 # Initialize detector with bootstrap strategy
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -58,7 +58,7 @@ bootstrap_plus_strategy = Bootstrap(
     plus=True
 )
 
-detector_plus = StandardConformalDetector(
+detector_plus = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_plus_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -86,7 +86,7 @@ configurations = [
 results = {}
 for config in configurations:
     strategy = Bootstrap(**config)
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
@@ -94,7 +94,7 @@ for config in configurations:
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
-    
+
     key = f"B={config['n_bootstraps']}, r={config['resampling_ratio']}"
     results[key] = (p_vals < 0.05).sum()
     print(f"{key}: {results[key]} detections")
@@ -140,7 +140,7 @@ bootstrap_strategy = Bootstrap(
     resampling_ratio=0.8
 )
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -241,7 +241,7 @@ plt.subplot(1, 3, 3)
 # Run multiple bootstrap iterations
 stability_results = []
 for _ in range(10):
-    det = StandardConformalDetector(
+    det = ConformalDetector(
         detector=base_detector,
         strategy=Bootstrap(n_bootstraps=50, resampling_ratio=0.8),
         aggregation=Aggregation.MEDIAN,
@@ -273,7 +273,7 @@ strategies = {
 
 comparison_results = {}
 for name, strategy in strategies.items():
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,

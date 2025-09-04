@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.split import Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -15,7 +15,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_fraud(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"), strategy=Split(n_calib=2_000), seed=1
         )
 
@@ -33,7 +33,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"), strategy=Split(n_calib=1_000), seed=1
         )
 
@@ -51,7 +51,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"), strategy=Split(n_calib=1_000), seed=1
         )
 
@@ -69,9 +69,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
-            detector=ECOD(), strategy=Split(n_calib=1_000), seed=1
-        )
+        ce = ConformalDetector(detector=ECOD(), strategy=Split(n_calib=1_000), seed=1)
 
         ce.fit(x_train)
         est = ce.predict(x_test)
@@ -87,9 +85,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_split_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
-            detector=HBOS(), strategy=Split(n_calib=1_000), seed=1
-        )
+        ce = ConformalDetector(detector=HBOS(), strategy=Split(n_calib=1_000), seed=1)
 
         ce.fit(x_train)
         est = ce.predict(x_test)

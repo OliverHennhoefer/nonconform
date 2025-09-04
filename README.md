@@ -39,13 +39,13 @@ from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
 from nonconform.strategy import Split
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.utils.data import load, Dataset
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
 
-estimator = StandardConformalDetector(
+estimator = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(n_calib=2_000),
     seed=42
@@ -68,7 +68,19 @@ Empirical Statistical Power (Recall): 0.97
 
 # :hatched_chick: Advanced Methods
 
-Other conformal detector wrappers exist for advanced use cases, including ``WeightedConformalDetector()`` (robust to covariate shifts) and sophisticated calibration strategies like ``JackknifeBootstrap()`` for improved results.
+For advanced use cases, the unified ``ConformalDetector()`` supports weighted conformal prediction (robust to covariate shifts) by adding a weight_estimator parameter, and sophisticated calibration strategies like ``JackknifeBootstrap()`` for improved results.
+
+```python
+# Weighted conformal (with covariate shift handling):
+from nonconform.estimation.weight import LogisticWeightEstimator
+
+detector = ConformalDetector(
+    detector=IForest(behaviour="new"),
+    strategy=Split(n_calib=2_000),
+    weight_estimator=LogisticWeightEstimator(seed=42),
+    seed=42
+)
+```
 
 
 # Beyond Static Data

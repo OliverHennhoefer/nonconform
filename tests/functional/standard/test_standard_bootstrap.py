@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -14,7 +14,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_fraud(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
@@ -34,7 +34,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
@@ -54,7 +54,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
@@ -74,7 +74,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,
@@ -94,7 +94,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=Bootstrap(n_bootstraps=15, n_calib=2_000, plus=True),
             seed=1,

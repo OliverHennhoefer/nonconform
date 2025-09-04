@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Jackknife
 from nonconform.utils.func import Aggregation
 
@@ -29,7 +29,7 @@ base_detector = LOF()
 jackknife_strategy = Jackknife()
 
 # Initialize detector with jackknife strategy
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=jackknife_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -130,7 +130,7 @@ split_results = []
 
 for size in dataset_sizes:
     X_sample = X[:size]
-    
+
     # Jackknife
     jk_detector = ConformalDetector(
         detector=base_detector,
@@ -141,7 +141,7 @@ for size in dataset_sizes:
     jk_detector.fit(X_sample)
     jk_p_values = jk_detector.predict(X_sample, raw=False)
     jackknife_results.append((jk_p_values < 0.05).sum() / size)
-    
+
     # Split for comparison
     split_detector = ConformalDetector(
         detector=base_detector,
@@ -185,7 +185,7 @@ for config in leave_k_out_configs:
         strategy = Jackknife()
     else:
         strategy = CrossValidation(k=config['n_splits'])
-    
+
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
@@ -194,7 +194,7 @@ for config in leave_k_out_configs:
     )
     detector.fit(X_small)
     p_vals = detector.predict(X_small, raw=False)
-    
+
     print(f"Leave-{config['k']}-out: {(p_vals < 0.05).sum()} detections")
 ```
 

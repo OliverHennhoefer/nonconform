@@ -21,11 +21,11 @@ detector = ConformalDetector(
 )
 
 # New API
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation.standard import ConformalDetector
 from nonconform.strategy.split import SplitStrategy
 from nonconform.utils.func.enums import Aggregation
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=LOF(),
     strategy=Split(calib_size=0.2),
     aggregation=Aggregation.MEDIAN,
@@ -246,7 +246,7 @@ import logging
 # Enable progress bars and detailed output
 logging.getLogger('nonconform').setLevel(logging.INFO)
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -335,9 +335,9 @@ def debug_weighted_conformal(detector, X_train, X_test):
     print("=== Weighted Conformal Debug ===")
 
     # Check if it's actually a weighted detector
-    from nonconform.estimation.weighted import WeightedConformalDetector
-    if not isinstance(detector, WeightedConformalDetector):
-        print("WARNING: Not a WeightedConformalDetector")
+    from nonconform.estimation.weighted import ConformalDetector
+    if not isinstance(detector, ConformalDetector):
+        print("WARNING: Not a ConformalDetector")
         return
 
     # Fit and check calibration samples
@@ -479,7 +479,7 @@ import logging
 # Hide all progress bars and info messages
 logging.getLogger('nonconform').setLevel(logging.WARNING)
 
-detector = StandardConformalDetector(detector=IForest(), strategy=Split())
+detector = ConformalDetector(detector=IForest(), strategy=Split())
 detector.fit(X_train)  # No progress output
 ```
 
@@ -490,7 +490,7 @@ import logging
 # Show progress bars for monitoring
 logging.basicConfig(level=logging.INFO)
 
-detector = StandardConformalDetector(detector=IForest(), strategy=CrossValidation(k=5))
+detector = ConformalDetector(detector=IForest(), strategy=CrossValidation(k=5))
 detector.fit(X_train)  # Shows CV fold progress
 ```
 
@@ -516,7 +516,7 @@ logging.basicConfig(
 )
 
 # This will show all internal operations and warnings
-detector = StandardConformalDetector(detector=LOF(), strategy=Bootstrap())
+detector = ConformalDetector(detector=LOF(), strategy=Bootstrap())
 detector.fit(X_train)
 ```
 

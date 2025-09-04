@@ -6,13 +6,14 @@ This guide explains how to use weighted conformal p-values in `nonconform` for h
 
 Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios. **Key assumption**: The method assumes that only the marginal distribution P(X) changes between calibration and test data, while the conditional distribution P(Y|X) - the relationship between features and anomaly status - remains constant. This assumption is crucial for the validity of weighted conformal inference.
 
-The `WeightedConformalDetector` automatically estimates importance weights using logistic regression to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
+The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights using logistic regression to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
 
 ## Basic Usage
 
 ```python
 import numpy as np
-from nonconform.estimation.weighted import WeightedConformalDetector
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
 from nonconform.strategy.split import Split
 from nonconform.utils.func.enums import Aggregation
 from pyod.models.lof import LOF
@@ -22,10 +23,11 @@ base_detector = LOF()
 strategy = Split(n_calib=0.2)
 
 # Create weighted conformal detector
-detector = WeightedConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 
@@ -112,10 +114,8 @@ p_values_after_drift = detector.predict(X_after_drift, raw=False)
 ## Comparison with Standard Conformal
 
 ```python
-from nonconform.estimation.standard import StandardConformalDetector
-
 # Standard conformal detector
-standard_detector = StandardConformalDetector(
+standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -123,10 +123,11 @@ standard_detector = StandardConformalDetector(
 )
 
 # Weighted conformal detector
-weighted_detector = WeightedConformalDetector(
+weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 
@@ -157,10 +158,11 @@ The choice of aggregation method can affect performance under distribution shift
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
-    detector = WeightedConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=agg_method,
+        weight_estimator=LogisticWeightEstimator(seed=42),
         seed=42
     )
     detector.fit(X_train)
@@ -179,19 +181,21 @@ from nonconform.strategy.cross_val import CrossValidation
 
 # Bootstrap strategy for stability
 bootstrap_strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
-bootstrap_detector = WeightedConformalDetector(
+bootstrap_detector = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 
 # Cross-validation strategy for efficiency
 cv_strategy = CrossValidation(k=5)
-cv_detector = WeightedConformalDetector(
+cv_detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 ```
@@ -303,10 +307,11 @@ domains = ['domain_A', 'domain_B', 'domain_C']
 domain_detectors = {}
 
 for domain in domains:
-    detector = WeightedConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
+        weight_estimator=LogisticWeightEstimator(seed=42),
         seed=42
     )
     detector.fit(X_train)  # Common training set

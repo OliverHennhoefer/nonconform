@@ -31,7 +31,7 @@ The most straightforward way to use nonconform is with classical conformal anoma
 import numpy as np
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -48,7 +48,7 @@ base_detector = IForest(behaviour="new", random_state=42)
 
 # Create conformal anomaly detector with split strategy
 strategy = Split(n_calib=0.3)
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -93,7 +93,7 @@ from nonconform.strategy import Jackknife, CrossValidation
 
 # Jackknife (Leave-One-Out) Conformal Anomaly Detection
 jackknife_strategy = Jackknife()
-jackknife_detector = StandardConformalDetector(
+jackknife_detector = ConformalDetector(
     detector=base_detector,
     strategy=jackknife_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -104,7 +104,7 @@ jackknife_p_values = jackknife_detector.predict(X_test, raw=False)
 
 # Cross-Validation Conformal Anomaly Detection
 cv_strategy = CrossValidation(k=5)
-cv_detector = StandardConformalDetector(
+cv_detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -124,15 +124,17 @@ print(f"Cross-Validation: {(cv_p_values < 0.05).sum()} detections")
 When dealing with covariate shift, use weighted conformal p-values:
 
 ```python
-from nonconform.estimation import WeightedConformalDetector
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 
 # Create weighted conformal anomaly detector
 weighted_strategy = Split(n_calib=0.3)
-weighted_detector = WeightedConformalDetector(
+weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=weighted_strategy,
     aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
 weighted_detector.fit(X_normal)
@@ -165,7 +167,7 @@ strategy = Split(n_calib=0.3)
 results = {}
 
 for name, base_det in detectors.items():
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=base_det,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
@@ -188,7 +190,7 @@ import matplotlib.pyplot as plt
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -205,7 +207,7 @@ y_true = np.hstack([np.zeros(80), np.ones(20)])
 # Setup and fit detector
 base_detector = IForest(behaviour="new", random_state=42)
 strategy = Split(n_calib=0.3)
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,

@@ -2,12 +2,12 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
+from nonconform.estimation import ConformalDetector
 from nonconform.estimation.weight import (
     ForestWeightEstimator,
     IdentityWeightEstimator,
     LogisticWeightEstimator,
 )
-from nonconform.estimation.weighted import WeightedConformalDetector
 from nonconform.strategy.experimental.randomized import Randomized
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -20,7 +20,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_fraud_logistic(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=100_000, plus=True),
             weight_estimator=LogisticWeightEstimator(seed=1),
@@ -41,7 +41,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_shuttle_forest(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=100_000, plus=True),
             weight_estimator=ForestWeightEstimator(seed=1),
@@ -62,7 +62,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_thyroid_identity(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Randomized(n_calib=10_000, plus=True),
             weight_estimator=IdentityWeightEstimator(),
@@ -83,7 +83,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_mammography_logistic(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=ECOD(),
             strategy=Randomized(n_calib=100_000, plus=True),
             weight_estimator=LogisticWeightEstimator(seed=1),
@@ -104,7 +104,7 @@ class TestCaseRandomizedConformal(unittest.TestCase):
     def test_randomized_conformal_musk_forest(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=Randomized(n_calib=10_000, plus=True),
             weight_estimator=ForestWeightEstimator(seed=1),

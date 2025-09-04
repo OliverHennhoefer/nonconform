@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import WeightedConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.estimation.weight import (
     IdentityWeightEstimator,
 )
@@ -16,7 +16,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
     def test_jackknife_bootstrap_conformal_shuttle_identity(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = WeightedConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=JackknifeBootstrap(n_bootstraps=50, plus=True),
             weight_estimator=IdentityWeightEstimator(),

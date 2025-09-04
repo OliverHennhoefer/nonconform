@@ -1,6 +1,6 @@
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
@@ -8,7 +8,7 @@ from pyod.models.lmdd import LMDD
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
-ce = StandardConformalDetector(detector=LMDD(), strategy=Split(n_calib=0.1))
+ce = ConformalDetector(detector=LMDD(), strategy=Split(n_calib=0.1))
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)

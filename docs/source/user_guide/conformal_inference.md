@@ -28,13 +28,13 @@ Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
 # Conformal approach - statistically valid p-values
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
 # Create conformal detector
 strategy = Split(n_calib=0.2)
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -134,7 +134,7 @@ The method estimates the likelihood ratio dP_test(X)/dP_calib(X) and reweights c
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -147,7 +147,7 @@ base_detector = IsolationForest(random_state=42)
 
 # 3. Create conformal detector with strategy
 strategy = Split(n_calib=0.2)  # 20% for calibration
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -213,7 +213,7 @@ from nonconform.strategy import CrossValidation
 # 5-fold cross-validation
 strategy = CrossValidation(k=5)
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -231,7 +231,7 @@ from nonconform.strategy import Bootstrap
 # 100 bootstrap samples with 80% sampling ratio
 strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -249,7 +249,7 @@ from nonconform.strategy import Jackknife
 # Leave-one-out cross-validation
 strategy = Jackknife()
 
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -315,7 +315,7 @@ When using ensemble strategies, you can control how multiple model outputs are c
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=CrossValidation(k=5),
         aggregation=agg_method,
@@ -359,7 +359,7 @@ class CustomDetector(BaseDetector):
 
 # Use with conformal detection
 custom_detector = CustomDetector()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
@@ -386,7 +386,7 @@ strategies = {
 for name, strategy in strategies.items():
     start_time = time.time()
 
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,

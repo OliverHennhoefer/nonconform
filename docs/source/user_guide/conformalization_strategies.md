@@ -123,18 +123,18 @@ strategy = Jackknife(plus=True)
 All strategies work with any conformal detector:
 
 ```python
-from nonconform.estimation.standard import StandardConformalDetector
-from nonconform.estimation.weighted import WeightedConformalDetector
+from nonconform.estimation.standard import ConformalDetector
+from nonconform.estimation.weighted import ConformalDetector
 from pyod.models.lof import LOF
 
 # Standard conformal with cross-validation
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=LOF(),
     strategy=CrossValidation(k=5)
 )
 
 # Weighted conformal with bootstrap
-detector = WeightedConformalDetector(
+detector = ConformalDetector(
     detector=LOF(),
     strategy=Bootstrap(n_bootstraps=100)
 )

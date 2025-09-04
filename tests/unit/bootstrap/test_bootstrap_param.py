@@ -1,6 +1,6 @@
 import unittest
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data import Dataset, load
 from pyod.models.iforest import IForest
@@ -10,7 +10,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_compute_n_bootstraps(self):
         x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.995, n_calib=1_000),
             seed=1,
@@ -28,7 +28,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_compute_n_calib(self):
         x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(resampling_ratio=0.99, n_bootstraps=15),
             seed=1,
@@ -43,7 +43,7 @@ class TestCaseBootstrapConformal(unittest.TestCase):
     def test_bootstrap_conformal_compute_resampling_ratio(self):
         x_train, _, _ = load(Dataset.SHUTTLE, setup=True)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=Bootstrap(n_calib=1_000, n_bootstraps=25),
             seed=1,

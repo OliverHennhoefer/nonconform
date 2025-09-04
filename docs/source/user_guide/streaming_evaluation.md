@@ -69,7 +69,7 @@ for prop in proportions:
 
 ```python
 from pyod.models.iforest import IForest
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
@@ -84,7 +84,7 @@ online_gen = OnlineGenerator(
 
 # Train detector
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(n_calib=0.3)
 )
@@ -142,7 +142,7 @@ online_gen = OnlineGenerator(
 )
 
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(calib_size=0.3)
 )
@@ -213,7 +213,7 @@ online_gen = OnlineGenerator(
 )
 
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(calib_size=0.3)
 )
@@ -263,7 +263,7 @@ online_gen = OnlineGenerator(
 )
 
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(calib_size=0.3)
 )
@@ -341,7 +341,7 @@ online_gen = OnlineGenerator(
 )
 
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(calib_size=0.3)
 )
@@ -484,7 +484,7 @@ online_gen = OnlineGenerator(
 )
 
 x_train = online_gen.get_training_data()
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(calib_size=0.3)
 )

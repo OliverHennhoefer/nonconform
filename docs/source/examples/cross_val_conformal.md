@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import CrossValidation
 from nonconform.utils.func import Aggregation
 
@@ -29,7 +29,7 @@ base_detector = LOF()
 cv_strategy = CrossValidation(k=5)
 
 # Initialize detector with cross-validation strategy
-detector = StandardConformalDetector(
+detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
     aggregation=Aggregation.MEDIAN,
@@ -83,7 +83,7 @@ for n_folds in fold_options:
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
-    
+
     results[f"{n_folds}-fold"] = (p_vals < 0.05).sum()
     print(f"{n_folds}-fold CV: {results[f'{n_folds}-fold']} detections")
 ```

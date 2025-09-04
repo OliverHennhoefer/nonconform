@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.jackknife import Jackknife
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -13,7 +13,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
     def test_jackknife_conformal_breast(self):
         x_train, x_test, y_test = load(Dataset.BREAST, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"), strategy=Jackknife(plus=False)
         )
 
@@ -31,7 +31,7 @@ class TestCaseJackknifeConformal(unittest.TestCase):
     def test_jackknife_conformal_plus_breast(self):
         x_train, x_test, y_test = load(Dataset.BREAST, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"), strategy=Jackknife(plus=True)
         )
 

@@ -281,7 +281,7 @@ strategies = {
 }
 
 for name, strategy in strategies.items():
-    detector = StandardConformalDetector(
+    detector = ConformalDetector(
         detector=your_detector,
         strategy=strategy,
         seed=42

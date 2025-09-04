@@ -7,7 +7,7 @@ from scipy.stats import (
     wasserstein_distance,
 )
 
-from nonconform.estimation import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Bootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     model = IForest(behaviour="new")
     strategy = Bootstrap(n_calib=5_000, resampling_ratio=0.995)
-    ce = StandardConformalDetector(detector=model, strategy=strategy)
+    ce = ConformalDetector(detector=model, strategy=strategy)
     ce.fit(x_train, iteration_callback=track_iterations)
     estimates = ce.predict(x_test)
 

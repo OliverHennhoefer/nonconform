@@ -2,7 +2,7 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation.standard import StandardConformalDetector
+from nonconform.estimation import ConformalDetector
 from nonconform.strategy.cross_val import CrossValidation
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
@@ -14,7 +14,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_fraud(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=False),
             seed=1,
@@ -34,7 +34,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_plus_fraud(self):
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
             seed=1,
@@ -54,7 +54,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=False),
             seed=1,
@@ -74,7 +74,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_plus_shuttle(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
             seed=1,
@@ -94,7 +94,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=False),
             seed=1,
@@ -114,7 +114,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_plus_thyroid(self):
         x_train, x_test, y_test = load(Dataset.THYROID, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
             seed=1,
@@ -134,7 +134,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=False),
             seed=1,
@@ -154,7 +154,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_plus_mammography(self):
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=IForest(behaviour="new"),
             strategy=CrossValidation(k=5, plus=True),
             seed=1,
@@ -174,7 +174,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=CrossValidation(k=5, plus=False),
             seed=1,
@@ -194,7 +194,7 @@ class TestCaseSplitConformal(unittest.TestCase):
     def test_cross_val_conformal_plus_musk(self):
         x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
 
-        ce = StandardConformalDetector(
+        ce = ConformalDetector(
             detector=HBOS(),
             strategy=CrossValidation(k=5, plus=True),
             seed=1,
