@@ -12,7 +12,7 @@ authors:
     orcid: 0000-0001-9834-4685
     affiliation: 1
 affiliations:
- - name: ISRG, Karlsruhe University of Applied Sciences
+ - name: Intelligent Systems Research Group (ISRG), Karlsruhe University of Applied Sciences (HKA), Karlsruhe, Germany
    index: 1
 date: 29 May 2025
 bibliography: paper.bib
@@ -20,7 +20,10 @@ bibliography: paper.bib
 
 # Summary
 
-The requirement of uncertainty quantification for AI systems has become increasingly important. In the context of anomaly detection applications, this directly translates to controlling Type I (False Positive) error rates without compromising the statistical power of the applied detection procedure. Conformal Anomaly Detection [@Laxhammar2010] emerges as a promising approach for providing respective statistical guarantees by calibrating a given detector model. Instead of relying on anomaly scores and arbitrarily set thresholds, this approach converts the anomaly scores to statistically valid $p$-values that can then be adjusted by statistical methods that control the False Discovery Rate (FDR) [@Benjamini1995] within a set of tested instances [@Bates2023].
+The ability to quantify uncertainty represents a fundamental requirement for AI systems operating in safety-critical domains.
+In context of anomaly detection, this directly translates to controlling the rate of False Positive (_Type I Error_) while preserving sensitivity to genuine anomalies.
+**Conformal Anomaly Detection** [@Laxhammar2010] emerges as a promising approach for providing respective statistical guarantees by calibrating a given detector model in order to align anomaly scores with their empirical false alarm rates.
+Instead of relying on anomaly scores and arbitrarily set thresholds, this approach converts the anomaly scores to statistically valid $p$-values that can then be adjusted by statistical methods that control the False Discovery Rate (FDR) [@Benjamini1995] within a set of tested instances [@Bates2023].
 
 The Python library `nonconform` is an open-source software package that provides a range of tools to enable conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012] for one-class classification [@Petsche1994]. The library computes classical and weighted conformal $p$-values [@Jin2023] using different conformalization strategies that make them suitable for application even in low-data regimes [@Hennhofer2024]. The library integrates with the majority of `pyod` anomaly detection models [@Zhao2019; @Zhao2024].
 
