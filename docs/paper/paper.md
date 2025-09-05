@@ -38,41 +38,6 @@ Framing anomaly detection tasks as sets of statistical hypothesis tests, with $H
 
 The `nonconform` (*<ins>non</ins>-<ins>conform</ins>ity-based anomaly detection*) package provides the tools necessary for creating anomaly detectors whose outputs can be statistically controlled to cap the FDR at a nominal level among normal instances under exchangeability. It provides wrappers for a wide range of anomaly detectors (e.g., [Variational-]Autoencoder, IsolationForest, One-Class SVM) complemented by a rich range of conformalization strategies (mostly depending on the *data regime*) to compute classical conformal $p$-values or modified *weighted* conformal $p$-values. The need for *weighted* conformal $p$-values arises when the underlying statistical assumption of *exchangeability* is violated due to covariate shift between calibration and test data. Finally, `nonconform` offers built-in statistical adjustment measures like Benjamini-Hochberg [@Benjamini1995] that correct obtained and statistically valid $p$-values for the multiple testing problem when testing a *batch* of observations simultaneously.
 
-# Features
-
-## Core Functionality
-
-The library provides:
-- **Seamless integration** with PyOD detectors through a unified API
-- **Multiple conformalization strategies**: inductive, leave-one-out, cross-conformal, and bootstrap
-- **Weighted conformal p-values** for handling covariate shift
-- **FDR control** via Benjamini-Hochberg and other procedures
-
-### Conformal P-Values
-
-Given a nonconformity score function $s(\cdot)$ and calibration set $D_{\text{calib}} = \{X_1, \ldots, X_n\}$, the classical conformal p-value for test instance $X_{\text{test}}$ is:
-
-$$p(X_{\text{test}}) = \frac{1 + \sum_{i=1}^{n} \mathbf{1}\{s(X_i) \geq s(X_{\text{test}})\}}{n+1}$$
-
-Under exchangeability and the null hypothesis that $X_{\text{test}}$ is from the same distribution as calibration data, this p-value is marginally valid: $\mathbb{P}(p(X_{\text{test}}) \leq \alpha) \leq \alpha$ for any $\alpha \in (0,1)$.
-
-### Handling Covariate Shift
-
-When test data comes from a different distribution $Q$ than calibration data distribution $P$ (covariate shift), weighted conformal p-values can restore validity under the assumption that only $P(X)$ changes while $P(Y|X)$ remains constant [@Jin2023; @Tibshirani2019]:
-
-$$p_{\text{weighted}}(X_{\text{test}}) = \frac{\sum_{i=1}^n w(X_i) \mathbf{1}\{s(X_i) > s(X_{\text{test}})\} + U \cdot \text{ties}}{\sum_{i=1}^n w(X_i) + w(X_{\text{test}})}$$
-
-where $w(X) = \frac{dQ}{dP}(X)$ is the importance weight and $U \sim \text{Uniform}(0,1)$ handles ties.
-
-### Resampling Strategies
-
-For improved power in small-sample settings, `nonconform` implements resampling-based methods [@Hennhofer2024]:
-- **Leave-One-Out**: Uses n models, each trained on n-1 samples
-- **Cross-Conformal**: Aggregates out-of-fold predictions
-- **Bootstrap**: Leverages out-of-bag samples
-
-These methods increase the effective calibration set size while maintaining validity under exchangeability assumptions for the underlying data-generating process.
-
 # Acknowledgements
 
 This work was conducted in part within the research projects *Biflex Industrie* (grant number 01MV23020A) and *AutoDiagCM* (grant number 03EE2046B) funded by the *German Federal Ministry of Economic Affairs and Climate Action* (*BMWK*).
