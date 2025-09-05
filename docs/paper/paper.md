@@ -32,7 +32,7 @@ In such contexts, it is necessary to control the proportion of False Positives r
 $$
 FDR=\frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
 $$
-[@Benjamini1995; @Benjamini2009]. 
+[@Benjamini1995; @Benjamini2009].
 
 Framing anomaly detection tasks as sets of statistical hypothesis tests, with $H_0$ claiming that the data is *normal* (no *discovery* to be made), enables controlling the FDR when statistically valid $p$-values (or test statistics) are available. When conducting multiple *simultaneous* hypothesis tests, it is furthermore necessary to *adjust* for multiple testing, as fixed *significance levels* (typically $\alpha \leq 0.05$) would lead to inflated overall error rates.
 
@@ -72,11 +72,6 @@ For improved power in small-sample settings, `nonconform` implements resampling-
 - **Bootstrap**: Leverages out-of-bag samples
 
 These methods increase the effective calibration set size while maintaining validity under exchangeability assumptions for the underlying data-generating process.
-
-## Future Developments
-
-As the package mostly addressed the needs of static anomaly detection for (approximately) exchangeable data the package can no directly be applied to more advanced tasks in anomaly detection, like real-time anomaly detection.
-Therefore, we plan to release more features that directly address the specific needs that arise during temporal applications of anomaly detection.
 
 # Acknowledgements
 
