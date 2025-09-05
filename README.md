@@ -74,7 +74,7 @@ For advanced use cases, the unified ``ConformalDetector()`` supports weighted co
 # Weighted conformal (with covariate shift handling):
 from nonconform.estimation.weight import LogisticWeightEstimator
 
-detector = ConformalDetector(
+estimator = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=Split(n_calib=2_000),
     weight_estimator=LogisticWeightEstimator(seed=42),

@@ -44,7 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.9.167 (2025-08-26)
 
 ### Changed
-- Consolidated README files by removing separate PyPI version and using conditional sections for platform-specific content.
 - Merged `dev` and `docs` optional dependencies into a single `dev` group for simplified dependency management.
 
 ## 0.9.166 (2025-08-26)
