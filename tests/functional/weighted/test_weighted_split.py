@@ -6,10 +6,12 @@ from nonconform.estimation import ConformalDetector
 from nonconform.estimation.weight import (
     ForestWeightEstimator,
     IdentityWeightEstimator,
+    LogisticWeightEstimator,
 )
 from nonconform.strategy.split import Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
+from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 
 
@@ -33,6 +35,27 @@ class TestCaseSplitConformal(unittest.TestCase):
         )
         self.assertAlmostEqual(
             statistical_power(y=y_test, y_hat=decisions), 0.81, places=2
+        )
+
+    def test_split_conformal_fraud_logistic(self):
+        x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
+
+        ce = ConformalDetector(
+            detector=HBOS(),
+            strategy=Split(n_calib=1_000),
+            weight_estimator=LogisticWeightEstimator(class_weight="balanced"),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        est = ce.predict(x_test)
+
+        decisions = false_discovery_control(est, method="bh") <= 0.2
+        self.assertAlmostEqual(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.16, places=3
+        )
+        self.assertAlmostEqual(
+            statistical_power(y=y_test, y_hat=decisions), 0.84, places=2
         )
 
     def test_split_conformal_shuttle_identity(self):

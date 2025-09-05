@@ -20,12 +20,27 @@ class LogisticWeightEstimator(BaseWeightEstimator):
         clip_quantile (float): Quantile for weight clipping. If 0.05, clips to
             5th and 95th percentiles. If None, uses fixed [0.35, 45.0] range.
         seed (int, optional): Random seed for reproducible results.
+        class_weight (str or dict, optional): Weights associated with classes like
+            {class_label: weight}.
+            If 'balanced', uses n_samples / (n_classes * np.bincount(y)).
+            Defaults to 'balanced'.
+        max_iter (int, optional): Max. number of iterations for the solver to converge.
+            Defaults to 1000.
     """
 
-    def __init__(self, regularization="auto", clip_quantile=0.05, seed=None):
+    def __init__(
+        self,
+        regularization="auto",
+        clip_quantile=0.05,
+        seed=None,
+        class_weight="balanced",
+        max_iter=1_000,
+    ):
         self.regularization = regularization
         self.clip_quantile = clip_quantile
         self.seed = seed
+        self.class_weight = class_weight
+        self.max_iter = max_iter
         self._w_calib = None
         self._w_test = None
         self._is_fitted = False
@@ -67,10 +82,10 @@ class LogisticWeightEstimator(BaseWeightEstimator):
             StandardScaler(),
             LogisticRegression(
                 C=c_param,
-                max_iter=1_000,
+                max_iter=self.max_iter,
                 random_state=self.seed,
                 verbose=0,
-                class_weight="balanced",
+                class_weight=self.class_weight,
             ),
             memory=None,
         )
