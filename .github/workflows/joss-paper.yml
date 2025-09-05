@@ -4,10 +4,15 @@ on:
   push:
     paths:
       - 'docs/paper/**'
+      - '.github/workflows/joss-paper.yml'
   pull_request:
     paths:
       - 'docs/paper/**'
+      - '.github/workflows/joss-paper.yml'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   paper:
