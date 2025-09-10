@@ -12,7 +12,7 @@ authors:
     orcid: 0000-0001-9834-4685
     affiliation: 1
 affiliations:
- - name: Intelligent Systems Research Group (ISRG), Karlsruhe University of Applied Sciences (HKA), Karlsruhe, Germany
+ - name: Intelligent Systems Research Group, Karlsruhe University of Applied Sciences, Karlsruhe, Germany
    index: 1
 date: 10 September 2025
 bibliography: paper.bib
@@ -46,7 +46,7 @@ Moreover, conformal methods are *non-parametric* and *model-agnostic*, making th
 The `nonconform` package provides a range of strategies for creating the calibration set from training data, even in low-data regimes [@Hennhofer2024].
 With the gathered calibration set, the package can compute standard conformal $p$-values or modified *weighted* conformal $p$-values [@Jin2023] for test data.
 Weighted $p$-values are particularly useful when the statistical assumption of exchangeability is weakened by covariate shift between calibration and test data.
-By providing these tools, `nonconform` enables researchers and practitioners to build anomaly detectors whose outputs are statistically controlled to cap the FDR at a desired nominal level:
+By providing these tools, `nonconform` enables researchers and practitioners to build anomaly detectors whose outputs are statistically controlled to cap the FDR at a desired nominal level.
 
 The core assumption for the methods in `nonconform` is that the data is exchangeable, meaning the joint probability distribution is invariant to the order of observations.
 This makes the methods suitable for many cross-sectional data analysis tasks but not for time-series data where temporal ordering is informative.
