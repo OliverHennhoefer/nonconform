@@ -20,53 +20,28 @@ bibliography: paper.bib
 
 # Summary
 
-The ability to quantify uncertainty represents a fundamental requirement for AI systems operating in safety-critical and high-stakes domains and is essential for reliable decision-making.
-The software package `nonconform` addresses this challenge in the context of unsupervised anomaly detection in form of one-class classification problems [@Petsche1994].
-Specifically, the package implements methods from conformal anomaly detection [@Laxhammar2010],
-based on the overarching principles of conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012] for statistically principled uncertainty quantification.
-
-The library integrates with `pyod` [@Zhao2019; @Zhao2024] anomaly detection models and converts anomaly scores to statistically valid $p$-values
-that can be systematically adjusted using methods that control the False Discovery Rate (FDR) [@Benjamini1995; @Bates2023].
-Rather than relying on anomaly scores and arbitrarily set thresholds, this approach provides statistical guarantees by calibrating detector models to align anomaly scores with their empirical false alarm rates.
+`nonconform` is a Python package that implements conformal anomaly detection methods [@Laxhammar2010] to provide statistically principled uncertainty quantification for unsupervised anomaly detection.
+The ability to quantify uncertainty is a fundamental requirement for AI systems in safety-critical domains, where reliable decision-making is essential.
+Based on the principles of conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012], `nonconform` converts the anomaly scores from underlying anomaly detection models into statistically valid $p$-values.
+These $p$-values can be systematically adjusted using methods that control the False Discovery Rate (FDR) [@Benjamini1995; @Bates2023], allowing users to move beyond arbitrary thresholds.
+By calibrating detector models to align anomaly scores with their empirical false alarm rates, this approach provides statistical guarantees.
+The library integrates with the popular `pyod` library [@Zhao2019; @Zhao2024], making it easy to apply these techniques to a wide range of anomaly detection models.
 
 # Statement of Need
 
-The field of anomaly detection comprises methods for identifying observations that either deviate from the majority of observations or otherwise do not *conform* to an expected state of *normality*.
-The typical procedure leverages anomaly scores and thresholds to distinguish in-distribution data from out-of-distribution data.
-However, this approach does not provide statistical guarantees regarding its estimates.
-A major concern in anomaly detection is the rate of False Positives among proclaimed discoveries.
-Depending on the domain, False Positives can be expensive. Triggering *false alarms* too often results in *alert fatigue* and eventually renders the detection system ineffective and impractical.
+A primary challenge in anomaly detection is managing the rate of false positives.
+In many applications, frequent false alarms can lead to *alert fatigue*, ultimately rendering a detection system impractical.
+For research in areas such as fraud detection, medical diagnostics, and industrial quality control, controlling the proportion of false positives is crucial.
+`nonconform` addresses this by framing anomaly detection as a set of statistical hypothesis tests, enabling the control of the False Discovery Rate (FDR).
 
-In the context of anomaly detection, uncertainty quantification directly translates to controlling the rate of False Positive (*Type I Error*) while preserving sensitivity to genuine anomalies.
-In practice, it is necessary to control the proportion of False Positives relative to the entirety of proclaimed discoveries (the number of triggered alerts),
-measured by the FDR that may be expressed in practice as:
+The package provides wrappers for various anomaly detection models (e.g., Autoencoder, IsolationForest, One-Class SVM) and includes a range of conformalization strategies.
+These strategies can compute classical conformal $p$-values or modified *weighted* conformal $p$-values [@Jin2023], which are suitable even in low-data regimes [@Hennhofer2024].
+The need for weighted conformal $p$-values arises when the statistical assumption of exchangeability is violated due to covariate shift between calibration and test data.
+By providing these tools, `nonconform` enables researchers to create anomaly detectors with outputs that can be statistically controlled to cap the FDR at a nominal level.
+The methods support batch, batch-streaming, and online deployments, making them adaptable to various research settings.
 
-$$
-FDR=\frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
-$$
-[@Benjamini1995; @Benjamini2009].
-
-Framing anomaly detection tasks as sets of statistical hypothesis tests, with $H_0$ claiming that the data is *normal* (no *discovery* to be made),
-enables controlling the FDR when statistically valid $p$-values (or test statistics) are available.
-When conducting multiple *simultaneous* hypothesis tests, it is furthermore necessary to *adjust* for multiple testing,
-as fixed *significance levels* would lead to inflated overall error rates.
-
-The `nonconform` package provides the tools necessary for creating anomaly detectors
-whose outputs can be statistically controlled to cap the FDR at a nominal level among normal instances under exchangeability.
-It provides wrappers for a wide range of anomaly detection models (e.g. Autoencoder, IsolationForest, One-Class SVM etc.)
-complemented by a rich range of conformalization strategies to compute classical conformal $p$-values or modified *weighted* conformal $p$-values [@Jin2023]
-using different strategies that make them suitable for application even in low-data regimes [@Hennhofer2024].
-The need for *weighted* conformal $p$-values arises when the underlying statistical assumption of *exchangeability* is violated due to covariate shift between calibration and test data.
-
-# Statistical Validity
-
-The methods implemented in `nonconform` require data to satisfy the statistical assumption of exchangeability, meaning the joint probability distribution remains unchanged under any permutation of the observation order.
-Simply put, data points can be shuffled without affecting their statistical properties. With that, exchangeability relaxes the IID assumption by allowing dependence between observations, as long as the order doesn’t matter.
-This accommodates domains like survey sampling without replacement, cross-sectional data analysis, quality control, fraud detection, and medical diagnostics where samples are independently collected.
-Time-series and autocorrelated data are unsuitable as temporal ordering carries information that would be lost under permutation, violating exchangeability.
-However, when exchangeability holds, the methods support batch as well as batch-streaming and purely online deployments through integration with respective batch and online FDR control methods (see e.g. `onlineFDR` package[^1]).
-
-[^1]: https://github.com/OliverHennhoefer/online-fdr
+The core assumption for the methods in `nonconform` is that the data is exchangeable, meaning the joint probability distribution is invariant to the order of observations.
+This assumption is suitable for many cross-sectional data analysis tasks but not for time-series data where temporal ordering is informative.
 
 # Acknowledgements
 
