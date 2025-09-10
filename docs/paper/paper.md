@@ -36,16 +36,17 @@ In high-stakes domains such as fraud detection, medical diagnostics, and industr
 The `nonconform` package addresses this by replacing raw anomaly scores with $p$-values, which enables formal FDR control.
 This makes the conformal methods *threshold-free*, as decision thresholds are a direct result of respective statistical procedures.
 
+$$
+FDR = \frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
+$$
+[@Benjamini1995; @Benjamini2009]
+
+
 Moreover, conformal methods are *non-parametric* and *model-agnostic*, making them compatible with any model that produces consistent anomaly scores.
-The `nonconform` package provides a range of strategies for creating the calibration set from training data.
-With this calibration set, the package can compute standard conformal $p$-values or modified *weighted* conformal $p$-values [@Jin2023], which are more robust in low-data regimes [@Hennhofer2024].
+The `nonconform` package provides a range of strategies for creating the calibration set from training data, even in low-data regimes [@Hennhofer2024].
+With the gathered calibration set, the package can compute standard conformal $p$-values or modified *weighted* conformal $p$-values [@Jin2023] for test data.
 Weighted $p$-values are particularly useful when the statistical assumption of exchangeability is weakened by covariate shift between calibration and test data.
 By providing these tools, `nonconform` enables researchers and practitioners to build anomaly detectors whose outputs are statistically controlled to cap the FDR at a desired nominal level:
-
-$$
-FDR=\frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
-$$
-[@Benjamini1995; @Benjamini2009].
 
 The core assumption for the methods in `nonconform` is that the data is exchangeable, meaning the joint probability distribution is invariant to the order of observations.
 This makes the methods suitable for many cross-sectional data analysis tasks but not for time-series data where temporal ordering is informative.
