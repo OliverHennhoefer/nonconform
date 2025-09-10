@@ -30,6 +30,7 @@ We welcome contributions to nonconform! This guide will help you get started.
 ### Prerequisites
 - Python 3.12 or higher
 - Git
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
 
 ### Setup Instructions
 
@@ -39,20 +40,20 @@ We welcome contributions to nonconform! This guide will help you get started.
    cd nonconform
    ```
 
-2. **Create a virtual environment**
+2. **Install dependencies and setup development environment**
    ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   # Install all dependencies including dev extras
+   uv sync --extra dev --extra all
    ```
 
-3. **Install in development mode**
+3. **Setup pre-commit hooks**
    ```bash
-   pip install -e ".[dev,all]"
+   uv run pre-commit install
    ```
 
 4. **Run tests to verify setup**
    ```bash
-   pytest tests/
+   uv run python -m unittest discover tests/
    ```
 
 ## Development Workflow
@@ -78,7 +79,7 @@ We welcome contributions to nonconform! This guide will help you get started.
 1. **Write tests first** (TDD approach recommended)
    ```bash
    # Add tests in tests/
-   pytest tests/test_your_feature.py -v
+   uv run python -m unittest tests.unit.test_your_feature -v
    ```
 
 2. **Implement your changes**
@@ -88,28 +89,23 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 3. **Run the full test suite**
    ```bash
-   pytest tests/
+   uv run python -m unittest discover tests/
    ```
 
 4. **Check code quality**
    ```bash
-   # Format code
-   black nonconform/ tests/
+   # Format code and fix linting issues
+   uv run ruff format nonconform/ tests/
+   uv run ruff check nonconform/ tests/ --fix
 
-   # Check imports
-   isort nonconform/ tests/
-
-   # Lint code
-   flake8 nonconform/ tests/
-
-   # Type checking
-   mypy nonconform/
+   # Or run all pre-commit hooks
+   uv run pre-commit run --all-files
    ```
 
 ### Documentation
 
 1. **Update docstrings**
-   - Use NumPy style docstrings
+   - Use Google style docstrings
    - Include examples where helpful
    - Document all parameters and return values
 
@@ -121,8 +117,8 @@ We welcome contributions to nonconform! This guide will help you get started.
 3. **Build documentation locally**
    ```bash
    cd docs/
-   make html
-   # Open docs/build/html/index.html in browser
+   uv run mkdocs serve
+   # Open http://127.0.0.1:8000 in browser
    ```
 
 ### Submitting Changes
@@ -148,5 +144,5 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 ### Python Code Style
 - Follow PEP 8
-- Use Black for formatting
-- Use isort for import sorting
+- Use Ruff for formatting and linting (replaces Black, isort, flake8)
+- Use Google-style docstrings
