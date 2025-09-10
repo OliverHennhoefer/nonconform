@@ -54,3 +54,5 @@ This makes the methods suitable for many cross-sectional data analysis tasks but
 # Acknowledgements
 
 This work was conducted in part within the research projects *Biflex Industrie* (grant number 01MV23020A) and *AutoDiagCM* (grant number 03EE2046B) funded by the *German Federal Ministry of Economic Affairs and Climate Action* (*BMWK*).
+
+# References
