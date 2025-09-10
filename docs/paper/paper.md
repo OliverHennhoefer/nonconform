@@ -39,7 +39,7 @@ This makes the conformal methods *threshold-free*, as decision thresholds are a 
 $$
 FDR = \frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
 $$
-[@Benjamini1995; @Benjamini2009]
+[@Benjamini2009]
 
 
 Moreover, conformal methods are *non-parametric* and *model-agnostic*, making them compatible with any model that produces consistent anomaly scores.
