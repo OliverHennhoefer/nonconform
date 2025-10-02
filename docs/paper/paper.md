@@ -29,7 +29,7 @@ For a new observation $X_{n+1}$ with score $\hat{s}(X_{n+1})$, this is achieved 
 The conformal $p$-value is then defined as the normalized rank of $\hat{s}(X_{n+1})$ among the calibration scores [@Liang2024]:
 
 $$
-\hat{u}(X_{n+1}) \;=\; \frac{ \lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert }{n}.
+\hat{u}(X_{n+1}) \;=\; \frac{\lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert}{n}.
 $$
 
 By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the False Discovery Rate (FDR) [@Benjamini1995; @Bates2023] at a pre-specified significance level.
