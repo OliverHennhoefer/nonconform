@@ -24,15 +24,16 @@ The ability to quantify uncertainty is a fundamental requirement for AI systems 
 The Python package ``nonconform`` offers statistically principled uncertainty quantification for semi-supervised anomaly detection based on one-class classification [@Petsche1994].
 The package implements methods from conformal anomaly detection [@Laxhammar2010; @Bates2023; @Jin2023], grounded in the principles of conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012].
 
-In essence, `nonconform` transforms raw anomaly scores from an anomaly detection model into statistically valid $p$-values by calibrating the model on a hold-out set $\mathcal{D}_{\text{calib}}$ of normal data.
-For a new observation $X_{n+1}$ with score $\hat{s}(X_{n+1})$, this is achieved by comparing it to the empirical distribution of calibration scores $\hat{s}(X_i)$ for $i \in \mathcal{D}_{\text{calib}}$.
+The `nonconform` package calibrates anomaly detection models to produce statistically valid $p$-values from raw anomaly scores.
+ The calibration process uses a hold-out set $\mathcal{D}_{\text{calib}}$ of size $n$ containing normal instances, where the model has been trained on a separate set of normal data.
+For a new observation $X_{n+1}$ with anomaly score $\hat{s}(X_{n+1})$, this is achieved by comparing it to the empirical distribution of calibration scores $\hat{s}(X_i)$ for $i \in \mathcal{D}_{\text{calib}}$.
 The conformal $p$-value $\hat{u}(X_{n+1})$ is then defined as the normalized rank of $\hat{s}(X_{n+1})$ among the calibration scores [@Liang2024]:
 
 $$
 \hat{u}(X_{n+1}) \;=\; \frac{\lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert}{n}.
 $$
 
-By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the False Discovery Rate (FDR) [@Benjamini1995; @Bates2023] at a pre-defined significance level. <br>
+By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the False Discovery Rate (FDR) [@Benjamini1995; @Bates2023] at a pre-defined significance level by respective statistical procedures. <br>
 The library integrates seamlessly with the widely used ``pyod`` library [@Zhao2019; @Zhao2024], facilitating the application of conformal techniques across a broad range of anomaly detection models.
 
 # Statement of Need
