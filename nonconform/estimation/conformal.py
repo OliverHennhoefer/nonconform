@@ -130,7 +130,6 @@ class ConformalDetector(BaseConformalDetector):
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
-        # Determine if we're in weighted mode
         self._is_weighted_mode = weight_estimator is not None and not isinstance(
             weight_estimator, IdentityWeightEstimator
         )

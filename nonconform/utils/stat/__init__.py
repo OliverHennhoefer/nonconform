@@ -8,6 +8,7 @@ operations used in conformal prediction.
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 
 from .aggregation import aggregate
+from .fdr import weighted_conformalized_selection
 from .statistical import calculate_p_val
 
 __all__ = [
@@ -18,4 +19,6 @@ __all__ = [
     # Evaluation metrics
     "false_discovery_rate",
     "statistical_power",
+    # FDR control
+    "weighted_conformalized_selection",
 ]

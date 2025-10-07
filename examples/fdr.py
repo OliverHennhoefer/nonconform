@@ -28,13 +28,6 @@ if __name__ == "__main__":
         weight_estimator=LogisticWeightEstimator(seed=42),
     )
     ce.fit(x_train)
-    estimates = ce.predict(x_test)
-
-    # Apply FDR control
-    decisions = false_discovery_control(estimates, method="bh") <= 0.2
-
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
-    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
 
     # Get raw scores
     scores = ce.predict(x_test, raw=True)
@@ -43,14 +36,15 @@ if __name__ == "__main__":
     ce.weight_estimator.fit(ce.calibration_samples, x_test)
     w_cal, w_test = ce.weight_estimator.get_weights()
 
-    # Weighted Conformalized Selection with FDR control
-    first_sel, discoveries, p_val, threshold = weighted_conformalized_selection(
-        scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm"
+    # Apply WCS: Weighted Conformalized Selection with FDR control
+    _, discoveries, _, _ = weighted_conformalized_selection(
+        scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="homo"
     )
-
-    # todo nominal input threshold to be handled like in false_discovery_control() (internally then the adjusted threshold will be used
-    # todo check whether weighed is used. in this (healthy case) the weight estimator should already be fitted. no need for refit then
-    # todo make "dtm" the standard strategy
 
     print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=discoveries)}")
     print(f"Empirical Power: {statistical_power(y=y_test, y_hat=discoveries)}")
+
+    raw_scores = ce.predict(x_test, raw=False)
+    decisions = false_discovery_control(raw_scores, method="bh") <= 0.2
+    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
+    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
