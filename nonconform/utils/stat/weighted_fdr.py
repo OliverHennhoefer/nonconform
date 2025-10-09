@@ -7,8 +7,12 @@ scipy.stats.false_discovery_control.
 
 from __future__ import annotations
 
-import numpy as np
+import logging
 
+import numpy as np
+from tqdm import tqdm
+
+from nonconform.utils.func.logger import get_logger
 from nonconform.utils.stat.statistical import calculate_weighted_p_val
 
 
@@ -191,7 +195,16 @@ def weighted_false_discovery_control(
 
     # Step 2: compute R_j^{(0)} sizes and thresholds s_j
     r_sizes = np.zeros(m, dtype=float)
-    for j in range(m):
+    logger = get_logger("utils.stat.weighted_fdr")
+    j_iterator = (
+        tqdm(
+            range(m),
+            desc=f"Computing WCS thresholds ({m} test points)",
+        )
+        if logger.isEnabledFor(logging.INFO)
+        else range(m)
+    )
+    for j in j_iterator:
         # Compute auxiliary p-values for test instance j
         p_aux = np.zeros(m, dtype=float)
         for ell in range(m):
