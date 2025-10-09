@@ -35,6 +35,79 @@ def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
     return sorted_idx[: k + 1]
 
 
+def _prune_heterogeneous(
+    first_sel_idx: np.ndarray, sizes_sel: np.ndarray, rng: np.random.Generator
+) -> np.ndarray:
+    """Heterogeneous pruning with independent random variables.
+
+    Uses independent ξ_j ∈ [0,1] for each candidate, ordering by ξ_j * |R_j^{(0)}|.
+
+    Args:
+        first_sel_idx: Indices of first selection set R^{(1)}.
+        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
+        rng: Random number generator for ξ_j.
+
+    Returns:
+        Sorted array of final selected indices.
+    """
+    xi = rng.uniform(size=len(first_sel_idx))
+    order = np.argsort(xi * sizes_sel)
+    selected = []
+    for r, idx in enumerate(order, start=1):
+        selected.append(first_sel_idx[idx])
+        if len(selected) < r:
+            continue
+    return np.sort(np.array(selected, dtype=int))
+
+
+def _prune_homogeneous(
+    first_sel_idx: np.ndarray, sizes_sel: np.ndarray, rng: np.random.Generator
+) -> np.ndarray:
+    """Homogeneous pruning with shared random variable.
+
+    Uses a single shared ξ ∈ [0,1] across all candidates, ordering by ξ * |R_j^{(0)}|.
+
+    Args:
+        first_sel_idx: Indices of first selection set R^{(1)}.
+        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
+        rng: Random number generator for ξ.
+
+    Returns:
+        Sorted array of final selected indices.
+    """
+    xi = rng.uniform()
+    order = np.argsort(xi * sizes_sel)
+    selected = []
+    for r, idx in enumerate(order, start=1):
+        selected.append(first_sel_idx[idx])
+        if len(selected) < r:
+            continue
+    return np.sort(np.array(selected, dtype=int))
+
+
+def _prune_deterministic(
+    first_sel_idx: np.ndarray, sizes_sel: np.ndarray
+) -> np.ndarray:
+    """Deterministic pruning based on rejection set sizes.
+
+    Orders candidates by |R_j^{(0)}| without randomization.
+
+    Args:
+        first_sel_idx: Indices of first selection set R^{(1)}.
+        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
+
+    Returns:
+        Sorted array of final selected indices.
+    """
+    order = np.argsort(sizes_sel)
+    selected = []
+    for r, idx in enumerate(order, start=1):
+        selected.append(first_sel_idx[idx])
+        if len(selected) < r:
+            continue
+    return np.sort(np.array(selected, dtype=int))
+
+
 def weighted_false_discovery_control(
     test_scores: np.ndarray,
     calib_scores: np.ndarray,
@@ -152,41 +225,12 @@ def weighted_false_discovery_control(
     # Step 4: pruning
     # For pruning, we need |R_j^{(0)}| for each j in first_sel_idx
     sizes_sel = r_sizes[first_sel_idx]
-    # Initialize empty final selection
-    final_sel_idx: np.ndarray
     if rand == "hete":
-        # Heterogeneous pruning: independent ξ_j ∈ [0,1] for each j
-        xi = rng.uniform(size=len(first_sel_idx))
-        # Order candidates by increasing ξ_j * |R_j^{(0)}|
-        order = np.argsort(xi * sizes_sel)
-        # Determine the largest r such that at least r points have
-        # rank ≤ r (self-consistency condition)
-        # We select in that order until count ≥ r
-        selected = []
-        for r, idx in enumerate(order, start=1):
-            selected.append(first_sel_idx[idx])
-            if len(selected) < r:
-                continue
-        final_sel_idx = np.sort(np.array(selected, dtype=int))
+        final_sel_idx = _prune_heterogeneous(first_sel_idx, sizes_sel, rng)
     elif rand == "homo":
-        # Homogeneous pruning: shared ξ ∈ [0,1]
-        xi = rng.uniform()
-        order = np.argsort(xi * sizes_sel)
-        selected = []
-        for r, idx in enumerate(order, start=1):
-            selected.append(first_sel_idx[idx])
-            if len(selected) < r:
-                continue
-        final_sel_idx = np.sort(np.array(selected, dtype=int))
+        final_sel_idx = _prune_homogeneous(first_sel_idx, sizes_sel, rng)
     elif rand == "dtm":
-        # Deterministic pruning: order by |R_j^{(0)}|
-        order = np.argsort(sizes_sel)
-        selected = []
-        for r, idx in enumerate(order, start=1):
-            selected.append(first_sel_idx[idx])
-            if len(selected) < r:
-                continue
-        final_sel_idx = np.sort(np.array(selected, dtype=int))
+        final_sel_idx = _prune_deterministic(first_sel_idx, sizes_sel)
     else:
         raise ValueError(
             f"Unknown pruning method '{rand}'. Use 'hete', 'homo' or 'dtm'."
