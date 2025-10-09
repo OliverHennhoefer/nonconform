@@ -216,13 +216,16 @@ class ConformalDetector(BaseConformalDetector):
 
         estimates = aggregate(method=self.aggregation, scores=scores_list)
 
+        # Fit weight estimator regardless of raw parameter
+        if self._is_weighted_mode and self.weight_estimator is not None:
+            self.weight_estimator.fit(self._calibration_samples, x)
+
         if raw:
             return estimates
 
         # Choose p-value calculation method based on weight estimator
         if self._is_weighted_mode and self.weight_estimator is not None:
-            # Weighted p-value calculation
-            self.weight_estimator.fit(self._calibration_samples, x)
+            # Weighted p-value calculation (weights already fitted above)
             w_cal, w_x = self.weight_estimator.get_weights()
             return calculate_weighted_p_val(
                 np.array(estimates),

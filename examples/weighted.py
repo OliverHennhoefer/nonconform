@@ -30,8 +30,6 @@ if __name__ == "__main__":
 
     # Apply weighted FDR control
     scores = ce.predict(x_test, raw=True)
-
-    ce.weight_estimator.fit(ce.calibration_samples, x_test)
     w_cal, w_test = ce.weight_estimator.get_weights()
 
     w_decisions = weighted_false_discovery_control(
