@@ -940,6 +940,7 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
+    { name = "pre-commit" },
     { name = "pyod" },
     { name = "ruff" },
     { name = "scikit-learn" },
@@ -1001,6 +1002,7 @@ requires-dist = [
     { name = "online-fdr", marker = "extra == 'all'", specifier = ">=0.0.3" },
     { name = "online-fdr", marker = "extra == 'fdr'", specifier = ">=0.0.3" },
     { name = "pandas", specifier = ">=2.2.1" },
+    { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "pre-commit", marker = "extra == 'all'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16.1.0" },

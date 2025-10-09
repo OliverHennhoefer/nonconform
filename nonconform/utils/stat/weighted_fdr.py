@@ -28,22 +28,22 @@ def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
     sorted_p = p_values[sorted_idx]
     # Thresholds q * (1:m) / m
     thresholds = q * (np.arange(1, m + 1) / m)
-    below = np.where(sorted_p <= thresholds)[0]
+    below = np.nonzero(sorted_p <= thresholds)[0]
     if len(below) == 0:
         return np.array([], dtype=int)
     k = below[-1]
     return sorted_idx[: k + 1]
 
 
-def weighted_conformalized_selection(
+def weighted_false_discovery_control(
     test_scores: np.ndarray,
     calib_scores: np.ndarray,
     w_test: np.ndarray,
     w_calib: np.ndarray,
-    q: float = 0.1,
-    rand: str = "hete",
-    rng: np.random.Generator | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    q: float,
+    rand: str = "dtm",
+    seed: int | None = None,
+) -> np.ndarray:
     """Perform Weighted Conformalized Selection (WCS).
 
     Parameters
@@ -56,31 +56,24 @@ def weighted_conformalized_selection(
         Importance weights for the test data (length m).
     w_calib : np.ndarray
         Importance weights for the calibration data (length n).
-    q : float, optional
-        Target false discovery rate (0 < q < 1).  Defaults to 0.1.
+    q : float
+        Target false discovery rate (0 < q < 1).
     rand : {"hete", "homo", "dtm"}, optional
         Pruning method.  ``'hete'`` (heterogeneous pruning) uses
         independent random variables l_j; ``'homo'`` (homogeneous
         pruning) uses a single random variable l shared across
         candidates; ``'dtm'`` (deterministic) performs deterministic
-        pruning based on |R_j^{(0)}|.  Defaults to ``'hete'``.
-    rng : np.random.Generator, optional
-        Random number generator for tie breaking and pruning.  If
-        ``None``, a default generator is created.
+        pruning based on |R_j^{(0)}|.  Defaults to ``'dtm'``.
+    seed : int | None, optional
+        Random seed for reproducibility.
+        Defaults to ``None`` (non-deterministic).
 
     Returns:
     -------
-    first_sel : np.ndarray
-        Boolean mask of test points selected in the first step (before
-        pruning).
-    final_sel : np.ndarray
-        Boolean mask of test points retained after pruning.  For
-        deterministic pruning, this may coincide with ``first_sel``.
-    p_vals : np.ndarray
-        Weighted conformal p-values for each test point.
-    thresholds : np.ndarray
-        Data-dependent thresholds s_j = q * |R_j^{(0)}| / m used in
-        the first step.
+    np.ndarray
+        Boolean mask of test points retained after pruning (final selection).
+        For deterministic pruning (``'dtm'``), this may coincide with the
+        first selection step.
 
     Notes:
     -----
@@ -96,7 +89,7 @@ def weighted_conformalized_selection(
        * ``'hete'``: heterogeneous pruning with independent ξ_j.
        * ``'homo'``: homogeneous pruning with a shared ξ.
        * ``'dtm'``: deterministic pruning based on |R_j^{(0)}|.
-    5. Return boolean masks for selected test points.
+    5. Return boolean mask for final selected test points.
 
     Computational cost is O(m^2) in the number of test points.
 
@@ -112,8 +105,7 @@ def weighted_conformalized_selection(
     w_test = np.asarray(w_test)
     w_calib = np.asarray(w_calib)
     m = len(test_scores)
-    if rng is None:
-        rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
 
     # Step 1: weighted conformal p-values using package utility
     p_vals = calculate_weighted_p_val(test_scores, calib_scores, w_test, w_calib)
@@ -147,13 +139,12 @@ def weighted_conformalized_selection(
     thresholds = q * r_sizes / m
 
     # Step 3: first selection set R^{(1)}
-    first_sel_idx = np.where(p_vals <= thresholds)[0]
+    first_sel_idx = np.nonzero(p_vals <= thresholds)[0]
 
-    # If no points selected, return early with empty boolean masks
+    # If no points selected, return early with empty boolean mask
     if len(first_sel_idx) == 0:
-        first_sel_mask = np.zeros(m, dtype=bool)
         final_sel_mask = np.zeros(m, dtype=bool)
-        return first_sel_mask, final_sel_mask, p_vals, thresholds
+        return final_sel_mask
 
     # Step 4: pruning
     # For pruning, we need |R_j^{(0)}| for each j in first_sel_idx
@@ -198,10 +189,8 @@ def weighted_conformalized_selection(
             f"Unknown pruning method '{rand}'. Use 'hete', 'homo' or 'dtm'."
         )
 
-    # Convert indices to boolean masks
-    first_sel_mask = np.zeros(m, dtype=bool)
-    first_sel_mask[first_sel_idx] = True
+    # Convert indices to boolean mask
     final_sel_mask = np.zeros(m, dtype=bool)
     final_sel_mask[final_sel_idx] = True
 
-    return first_sel_mask, final_sel_mask, p_vals, thresholds
+    return final_sel_mask

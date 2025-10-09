@@ -7,7 +7,7 @@ from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import (
     false_discovery_rate,
     statistical_power,
-    weighted_conformalized_selection,
+    weighted_false_discovery_control,
 )
 from pyod.models.iforest import IForest
 
@@ -33,24 +33,24 @@ if __name__ == "__main__":
     # Apply FDR control
     decisions = false_discovery_control(estimates, method="bh") <= 0.2
 
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
-    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")
-
     # Get raw scores
     scores = ce.predict(x_test, raw=True)
 
-    # Fit weight estimator and get weights
+    # Apply weighted FDR control
     ce.weight_estimator.fit(ce.calibration_samples, x_test)
     w_cal, w_test = ce.weight_estimator.get_weights()
 
-    # Weighted Conformalized Selection with FDR control
-    first_sel, discoveries, p_val, threshold = weighted_conformalized_selection(
-        scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm"
+    w_decisions = weighted_false_discovery_control(
+        scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm", seed=1
     )
 
-    # todo nominal input threshold to be handled like in false_discovery_control() (internally then the adjusted threshold will be used
-    # todo check whether weighed is used. in this (healthy case) the weight estimator should already be fitted. no need for refit then
-    # todo make "dtm" the standard strategy
-
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=discoveries)}")
-    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=discoveries)}")
+    print(
+        f"Classical: \n"
+        f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}\n"
+        f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}"
+    )
+    print(
+        f"Weighted: \n"
+        f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}\n"
+        f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}"
+    )
