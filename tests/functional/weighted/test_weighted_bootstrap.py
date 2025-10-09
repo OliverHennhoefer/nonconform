@@ -8,8 +8,10 @@ from nonconform.estimation.weight import (
     IdentityWeightEstimator,
     LogisticWeightEstimator,
 )
+from nonconform.strategy import JackknifeBootstrap
 from nonconform.strategy.experimental.bootstrap import Bootstrap
 from nonconform.utils.data import Dataset, load
+from nonconform.utils.stat import weighted_false_discovery_control
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
@@ -38,25 +40,30 @@ class TestCaseBootstrapConformal(unittest.TestCase):
             statistical_power(y=y_test, y_hat=decisions), 0.74, places=2
         )
 
-    def test_bootstrap_conformal_shuttle_logistic(self):
+    def test_bootstrap_conformal_shuttle_logistic_weighted_fdr(self):
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = ConformalDetector(
             detector=IForest(behaviour="new"),
-            strategy=Bootstrap(resampling_ratio=0.99, n_calib=1_000, plus=True),
+            strategy=JackknifeBootstrap(n_bootstraps=50),
             weight_estimator=LogisticWeightEstimator(seed=1),
             seed=1,
         )
 
         ce.fit(x_train)
-        est = ce.predict(x_test)
 
-        decisions = false_discovery_control(est, method="bh") <= 0.2
+        scores = ce.predict(x_test, raw=True)
+        w_cal, w_test = ce.weight_estimator.get_weights()
+
+        decisions = weighted_false_discovery_control(
+            scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm", seed=1
+        )
+
         self.assertAlmostEqual(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.131, places=2
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, places=2
         )
         self.assertAlmostEqual(
-            statistical_power(y=y_test, y_hat=decisions), 0.99, places=2
+            statistical_power(y=y_test, y_hat=decisions), 0.62, places=2
         )
 
     def test_bootstrap_conformal_thyroid_identity(self):

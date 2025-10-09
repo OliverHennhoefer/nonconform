@@ -10,6 +10,7 @@ from nonconform.estimation.weight import (
 )
 from nonconform.strategy.cross_val import CrossValidation
 from nonconform.utils.data import Dataset, load
+from nonconform.utils.stat import weighted_false_discovery_control
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.iforest import IForest
 
@@ -89,14 +90,19 @@ class TestCaseSplitConformal(unittest.TestCase):
         )
 
         ce.fit(x_train)
-        est = ce.predict(x_test)
 
-        decisions = false_discovery_control(est, method="bh") <= 0.2
+        scores = ce.predict(x_test, raw=True)
+        w_cal, w_test = ce.weight_estimator.get_weights()
+
+        decisions = weighted_false_discovery_control(
+            scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm", seed=1
+        )
+
         self.assertAlmostEqual(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.116, places=2
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, places=2
         )
         self.assertAlmostEqual(
-            statistical_power(y=y_test, y_hat=decisions), 0.99, places=2
+            statistical_power(y=y_test, y_hat=decisions), 0.57, places=2
         )
 
     def test_cross_val_conformal_thyroid_forest(self):

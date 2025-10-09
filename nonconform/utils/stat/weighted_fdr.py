@@ -46,6 +46,29 @@ def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
     return sorted_idx[: k + 1]
 
 
+def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
+    """Return size of BH rejection set for given p-values."""
+    if p_values.size == 0:
+        return 0
+    sorted_p = np.sort(p_values)
+    below = np.nonzero(sorted_p <= thresholds)[0]
+    return 0 if len(below) == 0 else int(below[-1] + 1)
+
+
+def _calib_weight_mass_below(
+    calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
+) -> np.ndarray:
+    """Compute weighted calibration mass strictly below each target score."""
+    if len(calib_scores) == 0:
+        return np.zeros_like(targets, dtype=float)
+    order = np.argsort(calib_scores)
+    sorted_scores = calib_scores[order]
+    sorted_weights = w_calib[order]
+    cum_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
+    positions = np.searchsorted(sorted_scores, targets, side="left")
+    return cum_weights[positions]
+
+
 def _prune_heterogeneous(
     first_sel_idx: np.ndarray, sizes_sel: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
@@ -63,12 +86,7 @@ def _prune_heterogeneous(
     """
     xi = rng.uniform(size=len(first_sel_idx))
     order = np.argsort(xi * sizes_sel)
-    selected = []
-    for r, idx in enumerate(order, start=1):
-        selected.append(first_sel_idx[idx])
-        if len(selected) < r:
-            continue
-    return np.sort(np.array(selected, dtype=int))
+    return np.sort(first_sel_idx[order])
 
 
 def _prune_homogeneous(
@@ -88,12 +106,7 @@ def _prune_homogeneous(
     """
     xi = rng.uniform()
     order = np.argsort(xi * sizes_sel)
-    selected = []
-    for r, idx in enumerate(order, start=1):
-        selected.append(first_sel_idx[idx])
-        if len(selected) < r:
-            continue
-    return np.sort(np.array(selected, dtype=int))
+    return np.sort(first_sel_idx[order])
 
 
 def _prune_deterministic(
@@ -111,23 +124,17 @@ def _prune_deterministic(
         Sorted array of final selected indices.
     """
     order = np.argsort(sizes_sel)
-    selected = []
-    for r, idx in enumerate(order, start=1):
-        selected.append(first_sel_idx[idx])
-        if len(selected) < r:
-            continue
-    return np.sort(np.array(selected, dtype=int))
+    return np.sort(first_sel_idx[order])
 
 
 def _compute_rejection_set_size_for_instance(
     j: int,
     test_scores: np.ndarray,
     w_test: np.ndarray,
-    w_calib: np.ndarray,
-    calib_scores: np.ndarray,
     sum_calib_weight: float,
-    m: int,
-    q: float,
+    bh_thresholds: np.ndarray,
+    calib_mass_below: np.ndarray,
+    scratch: np.ndarray,
 ) -> int:
     """Compute rejection set size |R_j^{(0)}| for test instance j.
 
@@ -139,33 +146,21 @@ def _compute_rejection_set_size_for_instance(
         j: Index of the test instance to compute rejection set size for.
         test_scores: Non-conformity scores for all test instances.
         w_test: Importance weights for all test instances.
-        w_calib: Importance weights for calibration instances.
-        calib_scores: Non-conformity scores for calibration instances.
         sum_calib_weight: Sum of all calibration weights (precomputed).
-        m: Total number of test instances.
-        q: Target false discovery rate.
+        bh_thresholds: Precomputed BH thresholds q * (1:m) / m.
+        calib_mass_below: Weighted calibration mass strictly below each test score.
+        scratch: Workspace array for computing auxiliary p-values.
 
     Returns:
         Size of the rejection set |R_j^{(0)}| for instance j.
     """
-    # Compute auxiliary p-values for test instance j
-    p_aux = np.zeros(m, dtype=float)
-    for ell in range(m):
-        if ell == j:
-            # p_j^{(j)} is ignored (set to 0 so BH includes j)
-            p_aux[ell] = 0.0
-            continue
-        v_ell = test_scores[ell]
-        # Weighted count of calibration scores strictly less than v_ell
-        w_less = np.sum(w_calib[calib_scores < v_ell])
-        # Weighted indicator for test_j's score strictly less than v_ell
-        add = w_test[j] if test_scores[j] < v_ell else 0.0
-        numerator = w_less + add
-        denominator = sum_calib_weight + w_test[j]
-        p_aux[ell] = numerator / denominator
-    # Apply BH to auxiliary p-values
-    rej_idx = _bh_rejection_indices(p_aux, q)
-    return len(rej_idx)
+    np.copyto(scratch, calib_mass_below)
+    scratch += w_test[j] * (test_scores[j] < test_scores)
+    scratch[j] = 0.0
+    denominator = sum_calib_weight + w_test[j]
+    scratch /= denominator
+    scratch[j] = 0.0
+    return _bh_rejection_count(scratch, bh_thresholds)
 
 
 def weighted_false_discovery_control(
@@ -239,6 +234,9 @@ def weighted_false_discovery_control(
 
     # Step 2: compute R_j^{(0)} sizes and thresholds s_j
     r_sizes = np.zeros(m, dtype=float)
+    bh_thresholds = q * (np.arange(1, m + 1) / m)
+    calib_mass_below = _calib_weight_mass_below(calib_scores, w_calib, test_scores)
+    scratch = np.empty(m, dtype=float)
     logger = get_logger("utils.stat.weighted_fdr")
     j_iterator = (
         tqdm(
@@ -250,7 +248,13 @@ def weighted_false_discovery_control(
     )
     for j in j_iterator:
         r_sizes[j] = _compute_rejection_set_size_for_instance(
-            j, test_scores, w_test, w_calib, calib_scores, sum_calib_weight, m, q
+            j,
+            test_scores,
+            w_test,
+            sum_calib_weight,
+            bh_thresholds,
+            calib_mass_below,
+            scratch,
         )
 
     # Compute thresholds s_j = q * |R_j^{(0)}| / m
