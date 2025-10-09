@@ -144,6 +144,24 @@ weighted_detector.fit(X_normal)
 weighted_p_values = weighted_detector.predict(X_test, raw=False)
 
 print(f"Weighted p-values range: {weighted_p_values.min():.4f} - {weighted_p_values.max():.4f}")
+
+# Optionally apply Weighted Conformal Selection for FDR control
+from nonconform.utils.stat import weighted_false_discovery_control
+
+scores = weighted_detector.predict(X_test, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+
+selected = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.1,
+    rand="dtm",
+    seed=42,
+)
+
+print(f"Weighted FDR-controlled detections: {selected.sum()}")
 ```
 
 ## Integration with PyOD

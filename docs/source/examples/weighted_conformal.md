@@ -8,7 +8,6 @@ This example demonstrates how to use weighted conformal prediction for handling 
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
-from scipy.stats import false_discovery_control
 from nonconform.estimation import ConformalDetector
 from nonconform.estimation.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
@@ -27,7 +26,7 @@ y = data.target
 base_detector = LOF()
 
 # Create weighted conformal detector
-strategy = Split(calib_size=0.2)
+strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
@@ -147,9 +146,21 @@ print(f"Weighted conformal detections: {(weighted_p_values < 0.05).sum()}")
 ## FDR Control with Weighted Conformal
 
 ```python
-# Apply FDR control to weighted p-values
-adjusted_p_values = false_discovery_control(weighted_p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# Apply WCS to weighted scores
+from nonconform.utils.stat import weighted_false_discovery_control
+
+scores = detector.predict(X, raw=True)
+w_calib, w_test = detector.weight_estimator.get_weights()
+
+discoveries = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.05,
+    rand="dtm",
+    seed=42,
+)
 
 # Evaluate performance
 true_positives = np.sum(discoveries & (y_true == 1))

@@ -4,7 +4,7 @@ This guide explains how to use weighted conformal p-values in `nonconform` for h
 
 ## Overview
 
-Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios. **Key assumption**: The method assumes that only the marginal distribution P(X) changes between calibration and test data, while the conditional distribution P(Y|X) - the relationship between features and anomaly status - remains constant. This assumption is crucial for the validity of weighted conformal inference.
+Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. When it holds you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift.
 
 The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights using logistic regression to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
 
@@ -14,7 +14,7 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 import numpy as np
 from nonconform.estimation import ConformalDetector
 from nonconform.estimation.weight import LogisticWeightEstimator
-from nonconform.strategy.split import Split
+from nonconform.strategy import Split
 from nonconform.utils.func.enums import Aggregation
 from pyod.models.lof import LOF
 
@@ -141,12 +141,24 @@ weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 
 # Apply FDR control for proper comparison
 from scipy.stats import false_discovery_control
+from nonconform.utils.stat import weighted_false_discovery_control
 
-standard_fdr = false_discovery_control(standard_p_values, method='bh')
-weighted_fdr = false_discovery_control(weighted_p_values, method='bh')
+standard_mask = false_discovery_control(standard_p_values, method="bh") < 0.05
 
-print(f"Standard conformal detections: {(standard_fdr < 0.05).sum()}")
-print(f"Weighted conformal detections: {(weighted_fdr < 0.05).sum()}")
+scores = weighted_detector.predict(X_test_shifted, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+weighted_mask = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.05,
+    rand="dtm",
+    seed=42,
+)
+
+print(f"Standard conformal detections: {standard_mask.sum()}")
+print(f"Weighted conformal detections: {weighted_mask.sum()}")
 ```
 
 ## Different Aggregation Strategies
@@ -198,6 +210,32 @@ cv_detector = ConformalDetector(
     weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
+
+## Weighted Conformal Selection
+
+Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS):
+
+```python
+from nonconform.utils.stat import weighted_false_discovery_control
+
+# Collect raw scores and the corresponding importance weights
+scores = weighted_detector.predict(X_test_shifted, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+
+wcs_mask = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.05,
+    rand="dtm",  # deterministic pruning; use "hete"/"homo" for randomized variants
+    seed=42,
+)
+
+print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
+```
+
+The ``rand`` parameter matches the pruning choices in Jin & Candès (2023): ``"dtm"`` keeps the procedure deterministic, while ``"homo"`` and ``"hete"`` draw one or multiple auxiliary random variables. Provide ``seed`` when reproducibility is important.
 ```
 
 
@@ -266,16 +304,24 @@ def detect_feature_shift(X_train, X_test):
 shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 ```
 
-### 2. Combine with FDR Control
+### 2. Combine with Weighted Conformal Selection
 ```python
-from scipy.stats import false_discovery_control
+from nonconform.utils.stat import weighted_false_discovery_control
 
-# Apply FDR control to weighted p-values
-adjusted_p_values = false_discovery_control(weighted_p_values, method='bh', alpha=0.05)
-discoveries = adjusted_p_values < 0.05
+scores = weighted_detector.predict(X_test_shifted, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+wcs_mask = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.05,
+    rand="dtm",
+    seed=42,
+)
 
 print(f"Raw detections: {(weighted_p_values < 0.05).sum()}")
-print(f"FDR-controlled discoveries: {discoveries.sum()}")
+print(f"WCS-controlled detections: {wcs_mask.sum()}")
 ```
 
 ### 3. Monitor Weight Quality

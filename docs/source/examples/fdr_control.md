@@ -12,6 +12,7 @@ from scipy.stats import false_discovery_control
 from nonconform.estimation import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
+from nonconform.utils.stat.metrics import false_discovery_rate
 
 # Load example data
 data = load_breast_cancer()
@@ -24,7 +25,7 @@ y = data.target
 ```python
 # Initialize detector
 base_detector = LOF()
-strategy = Split(calib_size=0.2)
+strategy = Split(n_calib=0.2)
 
 detector = ConformalDetector(
     detector=base_detector,
@@ -65,6 +66,47 @@ no_adjustment = (p_values < 0.05).sum()
 print(f"No adjustment: {no_adjustment} detections")
 ```
 
+## Weighted Conformal Selection (Covariate Shift)
+
+```python
+from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.strategy import JackknifeBootstrap
+from nonconform.utils.data import Dataset, load
+from nonconform.utils.stat import weighted_false_discovery_control
+from pyod.models.iforest import IForest
+
+# Load a dataset that exhibits covariate shift between calibration and test sets
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
+
+weighted_detector = ConformalDetector(
+    detector=IForest(behaviour="new"),
+    strategy=JackknifeBootstrap(n_bootstraps=50),
+    aggregation=Aggregation.MEDIAN,
+    weight_estimator=LogisticWeightEstimator(seed=1),
+    seed=1,
+)
+
+weighted_detector.fit(x_train)
+
+# Obtain raw scores and importance weights
+scores = weighted_detector.predict(x_test, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+
+# Weighted Conformal Selection controls the FDR under covariate shift
+wcs_mask = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.1,
+    rand="dtm",
+    seed=1,
+)
+
+print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
+print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")
+```
+
 ## FDR Control at Different Levels
 
 ```python
@@ -77,7 +119,7 @@ print(f"{'FDR Level':<12} {'Discoveries':<12} {'Adjusted α':<12}")
 print("-" * 40)
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method="bh", alpha=alpha)
     discoveries = adjusted_p_vals < alpha
 
     print(f"{alpha:<12} {discoveries.sum():<12} {adjusted_p_vals.min():.6f}")
@@ -112,7 +154,7 @@ print(f"{'FDR Level':<10} {'Discoveries':<12} {'True Pos':<10} {'False Pos':<10}
 print("-" * 80)
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method="bh", alpha=alpha)
     discoveries = adjusted_p_vals < alpha
 
     true_positives = np.sum(discoveries & (y_true == 1))
@@ -139,7 +181,7 @@ detectors = {
 
 # Get p-values from each detector
 all_p_values = {}
-strategy = Split(calib_size=0.2)
+strategy = Split(n_calib=0.2)
 
 for name, base_det in detectors.items():
     detector = ConformalDetector(

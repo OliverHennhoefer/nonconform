@@ -1,6 +1,6 @@
 # False Discovery Rate Control
 
-This guide explains how to use False Discovery Rate (FDR) control in `nonconform` for multiple testing scenarios using scipy.stats.false_discovery_control.
+This guide explains how to use False Discovery Rate (FDR) control in `nonconform` for multiple testing scenarios. For exchangeable data you can rely on ``scipy.stats.false_discovery_control``. When you work with weighted conformal p-values under covariate shift, use ``nonconform.utils.stat.weighted_false_discovery_control`` to keep statistical guarantees.
 
 ## Overview
 
@@ -11,33 +11,69 @@ FDR control is a statistical method for handling multiple hypothesis testing. In
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform.estimation.standard import ConformalDetector
-from nonconform.strategy.split import Split
-from nonconform.utils.func.enums import Aggregation
+from nonconform.estimation import ConformalDetector
+from nonconform.strategy import Split
+from nonconform.utils.func import Aggregation
 from pyod.models.lof import LOF
 
-# Initialize detector
-base_detector = LOF()
-strategy = Split(n_calib=0.2)
-
+# Prepare detector and data
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
+    detector=LOF(),
+    strategy=Split(n_calib=0.2),
     aggregation=Aggregation.MEDIAN,
-    seed=42
+    seed=42,
 )
 
-# Fit detector and get p-values
 detector.fit(X_train)
 p_values = detector.predict(X_test, raw=False)
 
-# Apply FDR control
-adjusted_p_values = false_discovery_control(p_values, method='bh', alpha=0.05)
+# Apply Benjamini–Hochberg control at 5%
+adjusted_p_values = false_discovery_control(p_values, method="bh", alpha=0.05)
 discoveries = adjusted_p_values < 0.05
 
 print(f"Original detections: {(p_values < 0.05).sum()}")
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
 ```
+
+## Weighted Conformal Selection
+
+When calibration and test data follow different covariate distributions, accompany weighted conformal p-values with Weighted Conformal Selection (WCS). This routine automatically handles the additional randomness introduced by importance weights and pruning.
+
+```python
+import numpy as np
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.strategy import JackknifeBootstrap
+from nonconform.utils.stat import weighted_false_discovery_control
+from pyod.models.iforest import IForest
+
+detector = ConformalDetector(
+    detector=IForest(behaviour="new"),
+    strategy=JackknifeBootstrap(n_bootstraps=50),
+    weight_estimator=LogisticWeightEstimator(seed=1),
+    seed=1,
+)
+
+detector.fit(X_train)
+
+# Weighted conformal selection expects raw scores and importance weights
+scores = detector.predict(X_test, raw=True)
+w_calib, w_test = detector.weight_estimator.get_weights()
+
+selected = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.1,
+    rand="dtm",  # or "hete"/"homo" for randomized pruning
+    seed=1,
+)
+
+print(f"Selected points: {selected.sum()} / {len(selected)}")
+```
+
+The ``rand`` parameter controls how ties are broken: ``"dtm"`` is deterministic, ``"homo"`` and ``"hete"`` introduce shared or independent randomness. Set ``seed`` for reproducible pruning decisions.
 
 ## Available Methods
 
@@ -134,22 +170,55 @@ adjusted_p_vals = false_discovery_control(all_p_values, method='bh', alpha=0.05)
 FDR control works naturally with conformal prediction p-values:
 
 ```python
-from nonconform.estimation.weighted import ConformalDetector
+from scipy.stats import false_discovery_control
+from nonconform.estimation import ConformalDetector
+from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.strategy import Split
+from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform.utils.func import Aggregation
+from pyod.models.lof import LOF
 
-# Use with weighted conformal detection
+# Standard conformal detector: use scipy for FDR control
+base_detector = LOF()
+strategy = Split(n_calib=0.2)
+
+standard_detector = ConformalDetector(
+    detector=base_detector,
+    strategy=strategy,
+    aggregation=Aggregation.MEDIAN,
+    seed=42,
+)
+standard_detector.fit(X_train)
+standard_mask = false_discovery_control(
+    standard_detector.predict(X_test, raw=False),
+    method="bh",
+    alpha=0.05,
+) < 0.05
+
+# Weighted conformal detector: use Weighted Conformal Selection
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    seed=42
+    weight_estimator=LogisticWeightEstimator(seed=42),
+    seed=42,
+)
+weighted_detector.fit(X_train)
+
+scores = weighted_detector.predict(X_test, raw=True)
+w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+weighted_mask = weighted_false_discovery_control(
+    test_scores=scores,
+    calib_scores=weighted_detector.calibration_set,
+    w_test=w_test,
+    w_calib=w_calib,
+    q=0.05,
+    rand="dtm",
+    seed=42,
 )
 
-weighted_detector.fit(X_train)
-weighted_p_values = weighted_detector.predict(X_test, raw=False)
-
-# Apply FDR control to weighted p-values
-weighted_adjusted = false_discovery_control(weighted_p_values, method='bh', alpha=0.05)
-weighted_discoveries = weighted_adjusted < 0.05
+print(f"Standard detections: {standard_mask.sum()}")
+print(f"Weighted detections: {weighted_mask.sum()}")
 ```
 
 ## Performance Evaluation
