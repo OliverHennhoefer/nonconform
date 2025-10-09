@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file (from `0.9.1
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 1.0.0 (Unreleased)
+## 0.91.0 (2025-10-09)
 
 ### Added
 - Weighted Conformal Selection (``weighted_false_discovery_control()``) for rigorous FDR control when using weighted conformal p-values.
