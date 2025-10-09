@@ -176,5 +176,5 @@ Models that are **currently supported** include:
 ----
 
 <a href="https://www.dlr.de/">
-  <img src="https://www.dlr.de/de/pt-lf/aktuelles/pressematerial/logos/bmwk/vorschaubild_bmwk_logo-mit-foerderzusatz_en/@@images/image-600-ea91cd9090327104991124b30fe1de7d.png" alt="BMWK logo" width="120"/>
+  <img src="https://www.dlr.de/de/pt-lf/aktuelles/pressematerial/logos/bmwk/vorschaubild_bmwk_logo-mit-foerderzusatz_en/@@images/image-600-ea91cd9090327104991124b30fe1de7d.png" alt="BMWK logo" width="250"/>
 </a>
