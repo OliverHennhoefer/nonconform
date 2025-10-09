@@ -14,7 +14,7 @@ authors:
 affiliations:
  - name: Intelligent Systems Research Group, Karlsruhe University of Applied Sciences, Karlsruhe, Germany
    index: 1
-date: 2 October 2025
+date: 9 October 2025
 bibliography: paper.bib
 ---
 
