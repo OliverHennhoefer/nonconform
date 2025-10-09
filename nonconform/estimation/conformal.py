@@ -96,17 +96,15 @@ class ConformalDetector(BaseConformalDetector):
         """Initialize the ConformalDetector.
 
         Args:
-            detector (PyODBaseDetector): The base anomaly detection model to be
-                used (e.g., an instance of a PyOD detector).
-            strategy (BaseStrategy): The conformal strategy to apply for fitting
-                and calibration.
-            weight_estimator (BaseWeightEstimator | None, optional): Weight estimator
-                for handling covariate shift. If None, uses standard conformal
-                prediction (equivalent to IdentityWeightEstimator). Defaults to None.
-            aggregation (Aggregation, optional): Method used for aggregating
-                scores from multiple detector models. Defaults to Aggregation.MEDIAN.
-            seed (int | None, optional): Random seed for reproducibility.
-                Defaults to None.
+            detector: The base anomaly detection model to be used (e.g., an
+                instance of a PyOD detector).
+            strategy: The conformal strategy to apply for fitting and calibration.
+            weight_estimator: Weight estimator for handling covariate shift. If
+                None, uses standard conformal prediction (equivalent to
+                IdentityWeightEstimator). Defaults to None.
+            aggregation: Method used for aggregating scores from multiple detector
+                models. Defaults to Aggregation.MEDIAN.
+            seed: Random seed for reproducibility. Defaults to None.
 
         Raises:
             ValueError: If seed is negative.
@@ -153,12 +151,12 @@ class ConformalDetector(BaseConformalDetector):
         for weight computation during prediction.
 
         Args:
-            x (pd.DataFrame | np.ndarray): The dataset used for
-                fitting the model(s) and determining calibration scores.
-                The strategy will dictate how this data is split or used.
-            iteration_callback (callable | None): Optional callback function
-                for strategies that support iteration tracking (e.g., Bootstrap).
-                Called after each iteration with (iteration, scores). Defaults to None.
+            x: The dataset used for fitting the model(s) and determining
+                calibration scores. The strategy will dictate how this data is
+                split or used.
+            iteration_callback: Optional callback function for strategies that
+                support iteration tracking (e.g., Bootstrap). Called after each
+                iteration with (iteration, scores). Defaults to None.
         """
         # Pass weighted flag only when using non-identity weight estimator
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
@@ -194,20 +192,15 @@ class ConformalDetector(BaseConformalDetector):
         incorporates importance weights to handle covariate shift.
 
         Args:
-            x (pd.DataFrame | np.ndarray): The new data instances
-                for which to generate anomaly estimates.
-            raw (bool, optional): Whether to return raw anomaly scores or
-                p-values. Defaults to False.
-                * If True: Returns the aggregated anomaly scores (non-conformity
-                  estimates) from the detector set for each data point.
-                * If False: Returns the p-values for each data point based on
-                  the calibration set, optionally weighted for distribution shift.
+            x: The new data instances for which to generate anomaly estimates.
+            raw: Whether to return raw anomaly scores or p-values. If True, returns
+                the aggregated anomaly scores (non-conformity estimates) from the
+                detector set. If False, returns p-values based on the calibration
+                set, optionally weighted for distribution shift. Defaults to False.
 
         Returns:
-            np.ndarray: An array containing the anomaly estimates. The content of the
-            array depends on the `raw` argument:
-            - If raw=True, an array of anomaly scores (float).
-            - If raw=False, an array of p-values (float).
+            Array containing the anomaly estimates. If raw=True, returns anomaly
+            scores (float). If raw=False, returns p-values (float).
         """
         logger = get_logger("estimation.conformal")
         iterable = (

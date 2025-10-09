@@ -21,8 +21,15 @@ def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
 
     This helper mimics the Benjamini-Hochberg procedure: sort p-values,
     find the largest k such that p_(k) ≤ q*k/m, and return the first k
-    indices in the sorted order.  If no p-value meets the criterion,
-    returns an empty array.
+    indices in the sorted order.
+
+    Args:
+        p_values: Array of p-values to apply BH procedure on.
+        q: Target false discovery rate threshold.
+
+    Returns:
+        Array of indices in the rejection set. Returns empty array if no
+        p-value meets the criterion.
     """
     m = len(p_values)
     if m == 0:
@@ -172,58 +179,46 @@ def weighted_false_discovery_control(
 ) -> np.ndarray:
     """Perform Weighted Conformalized Selection (WCS).
 
-    Parameters
-    ----------
-    test_scores : np.ndarray
-        Non-conformity scores for the test data (length m).
-    calib_scores : np.ndarray
-        Non-conformity scores for the calibration data (length n).
-    w_test : np.ndarray
-        Importance weights for the test data (length m).
-    w_calib : np.ndarray
-        Importance weights for the calibration data (length n).
-    q : float
-        Target false discovery rate (0 < q < 1).
-    rand : {"hete", "homo", "dtm"}, optional
-        Pruning method.  ``'hete'`` (heterogeneous pruning) uses
-        independent random variables l_j; ``'homo'`` (homogeneous
-        pruning) uses a single random variable l shared across
-        candidates; ``'dtm'`` (deterministic) performs deterministic
-        pruning based on |R_j^{(0)}|.  Defaults to ``'dtm'``.
-    seed : int | None, optional
-        Random seed for reproducibility.
-        Defaults to ``None`` (non-deterministic).
+    Args:
+        test_scores: Non-conformity scores for the test data (length m).
+        calib_scores: Non-conformity scores for the calibration data (length n).
+        w_test: Importance weights for the test data (length m).
+        w_calib: Importance weights for the calibration data (length n).
+        q: Target false discovery rate (0 < q < 1).
+        rand: Pruning method. ``'hete'`` (heterogeneous pruning) uses
+            independent random variables l_j; ``'homo'`` (homogeneous
+            pruning) uses a single random variable l shared across
+            candidates; ``'dtm'`` (deterministic) performs deterministic
+            pruning based on |R_j^{(0)}|. Defaults to ``'dtm'``.
+        seed: Random seed for reproducibility. Defaults to None
+            (non-deterministic).
 
     Returns:
-    -------
-    np.ndarray
         Boolean mask of test points retained after pruning (final selection).
         For deterministic pruning (``'dtm'``), this may coincide with the
         first selection step.
 
-    Notes:
-    -----
-    The procedure follows Algorithm 1 in Jin & Candes (2023):
+    Note:
+        The procedure follows Algorithm 1 in Jin & Candes (2023):
 
-    1. Compute weighted conformal p-values ``p_vals`` for the test
-       points.
-    2. For each j, compute auxiliary p-values p^{(j)}_l (l ≠ j) and
-       form the BH rejection set R_j^{(0)} on these auxiliary
-       p-values; set s_j = q * |R_j^{(0)}| / m.
-    3. Form the first selection set R^{(1)} = {j: p_j ≤ s_j}.
-    4. Prune R^{(1)} using the specified method:
-       * ``'hete'``: heterogeneous pruning with independent ξ_j.
-       * ``'homo'``: homogeneous pruning with a shared ξ.
-       * ``'dtm'``: deterministic pruning based on |R_j^{(0)}|.
-    5. Return boolean mask for final selected test points.
+        1. Compute weighted conformal p-values ``p_vals`` for the test
+           points.
+        2. For each j, compute auxiliary p-values p^{(j)}_l (l ≠ j) and
+           form the BH rejection set R_j^{(0)} on these auxiliary
+           p-values; set s_j = q * |R_j^{(0)}| / m.
+        3. Form the first selection set R^{(1)} = {j: p_j ≤ s_j}.
+        4. Prune R^{(1)} using the specified method:
+           * ``'hete'``: heterogeneous pruning with independent ξ_j.
+           * ``'homo'``: homogeneous pruning with a shared ξ.
+           * ``'dtm'``: deterministic pruning based on |R_j^{(0)}|.
+        5. Return boolean mask for final selected test points.
 
-    Computational cost is O(m^2) in the number of test points.
+        Computational cost is O(m^2) in the number of test points.
 
     References:
-    ----------
-    Jin, Y., & Candes, E. (2023). Model-free selective inference under
-    covariate shift via weighted conformal p-values. arXiv preprint
-    arXiv:2307.09291.
+        Jin, Y., & Candes, E. (2023). Model-free selective inference under
+        covariate shift via weighted conformal p-values. arXiv preprint
+        arXiv:2307.09291.
     """
     # Convert inputs to numpy arrays
     test_scores = np.asarray(test_scores)

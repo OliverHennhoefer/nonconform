@@ -41,7 +41,8 @@ if __name__ == "__main__":
     print(
         f"Classical: \n"
         f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}\n"
-        f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}"
+        f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}\n"
+        f"\x1b[3m" + "(no guaranteed validity for weighted p-values)" + "\x1b[0m" + "\n"
     )
     print(
         f"Weighted: \n"
