@@ -175,11 +175,6 @@ Models that are **currently supported** include:
 
 ----
 
-This work was conducted as part of the research projects Biflex Industrie
-(grant number 01MV23020A),
-funded by the German Federal Ministry for Economic Affairs and Climate
-Action (BMWK).
-
 <a href="https://www.dlr.de/">
   <img src="https://www.dlr.de/de/pt-lf/aktuelles/pressematerial/logos/bmwk/vorschaubild_bmwk_logo-mit-foerderzusatz_en/@@images/image-600-ea91cd9090327104991124b30fe1de7d.png" alt="BMWK logo" width="120"/>
 </a>
