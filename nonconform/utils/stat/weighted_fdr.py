@@ -112,6 +112,55 @@ def _prune_deterministic(
     return np.sort(np.array(selected, dtype=int))
 
 
+def _compute_rejection_set_size_for_instance(
+    j: int,
+    test_scores: np.ndarray,
+    w_test: np.ndarray,
+    w_calib: np.ndarray,
+    calib_scores: np.ndarray,
+    sum_calib_weight: float,
+    m: int,
+    q: float,
+) -> int:
+    """Compute rejection set size |R_j^{(0)}| for test instance j.
+
+    For a given test instance j, computes auxiliary p-values for all other
+    test instances and applies the Benjamini-Hochberg procedure to determine
+    the rejection set size.
+
+    Args:
+        j: Index of the test instance to compute rejection set size for.
+        test_scores: Non-conformity scores for all test instances.
+        w_test: Importance weights for all test instances.
+        w_calib: Importance weights for calibration instances.
+        calib_scores: Non-conformity scores for calibration instances.
+        sum_calib_weight: Sum of all calibration weights (precomputed).
+        m: Total number of test instances.
+        q: Target false discovery rate.
+
+    Returns:
+        Size of the rejection set |R_j^{(0)}| for instance j.
+    """
+    # Compute auxiliary p-values for test instance j
+    p_aux = np.zeros(m, dtype=float)
+    for ell in range(m):
+        if ell == j:
+            # p_j^{(j)} is ignored (set to 0 so BH includes j)
+            p_aux[ell] = 0.0
+            continue
+        v_ell = test_scores[ell]
+        # Weighted count of calibration scores strictly less than v_ell
+        w_less = np.sum(w_calib[calib_scores < v_ell])
+        # Weighted indicator for test_j's score strictly less than v_ell
+        add = w_test[j] if test_scores[j] < v_ell else 0.0
+        numerator = w_less + add
+        denominator = sum_calib_weight + w_test[j]
+        p_aux[ell] = numerator / denominator
+    # Apply BH to auxiliary p-values
+    rej_idx = _bh_rejection_indices(p_aux, q)
+    return len(rej_idx)
+
+
 def weighted_false_discovery_control(
     test_scores: np.ndarray,
     calib_scores: np.ndarray,
@@ -205,24 +254,9 @@ def weighted_false_discovery_control(
         else range(m)
     )
     for j in j_iterator:
-        # Compute auxiliary p-values for test instance j
-        p_aux = np.zeros(m, dtype=float)
-        for ell in range(m):
-            if ell == j:
-                # p_j^{(j)} is ignored (set to 0 so BH includes j)
-                p_aux[ell] = 0.0
-                continue
-            v_ell = test_scores[ell]
-            # Weighted count of calibration scores strictly less than v_ell
-            w_less = np.sum(w_calib[calib_scores < v_ell])
-            # Weighted indicator for test_j's score strictly less than v_ell
-            add = w_test[j] if test_scores[j] < v_ell else 0.0
-            numerator = w_less + add
-            denominator = sum_calib_weight + w_test[j]
-            p_aux[ell] = numerator / denominator
-        # Apply BH to auxiliary p-values
-        rej_idx = _bh_rejection_indices(p_aux, q)
-        r_sizes[j] = len(rej_idx)
+        r_sizes[j] = _compute_rejection_set_size_for_instance(
+            j, test_scores, w_test, w_calib, calib_scores, sum_calib_weight, m, q
+        )
 
     # Compute thresholds s_j = q * |R_j^{(0)}| / m
     thresholds = q * r_sizes / m
