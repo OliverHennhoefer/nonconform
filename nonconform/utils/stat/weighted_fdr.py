@@ -105,6 +105,9 @@ def weighted_false_discovery_control(
     w_test = np.asarray(w_test)
     w_calib = np.asarray(w_calib)
     m = len(test_scores)
+    if seed is None:
+        # Draw entropy from OS to seed the generator explicitly for lint compliance.
+        seed = np.random.SeedSequence().entropy
     rng = np.random.default_rng(seed)
 
     # Step 1: weighted conformal p-values using package utility
@@ -139,7 +142,7 @@ def weighted_false_discovery_control(
     thresholds = q * r_sizes / m
 
     # Step 3: first selection set R^{(1)}
-    first_sel_idx = np.nonzero(p_vals <= thresholds)[0]
+    first_sel_idx = np.flatnonzero(p_vals <= thresholds)
 
     # If no points selected, return early with empty boolean mask
     if len(first_sel_idx) == 0:
