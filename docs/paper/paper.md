@@ -54,6 +54,6 @@ Overall, reliance on exchangeability makes these methods well-suited to cross-se
 
 # Acknowledgements
 
-This work was conducted in part within the research projects *Biflex Industrie* (grant number 01MV23020A) funded by the *German Federal Ministry of Economic Affairs and Climate Action*.
+This work was conducted in part under the research projects *Biflex Industrie* (Grant no. 01MV23020A) funded by the *German Federal Ministry of Economic Affairs and Climate Action*.
 
 # References
