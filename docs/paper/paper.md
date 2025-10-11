@@ -34,8 +34,7 @@ The library integrates seamlessly with the widely used `pyod` library [@Zhao2019
 # Statement of Need
 
 A major challenge in anomaly detection lies in setting an appropriate anomaly threshold, as it directly influences the false positive rate. In high-stakes domains such as fraud detection, medical diagnostics, and industrial quality control, excessive false alarms can lead to *alert fatigue* and render systems impractical.  
-The package `nonconform` mitigates this issue by replacing raw anomaly scores with $p$-values, enabling formal control of the FDR.  
-Consequently, conformal methods become effectively *threshold-free*, since anomaly thresholds are implicitly determined by underlying statistical procedures.
+The package `nonconform` mitigates this issue by replacing raw anomaly scores with $p$-values, enabling formal control of the FDR. Consequently, conformal methods become effectively *threshold-free*, since anomaly thresholds are implicitly determined by underlying statistical procedures.
 
 $$
 FDR = \frac{\text{Efforts Wasted on False Alarms}}{\text{Total Efforts}}
@@ -45,8 +44,7 @@ $$
 Conformal methods are *nonparametric* and *model-agnostic*, applying to any model that produces consistent anomaly scores on arbitrarily distributed data. Their key requirement is the assumption of *exchangeability* between calibration and test data, ensuring the validity of resulting conformal $p$-values.  
 Exchangeability only requires that the joint data distribution is invariant under permutations, making it more general---and less restrictive---than the independent and identically distributed (*i.i.d.*) assumption common in classical machine learning.
 
-To operationalize this assumption, `nonconform` constructs calibration sets from training data using several strategies, including approaches for low-data regimes [@Hennhofer2024] that do not require a dedicated hold-out set.  
-Based on these calibration sets, the package computes *standard* or *weighted* conformal $p$-values [@Jin2023], which are particularly useful under covariate shift, when exchangeability is only approximate.  
+To operationalize this assumption, `nonconform` constructs calibration sets from training data using several strategies, including approaches for low-data regimes [@Hennhofer2024] that do not require a dedicated hold-out set. Based on these calibration sets, the package computes *standard* or *weighted* conformal $p$-values [@Jin2023], which are particularly useful under covariate shift, when exchangeability is only approximate.  
 These tools enable practitioners to build anomaly detectors whose outputs are statistically controlled to maintain the FDR at a chosen nominal level.
 
 Overall, reliance on exchangeability makes these methods well-suited to cross-sectional data but less appropriate for time series applications, where temporal ordering conveys essential information.
