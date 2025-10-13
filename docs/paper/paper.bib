@@ -25,12 +25,20 @@
 	url          = {http://dx.doi.org/10.1214/22-AOS2244}
 }
 
-@inproceedings{Jin2023,
-	title        = {Model-free selective inference under covariate shift via weighted conformal p-values},
-	author       = {Ying Jin and Emmanuel J. Cand{\`e}s},
-	year         = 2023,
-	url          = {https://api.semanticscholar.org/CorpusID:259950903}
+@article{Jin2023,
+    author = {Jin, Ying and Candès, Emmanuel J},
+    title = {Model-free selective inference under covariate shift via weighted conformal p-values},
+    journal = {Biometrika},
+    pages = {asaf066},
+    year = {2025},
+    month = {09},
+    abstract = {This paper introduces novel weighted conformal p-values and methods for model-free selective inference. The problem is as follows: given test units with covariates X and missing responses Y, how do we select units for which the responses Y are larger than user-specified values while controlling the proportion of false positives? Can we achieve this without modelling assumptions on the data and without restriction on the model for predicting the responses? Last, methods should be applicable when there is a covariate shift between training and test data, which commonly occurs in practice. We answer these questions by first leveraging any prediction model to produce a class of well-calibrated weighted conformal p-values, which control the type-I error in detecting a large response. These  p-values cannot be passed onto classical multiple testing procedures since they may not obey a well-known positive dependence property. Hence, we introduce weighted conformal selection, a new procedure that controls the false discovery rate in finite samples. Besides prediction-assisted candidate selection, weighted conformal selection (i) allows us to infer multiple individual treatment effects, and (ii) extends to outlier detection with inlier distribution shifts. We demonstrate performance via simulations and applications to causal inference, drug discovery and outlier detection datasets.},
+    issn = {1464-3510},
+    doi = {10.1093/biomet/asaf066},
+    url = {https://doi.org/10.1093/biomet/asaf066},
+    eprint = {https://academic.oup.com/biomet/advance-article-pdf/doi/10.1093/biomet/asaf066/64237131/asaf066.pdf},
 }
+
 
 @inproceedings{Laxhammar2010,
 author = {Laxhammar, Rikard and Falkman, G\"{o}ran},
@@ -49,11 +57,14 @@ location = {Washington, D.C.},
 series = {StreamKDD '10}
 }
 
-@inproceedings{Petsche1994,
-  author    = {Thomas Petsche and Mark Gluck},
-  title     = {Workshop on Novelty Detection and Adaptive System Monitoring},
-  booktitle = {Advances in Neural Information Processing Systems (NIPS)},
-  year      = {1994}
+@phdthesis{Tax2001,
+title = "One-class classification; concept-learning in the absence of counter-examples",
+author = "DMJ Tax",
+note = "ASCI Dissertation Series 65",
+year = "2001",
+isbn = "90-75691-05-X",
+type = "Dissertation (TU Delft)",
+school = "Delft University of Technology",
 }
 
 @inbook{Papadopoulos2002,
@@ -70,12 +81,15 @@ series = {StreamKDD '10}
 }
 
 @book{Vovk2005,
-    author = {Vovk, Vladimir and Gammerman, Alex and Shafer, Glenn},
-    title = {Algorithmic learning in a random world},
-    year = {2005},
-    isbn = {0387001522},
-    publisher = {Springer-Verlag},
-    address = {Berlin, Heidelberg}
+title = "Algorithmic Learning in a Random World",
+author = "Vladimir Vovk and Alex Gammerman and Glenn Shafer",
+note = "Springer, New York",
+year = "2005",
+language = "English",
+publisher = "Springer",
+isbn = {0387001522}, 
+url = {http://dx.doi.org/10.1007/b106715},
+DOI = {10.1007/b106715},
 }
 
 @article{Lei2012,
@@ -104,36 +118,34 @@ series = {StreamKDD '10}
     url     = {http://jmlr.org/papers/v20/19-011.html}
 }
 
-@article{Zhao2024,
-    author  = {Chen, Sihan and Qian, Zhuangzhuang and Siu, Wingchun and Hu, Xingcan and Li, Jiaqi and Li, Shawn and Qin, Yuehan and Yang, Tiankai and Xiao, Zhuo and Ye, Wanghao and Zhang, Yichi and Dong, Yushun and Zhao, Yue},
-    title   = {PyOD 2: A Python Library for Outlier Detection with LLM-powered Model Selection},
-    journal = {arXiv preprint arXiv:2412.12154},
-    year    = {2024}
+@inproceedings{Zhao2024,
+author = {Chen, Sihan and Qian, Zhuangzhuang and Siu, Wingchun and Hu, Xingcan and Li, Jiaqi and Li, Shawn and Qin, Yuehan and Yang, Tiankai and Xiao, Zhuo and Ye, Wanghao and Zhang, Yichi and Dong, Yushun and Zhao, Yue},
+title = {PyOD 2: A Python Library for Outlier Detection with LLM-powered Model Selection},
+year = {2025},
+isbn = {9798400713316},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3701716.3715196},
+doi = {10.1145/3701716.3715196},
+booktitle = {Companion Proceedings of the ACM on Web Conference 2025},
+pages = {2807–2810},
+numpages = {4},
+location = {Sydney NSW, Australia},
+series = {WWW '25}
 }
 
 @article{Benjamini1995,
-    added-at = {2018-12-02T16:09:07.000+0100},
-    author = {Benjamini, Yoav and Hochberg, Yosef},
-    biburl ={https://www.bibsonomy.org/bibtex/21afb7e66e1c2bd0490edd9e3c7dd199d/karthikraman},
-    citeulike-article-id = {1042553},
-    citeulike-linkout-0 = {http://dx.doi.org/10.2307/2346101},
-    citeulike-linkout-1 = {http://www.jstor.org/stable/2346101},
-    doi = {10.2307/2346101},
-    interhash = {b38b0e6655978ad8c7d8455b175c2cbf},
-    intrahash = {1afb7e66e1c2bd0490edd9e3c7dd199d},
-    issn = {00359246},
-    journal = {Journal of the Royal Statistical Society. Series B (Methodological)},
-    keywords = {math},
-    number = 1,
-    pages = {289--300},
-    posted-at = {2010-09-07 09:57:03},
-    priority = {2},
-    publisher = {Blackwell Publishing for the Royal Statistical Society},
-    timestamp = {2018-12-02T16:09:07.000+0100},
-    title = {Controlling the false discovery rate: a practical and powerful approach to multiple testing},
-    url = {http://dx.doi.org/10.2307/2346101},
-    volume = 57,
-    year = 1995
+author = {Benjamini, Yoav and Hochberg, Yosef},
+title = {Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing},
+journal = {Journal of the Royal Statistical Society: Series B (Methodological)},
+volume = {57},
+number = {1},
+pages = {289-300},
+doi = {https://doi.org/10.1111/j.2517-6161.1995.tb02031.x},
+url = {https://rss.onlinelibrary.wiley.com/doi/abs/10.1111/j.2517-6161.1995.tb02031.x},
+eprint = {https://rss.onlinelibrary.wiley.com/doi/pdf/10.1111/j.2517-6161.1995.tb02031.x},
+abstract = {SUMMARY The common approach to the multiplicity problem calls for controlling the familywise error rate (FWER). This approach, though, has faults, and we point out a few. A different approach to problems of multiple significance testing is presented. It calls for controlling the expected proportion of falsely rejected hypotheses — the false discovery rate. This error rate is equivalent to the FWER when all hypotheses are true but is smaller otherwise. Therefore, in problems where the control of the false discovery rate rather than that of the FWER is desired, there is potential for a gain in power. A simple sequential Bonferronitype procedure is proved to control the false discovery rate for independent test statistics, and a simulation study shows that the gain in power is substantial. The use of the new procedure and the appropriateness of the criterion are illustrated with examples.},
+year = {1995}
 }
 
 @article{Benjamini2009,
@@ -151,27 +163,30 @@ series = {StreamKDD '10}
   pages = {4255–4271}
 }
 
-@inproceedings{Tibshirani2019,
- author = {Tibshirani, Ryan J and Foygel Barber, Rina and Candes, Emmanuel and Ramdas, Aaditya},
- booktitle = {Advances in Neural Information Processing Systems},
- editor = {H. Wallach and H. Larochelle and A. Beygelzimer and F. d\textquotesingle Alch\'{e}-Buc and E. Fox and R. Garnett},
- pages = {},
- publisher = {Curran Associates, Inc.},
- title = {Conformal Prediction Under Covariate Shift},
- url = {https://proceedings.neurips.cc/paper_files/paper/2019/file/8fb21ee7a2207526da55a679f0332de2-Paper.pdf},
- volume = {32},
- year = {2019}
+@inbook{Tibshirani2019,
+author = {Tibshirani, Ryan J. and Barber, Rina Foygel and Cand\`{e}s, Emmanuel J. and Ramdas, Aaditya},
+title = {Conformal prediction under covariate shift},
+year = {2019},
+publisher = {Curran Associates Inc.},
+address = {Red Hook, NY, USA},
+abstract = {We extend conformal prediction methodology beyond the case of exchangeable data. In particular, we show that a weighted version of conformal prediction can be used to compute distribution-free prediction intervals for problems in which the test and training covariate distributions differ, but the likelihood ratio between the two distributions is known—or, in practice, can be estimated accurately from a set of unlabeled data (test covariate points). Our weighted extension of conformal prediction also applies more broadly, to settings in which the data satisfies a certain weighted notion of exchangeability. We discuss other potential applications of our new conformal methodology, including latent variable and missing data problems.},
+booktitle = {Proceedings of the 33rd International Conference on Neural Information Processing Systems},
+articleno = {227},
+numpages = {11}
 }
 
-@misc{Jon2023,
-      title={Model-free selective inference under covariate shift via weighted conformal p-values},
-      author={Ying Jin and Emmanuel J. Candès},
-      year={2023},
-      eprint={2307.09291},
-      archivePrefix={arXiv},
-      primaryClass={stat.ME},
-      url={https://arxiv.org/abs/2307.09291},
+@ARTICLE{Jon2023,
+  title     = "Model-free selective inference under covariate shift via
+               weighted conformal p-values",
+  author    = "Jin, Ying and Cand{\`e}s, Emmanuel J",
+  journal   = "Biometrika",
+  publisher = "Oxford University Press (OUP)",
+  number    = "asaf066",
+  month     =  sep,
+  year      =  2025,
+  language  = "en"
 }
+
 
 @article{Liang2024,
     author = {Liang, Ziyi and Sesia, Matteo and Sun, Wenguang},

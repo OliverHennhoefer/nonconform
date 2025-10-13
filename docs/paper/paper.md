@@ -20,7 +20,7 @@ bibliography: paper.bib
 
 # Summary
 
-Quantifying uncertainty is fundamental for AI systems in safety-critical, high-cost-of-error domains, as reliable decision-making depends on it. The Python package `nonconform` offers statistically principled uncertainty quantification for semi-supervised anomaly detection based on one-class classification [@Petsche1994]. It implements methods from conformal anomaly detection [@Laxhammar2010; @Bates2023; @Jin2023], grounded in conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012].
+Quantifying uncertainty is fundamental for AI systems in safety-critical, high-cost-of-error domains, as reliable decision-making depends on it. The Python package `nonconform` offers statistically principled uncertainty quantification for semi-supervised anomaly detection based on one-class classification [@Tax2001]. It implements methods from conformal anomaly detection [@Laxhammar2010; @Bates2023; @Jin2023], grounded in conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012].
 
 The package `nonconform` calibrates anomaly detection models to produce statistically valid $p$-values from raw anomaly scores. Conformal calibration uses a hold-out set $\mathcal{D}_{\text{calib}}$ of size $n$ containing normal instances, while the model is trained on a separate normal dataset. For a new observation $X_{n+1}$ with anomaly score $\hat{s}(X_{n+1})$, the $p$-value is computed by comparing this score to the empirical distribution of calibration scores $\hat{s}(X_i)$ for $i \in \mathcal{D}_{\text{calib}}$. The conformal $p$-value $\hat{u}(X_{n+1})$ is defined as the normalized rank of $\hat{s}(X_{n+1})$ among the calibration scores [@Liang2024]:
 
