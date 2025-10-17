@@ -355,4 +355,16 @@ DATASET_REGISTRY = {
         features=13,
         anomaly_rate=0.0775,
     ),
+    "yeast": DatasetInfo(
+        name="yeast",
+        description=(
+            "Yeast dataset. Biology dataset for predicting protein "
+            "localization sites in cells. Contains features describing "
+            "cellular characteristics used to classify protein sequences."
+        ),
+        filename="yeast.npz",
+        samples=1484,
+        features=8,
+        anomaly_rate=0.3416,
+    ),
 }

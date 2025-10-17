@@ -85,3 +85,4 @@ class Dataset(Enum):
     VOWELS = "vowels"
     WBC = "wbc"
     WINE = "wine"
+    YEAST = "yeast"

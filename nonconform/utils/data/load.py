@@ -25,7 +25,7 @@ class DatasetManager:
 
     def __init__(self) -> None:
         """Initialize the DatasetManager with configuration."""
-        self.version: str = os.environ.get("UNQUAD_DATASET_VERSION", "v0.9.17-datasets")
+        self.version: str = os.environ.get("UNQUAD_DATASET_VERSION", "v0.91.1-datasets")
         base_repo_url = (
             "https://github.com/OliverHennhoefer/nonconform/releases/download/"
         )
