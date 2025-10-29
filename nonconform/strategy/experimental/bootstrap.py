@@ -129,6 +129,11 @@ class Bootstrap(BaseStrategy):
                 n_bootstraps is less than 1, or if n_calib is less than 1
                 when specified.
         """
+        # Reset state so repeated calls do not accumulate detectors or scores
+        self._detector_list.clear()
+        self._calibration_set = np.array([])
+        self._calibration_ids = []
+
         self._configure(len(x))
 
         _detector = detector

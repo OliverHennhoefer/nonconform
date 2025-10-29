@@ -325,6 +325,13 @@ class Randomized(BaseStrategy):
         Raises:
             ValueError: If holdout set size would leave insufficient training data.
         """
+        # Reset internal state to avoid accumulation across repeated fits
+        self._detector_list.clear()
+        self._calibration_set = np.array([])
+        self._calibration_ids = []
+        self._holdout_sizes = []
+        self._iteration_scores = []
+
         self._configure_holdout_size_range(len(x))
         self._log_configuration()
 

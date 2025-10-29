@@ -106,6 +106,10 @@ class CrossValidation(BaseStrategy):
             ValueError: If k is less than 2 or if the data size is too small
                 for the specified number of folds.
         """
+        # Reset state so repeated fit_calibrate calls do not accumulate models/indices
+        self._detector_list.clear()
+        self._calibration_ids = []
+
         _detector = detector
         n_samples = len(x)
 
