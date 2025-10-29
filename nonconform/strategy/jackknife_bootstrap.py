@@ -150,9 +150,9 @@ class JackknifeBootstrap(BaseStrategy):
 
         logger.info(
             f"Bootstrap (JaB+) Configuration:\n"
-            f"  • Data: {n_samples:,} total samples\n"
-            f"  • Bootstrap iterations: {self._n_bootstraps:,}\n"
-            f"  • Aggregation method: {self._aggregation_method}"
+            f"  - Data: {n_samples:,} total samples\n"
+            f"  - Bootstrap iterations: {self._n_bootstraps:,}\n"
+            f"  - Aggregation method: {self._aggregation_method}"
         )
 
         # Step 1: Pre-allocate data structures and generate bootstrap samples
