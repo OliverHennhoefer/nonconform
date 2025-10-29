@@ -479,21 +479,35 @@ class Randomized(BaseStrategy):
                 self._calibration_ids = [self._calibration_ids[i] for i in ids]
 
             # Also subsample tracking data if enabled
-            if track_p_values and self._holdout_sizes:
-                # For simplicity, subsample proportionally across iterations
-                selected_iterations = (
-                    set(ids % actual_iterations) if actual_iterations > 0 else set()
-                )
-                self._holdout_sizes = [
-                    size
-                    for i, size in enumerate(self._holdout_sizes)
-                    if i in selected_iterations
-                ]
-                self._iteration_scores = [
-                    scores
-                    for i, scores in enumerate(self._iteration_scores)
-                    if i in selected_iterations
-                ]
+            if track_p_values and calibration_batches:
+                ids_array = np.asarray(ids, dtype=int)
+                batch_lengths = [len(batch) for batch in calibration_batches]
+                if batch_lengths:
+                    cumulative = np.cumsum(batch_lengths)
+                    selection_map: dict[int, list[int]] = {}
+                    for idx in ids_array:
+                        iter_idx = int(np.searchsorted(cumulative, idx, side="right"))
+                        if iter_idx >= len(calibration_batches):
+                            continue
+                        start = 0 if iter_idx == 0 else cumulative[iter_idx - 1]
+                        relative_pos = int(idx - start)
+                        selection_map.setdefault(iter_idx, []).append(relative_pos)
+
+                    new_holdout_sizes: list[int] = []
+                    new_iteration_scores: list[list[float]] = []
+                    for iter_idx, batch in enumerate(calibration_batches):
+                        positions = selection_map.get(iter_idx)
+                        if not positions:
+                            continue
+                        selected_positions = np.sort(
+                            np.asarray(positions, dtype=int), axis=0
+                        )
+                        selected_scores = batch[selected_positions]
+                        new_holdout_sizes.append(len(selected_scores))
+                        new_iteration_scores.append(selected_scores.tolist())
+
+                    self._holdout_sizes = new_holdout_sizes
+                    self._iteration_scores = new_iteration_scores
 
         # Log final results - only for n_iterations mode
         if not self._use_n_calib_mode:
