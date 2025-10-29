@@ -26,10 +26,10 @@ def _ensure_numpy_array(func: Callable) -> Callable:
     """
 
     @wraps(func)
-    def wrapper(self, x: pd.DataFrame | np.ndarray, *args, **kwargs) -> Any:
-        # Convert pandas.DataFrame to numpy.ndarray if necessary
-        if isinstance(x, pd.DataFrame):
-            x_converted = x.values
+    def wrapper(self, x: pd.DataFrame | pd.Series | np.ndarray, *args, **kwargs) -> Any:
+        # Convert pandas objects without forcing a copy
+        if isinstance(x, (pd.DataFrame | pd.Series)):
+            x_converted = x.to_numpy(copy=False)
         else:
             x_converted = x
         return func(self, x_converted, *args, **kwargs)

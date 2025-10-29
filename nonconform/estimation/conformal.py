@@ -214,9 +214,12 @@ class ConformalDetector(BaseConformalDetector):
             if logger.isEnabledFor(logging.DEBUG)
             else self._detector_set
         )
-        scores_list = [model.decision_function(x) for model in iterable]
+        # Collect detector outputs as a dense 2D array to avoid object-dtype fallbacks
+        scores = np.vstack(
+            [np.asarray(model.decision_function(x)) for model in iterable]
+        )
 
-        estimates = aggregate(method=self.aggregation, scores=scores_list)
+        estimates = aggregate(method=self.aggregation, scores=scores)
 
         # Fit weight estimator regardless of raw parameter
         if self._is_weighted_mode and self.weight_estimator is not None:
