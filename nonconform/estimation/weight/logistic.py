@@ -100,13 +100,18 @@ class LogisticWeightEstimator(BaseWeightEstimator):
         w_calib = calib_prob[:, 1] / (calib_prob[:, 0] + 1e-9)
         w_test = test_prob[:, 1] / (test_prob[:, 0] + 1e-9)
 
-        # Adaptive clipping based on percentiles
-        all_weights = np.concatenate([w_calib, w_test])
-        lower_bound = np.percentile(all_weights, self.clip_quantile * 100)
-        upper_bound = np.percentile(all_weights, (1 - self.clip_quantile) * 100)
+        if self.clip_quantile is not None:
+            # Adaptive clipping based on percentiles
+            all_weights = np.concatenate([w_calib, w_test])
+            lower_bound = np.percentile(all_weights, self.clip_quantile * 100)
+            upper_bound = np.percentile(all_weights, (1 - self.clip_quantile) * 100)
 
-        self._w_calib = np.clip(w_calib, lower_bound, upper_bound)
-        self._w_test = np.clip(w_test, lower_bound, upper_bound)
+            self._w_calib = np.clip(w_calib, lower_bound, upper_bound)
+            self._w_test = np.clip(w_test, lower_bound, upper_bound)
+        else:
+            # Fixed clipping fallback mirroring ForestWeightEstimator behaviour
+            self._w_calib = np.clip(w_calib, 0.35, 45.0)
+            self._w_test = np.clip(w_test, 0.35, 45.0)
 
         self._is_fitted = True
 
