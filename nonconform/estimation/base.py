@@ -37,7 +37,7 @@ class BaseConformalDetector(ABC):
             x (pd.DataFrame | np.ndarray): The dataset used for
                 fitting the model(s) and determining calibration scores.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement fit()")
 
     @_ensure_numpy_array
     @abstractmethod
@@ -57,4 +57,4 @@ class BaseConformalDetector(ABC):
         Returns:
             np.ndarray: An array containing the anomaly estimates.
         """
-        pass
+        raise NotImplementedError("Subclasses must implement predict()")

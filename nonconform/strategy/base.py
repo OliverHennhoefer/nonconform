@@ -29,7 +29,7 @@ class BaseStrategy(abc.ABC):
                 Defaults to ``True``.
         """
         self._plus: bool = plus
-        self._calibration_ids: list[int]
+        self._calibration_ids: list[int] = []
 
     @abc.abstractmethod
     def fit_calibrate(
