@@ -353,6 +353,9 @@ class Randomized(BaseStrategy):
 
         actual_iterations = 0
         running_holdout_sum = 0
+        calibration_batches: list[np.ndarray] = []
+        calibration_count = 0
+        all_indices = np.arange(self._n_data)
         progress_context = (
             tqdm(total=total_for_progress, desc=base_desc)
             if logger.isEnabledFor(logging.INFO)
@@ -362,12 +365,12 @@ class Randomized(BaseStrategy):
             while True:
                 # Check stopping condition
                 if self._use_n_calib_mode:
-                    if len(self._calibration_set) >= self._n_calib:
+                    if calibration_count >= self._n_calib:
                         break
                     if actual_iterations >= max_iterations:
                         logger.warning(
                             f"Reached maximum iterations ({max_iterations}) "
-                            f"with only {len(self._calibration_set)} samples. "
+                            f"with only {calibration_count} samples. "
                             f"Target was {self._n_calib}."
                         )
                         break
@@ -379,7 +382,6 @@ class Randomized(BaseStrategy):
                 holdout_size = self._draw_holdout_size(generator)
 
                 # Sample holdout set without replacement
-                all_indices = np.arange(self._n_data)
                 calib_idx = generator.choice(
                     all_indices, size=holdout_size, replace=False
                 )
@@ -413,12 +415,8 @@ class Randomized(BaseStrategy):
                     self._detector_list.append(deepcopy(model))
 
                 # Store calibration scores
-                if len(self._calibration_set) == 0:
-                    self._calibration_set = current_scores
-                else:
-                    self._calibration_set = np.concatenate(
-                        [self._calibration_set, current_scores]
-                    )
+                calibration_batches.append(current_scores)
+                calibration_count += len(current_scores)
 
                 # Track holdout sizes and per-iteration scores if requested
                 if track_p_values:
@@ -433,7 +431,7 @@ class Randomized(BaseStrategy):
                 if pbar is not None:
                     if self._use_n_calib_mode:
                         # Update progress to show current calibration samples
-                        pbar.n = min(len(self._calibration_set), self._n_calib)
+                        pbar.n = min(calibration_count, self._n_calib)
                         pbar.desc = (
                             f"{base_desc} | iter: {actual_iterations}, "
                             f"avg_holdout: {avg_holdout:.1f}"
@@ -442,6 +440,11 @@ class Randomized(BaseStrategy):
                     else:
                         pbar.update(1)
                         pbar.desc = f"{base_desc} | avg_holdout: {avg_holdout:.1f}"
+
+        if calibration_batches:
+            self._calibration_set = np.concatenate(calibration_batches)
+        else:
+            self._calibration_set = np.array([])
 
         # If not in plus mode, train final model on all data
         if not self._plus:
