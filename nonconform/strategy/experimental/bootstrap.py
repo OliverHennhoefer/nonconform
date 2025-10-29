@@ -150,6 +150,8 @@ class Bootstrap(BaseStrategy):
             0  # To ensure unique iteration for final model if not _plus
         )
         logger = get_logger("strategy.bootstrap")
+        calibration_batches: list[np.ndarray] = []
+
         fold_iterator = (
             tqdm(
                 folds.split(x),
@@ -176,13 +178,7 @@ class Bootstrap(BaseStrategy):
             if self._plus:
                 self._detector_list.append(deepcopy(model))
 
-            # Concatenate calibration scores
-            if len(self._calibration_set) == 0:
-                self._calibration_set = current_scores
-            else:
-                self._calibration_set = np.concatenate(
-                    [self._calibration_set, current_scores]
-                )
+            calibration_batches.append(current_scores)
 
         if not self._plus:
             model = copy(_detector)
@@ -194,6 +190,11 @@ class Bootstrap(BaseStrategy):
             )
             model.fit(x)
             self._detector_list.append(deepcopy(model))
+
+        if calibration_batches:
+            self._calibration_set = np.concatenate(calibration_batches)
+        else:
+            self._calibration_set = np.array([])
 
         if self._n_calib is not None and self._n_calib < len(self._calibration_set):
             ids = _generator.choice(
