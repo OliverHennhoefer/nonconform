@@ -135,7 +135,6 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[PyODBaseDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
-        # Only used in weighted mode
 
     @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
@@ -202,6 +201,9 @@ class ConformalDetector(BaseConformalDetector):
             Array containing the anomaly estimates. If raw=True, returns anomaly
             scores (float). If raw=False, returns p-values (float).
         """
+        if not self.is_fitted:
+            raise RuntimeError("Call fit() before predict().")
+
         logger = get_logger("estimation.conformal")
         iterable = (
             tqdm(
