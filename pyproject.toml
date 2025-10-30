@@ -61,13 +61,16 @@ deep = [
 fdr = [
     "online-fdr>=0.0.3"
 ]
+kde = [
+    "KDEpy>=1.1.0"
+]
 docs = [
     "mkdocs",
     "mkdocs-material[imaging]",
     "mkdocstrings[python]"
 ]
 all = [
-    "nonconform[data,dev,docs,deep,fdr]"
+    "nonconform[data,dev,docs,deep,fdr,kde]"
 ]
 
 [project.urls]
