@@ -33,6 +33,8 @@ dependencies = [
     "tqdm>=4.66.2",
     "ruff>=0.12.9",
     "pre-commit>=4.3.0",
+    "optuna>=4.5.0",
+    "kdepy>=1.1.12",
 ]
 
 [build-system]
@@ -62,7 +64,8 @@ fdr = [
     "online-fdr>=0.0.3"
 ]
 kde = [
-    "KDEpy>=1.1.0"
+    "KDEpy>=1.1.0",
+    "optuna>=3.0.0"
 ]
 docs = [
     "mkdocs",

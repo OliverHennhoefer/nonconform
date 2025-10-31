@@ -11,13 +11,17 @@ from nonconform.strategy.calibration.experimental.randomized import Randomized
 from nonconform.strategy.calibration.jackknife import Jackknife
 from nonconform.strategy.calibration.jackknife_bootstrap import JackknifeBootstrap
 from nonconform.strategy.calibration.split import Split
+from nonconform.strategy.estimation.empirical import Empirical
+from nonconform.strategy.estimation.probabilistic import Probabilistic
 
 __all__ = [
     "BaseStrategy",
     "Bootstrap",
     "CrossValidation",
+    "Empirical",
     "Jackknife",
     "JackknifeBootstrap",
+    "Probabilistic",
     "Randomized",
     "Split",
 ]

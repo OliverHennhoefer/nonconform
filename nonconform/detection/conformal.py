@@ -6,13 +6,13 @@ from tqdm import tqdm
 
 from nonconform.detection.base import BaseConformalDetector
 from nonconform.detection.weight import BaseWeightEstimator, IdentityWeightEstimator
-from nonconform.strategy import BaseStrategy
+from nonconform.strategy import BaseStrategy, Empirical
+from nonconform.strategy.estimation.base import BaseEstimation
 from nonconform.utils.func.decorator import _ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
 from nonconform.utils.stat.aggregation import aggregate
-from nonconform.utils.stat.statistical import calculate_p_val, calculate_weighted_p_val
 from pyod.models.base import BaseDetector as PyODBaseDetector
 
 
@@ -89,6 +89,7 @@ class ConformalDetector(BaseConformalDetector):
         self,
         detector: PyODBaseDetector,
         strategy: BaseStrategy,
+        estimation: BaseEstimation = Empirical(),
         weight_estimator: BaseWeightEstimator | None = None,
         aggregation: Aggregation = Aggregation.MEDIAN,
         seed: int | None = None,
@@ -102,6 +103,8 @@ class ConformalDetector(BaseConformalDetector):
             weight_estimator: Weight estimator for handling covariate shift. If
                 None, uses standard conformal prediction (equivalent to
                 IdentityWeightEstimator). Defaults to None.
+            estimation: P-value estimation strategy. If None, uses Empirical().
+                Defaults to None.
             aggregation: Method used for aggregating scores from multiple detector
                 models. Defaults to Aggregation.MEDIAN.
             seed: Random seed for reproducibility. Defaults to None.
@@ -122,9 +125,12 @@ class ConformalDetector(BaseConformalDetector):
                 f"strategy=strategy, aggregation=Aggregation.MEDIAN)"
             )
 
+        from nonconform.strategy.estimation.empirical import Empirical
+
         self.detector: PyODBaseDetector = _set_params(detector, seed)
         self.strategy: BaseStrategy = strategy
         self.weight_estimator: BaseWeightEstimator | None = weight_estimator
+        self.estimation = estimation if estimation is not None else Empirical()
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
@@ -221,28 +227,17 @@ class ConformalDetector(BaseConformalDetector):
 
         estimates = aggregate(method=self.aggregation, scores=scores)
 
-        # Fit weight estimator regardless of raw parameter
-        if self._is_weighted_mode and self.weight_estimator is not None:
-            self.weight_estimator.fit(self._calibration_samples, x)
-
         if raw:
             return estimates
 
-        # Choose p-value calculation method based on weight estimator
+        weights = None
         if self._is_weighted_mode and self.weight_estimator is not None:
-            # Weighted p-value calculation (weights already fitted above)
-            w_cal, w_x = self.weight_estimator.get_weights()
-            return calculate_weighted_p_val(
-                np.array(estimates),
-                self._calibration_set,
-                np.array(w_x),
-                np.array(w_cal),
-            )
-        else:
-            # Standard p-value calculation (faster path)
-            return calculate_p_val(
-                scores=estimates, calibration_set=self._calibration_set
-            )
+            self.weight_estimator.fit(self._calibration_samples, x)
+            weights = self.weight_estimator.get_weights()
+
+        return self.estimation.compute_p_values(
+            estimates, self._calibration_set, weights
+        )
 
     @property
     def detector_set(self) -> list[PyODBaseDetector]:

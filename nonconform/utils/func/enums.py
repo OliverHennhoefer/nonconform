@@ -39,10 +39,10 @@ class Aggregation(Enum):
             The underlying value is typically ``"maximum"``.
     """
 
-    MEAN = "mean"
-    MEDIAN = "median"
-    MINIMUM = "minimum"
-    MAXIMUM = "maximum"
+    MEAN = auto()
+    MEDIAN = auto()
+    MINIMUM = auto()
+    MAXIMUM = auto()
 
 
 class Dataset(Enum):
@@ -103,6 +103,20 @@ class Pruning(Enum):
             using a fixed rule with no randomness.
     """
 
-    HETEROGENEOUS = "heterogeneous"
-    HOMOGENEOUS = "homogeneous"
-    DETERMINISTIC = "deterministic"
+    HETEROGENEOUS = auto()
+    HOMOGENEOUS = auto()
+    DETERMINISTIC = auto()
+
+
+class Kernel(Enum):
+    """Available kernels for the smoothed p-value computation."""
+
+    GAUSSIAN = "gaussian"
+    EXPONENTIAL = "exponential"
+    BOX = "box"
+    TRIANGULAR = "tri"
+    EPANECHNIKOV = "epa"
+    BIWEIGHT = "biweight"
+    TRIWEIGHT = "triweight"
+    TRICUBE = "tricube"
+    COSINE = "cosine"
