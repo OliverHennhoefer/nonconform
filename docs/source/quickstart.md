@@ -31,7 +31,7 @@ The most straightforward way to use nonconform is with classical conformal anoma
 import numpy as np
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -124,8 +124,8 @@ print(f"Cross-Validation: {(cv_p_values < 0.05).sum()} detections")
 When dealing with covariate shift, use weighted conformal p-values:
 
 ```python
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 
 # Create weighted conformal anomaly detector
@@ -208,7 +208,7 @@ import matplotlib.pyplot as plt
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 

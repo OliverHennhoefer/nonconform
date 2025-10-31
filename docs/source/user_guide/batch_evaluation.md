@@ -102,7 +102,7 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 
 ```python
 from pyod.models.lof import LOF
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 

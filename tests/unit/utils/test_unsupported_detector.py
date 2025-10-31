@@ -1,7 +1,7 @@
 import unittest
 
-from nonconform.estimation import ConformalDetector
-from nonconform.strategy.split import Split
+from nonconform.detection import ConformalDetector
+from nonconform.strategy import Split
 from pyod.models.cblof import CBLOF
 
 

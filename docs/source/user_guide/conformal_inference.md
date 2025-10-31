@@ -28,7 +28,7 @@ Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
 # Conformal approach - statistically valid p-values
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -134,7 +134,7 @@ The method estimates the likelihood ratio dP_test(X)/dP_calib(X) and reweights c
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 

@@ -2,8 +2,8 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import ConformalDetector
-from nonconform.strategy.experimental.bootstrap import Bootstrap
+from nonconform.detection import ConformalDetector
+from nonconform.strategy import Bootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.hbos import HBOS

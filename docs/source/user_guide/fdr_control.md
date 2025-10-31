@@ -11,7 +11,7 @@ FDR control is a statistical method for handling multiple hypothesis testing. In
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 from pyod.models.lof import LOF
@@ -41,8 +41,8 @@ When calibration and test data follow different covariate distributions, accompa
 
 ```python
 import numpy as np
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.stat import weighted_false_discovery_control
 from pyod.models.iforest import IForest
@@ -171,8 +171,8 @@ FDR control works naturally with conformal prediction p-values:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.stat import weighted_false_discovery_control
 from nonconform.utils.func import Aggregation

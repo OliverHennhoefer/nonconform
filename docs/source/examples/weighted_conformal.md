@@ -8,8 +8,8 @@ This example demonstrates how to use weighted conformal prediction for handling 
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 

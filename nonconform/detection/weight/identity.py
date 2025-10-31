@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.estimation.weight.base import BaseWeightEstimator
+from nonconform.detection.weight.base import BaseWeightEstimator
 
 
 class IdentityWeightEstimator(BaseWeightEstimator):

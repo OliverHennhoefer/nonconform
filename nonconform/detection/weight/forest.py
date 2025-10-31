@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 
-from nonconform.estimation.weight.base import BaseWeightEstimator
+from nonconform.detection.weight.base import BaseWeightEstimator
 
 
 class ForestWeightEstimator(BaseWeightEstimator):

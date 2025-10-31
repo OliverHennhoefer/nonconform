@@ -3,7 +3,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from nonconform.estimation.weight.base import BaseWeightEstimator
+from nonconform.detection.weight.base import BaseWeightEstimator
 
 
 class LogisticWeightEstimator(BaseWeightEstimator):

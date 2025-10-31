@@ -2,13 +2,13 @@ import unittest
 
 from scipy.stats import false_discovery_control
 
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import (
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import (
     ForestWeightEstimator,
     IdentityWeightEstimator,
     LogisticWeightEstimator,
 )
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import CrossValidation
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import weighted_false_discovery_control
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power

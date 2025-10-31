@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from nonconform.strategy.base import BaseStrategy
+from nonconform.strategy.calibration.base import BaseStrategy
 from pyod.models.base import BaseDetector
 
 

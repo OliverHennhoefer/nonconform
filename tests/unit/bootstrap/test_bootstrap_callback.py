@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 
-from nonconform.estimation import ConformalDetector
-from nonconform.strategy.experimental.bootstrap import Bootstrap
+from nonconform.detection import ConformalDetector
+from nonconform.strategy import Bootstrap
 from nonconform.utils.data import Dataset, load
 from pyod.models.iforest import IForest
 

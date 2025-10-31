@@ -39,7 +39,7 @@ from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
 from nonconform.strategy import Split
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.utils.data import load, Dataset
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
@@ -72,7 +72,7 @@ For advanced use cases, the unified ``ConformalDetector()`` supports weighted co
 
 ```python
 # Weighted conformal (with covariate shift handling):
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection.weight import LogisticWeightEstimator
 
 estimator = ConformalDetector(
     detector=IForest(behaviour="new"),

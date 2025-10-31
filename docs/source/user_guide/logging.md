@@ -41,7 +41,7 @@ import logging
 # Enable progress bars and informational messages
 logging.getLogger('nonconform').setLevel(logging.INFO)
 
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import CrossValidation
 from pyod.models.iforest import IForest
 
@@ -80,7 +80,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Bootstrap
 
 detector = ConformalDetector(

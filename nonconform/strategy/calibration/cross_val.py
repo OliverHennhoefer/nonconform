@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
-from nonconform.strategy.base import BaseStrategy
+from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
 from pyod.models.base import BaseDetector

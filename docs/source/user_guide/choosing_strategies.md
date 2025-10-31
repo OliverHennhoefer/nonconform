@@ -130,8 +130,9 @@ strategy = CrossValidation(n_folds=3, plus=False)
 - Longest training times
 
 **Configuration example:**
+
 ```python
-from nonconform.strategy.experimental import Bootstrap
+from nonconform.strategy import Bootstrap
 
 # Standard bootstrap (recommended starting point)
 strategy = Bootstrap(n_bootstraps=50, n_calib=0.2)

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from nonconform.strategy.base import BaseStrategy
+from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.utils.func.enums import Distribution
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params

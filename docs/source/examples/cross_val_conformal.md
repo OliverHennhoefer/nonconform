@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import CrossValidation
 from nonconform.utils.func import Aggregation
 
@@ -167,9 +167,9 @@ print(f"Std detections: {np.std(cv_results):.1f}")
 ## Comparison with Other Strategies
 
 ```python
-from nonconform.strategy.split import Split
-from nonconform.strategy.bootstrap import Bootstrap
-from nonconform.strategy.jackknife import Jackknife
+from nonconform.strategy import Split
+from nonconform.strategy import Bootstrap
+from nonconform.strategy import Jackknife
 
 # Compare cross-validation with other strategies
 strategies = {

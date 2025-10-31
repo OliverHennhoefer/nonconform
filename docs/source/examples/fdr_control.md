@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 from nonconform.utils.stat.metrics import false_discovery_rate
@@ -69,7 +69,7 @@ print(f"No adjustment: {no_adjustment} detections")
 ## Weighted Conformal Selection (Covariate Shift)
 
 ```python
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import weighted_false_discovery_control

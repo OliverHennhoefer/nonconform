@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from nonconform.estimation.base import BaseConformalDetector
-from nonconform.estimation.weight import BaseWeightEstimator, IdentityWeightEstimator
-from nonconform.strategy.base import BaseStrategy
+from nonconform.detection.base import BaseConformalDetector
+from nonconform.detection.weight import BaseWeightEstimator, IdentityWeightEstimator
+from nonconform.strategy import BaseStrategy
 from nonconform.utils.func.decorator import _ensure_numpy_array
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger

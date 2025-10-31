@@ -12,8 +12,8 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 
 ```python
 import numpy as np
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.func.enums import Aggregation
 from pyod.models.lof import LOF
@@ -188,8 +188,8 @@ for agg_method in aggregation_methods:
 Different strategies can be used with weighted conformal detection:
 
 ```python
-from nonconform.strategy.bootstrap import Bootstrap
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import Bootstrap
+from nonconform.strategy import CrossValidation
 
 # Bootstrap strategy for stability
 bootstrap_strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
@@ -213,7 +213,23 @@ cv_detector = ConformalDetector(
 
 ## Weighted Conformal Selection
 
-Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS):
+Weighted
+conformal
+p - values
+are
+valid
+on
+their
+own.To
+obtain
+finite - sample
+FDR
+control
+under
+covariate
+shift, combine
+them
+with Weighted Conformal Selection (WCS):
 
 ```python
 from nonconform.utils.stat import weighted_false_discovery_control

@@ -31,6 +31,6 @@ __version__ = "0.91.1"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 
-from . import estimation, strategy, utils
+from . import detection, strategy, utils
 
-__all__ = ["estimation", "strategy", "utils"]
+__all__ = ["detection", "strategy", "utils"]

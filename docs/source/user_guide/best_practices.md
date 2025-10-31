@@ -102,8 +102,8 @@ accurate_detectors = {
 Consider using multiple detectors for improved robustness:
 
 ```python
-from nonconform.estimation.standard import ConformalDetector
-from nonconform.strategy.split import Split
+from nonconform.detection.standard import ConformalDetector
+from nonconform.strategy import Split
 from nonconform.utils.func.enums import Aggregation
 from scipy.stats import false_discovery_control
 
@@ -144,7 +144,7 @@ Best for:
 - When you have enough data for reliable calibration
 
 ```python
-from nonconform.strategy.split import Split
+from nonconform.strategy import Split
 
 # For large datasets
 strategy = Split(n_calib=0.2)  # Use 20% for calibration
@@ -161,7 +161,7 @@ Best for:
 - When computational cost is not a primary concern
 
 ```python
-from nonconform.strategy.jackknife import Jackknife
+from nonconform.strategy import Jackknife
 
 # For small datasets where every sample matters
 strategy = Jackknife()
@@ -175,7 +175,7 @@ Best for:
 - When you want to balance efficiency and power
 
 ```python
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy import Bootstrap
 
 # Balanced approach for medium datasets
 strategy = Bootstrap(
@@ -192,7 +192,7 @@ Best for:
 - When you need stable performance estimates
 
 ```python
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import CrossValidation
 
 # Good balance of efficiency and stability
 strategy = CrossValidation(k=5)

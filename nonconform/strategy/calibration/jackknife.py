@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from nonconform.strategy.base import BaseStrategy
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy.calibration.base import BaseStrategy
+from nonconform.strategy.calibration.cross_val import CrossValidation
 from pyod.models.base import BaseDetector
 
 
