@@ -153,7 +153,7 @@ weighted_mask = weighted_false_discovery_control(
     w_test=w_test,
     w_calib=w_calib,
     q=0.05,
-    rand="dtm",
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 
@@ -244,7 +244,7 @@ wcs_mask = weighted_false_discovery_control(
     w_test=w_test,
     w_calib=w_calib,
     q=0.05,
-    rand="dtm",  # deterministic pruning; use "hete"/"homo" for randomized variants
+    pruning=Pruning.DETERMINISTIC,  # deterministic pruning; use "hete"/"homo" for randomized variants
     seed=42,
 )
 
@@ -321,6 +321,7 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 ```
 
 ### 2. Combine with Weighted Conformal Selection
+
 ```python
 from nonconform.utils.stat import weighted_false_discovery_control
 
@@ -332,7 +333,7 @@ wcs_mask = weighted_false_discovery_control(
     w_test=w_test,
     w_calib=w_calib,
     q=0.05,
-    rand="dtm",
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 

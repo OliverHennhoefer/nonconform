@@ -12,6 +12,7 @@ import logging
 import numpy as np
 from tqdm import tqdm
 
+from nonconform.utils.func.enums import Pruning
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.stat.statistical import calculate_weighted_p_val
 
@@ -169,7 +170,7 @@ def weighted_false_discovery_control(
     w_test: np.ndarray,
     w_calib: np.ndarray,
     q: float,
-    rand: str = "dtm",
+    pruning: Pruning = Pruning.DETERMINISTIC,
     seed: int | None = None,
 ) -> np.ndarray:
     """Perform Weighted Conformalized Selection (WCS).
@@ -180,7 +181,7 @@ def weighted_false_discovery_control(
         w_test: Importance weights for the test data (length m).
         w_calib: Importance weights for the calibration data (length n).
         q: Target false discovery rate (0 < q < 1).
-        rand: Pruning method. ``'hete'`` (heterogeneous pruning) uses
+        pruning: Pruning method. ``'hete'`` (heterogeneous pruning) uses
             independent random variables l_j; ``'homo'`` (homogeneous
             pruning) uses a single random variable l shared across
             candidates; ``'dtm'`` (deterministic) performs deterministic
@@ -271,15 +272,16 @@ def weighted_false_discovery_control(
     # Step 4: pruning
     # For pruning, we need |R_j^{(0)}| for each j in first_sel_idx
     sizes_sel = r_sizes[first_sel_idx]
-    if rand == "hete":
+    if pruning == Pruning.HETEROGENEOUS:
         final_sel_idx = _prune_heterogeneous(first_sel_idx, sizes_sel, rng)
-    elif rand == "homo":
+    elif pruning == Pruning.HOMOGENEOUS:
         final_sel_idx = _prune_homogeneous(first_sel_idx, sizes_sel, rng)
-    elif rand == "dtm":
+    elif pruning == pruning.DETERMINISTIC:
         final_sel_idx = _prune_deterministic(first_sel_idx, sizes_sel)
     else:
         raise ValueError(
-            f"Unknown pruning method '{rand}'. Use 'hete', 'homo' or 'dtm'."
+            f"Unknown pruning method '{pruning}'. "
+            f"Use 'heterogeneous', 'homogeneous' or 'deterministic'."
         )
 
     # Convert indices to boolean mask

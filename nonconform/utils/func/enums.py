@@ -86,3 +86,23 @@ class Dataset(Enum):
     WBC = "wbc"
     WINE = "wine"
     YEAST = "yeast"
+
+
+class Pruning(Enum):
+    """Available pruning strategies for weighted FDR control.
+
+    This enumeration lists all strategies available for controlling
+    the FDR under potential covariate shift.
+
+    Attributes:
+        HETEROGENEOUS: Heterogeneous pruning removes elements
+            based on independent random checks per item.
+        HOMOGENEOUS: Homogeneous pruning applies one shared
+            random decision to all items.
+        DETERMINISTIC: Deterministic pruning removes items
+            using a fixed rule with no randomness.
+    """
+
+    HETEROGENEOUS = "heterogeneous"
+    HOMOGENEOUS = "homogeneous"
+    DETERMINISTIC = "deterministic"

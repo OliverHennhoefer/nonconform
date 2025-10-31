@@ -10,6 +10,7 @@ from nonconform.detection.weight import (
 )
 from nonconform.strategy import Randomized
 from nonconform.utils.data import Dataset, load
+from nonconform.utils.func.enums import Pruning
 from nonconform.utils.stat import weighted_false_discovery_control
 from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
 from pyod.models.ecod import ECOD
@@ -118,7 +119,13 @@ class TestCaseRandomizedConformal(unittest.TestCase):
         w_cal, w_test = ce.weight_estimator.get_weights()
 
         decisions = weighted_false_discovery_control(
-            scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="homo", seed=1
+            scores,
+            ce.calibration_set,
+            w_test,
+            w_cal,
+            q=0.2,
+            pruning=Pruning.HOMOGENEOUS,
+            seed=1,
         )
 
         self.assertAlmostEqual(

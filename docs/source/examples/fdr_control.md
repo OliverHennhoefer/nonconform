@@ -99,7 +99,7 @@ wcs_mask = weighted_false_discovery_control(
     w_test=w_test,
     w_calib=w_calib,
     q=0.1,
-    rand="dtm",
+    pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
 

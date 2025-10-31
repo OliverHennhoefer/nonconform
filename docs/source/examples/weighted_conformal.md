@@ -158,7 +158,7 @@ discoveries = weighted_false_discovery_control(
     w_test=w_test,
     w_calib=w_calib,
     q=0.05,
-    rand="dtm",
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 

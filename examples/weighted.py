@@ -4,6 +4,7 @@ from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.data import Dataset, load
+from nonconform.utils.func.enums import Pruning
 from nonconform.utils.stat import (
     false_discovery_rate,
     statistical_power,
@@ -33,7 +34,13 @@ if __name__ == "__main__":
     w_cal, w_test = ce.weight_estimator.get_weights()
 
     w_decisions = weighted_false_discovery_control(
-        scores, ce.calibration_set, w_test, w_cal, q=0.2, rand="dtm", seed=1
+        scores,
+        ce.calibration_set,
+        w_test,
+        w_cal,
+        q=0.2,
+        pruning=Pruning.DETERMINISTIC,
+        seed=1,
     )
 
     print(
