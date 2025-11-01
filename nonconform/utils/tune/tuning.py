@@ -89,7 +89,7 @@ def tune_kde_hyperparameters(
         )
 
         return _compute_cv_log_likelihood(
-            calibration_set, kernel_enum, bandwidth, cv_folds, weights
+            calibration_set, kernel_enum, bandwidth, cv_folds, weights, seed
         )
 
     study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
@@ -157,6 +157,7 @@ def _compute_cv_log_likelihood(
     bandwidth: float,
     cv_folds: int,
     weights: np.ndarray | None = None,
+    seed: int | None = None,
 ) -> float:
     """Compute cross-validated log-likelihood for KDE using sklearn CV."""
     n = len(data)
@@ -165,7 +166,7 @@ def _compute_cv_log_likelihood(
         cv_splitter = LeaveOneOut()
         n_splits = n
     else:
-        cv_splitter = KFold(n_splits=cv_folds, shuffle=True)
+        cv_splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=seed)
         n_splits = cv_folds
 
     show_progress = cv_folds == -1 and n >= 100
