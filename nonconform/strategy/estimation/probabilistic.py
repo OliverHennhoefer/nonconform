@@ -20,7 +20,6 @@ class Probabilistic(BaseEstimation):
         kernel: Kernel | Sequence[Kernel] = Kernel.GAUSSIAN,
         n_trials: int = 100,
         cv_folds: int = -1,
-        seed: int | None = None,
     ):
         """Initialize Probabilistic estimation strategy.
 
@@ -29,12 +28,11 @@ class Probabilistic(BaseEstimation):
                 Bandwidth is always auto-tuned.
             n_trials: Number of Optuna trials for tuning.
             cv_folds: CV folds for tuning (-1 for leave-one-out).
-            seed: Random seed for reproducibility.
         """
         self._kernel = kernel
         self._n_trials = n_trials
         self._cv_folds = cv_folds
-        self._seed = seed
+        self._seed = None
 
         self._tuned_params: dict | None = None
         self._kde_model: FFTKDE | None = None
