@@ -242,7 +242,7 @@ def weighted_false_discovery_control(
     j_iterator = (
         tqdm(
             range(m),
-            desc=f"Computing WCS thresholds ({m} test points)",
+            desc="Weighted FDR Control",
         )
         if logger.isEnabledFor(logging.INFO)
         else range(m)

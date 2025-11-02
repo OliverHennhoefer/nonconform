@@ -158,7 +158,7 @@ class CrossValidation(BaseStrategy):
             tqdm(
                 folds.split(x),
                 total=self._k,
-                desc=f"CV fold training ({self._k} folds)",
+                desc="Calibration",
             )
             if logger.isEnabledFor(logging.INFO)
             else folds.split(x)

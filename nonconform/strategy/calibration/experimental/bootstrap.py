@@ -156,7 +156,7 @@ class Bootstrap(BaseStrategy):
             tqdm(
                 folds.split(x),
                 total=n_folds,
-                desc=f"Bootstrap training ({n_folds} folds)",
+                desc="Calibration",
             )
             if logger.isEnabledFor(logging.INFO)
             else folds.split(x)

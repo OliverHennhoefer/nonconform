@@ -172,7 +172,7 @@ def _compute_cv_log_likelihood(
     show_progress = cv_folds == -1 and n >= 100
     splits = cv_splitter.split(data)
     iterator = (
-        tqdm(splits, total=n_splits, desc="LOO CV", leave=False)
+        tqdm(splits, total=n_splits, desc="Hyperparameter Tuning (KDE)", leave=False)
         if show_progress
         else splits
     )

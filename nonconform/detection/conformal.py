@@ -217,7 +217,7 @@ class ConformalDetector(BaseConformalDetector):
             tqdm(
                 self._detector_set,
                 total=len(self._detector_set),
-                desc=f"Aggregating {len(self._detector_set)} models",
+                desc="Aggregation",
             )
             if logger.isEnabledFor(logging.DEBUG)
             else self._detector_set

@@ -177,7 +177,7 @@ class JackknifeBootstrap(BaseStrategy):
             bootstrap_iterator = (
                 tqdm(
                     range(self._n_bootstraps),
-                    desc=f"Bootstrap training ({self._n_bootstraps} iterations)",
+                    desc="Calibration",
                 )
                 if logger.isEnabledFor(logging.INFO)
                 else range(self._n_bootstraps)
@@ -268,7 +268,7 @@ class JackknifeBootstrap(BaseStrategy):
                 tqdm(
                     as_completed(futures),
                     total=self._n_bootstraps,
-                    desc=f"Parallel bootstrap training ({self._n_bootstraps} iter)",
+                    desc="Calibration",
                 )
                 if logger.isEnabledFor(logging.INFO)
                 else as_completed(futures)

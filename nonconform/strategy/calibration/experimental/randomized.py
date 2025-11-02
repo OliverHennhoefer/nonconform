@@ -344,11 +344,11 @@ class Randomized(BaseStrategy):
         if self._use_n_calib_mode:
             # Use a high iteration limit but stop when n_calib is reached
             max_iterations = 10000  # Reasonable upper bound
-            base_desc = f"Randomized (target: {self._n_calib})"
+            base_desc = "Calibration"
             total_for_progress = self._n_calib
         else:
             max_iterations = self._n_iterations
-            base_desc = f"Randomized ({self._n_iterations} iterations)"
+            base_desc = "Calibration"
             total_for_progress = self._n_iterations
 
         actual_iterations = 0
@@ -432,14 +432,9 @@ class Randomized(BaseStrategy):
                     if self._use_n_calib_mode:
                         # Update progress to show current calibration samples
                         pbar.n = min(calibration_count, self._n_calib)
-                        pbar.desc = (
-                            f"{base_desc} | iter: {actual_iterations}, "
-                            f"avg_holdout: {avg_holdout:.1f}"
-                        )
                         pbar.refresh()
                     else:
                         pbar.update(1)
-                        pbar.desc = f"{base_desc} | avg_holdout: {avg_holdout:.1f}"
 
         if calibration_batches:
             self._calibration_set = np.concatenate(calibration_batches)
