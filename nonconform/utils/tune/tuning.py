@@ -5,7 +5,6 @@ import numpy as np
 import optuna
 from KDEpy import FFTKDE
 from sklearn.model_selection import KFold, LeaveOneOut
-from tqdm import tqdm
 
 from nonconform.utils.func.enums import Kernel
 from nonconform.utils.tune.bandwidth import (
@@ -160,22 +159,12 @@ def _compute_cv_log_likelihood(
     seed: int | None = None,
 ) -> float:
     """Compute cross-validated log-likelihood for KDE using sklearn CV."""
-    n = len(data)
-
     if cv_folds == -1:
         cv_splitter = LeaveOneOut()
-        n_splits = n
     else:
         cv_splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=seed)
-        n_splits = cv_folds
 
-    show_progress = cv_folds == -1 and n >= 100
-    splits = cv_splitter.split(data)
-    iterator = (
-        tqdm(splits, total=n_splits, desc="Hyperparameter Tuning (KDE)", leave=False)
-        if show_progress
-        else splits
-    )
+    iterator = cv_splitter.split(data)
 
     log_likelihoods = []
     for train_idx, val_idx in iterator:
