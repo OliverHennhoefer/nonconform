@@ -87,16 +87,7 @@ class Probabilistic(BaseEstimation):
     def _compute_p_values_from_kde(self, scores: np.ndarray) -> np.ndarray:
         """Compute P(X >= score) from fitted KDE via numerical integration."""
         scores = scores.ravel()
-        calib_min, calib_max = self._kde_model.data.min(), self._kde_model.data.max()
-        data_range = calib_max - calib_min
-        margin = max(0.5 * data_range, 0.1)
-
-        grid_min = calib_min - margin
-        grid_max = calib_max + margin
-        n_grid_points = 2**14
-
-        eval_grid = np.linspace(grid_min, grid_max, n_grid_points)
-        pdf_values = self._kde_model.evaluate(eval_grid)
+        eval_grid, pdf_values = self._kde_model.evaluate(2**14)
 
         cdf_values = integrate.cumulative_trapezoid(pdf_values, eval_grid, initial=0)
         cdf_values = cdf_values / cdf_values[-1]  # Normalize
