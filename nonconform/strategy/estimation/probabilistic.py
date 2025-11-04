@@ -2,6 +2,8 @@ from collections.abc import Sequence
 
 import numpy as np
 from KDEpy import FFTKDE
+from scipy import integrate
+from scipy.interpolate import interp1d
 
 from nonconform.strategy.estimation.base import BaseEstimation
 from nonconform.utils.func.enums import Kernel
@@ -96,20 +98,17 @@ class Probabilistic(BaseEstimation):
         eval_grid = np.linspace(grid_min, grid_max, n_grid_points)
         pdf_values = self._kde_model.evaluate(eval_grid)
 
-        dx = (grid_max - grid_min) / (n_grid_points - 1)
-        cdf_values = np.cumsum(pdf_values) * dx
-        cdf_values = np.clip(cdf_values, 0, 1)
+        cdf_values = integrate.cumulative_trapezoid(pdf_values, eval_grid, initial=0)
+        cdf_values = cdf_values / cdf_values[-1]  # Normalize
+        cdf_values = np.clip(cdf_values, 0, 1)  # Safety clipping
 
-        p_values = []
-        for score in scores:
-            if score <= grid_min:
-                p_value = 1.0
-            elif score >= grid_max:
-                p_value = 0.0
-            else:
-                idx = np.searchsorted(eval_grid, score, side="left")
-                idx = min(idx, len(cdf_values) - 1)
-                p_value = 1.0 - cdf_values[idx]
-            p_values.append(p_value)
+        cdf_func = interp1d(
+            eval_grid,
+            cdf_values,
+            kind="linear",
+            bounds_error=False,
+            fill_value=(0, 1),  # CDF=0 below grid_min, CDF=1 above grid_max
+        )
+        p_values = 1.0 - cdf_func(scores)  # P(X >= score)
 
-        return np.clip(np.array(p_values), 0, 1)
+        return np.clip(p_values, 0, 1)
