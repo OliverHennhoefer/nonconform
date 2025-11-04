@@ -425,7 +425,6 @@ class Randomized(BaseStrategy):
 
                 actual_iterations += 1
                 running_holdout_sum += holdout_size
-                avg_holdout = running_holdout_sum / actual_iterations
 
                 # Update progress bar based on mode
                 if pbar is not None:

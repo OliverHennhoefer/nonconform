@@ -131,7 +131,7 @@ class ConformalDetector(BaseConformalDetector):
         self.strategy: BaseStrategy = strategy
         self.weight_estimator: BaseWeightEstimator | None = weight_estimator
         self.estimation = estimation if estimation is not None else Empirical()
-        if seed is not None and hasattr(self.estimation, '_seed'):
+        if seed is not None and hasattr(self.estimation, "_seed"):
             self.estimation._seed = seed
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
