@@ -43,6 +43,8 @@ class LogisticWeightEstimator(BaseWeightEstimator):
         self.max_iter = max_iter
         self._w_calib = None
         self._w_test = None
+        self._model = None
+        self._clip_bounds = None
         self._is_fitted = False
 
     def fit(self, calibration_samples: np.ndarray, test_samples: np.ndarray) -> None:
@@ -90,6 +92,7 @@ class LogisticWeightEstimator(BaseWeightEstimator):
             memory=None,
         )
         model.fit(x_joint, y_joint)
+        self._model = model
 
         # Compute probabilities
         calib_prob = model.predict_proba(calibration_samples)
@@ -105,26 +108,33 @@ class LogisticWeightEstimator(BaseWeightEstimator):
             all_weights = np.concatenate([w_calib, w_test])
             lower_bound = np.percentile(all_weights, self.clip_quantile * 100)
             upper_bound = np.percentile(all_weights, (1 - self.clip_quantile) * 100)
-
-            self._w_calib = np.clip(w_calib, lower_bound, upper_bound)
-            self._w_test = np.clip(w_test, lower_bound, upper_bound)
+            self._clip_bounds = (lower_bound, upper_bound)
         else:
             # Fixed clipping fallback mirroring ForestWeightEstimator behaviour
-            self._w_calib = np.clip(w_calib, 0.35, 45.0)
-            self._w_test = np.clip(w_test, 0.35, 45.0)
+            self._clip_bounds = (0.35, 45.0)
 
+        self._w_calib = np.clip(w_calib, *self._clip_bounds)
+        self._w_test = np.clip(w_test, *self._clip_bounds)
         self._is_fitted = True
 
-    def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
-        """Return computed weights.
-
-        Returns:
-            Tuple of (calibration_weights, test_weights).
-
-        Raises:
-            RuntimeError: If fit() has not been called.
-        """
-        if not self._is_fitted:
-            raise RuntimeError("Must call fit() before get_weights()")
-
+    def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return stored weights from fit()."""
         return self._w_calib.copy(), self._w_test.copy()
+
+    def _score_new_data(
+        self, calibration_samples: np.ndarray, test_samples: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Score new data using fitted model."""
+        # Score provided data using fitted model
+        calib_prob = self._model.predict_proba(calibration_samples)
+        test_prob = self._model.predict_proba(test_samples)
+
+        # Compute density ratios
+        w_calib = calib_prob[:, 1] / (calib_prob[:, 0] + 1e-9)
+        w_test = test_prob[:, 1] / (test_prob[:, 0] + 1e-9)
+
+        # Apply same clipping bounds as fit()
+        w_calib_clipped = np.clip(w_calib, *self._clip_bounds)
+        w_test_clipped = np.clip(w_test, *self._clip_bounds)
+
+        return w_calib_clipped, w_test_clipped

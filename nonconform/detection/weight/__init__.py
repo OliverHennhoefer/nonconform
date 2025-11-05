@@ -9,9 +9,11 @@ from .base import BaseWeightEstimator
 from .forest import ForestWeightEstimator
 from .identity import IdentityWeightEstimator
 from .logistic import LogisticWeightEstimator
+from .wrapper.bagging import BootstrapBaggedWeightEstimator
 
 __all__ = [
     "BaseWeightEstimator",
+    "BootstrapBaggedWeightEstimator",
     "ForestWeightEstimator",
     "IdentityWeightEstimator",
     "LogisticWeightEstimator",

@@ -39,7 +39,16 @@ def tune_kde_hyperparameters(
     Returns:
         Dictionary with 'bandwidth', 'kernel', 'best_score', 'study'.
     """
-    calibration_set = np.sort(calibration_set.ravel())
+    calibration_set = calibration_set.ravel()
+
+    # Sort data and weights together to maintain correspondence
+    if weights is not None:
+        sort_idx = np.argsort(calibration_set)
+        calibration_set = calibration_set[sort_idx]
+        weights = weights[sort_idx]
+    else:
+        calibration_set = np.sort(calibration_set)
+
     kernels = _normalise_kernels(kernel_options)
 
     bw_min, bw_max = compute_bandwidth_range(calibration_set)
@@ -198,7 +207,16 @@ def _fit_kde(
     weights: np.ndarray | None = None,
 ) -> FFTKDE:
     """Fit FFTKDE model."""
-    data = np.sort(data.ravel())
+    data = data.ravel()
+
+    # Sort data and weights together to maintain correspondence
+    if weights is not None:
+        sort_idx = np.argsort(data)
+        data = data[sort_idx]
+        weights = weights[sort_idx]
+    else:
+        data = np.sort(data)
+
     kde = FFTKDE(kernel=kernel.value, bw=bandwidth)
     if weights is not None:
         kde.fit(data, weights=weights)

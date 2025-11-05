@@ -133,6 +133,10 @@ class ConformalDetector(BaseConformalDetector):
         self.estimation = estimation if estimation is not None else Empirical()
         if seed is not None and hasattr(self.estimation, "_seed"):
             self.estimation._seed = seed
+        # Propagate seed to weight_estimator if it supports seed inheritance
+        if seed is not None and self.weight_estimator is not None:
+            if hasattr(self.weight_estimator, "_seed"):
+                self.weight_estimator._seed = seed
         self.aggregation: Aggregation = aggregation
         self.seed: int | None = seed
 
@@ -229,13 +233,14 @@ class ConformalDetector(BaseConformalDetector):
 
         estimates = aggregate(method=self.aggregation, scores=scores)
 
-        if raw:
-            return estimates
-
         weights = None
         if self._is_weighted_mode and self.weight_estimator is not None:
             self.weight_estimator.fit(self._calibration_samples, x)
-            weights = self.weight_estimator.get_weights()
+            if not raw:
+                weights = self.weight_estimator.get_weights()
+
+        if raw:
+            return estimates
 
         return self.estimation.compute_p_values(
             estimates, self._calibration_set, weights

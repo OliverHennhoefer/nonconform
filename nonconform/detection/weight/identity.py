@@ -30,19 +30,16 @@ class IdentityWeightEstimator(BaseWeightEstimator):
         self._n_test = test_samples.shape[0]
         self._is_fitted = True
 
-    def get_weights(self) -> tuple[np.ndarray, np.ndarray]:
-        """Return uniform weights of 1.0 for all samples.
-
-        Returns:
-            Tuple of (calibration_weights, test_weights) with all values = 1.0.
-
-        Raises:
-            RuntimeError: If fit() has not been called.
-        """
-        if not self._is_fitted:
-            raise RuntimeError("Must call fit() before get_weights()")
-
+    def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return uniform weights of 1.0 for stored sizes."""
         calib_weights = np.ones(self._n_calib, dtype=np.float64)
         test_weights = np.ones(self._n_test, dtype=np.float64)
+        return calib_weights, test_weights
 
+    def _score_new_data(
+        self, calibration_samples: np.ndarray, test_samples: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return uniform weights of 1.0 for provided data."""
+        calib_weights = np.ones(calibration_samples.shape[0], dtype=np.float64)
+        test_weights = np.ones(test_samples.shape[0], dtype=np.float64)
         return calib_weights, test_weights

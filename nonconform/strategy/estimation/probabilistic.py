@@ -51,8 +51,14 @@ class Probabilistic(BaseEstimation):
         Lazy fitting: tunes and fits KDE on first call or when calibration changes.
         For weighted mode, uses w_calib for tuning and fitting.
         """
-        current_hash = hash(calibration_set.tobytes())
         w_calib = weights[0] if weights is not None else None
+
+        # Default case: no weights (standard conformal prediction)
+        if weights is None:
+            current_hash = hash(calibration_set.tobytes())
+        else:
+            # Edge case: with weights (covariate shift handling)
+            current_hash = hash((calibration_set.tobytes(), w_calib.tobytes()))
 
         if self._kde_model is None or self._calibration_hash != current_hash:
             self._fit_kde(calibration_set, w_calib)
@@ -62,7 +68,15 @@ class Probabilistic(BaseEstimation):
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None):
         """Fit KDE with automatic hyperparameter tuning."""
-        calibration_set = np.sort(calibration_set.ravel())
+        calibration_set = calibration_set.ravel()
+
+        # Sort data and weights together to maintain correspondence
+        if weights is not None:
+            sort_idx = np.argsort(calibration_set)
+            calibration_set = calibration_set[sort_idx]
+            weights = weights[sort_idx]
+        else:
+            calibration_set = np.sort(calibration_set)
 
         tuning_result = tune_kde_hyperparameters(
             calibration_set=calibration_set,
