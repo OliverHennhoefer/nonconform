@@ -44,5 +44,5 @@ if __name__ == "__main__":
         seed=1,
     )
 
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.10
+    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.11
     print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.94
