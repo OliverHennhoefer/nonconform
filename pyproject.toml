@@ -55,7 +55,8 @@ dev = [
     "build",
     "mkdocs",
     "mkdocs-material[imaging]",
-    "mkdocstrings[python]"
+    "mkdocstrings[python]",
+    "scipy-stubs==1.16.3.0"
 ]
 deep = [
     "torch>=2.7.0"
@@ -63,17 +64,13 @@ deep = [
 fdr = [
     "online-fdr>=0.0.3"
 ]
-kde = [
-    "KDEpy>=1.1.0",
-    "optuna>=3.0.0"
-]
 docs = [
     "mkdocs",
     "mkdocs-material[imaging]",
     "mkdocstrings[python]"
 ]
 all = [
-    "nonconform[data,dev,docs,deep,fdr,kde]"
+    "nonconform[data,dev,docs,deep,fdr]"
 ]
 
 [project.urls]
