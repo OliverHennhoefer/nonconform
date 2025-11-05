@@ -3,7 +3,7 @@ from nonconform.detection.weight import (
     BootstrapBaggedWeightEstimator,
     LogisticWeightEstimator,
 )
-from nonconform.strategy import Split
+from nonconform.strategy import Probabilistic, Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.func.enums import Pruning
 from nonconform.utils.stat import (
@@ -24,6 +24,7 @@ if __name__ == "__main__":
             base_estimator=LogisticWeightEstimator(),
             n_bootstrap=100,
         ),
+        estimation=Probabilistic(),
         seed=1,
     )
 
