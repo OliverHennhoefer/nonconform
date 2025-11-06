@@ -88,20 +88,17 @@ weighted_detector = ConformalDetector(
 
 weighted_detector.fit(x_train)
 
-# Obtain raw scores and importance weights
-scores = weighted_detector.predict(x_test, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+# Obtain weighted p-values, raw scores, and importance weights
+weighted_p_values = weighted_detector.predict(x_test, raw=False)
 
 # Weighted Conformal Selection controls the FDR under covariate shift
 wcs_mask = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.1,
+    result=weighted_detector.last_result,
+    alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
+# detector.last_result bundles the scores/weights produced by predict()
 
 print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")

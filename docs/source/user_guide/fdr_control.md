@@ -56,16 +56,12 @@ detector = ConformalDetector(
 
 detector.fit(X_train)
 
-# Weighted conformal selection expects raw scores and importance weights
-scores = detector.predict(X_test, raw=True)
-w_calib, w_test = detector.weight_estimator.get_weights()
+# Weighted conformal selection reads all cached quantities from detector.last_result
+detector.predict(X_test, raw=False)
 
 selected = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.1,
+    result=detector.last_result,
+    alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
@@ -73,7 +69,10 @@ selected = weighted_false_discovery_control(
 print(f"Selected points: {selected.sum()} / {len(selected)}")
 ```
 
-The ``rand`` parameter controls how ties are broken: ``"dtm"`` is deterministic, ``"homo"`` and ``"hete"`` introduce shared or independent randomness. Set ``seed`` for reproducible pruning decisions.
+`ConformalDetector.last_result` always reflects the most recent prediction call,
+bundling p-values, scores, and importance weights for downstream analysis.
+
+The ``pruning`` parameter controls the tie-breaking strategy: ``DETERMINISTIC`` uses a fixed rule, while ``HOMOGENEOUS`` and ``HETEROGENEOUS`` introduce shared or independent randomness. Set ``seed`` for reproducible pruning decisions.
 
 ## Available Methods
 
@@ -205,14 +204,10 @@ weighted_detector = ConformalDetector(
 )
 weighted_detector.fit(X_train)
 
-scores = weighted_detector.predict(X_test, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+weighted_detector.predict(X_test, raw=False)
 weighted_mask = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.05,
+    result=weighted_detector.last_result,
+    alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
 )

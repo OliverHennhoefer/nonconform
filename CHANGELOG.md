@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file (from `0.9.1
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.95.0
+- Change the interface to support the standard ``Empirical()`` as well as the new ``Probabilistic()`` approach.
+  - ```Probabilistic()``` models the calibration set additionally via a suitable KDE to increase power in low-regime settings.
+  - Structure and naming in the package was changed in this context.
+- Adds ```BootstrapBaggedWeightEstimator``` for more stable weights in scenarios of extreme imbalance between calibration and test set size.
+- Added ``ConformalResult`` snapshot object exposed via ``ConformalDetector.last_result`` to bundle p-values, scores, and weights.
+- ``weighted_false_discovery_control()`` now accepts either raw arrays or a ``ConformalResult`` and internally recomputes weighted conformal p-values when needed.
+- Probabilistic KDE estimator attaches its evaluation grid to the snapshot so Weighted Conformal Selection can (optionally) use smoothed calibration mass instead of empirical counts.
+- KDE-based conformal p-values no longer include the finite-sample self-weight correction, allowing values down to zero while empirical estimators retain the classical bound.
+
 ## 0.91.0 (2025-10-09)
 
 ### Added

@@ -13,12 +13,13 @@ if __name__ == "__main__":
     pce = ConformalDetector(
         detector=HBOS(),
         strategy=Split(n_calib=1_000),
-        estimation=Probabilistic(),
+        estimation=Probabilistic(n_trials=10),
         seed=1,
     )
 
     pce.fit(x_train)
     estimates = pce.predict(x_test)
+    print(estimates.min())
 
     # Apply FDR control
     decisions = false_discovery_control(estimates, method="bh") <= 0.2

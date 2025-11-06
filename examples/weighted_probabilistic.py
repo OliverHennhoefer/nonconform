@@ -17,7 +17,7 @@ if __name__ == "__main__":
     x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
     # Weighted Conformal Anomaly Detector
-    ce = ConformalDetector(
+    wpce = ConformalDetector(
         detector=HBOS(),
         strategy=Split(n_calib=1_000),
         weight_estimator=BootstrapBaggedWeightEstimator(
@@ -28,22 +28,16 @@ if __name__ == "__main__":
         seed=1,
     )
 
-    ce.fit(x_train)
-    estimates = ce.predict(x_test)
+    wpce.fit(x_train)
+    weighted_p_values = wpce.predict(x_test)
 
     # Apply weighted FDR control
-    scores = ce.predict(x_test, raw=True)
-    w_cal, w_test = ce.weight_estimator.get_weights()
-
     w_decisions = weighted_false_discovery_control(
-        scores,
-        ce.calibration_set,
-        w_test,
-        w_cal,
-        q=0.2,
+        result=wpce.last_result,
+        alpha=0.2,
         pruning=Pruning.DETERMINISTIC,
         seed=1,
     )
 
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.11
-    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.94
+    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.00
+    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.93

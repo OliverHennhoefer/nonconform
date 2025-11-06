@@ -148,18 +148,14 @@ print(f"Weighted p-values range: {weighted_p_values.min():.4f} - {weighted_p_val
 # Optionally apply Weighted Conformal Selection for FDR control
 from nonconform.utils.stat import weighted_false_discovery_control
 
-scores = weighted_detector.predict(X_test, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
-
 selected = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.1,
+    result=weighted_detector.last_result,
+    alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
+
+# detector.last_result bundles the cached scores and weights for reuse
 
 print(f"Weighted FDR-controlled detections: {selected.sum()}")
 ```
