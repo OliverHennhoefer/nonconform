@@ -373,3 +373,58 @@ def weighted_false_discovery_control(
     final_sel_mask[final_sel_idx] = True
 
     return final_sel_mask
+
+
+def weighted_bh(
+    result: ConformalResult,
+    alpha: float = 0.05,
+) -> np.ndarray:
+    """Apply weighted Benjamini-Hochberg procedure.
+
+    Computes weighted conformal p-values and applies the Benjamini-Hochberg
+    procedure to return discovery decisions for FDR control under covariate shift.
+    Similar to scipy.stats.false_discovery_control but with importance weighting.
+
+    Args:
+        result: Conformal result bundle with test/calib scores and weights.
+        alpha: Target false discovery rate (0 < alpha < 1). Defaults to 0.05.
+
+    Returns:
+        Boolean array indicating discoveries for each test point.
+
+    References:
+        Jin, Y., & Candes, E. (2023). Model-free selective inference under
+        covariate shift via weighted conformal p-values. arXiv preprint
+        arXiv:2307.09291.
+    """
+    test_scores = result.test_scores
+    calib_scores = result.calib_scores
+    test_weights = result.test_weights
+    calib_weights = result.calib_weights
+
+    m = len(test_scores)
+    sum_calib_weight = np.sum(calib_weights)
+
+    # Compute weighted conformal p-values (strict <, no tie-breaking)
+    weighted_mass_below = np.sum(
+        (calib_scores >= test_scores[:, np.newaxis]) * calib_weights,
+        axis=1,
+    )
+
+    p_values = weighted_mass_below / (sum_calib_weight + test_weights)
+
+    # Apply BH procedure to get adjusted p-values
+    sorted_idx = np.argsort(p_values)
+    sorted_p = p_values[sorted_idx]
+
+    # Compute adjusted p-values: p_adj[k] = min(p[j] * m / (j+1) for j >= k)
+    adjusted_sorted = np.minimum.accumulate((sorted_p * m / np.arange(1, m + 1))[::-1])[
+        ::-1
+    ]
+
+    # Reorder back to original order
+    adjusted_p_values = np.empty(m)
+    adjusted_p_values[sorted_idx] = adjusted_sorted
+
+    # Return boolean decisions
+    return adjusted_p_values <= alpha

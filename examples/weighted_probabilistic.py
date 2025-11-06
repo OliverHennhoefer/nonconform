@@ -11,6 +11,7 @@ from nonconform.utils.stat import (
     statistical_power,
     weighted_false_discovery_control,
 )
+from nonconform.utils.stat.weighted_fdr import weighted_bh
 from pyod.models.hbos import HBOS
 
 if __name__ == "__main__":
@@ -41,3 +42,8 @@ if __name__ == "__main__":
 
     print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.00
     print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.93
+
+    w_decisions = weighted_bh(wpce.last_result, alpha=0.2)
+
+    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.11
+    print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.94
