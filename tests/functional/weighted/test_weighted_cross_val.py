@@ -92,15 +92,11 @@ class TestCaseSplitConformal(unittest.TestCase):
 
         ce.fit(x_train)
 
-        scores = ce.predict(x_test, raw=True)
-        w_cal, w_test = ce.weight_estimator.get_weights()
+        ce.predict(x_test)
 
         decisions = weighted_false_discovery_control(
-            scores,
-            ce.calibration_set,
-            w_test,
-            w_cal,
-            q=0.2,
+            result=ce.last_result,
+            alpha=0.2,
             pruning=Pruning.DETERMINISTIC,
             seed=1,
         )

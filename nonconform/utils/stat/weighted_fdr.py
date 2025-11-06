@@ -14,6 +14,7 @@ from tqdm import tqdm
 
 from nonconform.utils.func.enums import Pruning
 from nonconform.utils.func.logger import get_logger
+from nonconform.utils.stat.results import ConformalResult
 from nonconform.utils.stat.statistical import calculate_weighted_p_val
 
 
@@ -70,62 +71,54 @@ def _calib_weight_mass_below(
     return cum_weights[positions]
 
 
+def _compute_r_star(metrics: np.ndarray) -> int:
+    """Return the largest r s.t. #{j : metrics_j ≤ r} ≥ r."""
+    if metrics.size == 0:
+        return 0
+    sorted_metrics = np.sort(metrics)
+    for k in range(sorted_metrics.size, 0, -1):
+        if sorted_metrics[k - 1] <= k:
+            return k
+    return 0
+
+
+def _select_with_metrics(first_sel_idx: np.ndarray, metrics: np.ndarray) -> np.ndarray:
+    """Select indices whose metric satisfies the r_* threshold."""
+    r_star = _compute_r_star(metrics)
+    if r_star == 0:
+        return np.array([], dtype=int)
+    selected = first_sel_idx[metrics <= r_star]
+    return np.sort(selected)
+
+
 def _prune_heterogeneous(
     first_sel_idx: np.ndarray, sizes_sel: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
     """Heterogeneous pruning with independent random variables.
 
-    Uses independent ξ_j ∈ [0,1] for each candidate, ordering by ξ_j * |R_j^{(0)}|.
-
-    Args:
-        first_sel_idx: Indices of first selection set R^{(1)}.
-        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
-        rng: Random number generator for ξ_j.
-
-    Returns:
-        Sorted array of final selected indices.
+    Uses independent ξ_j ∈ [0,1] for each candidate and applies the
+    thresholding rule from eq. (7) of the weighted conformal paper.
     """
     xi = rng.uniform(size=len(first_sel_idx))
-    order = np.argsort(xi * sizes_sel)
-    return np.sort(first_sel_idx[order])
+    metrics = xi * sizes_sel
+    return _select_with_metrics(first_sel_idx, metrics)
 
 
 def _prune_homogeneous(
     first_sel_idx: np.ndarray, sizes_sel: np.ndarray, rng: np.random.Generator
 ) -> np.ndarray:
-    """Homogeneous pruning with shared random variable.
-
-    Uses a single shared ξ ∈ [0,1] across all candidates, ordering by ξ * |R_j^{(0)}|.
-
-    Args:
-        first_sel_idx: Indices of first selection set R^{(1)}.
-        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
-        rng: Random number generator for ξ.
-
-    Returns:
-        Sorted array of final selected indices.
-    """
+    """Homogeneous pruning with shared random variable."""
     xi = rng.uniform()
-    order = np.argsort(xi * sizes_sel)
-    return np.sort(first_sel_idx[order])
+    metrics = xi * sizes_sel
+    return _select_with_metrics(first_sel_idx, metrics)
 
 
 def _prune_deterministic(
     first_sel_idx: np.ndarray, sizes_sel: np.ndarray
 ) -> np.ndarray:
-    """Deterministic pruning based on rejection set sizes.
-
-    Orders candidates by |R_j^{(0)}| without randomization.
-
-    Args:
-        first_sel_idx: Indices of first selection set R^{(1)}.
-        sizes_sel: Sizes |R_j^{(0)}| for each j in first_sel_idx.
-
-    Returns:
-        Sorted array of final selected indices.
-    """
-    order = np.argsort(sizes_sel)
-    return np.sort(first_sel_idx[order])
+    """Deterministic pruning based on rejection set sizes."""
+    metrics = sizes_sel.astype(float)
+    return _select_with_metrics(first_sel_idx, metrics)
 
 
 def _compute_rejection_set_size_for_instance(
@@ -136,6 +129,7 @@ def _compute_rejection_set_size_for_instance(
     bh_thresholds: np.ndarray,
     calib_mass_below: np.ndarray,
     scratch: np.ndarray,
+    include_self_weight: bool,
 ) -> int:
     """Compute rejection set size |R_j^{(0)}| for test instance j.
 
@@ -151,36 +145,52 @@ def _compute_rejection_set_size_for_instance(
         bh_thresholds: Precomputed BH thresholds q * (1:m) / m.
         calib_mass_below: Weighted calibration mass strictly below each test score.
         scratch: Workspace array for computing auxiliary p-values.
+        include_self_weight: Whether to include the test instance's own weight
+            when computing auxiliary p-values. If True, incorporates w_test[j]
+            into both numerator and denominator; if False, uses only calibration
+            weights.
 
     Returns:
         Size of the rejection set |R_j^{(0)}| for instance j.
     """
     np.copyto(scratch, calib_mass_below)
-    scratch += w_test[j] * (test_scores[j] < test_scores)
+    if include_self_weight:
+        scratch += w_test[j] * (test_scores[j] < test_scores)
+        denominator = sum_calib_weight + w_test[j]
+    else:
+        denominator = sum_calib_weight
     scratch[j] = 0.0
-    denominator = sum_calib_weight + w_test[j]
     scratch /= denominator
     scratch[j] = 0.0
     return _bh_rejection_count(scratch, bh_thresholds)
 
 
 def weighted_false_discovery_control(
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
-    w_test: np.ndarray,
-    w_calib: np.ndarray,
-    q: float,
+    result: ConformalResult | None = None,
+    *,
+    p_values: np.ndarray | None = None,
+    alpha: float = 0.05,
+    test_scores: np.ndarray | None = None,
+    calib_scores: np.ndarray | None = None,
+    test_weights: np.ndarray | None = None,
+    calib_weights: np.ndarray | None = None,
     pruning: Pruning = Pruning.DETERMINISTIC,
     seed: int | None = None,
 ) -> np.ndarray:
     """Perform Weighted Conformalized Selection (WCS).
 
     Args:
+        result: Optional conformal result bundle carrying cached arrays (as
+            produced by ``ConformalDetector.last_result``). When provided,
+            remaining parameters default to the contents of this object.
+        p_values: Weighted conformal p-values for the test data. If None, the
+            values are computed internally using `test_scores`, `calib_scores`,
+            `test_weights`, and `calib_weights`.
+        alpha: Target false discovery rate (0 < alpha < 1). Defaults to 0.05.
         test_scores: Non-conformity scores for the test data (length m).
         calib_scores: Non-conformity scores for the calibration data (length n).
-        w_test: Importance weights for the test data (length m).
-        w_calib: Importance weights for the calibration data (length n).
-        q: Target false discovery rate (0 < q < 1).
+        test_weights: Importance weights for the test data (length m).
+        calib_weights: Importance weights for the calibration data (length n).
         pruning: Pruning method. ``'hete'`` (heterogeneous pruning) uses
             independent random variables l_j; ``'homo'`` (homogeneous
             pruning) uses a single random variable l shared across
@@ -194,20 +204,11 @@ def weighted_false_discovery_control(
         For deterministic pruning (``'dtm'``), this may coincide with the
         first selection step.
 
-    Note:
-        The procedure follows Algorithm 1 in Jin & Candes (2023):
+    Raises:
+        ValueError: If ``alpha`` is outside (0, 1) or required inputs are missing.
 
-        1. Compute weighted conformal p-values ``p_vals`` for the test
-           points.
-        2. For each j, compute auxiliary p-values p^{(j)}_l (l ≠ j) and
-           form the BH rejection set R_j^{(0)} on these auxiliary
-           p-values; set s_j = q * |R_j^{(0)}| / m.
-        3. Form the first selection set R^{(1)} = {j: p_j ≤ s_j}.
-        4. Prune R^{(1)} using the specified method:
-           * ``'hete'``: heterogeneous pruning with independent ξ_j.
-           * ``'homo'``: homogeneous pruning with a shared ξ.
-           * ``'dtm'``: deterministic pruning based on |R_j^{(0)}|.
-        5. Return boolean mask for final selected test points.
+    Note:
+        The procedure follows Algorithm 1 in Jin & Candes (2023).
 
         Computational cost is O(m^2) in the number of test points.
 
@@ -216,27 +217,109 @@ def weighted_false_discovery_control(
         covariate shift via weighted conformal p-values. arXiv preprint
         arXiv:2307.09291.
     """
-    # Convert inputs to numpy arrays
-    test_scores = np.asarray(test_scores)
-    calib_scores = np.asarray(calib_scores)
-    w_test = np.asarray(w_test)
-    w_calib = np.asarray(w_calib)
+    if not (0.0 < alpha < 1.0):
+        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+
+    if result is not None:
+        if result.p_values is not None and p_values is None:
+            p_values = result.p_values
+        if result.test_scores is not None and test_scores is None:
+            test_scores = result.test_scores
+        if result.calib_scores is not None and calib_scores is None:
+            calib_scores = result.calib_scores
+        if result.test_weights is not None and test_weights is None:
+            test_weights = result.test_weights
+        if result.calib_weights is not None and calib_weights is None:
+            calib_weights = result.calib_weights
+
+    kde_support: tuple[np.ndarray, np.ndarray, float] | None = None
+    use_self_weight = True
+    if result is not None and result.metadata:
+        kde_meta = result.metadata.get("kde")
+        if kde_meta is not None:
+            try:
+                eval_grid = np.asarray(kde_meta["eval_grid"])
+                cdf_values = np.asarray(kde_meta["cdf_values"])
+                total_weight = float(kde_meta["total_weight"])
+                if (
+                    eval_grid.ndim == 1
+                    and cdf_values.ndim == 1
+                    and eval_grid.size == cdf_values.size
+                    and eval_grid.size > 1
+                ):
+                    kde_support = (eval_grid, cdf_values, total_weight)
+                    use_self_weight = False
+            except KeyError:
+                kde_support = None
+
+    need_scores = p_values is None
+
+    if need_scores:
+        if any(
+            arr is None
+            for arr in (test_scores, calib_scores, test_weights, calib_weights)
+        ):
+            raise ValueError(
+                "test_scores, calib_scores, test_weights, and calib_weights "
+                "must be provided when p_values is None."
+            )
+        test_scores = np.asarray(test_scores)
+        calib_scores = np.asarray(calib_scores)
+        test_weights = np.asarray(test_weights)
+        calib_weights = np.asarray(calib_weights)
+        p_vals = calculate_weighted_p_val(
+            test_scores, calib_scores, test_weights, calib_weights
+        )
+    else:
+        p_vals = np.asarray(p_values)
+        if p_vals.ndim != 1:
+            raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
+        if any(
+            arr is None
+            for arr in (test_scores, calib_scores, test_weights, calib_weights)
+        ):
+            raise ValueError(
+                "test_scores, calib_scores, test_weights, and calib_weights "
+                "must be provided when supplying p_values."
+            )
+        test_scores = np.asarray(test_scores)
+        calib_scores = np.asarray(calib_scores)
+        test_weights = np.asarray(test_weights)
+        calib_weights = np.asarray(calib_weights)
+
     m = len(test_scores)
+    if len(test_weights) != m or len(p_vals) != m:
+        raise ValueError(
+            "test_scores, test_weights, and p_values must have the same length."
+        )
+    if len(calib_scores) != len(calib_weights):
+        raise ValueError("calib_scores and calib_weights must have the same length.")
+
     if seed is None:
         # Draw entropy from OS to seed the generator explicitly for lint compliance.
         seed = np.random.SeedSequence().entropy
     rng = np.random.default_rng(seed)
 
-    # Step 1: weighted conformal p-values using package utility
-    p_vals = calculate_weighted_p_val(test_scores, calib_scores, w_test, w_calib)
-
     # Precompute constants
-    sum_calib_weight = np.sum(w_calib)
+    if kde_support is not None:
+        eval_grid, cdf_values, total_weight = kde_support
+        sum_calib_weight = total_weight
+        calib_mass_below = sum_calib_weight * np.interp(
+            test_scores,
+            eval_grid,
+            cdf_values,
+            left=0.0,
+            right=1.0,
+        )
+    else:
+        sum_calib_weight = np.sum(calib_weights)
+        calib_mass_below = _calib_weight_mass_below(
+            calib_scores, calib_weights, test_scores
+        )
 
     # Step 2: compute R_j^{(0)} sizes and thresholds s_j
     r_sizes = np.zeros(m, dtype=float)
-    bh_thresholds = q * (np.arange(1, m + 1) / m)
-    calib_mass_below = _calib_weight_mass_below(calib_scores, w_calib, test_scores)
+    bh_thresholds = alpha * (np.arange(1, m + 1) / m)
     scratch = np.empty(m, dtype=float)
     logger = get_logger("utils.stat.weighted_fdr")
     j_iterator = (
@@ -251,15 +334,16 @@ def weighted_false_discovery_control(
         r_sizes[j] = _compute_rejection_set_size_for_instance(
             j,
             test_scores,
-            w_test,
+            test_weights,
             sum_calib_weight,
             bh_thresholds,
             calib_mass_below,
             scratch,
+            include_self_weight=use_self_weight,
         )
 
     # Compute thresholds s_j = q * |R_j^{(0)}| / m
-    thresholds = q * r_sizes / m
+    thresholds = alpha * r_sizes / m
 
     # Step 3: first selection set R^{(1)}
     first_sel_idx = np.flatnonzero(p_vals <= thresholds)
@@ -276,7 +360,7 @@ def weighted_false_discovery_control(
         final_sel_idx = _prune_heterogeneous(first_sel_idx, sizes_sel, rng)
     elif pruning == Pruning.HOMOGENEOUS:
         final_sel_idx = _prune_homogeneous(first_sel_idx, sizes_sel, rng)
-    elif pruning == pruning.DETERMINISTIC:
+    elif pruning == Pruning.DETERMINISTIC:
         final_sel_idx = _prune_deterministic(first_sel_idx, sizes_sel)
     else:
         raise ValueError(

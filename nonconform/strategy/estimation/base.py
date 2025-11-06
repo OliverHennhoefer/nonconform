@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 import numpy as np
 
@@ -24,3 +25,7 @@ class BaseEstimation(ABC):
             Array of p-values for each test instance.
         """
         pass
+
+    def get_metadata(self) -> dict[str, Any]:
+        """Optional auxiliary data exposed after compute_p_values."""
+        return {}

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
 from nonconform.utils.stat.aggregation import aggregate
+from nonconform.utils.stat.results import ConformalResult
 from pyod.models.base import BaseDetector as PyODBaseDetector
 
 
@@ -147,6 +149,7 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[PyODBaseDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
+        self._last_result: ConformalResult | None = None
 
     @_ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
@@ -188,6 +191,10 @@ class ConformalDetector(BaseConformalDetector):
             else:
                 # Handle case where calibration_ids might be empty or None
                 self._calibration_samples = np.array([])
+        else:
+            self._calibration_samples = np.array([])
+
+        self._last_result = None
 
     @_ensure_numpy_array
     def predict(
@@ -233,18 +240,52 @@ class ConformalDetector(BaseConformalDetector):
 
         estimates = aggregate(method=self.aggregation, scores=scores)
 
-        weights = None
+        weights: tuple[np.ndarray, np.ndarray] | None = None
         if self._is_weighted_mode and self.weight_estimator is not None:
             self.weight_estimator.fit(self._calibration_samples, x)
-            if not raw:
-                weights = self.weight_estimator.get_weights()
+            weights = self.weight_estimator.get_weights()
 
         if raw:
+            test_weights = None
+            calib_weights = None
+            if weights is not None:
+                calib_weights, test_weights = weights
+
+            self._last_result = ConformalResult(
+                p_values=None,
+                test_scores=estimates.copy(),
+                calib_scores=self._calibration_set.copy(),
+                test_weights=None if test_weights is None else test_weights.copy(),
+                calib_weights=None if calib_weights is None else calib_weights.copy(),
+                metadata={},
+            )
             return estimates
 
-        return self.estimation.compute_p_values(
+        p_values = self.estimation.compute_p_values(
             estimates, self._calibration_set, weights
         )
+
+        test_weights = None
+        calib_weights = None
+        if weights is not None:
+            calib_weights, test_weights = weights
+
+        metadata: dict[str, Any] = {}
+        if hasattr(self.estimation, "get_metadata"):
+            meta = self.estimation.get_metadata()
+            if meta:
+                metadata = {key: value for key, value in meta.items()}
+
+        self._last_result = ConformalResult(
+            p_values=p_values.copy(),
+            test_scores=estimates.copy(),
+            calib_scores=self._calibration_set.copy(),
+            test_weights=None if test_weights is None else test_weights.copy(),
+            calib_weights=None if calib_weights is None else calib_weights.copy(),
+            metadata=metadata,
+        )
+
+        return p_values
 
     @property
     def detector_set(self) -> list[PyODBaseDetector]:
@@ -286,6 +327,11 @@ class ConformalDetector(BaseConformalDetector):
             Returns a defensive copy to prevent external modification of internal state.
         """
         return self._calibration_samples.copy()
+
+    @property
+    def last_result(self) -> ConformalResult | None:
+        """Return the most recent conformal result snapshot."""
+        return None if self._last_result is None else self._last_result.copy()
 
     @property
     def is_fitted(self) -> bool:

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from KDEpy import FFTKDE
@@ -39,6 +40,9 @@ class Probabilistic(BaseEstimation):
         self._tuned_params: dict | None = None
         self._kde_model: FFTKDE | None = None
         self._calibration_hash: int | None = None
+        self._kde_eval_grid: np.ndarray | None = None
+        self._kde_cdf_values: np.ndarray | None = None
+        self._kde_total_weight: float | None = None
 
     def compute_p_values(
         self,
@@ -49,22 +53,33 @@ class Probabilistic(BaseEstimation):
         """Compute continuous p-values using KDE.
 
         Lazy fitting: tunes and fits KDE on first call or when calibration changes.
-        For weighted mode, uses w_calib for tuning and fitting.
+        For weighted mode, uses w_calib for tuning and fitting,
+        and both weights for p-value computation.
         """
-        w_calib = weights[0] if weights is not None else None
+        # Extract calibration and test weights
+        if weights is not None:
+            w_calib, w_test = weights
+        else:
+            w_calib, w_test = None, None
 
         # Default case: no weights (standard conformal prediction)
         if weights is None:
             current_hash = hash(calibration_set.tobytes())
         else:
-            # Edge case: with weights (covariate shift handling)
+            # Weighted case: covariate shift handling
             current_hash = hash((calibration_set.tobytes(), w_calib.tobytes()))
 
         if self._kde_model is None or self._calibration_hash != current_hash:
             self._fit_kde(calibration_set, w_calib)
             self._calibration_hash = current_hash
 
-        return self._compute_p_values_from_kde(scores)
+        sum_calib_weight = (
+            float(np.sum(w_calib))
+            if w_calib is not None
+            else float(len(calibration_set))
+        )
+
+        return self._compute_p_values_from_kde(scores, w_test, sum_calib_weight)
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None):
         """Fit KDE with automatic hyperparameter tuning."""
@@ -98,8 +113,17 @@ class Probabilistic(BaseEstimation):
 
         self._kde_model = kde
 
-    def _compute_p_values_from_kde(self, scores: np.ndarray) -> np.ndarray:
-        """Compute P(X >= score) from fitted KDE via numerical integration."""
+    def _compute_p_values_from_kde(
+        self,
+        scores: np.ndarray,
+        w_test: np.ndarray | None,
+        sum_calib_weight: float,
+    ) -> np.ndarray:
+        """Compute P(X >= score) from fitted KDE via numerical integration.
+
+        For standard conformal: returns survival function from KDE.
+        For weighted conformal: applies weighted conformal formula using test weights.
+        """
         scores = scores.ravel()
         eval_grid, pdf_values = self._kde_model.evaluate(2**14)
 
@@ -114,6 +138,48 @@ class Probabilistic(BaseEstimation):
             bounds_error=False,
             fill_value=(0, 1),  # CDF=0 below grid_min, CDF=1 above grid_max
         )
-        p_values = 1.0 - cdf_func(scores)  # P(X >= score)
+        survival = 1.0 - cdf_func(scores)  # P(X >= score) from KDE
+
+        # Cache metadata for downstream consumers
+        self._kde_eval_grid = eval_grid.copy()
+        self._kde_cdf_values = cdf_values.copy()
+        self._kde_total_weight = float(sum_calib_weight)
+
+        # Standard conformal: return survival function directly
+        if w_test is None:
+            return np.clip(survival, 0, 1)
+
+        weighted_mass_above = sum_calib_weight * survival
+        denominator = sum_calib_weight
+        p_values = np.divide(
+            weighted_mass_above,
+            denominator,
+            out=np.zeros_like(weighted_mass_above),
+            where=denominator != 0,
+        )
 
         return np.clip(p_values, 0, 1)
+
+    def get_metadata(self) -> dict[str, Any]:
+        """Return KDE metadata after p-value computation.
+
+        Exposes the fitted KDE's evaluation grid, CDF values, and total weight
+        for downstream analysis. Returns empty dict if KDE hasn't been fitted yet.
+
+        Returns:
+            Dictionary with 'kde' key containing eval_grid, cdf_values, and
+            total_weight. Empty dict if compute_p_values() hasn't been called.
+        """
+        if (
+            self._kde_eval_grid is None
+            or self._kde_cdf_values is None
+            or self._kde_total_weight is None
+        ):
+            return {}
+        return {
+            "kde": {
+                "eval_grid": self._kde_eval_grid.copy(),
+                "cdf_values": self._kde_cdf_values.copy(),
+                "total_weight": float(self._kde_total_weight),
+            }
+        }
