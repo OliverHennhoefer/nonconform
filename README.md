@@ -17,7 +17,8 @@ Thresholds for anomaly detection are often arbitrary and lack theoretical guaran
 
 Installation via [PyPI](https://pypi.org/project/nonconform/):
 ```sh
-pip install nonconform```
+pip install nonconform
+```
 
 > **Note:** The following examples use the built-in datasets. Install with `pip install nonconform[data]` to run these examples. (see [Optional Dependencies](#optional-dependencies))
 
