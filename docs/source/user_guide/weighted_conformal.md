@@ -12,8 +12,8 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 
 ```python
 import numpy as np
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.func.enums import Aggregation
 from pyod.models.lof import LOF
@@ -145,15 +145,10 @@ from nonconform.utils.stat import weighted_false_discovery_control
 
 standard_mask = false_discovery_control(standard_p_values, method="bh") < 0.05
 
-scores = weighted_detector.predict(X_test_shifted, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
 weighted_mask = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.05,
-    rand="dtm",
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 
@@ -188,8 +183,8 @@ for agg_method in aggregation_methods:
 Different strategies can be used with weighted conformal detection:
 
 ```python
-from nonconform.strategy.bootstrap import Bootstrap
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import Bootstrap
+from nonconform.strategy import CrossValidation
 
 # Bootstrap strategy for stability
 bootstrap_strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
@@ -213,29 +208,50 @@ cv_detector = ConformalDetector(
 
 ## Weighted Conformal Selection
 
-Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS):
+Weighted
+conformal
+p - values
+are
+valid
+on
+their
+own.To
+obtain
+finite - sample
+FDR
+control
+under
+covariate
+shift, combine
+them
+with Weighted Conformal Selection (WCS):
 
 ```python
 from nonconform.utils.stat import weighted_false_discovery_control
 
-# Collect raw scores and the corresponding importance weights
-scores = weighted_detector.predict(X_test_shifted, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+# Collect weighted p-values and cached statistics
+weighted_detector.predict(X_test_shifted, raw=False)
 
 wcs_mask = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.05,
-    rand="dtm",  # deterministic pruning; use "hete"/"homo" for randomized variants
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,  # deterministic pruning; use heterogeneous/homogeneous for randomized variants
     seed=42,
 )
 
 print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
 ```
 
-The ``rand`` parameter matches the pruning choices in Jin & Candès (2023): ``"dtm"`` keeps the procedure deterministic, while ``"homo"`` and ``"hete"`` draw one or multiple auxiliary random variables. Provide ``seed`` when reproducibility is important.
+After any call to ``predict()``, the detector caches the relevant arrays
+``(p_values, scores, weights)`` inside ``detector.last_result``. Passing this object to
+``weighted_false_discovery_control`` avoids plumbing the raw arrays manually.
+
+When the ``Probabilistic`` estimator is active, this snapshot also stores the
+KDE grid and cumulative distribution so that WCS can optionally use the smoothed
+mass estimates. If no KDE metadata is available, the selector automatically
+falls back to the empirical weighted ranks from Jin & Candès (2023).
+
+The ``pruning`` parameter matches the choices in Jin & Candès (2023): ``DETERMINISTIC`` keeps the procedure deterministic, while ``HOMOGENEOUS`` and ``HETEROGENEOUS`` draw one or multiple auxiliary random variables. Provide ``seed`` when reproducibility is important.
 ```
 
 
@@ -305,18 +321,15 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 ```
 
 ### 2. Combine with Weighted Conformal Selection
+
 ```python
 from nonconform.utils.stat import weighted_false_discovery_control
 
-scores = weighted_detector.predict(X_test_shifted, raw=True)
-w_calib, w_test = weighted_detector.weight_estimator.get_weights()
+weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 wcs_mask = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=weighted_detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.05,
-    rand="dtm",
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 

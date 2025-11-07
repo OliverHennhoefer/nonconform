@@ -8,8 +8,8 @@ This example demonstrates how to use weighted conformal prediction for handling 
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
-from nonconform.estimation import ConformalDetector
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform.detection import ConformalDetector
+from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
 
@@ -149,18 +149,15 @@ print(f"Weighted conformal detections: {(weighted_p_values < 0.05).sum()}")
 # Apply WCS to weighted scores
 from nonconform.utils.stat import weighted_false_discovery_control
 
-scores = detector.predict(X, raw=True)
-w_calib, w_test = detector.weight_estimator.get_weights()
+weighted_p_values = detector.predict(X, raw=False)
 
 discoveries = weighted_false_discovery_control(
-    test_scores=scores,
-    calib_scores=detector.calibration_set,
-    w_test=w_test,
-    w_calib=w_calib,
-    q=0.05,
-    rand="dtm",
+    result=detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
+# detector.last_result stores the cached conformal statistics for reuse
 
 # Evaluate performance
 true_positives = np.sum(discoveries & (y_true == 1))

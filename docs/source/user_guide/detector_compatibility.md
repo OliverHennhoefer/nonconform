@@ -245,8 +245,9 @@ detector = OCSVM(gamma='auto')
 ### Basic Compatibility Check
 
 ```python
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
+
 
 def test_detector_compatibility(detector, X_train, X_test):
     """Test if a detector works with nonconform."""

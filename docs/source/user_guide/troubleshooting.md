@@ -12,7 +12,7 @@ This guide addresses common issues you might encounter while using nonconform an
 
 ```python
 # Old API (deprecated)
-from nonconform.estimation.configuration import DetectorConfig
+from nonconform.detection.configuration import DetectorConfig
 
 detector = ConformalDetector(
     detector=LOF(),
@@ -21,8 +21,8 @@ detector = ConformalDetector(
 )
 
 # New API
-from nonconform.estimation.standard import ConformalDetector
-from nonconform.strategy.split import SplitStrategy
+from nonconform.detection.standard import ConformalDetector
+from nonconform.strategy import SplitStrategy
 from nonconform.utils.func.enums import Aggregation
 
 detector = ConformalDetector(
@@ -162,8 +162,8 @@ if y_true is not None:
 
 ```python
 # Try multiple strategies for comparison
-from nonconform.strategy.bootstrap import Bootstrap
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import Bootstrap
+from nonconform.strategy import CrossValidation
 
 strategies = {
     'Split': Split(calib_size=0.2),
@@ -195,10 +195,10 @@ for name, strategy in strategies.items():
 # Removed - use individual imports
 
 # New imports
-from nonconform.strategy.split import Split
-from nonconform.strategy.cross_val import CrossValidation
-from nonconform.strategy.jackknife import Jackknife
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy import Split
+from nonconform.strategy import CrossValidation
+from nonconform.strategy import Jackknife
+from nonconform.strategy import Bootstrap
 ```
 
 ### 9. Parameter Name Changes
@@ -335,7 +335,7 @@ def debug_weighted_conformal(detector, X_train, X_test):
     print("=== Weighted Conformal Debug ===")
 
     # Check if it's actually a weighted detector
-    from nonconform.estimation.weighted import ConformalDetector
+    from nonconform.detection.weighted import ConformalDetector
     if not isinstance(detector, ConformalDetector):
         print("WARNING: Not a ConformalDetector")
         return

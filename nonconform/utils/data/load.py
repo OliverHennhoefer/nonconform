@@ -146,12 +146,27 @@ class DatasetManager:
 
         # Check disk cache second
         cache_file = self.cache_dir / filename
-        if cache_file.exists():
-            logger.debug(f"Loading {filename} from disk cache (v{self.version})")
-            with open(cache_file, "rb") as f:
-                data = f.read()
-            self._add_to_memory_cache(filename, data)
-            return data
+        try:
+            cache_exists = cache_file.exists()
+        except PermissionError:
+            logger.warning(
+                "Skipping disk cache check for %s due to permission error", filename
+            )
+            cache_exists = False
+
+        if cache_exists:
+            try:
+                logger.debug(f"Loading {filename} from disk cache (v{self.version})")
+                with open(cache_file, "rb") as f:
+                    data = f.read()
+            except PermissionError:
+                logger.warning(
+                    "Unable to read %s from disk cache due to permission error",
+                    filename,
+                )
+            else:
+                self._add_to_memory_cache(filename, data)
+                return data
 
         # Clean old versions before downloading
         self._cleanup_old_versions()
@@ -172,9 +187,14 @@ class DatasetManager:
 
         # Cache in memory and on disk
         self._add_to_memory_cache(filename, data)
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_file, "wb") as f:
-            f.write(data)
+        try:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(cache_file, "wb") as f:
+                f.write(data)
+        except PermissionError:
+            logger.warning(
+                "Unable to write %s to disk cache due to permission error", filename
+            )
 
         logger.debug(f"Successfully cached {filename} ({len(data) / 1024:.1f} KB)")
         return data

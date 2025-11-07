@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.estimation import ConformalDetector
+from nonconform.detection import ConformalDetector
 from nonconform.strategy import Jackknife
 from nonconform.utils.func import Aggregation
 
@@ -86,8 +86,8 @@ import time
 
 # Jackknife can be computationally expensive for large datasets
 # Let's compare computation time with other strategies
-from nonconform.strategy.split import Split
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import Split
+from nonconform.strategy import CrossValidation
 
 # Use a subset for timing comparison
 X_subset = X[:100]  # Use first 100 samples
@@ -201,7 +201,7 @@ for config in leave_k_out_configs:
 ## Comparison with Other Strategies
 
 ```python
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy import Bootstrap
 
 # Comprehensive comparison
 strategies = {

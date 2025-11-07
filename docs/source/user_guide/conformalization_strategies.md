@@ -9,7 +9,7 @@ Calibration strategies for conformal anomaly detection with different trade-offs
 Simple train/calibration split for fast, straightforward conformal prediction.
 
 ```python
-from nonconform.strategy.split import Split
+from nonconform.strategy import Split
 
 # Use 30% of data for calibration
 strategy = Split(n_calib=0.3)
@@ -29,7 +29,7 @@ strategy = Split(n_calib=100)
 K-fold cross-validation for robust calibration using all data.
 
 ```python
-from nonconform.strategy.cross_val import CrossValidation
+from nonconform.strategy import CrossValidation
 
 # 5-fold cross-validation
 strategy = CrossValidation(n_folds=5, plus=False)
@@ -49,7 +49,7 @@ strategy = CrossValidation(n_folds=5, plus=True)
 Bootstrap resampling with configurable ensemble parameters.
 
 ```python
-from nonconform.strategy.bootstrap import Bootstrap
+from nonconform.strategy import Bootstrap
 
 # Basic bootstrap with 100 models
 strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
@@ -69,7 +69,7 @@ strategy = Bootstrap(n_calib=200)  # Auto-calculate other parameters
 Leave-one-out cross-validation for maximum data utilization.
 
 ```python
-from nonconform.strategy.jackknife import Jackknife
+from nonconform.strategy import Jackknife
 
 # Standard jackknife
 strategy = Jackknife(plus=False)
@@ -123,8 +123,8 @@ strategy = Jackknife(plus=True)
 All strategies work with any conformal detector:
 
 ```python
-from nonconform.estimation.standard import ConformalDetector
-from nonconform.estimation.weighted import ConformalDetector
+from nonconform.detection.standard import ConformalDetector
+from nonconform.detection.weighted import ConformalDetector
 from pyod.models.lof import LOF
 
 # Standard conformal with cross-validation

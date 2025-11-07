@@ -39,10 +39,10 @@ class Aggregation(Enum):
             The underlying value is typically ``"maximum"``.
     """
 
-    MEAN = "mean"
-    MEDIAN = "median"
-    MINIMUM = "minimum"
-    MAXIMUM = "maximum"
+    MEAN = auto()
+    MEDIAN = auto()
+    MINIMUM = auto()
+    MAXIMUM = auto()
 
 
 class Dataset(Enum):
@@ -86,3 +86,37 @@ class Dataset(Enum):
     WBC = "wbc"
     WINE = "wine"
     YEAST = "yeast"
+
+
+class Pruning(Enum):
+    """Available pruning strategies for weighted FDR control.
+
+    This enumeration lists all strategies available for controlling
+    the FDR under potential covariate shift.
+
+    Attributes:
+        HETEROGENEOUS: Heterogeneous pruning removes elements
+            based on independent random checks per item.
+        HOMOGENEOUS: Homogeneous pruning applies one shared
+            random decision to all items.
+        DETERMINISTIC: Deterministic pruning removes items
+            using a fixed rule with no randomness.
+    """
+
+    HETEROGENEOUS = auto()
+    HOMOGENEOUS = auto()
+    DETERMINISTIC = auto()
+
+
+class Kernel(Enum):
+    """Available kernels for the smoothed p-value computation."""
+
+    GAUSSIAN = "gaussian"
+    EXPONENTIAL = "exponential"
+    BOX = "box"
+    TRIANGULAR = "tri"
+    EPANECHNIKOV = "epa"
+    BIWEIGHT = "biweight"
+    TRIWEIGHT = "triweight"
+    TRICUBE = "tricube"
+    COSINE = "cosine"
