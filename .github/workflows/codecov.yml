@@ -16,8 +16,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
 
-      - name: Install dependencies
-        run: pip install pytest pytest-cov numpy pandas
+      - name: Install setup dependency
+        run: pip install uv
+
+      - name: Install package dependencies
+        run: uv pip install -e .[data,dev,docs,fdr]
 
       - name: Run tests
         run: pytest --cov --cov-branch --cov-report=xml
