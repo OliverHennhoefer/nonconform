@@ -524,7 +524,7 @@ detector.fit(X_train)
 
 nonconform uses the following logger hierarchy:
 - `nonconform`: Root logger for all nonconform output
-- `nonconform.estimation.*`: Detector-specific logging
+- `nonconform.detection.*`: Detector-specific logging
 - `nonconform.strategy.*`: Strategy-specific logging
 - `nonconform.utils.*`: Utility function logging
 

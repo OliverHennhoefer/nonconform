@@ -77,7 +77,7 @@ nav:
     - FDR Control: examples/fdr_control.md
   - API Reference:
     - Overview: api/index.md
-    - Estimation Module: api/index.md#estimation
+    - Detection Module: api/index.md#detection
     - Strategy Module: api/index.md#strategy
     - Utils Module: api/index.md#utils
   - Contributing: contributing.md

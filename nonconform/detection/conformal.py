@@ -41,7 +41,7 @@ class ConformalDetector(BaseConformalDetector):
 
         ```python
         from pyod.models.iforest import IForest
-        from nonconform.estimation import ConformalDetector
+        from nonconform.detection import ConformalDetector
         from nonconform.strategy import Split
 
         # Create standard conformal detector
@@ -59,7 +59,7 @@ class ConformalDetector(BaseConformalDetector):
         Weighted conformal prediction (with distribution shift):
 
         ```python
-        from nonconform.estimation.weight import LogisticWeightEstimator
+        from nonconform.detection.weight import LogisticWeightEstimator
 
         # Create weighted conformal detector
         detector = ConformalDetector(

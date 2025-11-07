@@ -4,8 +4,8 @@ Complete API documentation for all Nonconform modules and classes.
 
 ## Core Modules
 
-### Estimation
-::: nonconform.estimation
+### Detection
+::: nonconform.detection
     options:
       show_root_heading: true
       heading_level: 3

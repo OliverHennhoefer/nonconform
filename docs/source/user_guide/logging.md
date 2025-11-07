@@ -132,7 +132,7 @@ import logging
 # Configure different modules at different levels
 logging.getLogger('nonconform').setLevel(logging.INFO)  # General info
 logging.getLogger('nonconform.strategy.bootstrap').setLevel(logging.WARNING)  # Hide bootstrap details
-logging.getLogger('nonconform.estimation').setLevel(logging.DEBUG)  # Debug detector issues
+logging.getLogger('nonconform.detection').setLevel(logging.DEBUG)  # Debug detector issues
 
 # This configuration will:
 # - Show progress bars for CV and aggregation
