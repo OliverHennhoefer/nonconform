@@ -5,9 +5,6 @@
 ![License](https://img.shields.io/github/license/OliverHennhoefer/nonconform)
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 [![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Ruff](https://img.shields.io/badge/linting-ruff-%23FFA500)](https://github.com/astral-sh/ruff)
-![Hatch](https://img.shields.io/badge/build-hatch-FF69B4)
 
 
 
