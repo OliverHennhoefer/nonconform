@@ -49,6 +49,8 @@ data = [
     "pyarrow>=16.1.0",
 ]
 dev = [
+    "pytest",
+    "pytest-cov",
     "ruff",
     "pre-commit",
     "twine",
