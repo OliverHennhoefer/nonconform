@@ -19,7 +19,6 @@ if __name__ == "__main__":
 
     ce.fit(x_train)
     estimates = ce.predict(x_test)
-    print(estimates.min())
 
     # Apply FDR control
     decisions = false_discovery_control(estimates, method="bh") <= 0.2
