@@ -5,7 +5,7 @@
 ---
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-[![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
+[![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/branch/main/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
 
   ## Conformal Anomaly Detection
 Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees about the anomalies they identify. **nonconform** wraps your favorite anomaly detection model from [*PyOD*](https://pyod.readthedocs.io/en/latest/) (see [Supported Estimators](#supported-estimators)) and transforms its raw anomaly scores into statistically valid $p$-values. It applies principles from [**conformal prediction**](https://en.wikipedia.org/wiki/Conformal_prediction) to the setting of [one-class classification](https://en.wikipedia.org/wiki/One-class_classification), enabling anomaly detection with provable statistical guarantees and a controlled [false discovery rate](https://en.wikipedia.org/wiki/False_discovery_rate).
