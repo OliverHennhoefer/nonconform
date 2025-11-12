@@ -31,7 +31,7 @@ forbidden_model_list: list[type[BaseDetector]] = [
 
 def _set_params(
     detector: BaseDetector,
-    seed: int,
+    seed: int | None,
     random_iteration: bool = False,
     iteration: int | None = None,
 ) -> BaseDetector:
@@ -75,8 +75,8 @@ def _set_params(
     if "n_jobs" in detector.get_params():
         detector.set_params(n_jobs=-1)
 
-    # Set random_state for reproducibility
-    if "random_state" in detector.get_params():
+    # Set random_state for reproducibility when a seed is provided
+    if seed is not None and "random_state" in detector.get_params():
         if random_iteration and iteration is not None:
             # Create a reproducible but varying seed per iteration
             # Ensure the result is within the typical 32-bit unsigned int range

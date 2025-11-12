@@ -130,8 +130,8 @@ detectors = [
 # Maximum accuracy configurations
 detectors = [
     OCSVM(gamma='auto', nu=0.05),
-    AutoEncoder(epochs=200, hidden_neurons=[128, 64, 32, 64, 128]),
-    VAE(epochs=100, latent_dim=20)
+    AutoEncoder(epoch_num=200, hidden_neuron_list=[128, 64, 32, 64, 128]),
+    VAE(epoch_num=100, latent_dim=20)
 ]
 ```
 

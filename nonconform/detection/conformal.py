@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -129,7 +130,7 @@ class ConformalDetector(BaseConformalDetector):
 
         from nonconform.strategy.estimation.empirical import Empirical
 
-        self.detector: PyODBaseDetector = _set_params(detector, seed)
+        self.detector: PyODBaseDetector = _set_params(deepcopy(detector), seed)
         self.strategy: BaseStrategy = strategy
         self.weight_estimator: BaseWeightEstimator | None = weight_estimator
         self.estimation = estimation if estimation is not None else Empirical()
