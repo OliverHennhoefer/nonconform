@@ -31,6 +31,11 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management and
 
 3. The virtual environment will be automatically created and managed by uv
 
+4. Install ``nonconform`` from the local repository.
+   ```bash
+    uv pip install -e .[all] --upgrade
+   ```
+
 ## Making Changes
 
 1. Make your changes in your feature branch
