@@ -64,14 +64,15 @@ class JackknifeBootstrap(BaseStrategy):
         """
         super().__init__(plus=plus)
 
-        if n_bootstraps < 1:
+        if n_bootstraps < 2:
             exc = ValueError(
-                f"Number of bootstraps must be at least 1, got {n_bootstraps}. "
+                f"Number of bootstraps must be at least 2, got {n_bootstraps}. "
                 f"Typical values are 50-200 for jackknife-after-bootstrap."
             )
             exc.add_note(f"Received n_bootstraps={n_bootstraps}, which is invalid.")
             exc.add_note(
-                "Jackknife-after-Bootstrap requires at least one bootstrap iteration."
+                "Jackknife-after-Bootstrap requires at least two bootstrap iterations "
+                "to guarantee that every sample appears out-of-bag."
             )
             exc.add_note("Consider using n_bootstraps=100 as a balanced default.")
             raise exc
@@ -157,19 +158,9 @@ class JackknifeBootstrap(BaseStrategy):
 
         # Step 1: Pre-allocate data structures and generate bootstrap samples
         self._bootstrap_models = [None] * self._n_bootstraps
-        self._oob_mask = np.zeros((self._n_bootstraps, n_samples), dtype=bool)
-
-        # Generate all bootstrap indices at once for better memory locality
-        all_bootstrap_indices = generator.choice(
-            n_samples, size=(self._n_bootstraps, n_samples), replace=True
+        all_bootstrap_indices, self._oob_mask = self._generate_bootstrap_indices(
+            generator, n_samples
         )
-
-        # Pre-compute OOB mask efficiently
-        for i in range(self._n_bootstraps):
-            bootstrap_indices = all_bootstrap_indices[i]
-            in_bag_mask = np.zeros(n_samples, dtype=bool)
-            in_bag_mask[bootstrap_indices] = True
-            self._oob_mask[i] = ~in_bag_mask
 
         # Train models (with optional parallelization)
         if n_jobs is None or n_jobs == 1:
@@ -229,6 +220,55 @@ class JackknifeBootstrap(BaseStrategy):
             )
 
         return self._detector_list, self._calibration_set
+
+    def _generate_bootstrap_indices(
+        self, generator: np.random.Generator, n_samples: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Generate bootstrap indices while guaranteeing OOB coverage."""
+        if n_samples < 2:
+            raise ValueError(
+                "JackknifeBootstrap requires at least two samples to form "
+                "out-of-bag predictions."
+            )
+        if self._n_bootstraps < 2:
+            raise ValueError(
+                "n_bootstraps must be at least 2 to ensure every sample has "
+                "an out-of-bag prediction."
+            )
+
+        indices = np.empty((self._n_bootstraps, n_samples), dtype=int)
+        oob_mask = np.zeros((self._n_bootstraps, n_samples), dtype=bool)
+        coverage = np.zeros(n_samples, dtype=bool)
+        population = np.arange(n_samples)
+
+        for i in range(self._n_bootstraps):
+            uncovered = np.where(~coverage)[0]
+            if uncovered.size == 0:
+                draw_pool = population
+            else:
+                shuffled_uncovered = generator.permutation(uncovered)
+                remaining_iters = self._n_bootstraps - i
+                chunk_size = int(np.ceil(shuffled_uncovered.size / remaining_iters))
+                chunk_size = min(chunk_size, n_samples - 1)
+                chunk_size = max(1, chunk_size)
+                chunk = shuffled_uncovered[:chunk_size]
+                draw_mask = np.ones(n_samples, dtype=bool)
+                draw_mask[chunk] = False
+                draw_pool = population[draw_mask]
+
+            indices[i] = generator.choice(draw_pool, size=n_samples, replace=True)
+            in_bag_mask = np.zeros(n_samples, dtype=bool)
+            in_bag_mask[indices[i]] = True
+            oob_mask[i] = ~in_bag_mask
+            coverage |= oob_mask[i]
+
+        uncovered = np.where(~coverage)[0]
+        if uncovered.size > 0:
+            raise ValueError(
+                "Failed to generate complete OOB coverage. "
+                "Consider increasing n_bootstraps."
+            )
+        return indices, oob_mask
 
     def _train_single_model(
         self,
