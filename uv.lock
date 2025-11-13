@@ -1136,9 +1136,7 @@ dependencies = [
     { name = "numpy" },
     { name = "optuna" },
     { name = "pandas" },
-    { name = "pre-commit" },
     { name = "pyod" },
-    { name = "ruff" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "tqdm" },
@@ -1146,19 +1144,9 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "build" },
-    { name = "mkdocs" },
-    { name = "mkdocs-material", extra = ["imaging"] },
-    { name = "mkdocstrings", extra = ["python"] },
     { name = "online-fdr" },
-    { name = "pre-commit" },
     { name = "pyarrow" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "scipy-stubs" },
     { name = "torch" },
-    { name = "twine" },
 ]
 data = [
     { name = "pyarrow" },
@@ -1166,6 +1154,11 @@ data = [
 deep = [
     { name = "torch" },
 ]
+fdr = [
+    { name = "online-fdr" },
+]
+
+[package.dev-dependencies]
 dev = [
     { name = "build" },
     { name = "mkdocs" },
@@ -1178,58 +1171,39 @@ dev = [
     { name = "scipy-stubs" },
     { name = "twine" },
 ]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-material", extra = ["imaging"] },
-    { name = "mkdocstrings", extra = ["python"] },
-]
-fdr = [
-    { name = "online-fdr" },
-]
 
 [package.metadata]
 requires-dist = [
-    { name = "build", marker = "extra == 'all'" },
-    { name = "build", marker = "extra == 'dev'" },
     { name = "kdepy", specifier = ">=1.1.12" },
-    { name = "mkdocs", marker = "extra == 'all'" },
-    { name = "mkdocs", marker = "extra == 'dev'" },
-    { name = "mkdocs", marker = "extra == 'docs'" },
-    { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'all'" },
-    { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'dev'" },
-    { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'all'" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'" },
     { name = "numpy", specifier = ">=2.2.0,<2.3" },
     { name = "online-fdr", marker = "extra == 'all'", specifier = ">=0.0.3" },
     { name = "online-fdr", marker = "extra == 'fdr'", specifier = ">=0.0.3" },
     { name = "optuna", specifier = ">=4.5.0" },
     { name = "pandas", specifier = ">=2.2.1" },
-    { name = "pre-commit", specifier = ">=4.3.0" },
-    { name = "pre-commit", marker = "extra == 'all'" },
-    { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16.1.0" },
     { name = "pyarrow", marker = "extra == 'data'", specifier = ">=16.1.0" },
     { name = "pyod", specifier = "==2.0.5" },
-    { name = "pytest", marker = "extra == 'all'", specifier = ">=8.4.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.2" },
-    { name = "pytest-cov", marker = "extra == 'all'" },
-    { name = "pytest-cov", marker = "extra == 'dev'" },
-    { name = "ruff", specifier = ">=0.12.9" },
-    { name = "ruff", marker = "extra == 'all'" },
-    { name = "ruff", marker = "extra == 'dev'" },
     { name = "scikit-learn", specifier = ">=1.5.2,<1.6" },
     { name = "scipy", specifier = ">=1.13.0" },
-    { name = "scipy-stubs", marker = "extra == 'all'", specifier = "==1.16.3.0" },
-    { name = "scipy-stubs", marker = "extra == 'dev'", specifier = "==1.16.3.0" },
     { name = "torch", marker = "extra == 'all'", specifier = ">=2.7.0" },
     { name = "torch", marker = "extra == 'deep'", specifier = ">=2.7.0" },
     { name = "tqdm", specifier = ">=4.66.2" },
-    { name = "twine", marker = "extra == 'all'" },
-    { name = "twine", marker = "extra == 'dev'" },
 ]
-provides-extras = ["all", "data", "deep", "dev", "docs", "fdr"]
+provides-extras = ["all", "data", "deep", "fdr"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "build" },
+    { name = "mkdocs" },
+    { name = "mkdocs-material", extras = ["imaging"] },
+    { name = "mkdocstrings", extras = ["python"] },
+    { name = "pre-commit" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "scipy-stubs", specifier = "==1.16.3.0" },
+    { name = "twine" },
+]
 
 [[package]]
 name = "numba"

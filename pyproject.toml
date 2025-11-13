@@ -31,8 +31,6 @@ dependencies = [
     "pyod==2.0.5",
     "scipy>=1.13.0",
     "tqdm>=4.66.2",
-    "ruff>=0.12.9",
-    "pre-commit>=4.3.0",
     "optuna>=4.5.0",
     "kdepy>=1.1.12",
 ]
@@ -48,6 +46,17 @@ path = "nonconform/__init__.py"
 data = [
     "pyarrow>=16.1.0",
 ]
+deep = [
+    "torch>=2.7.0",
+]
+fdr = [
+    "online-fdr>=0.0.3",
+]
+all = [
+    "nonconform[data,deep,fdr]"
+]
+
+[dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-cov",
@@ -58,27 +67,12 @@ dev = [
     "mkdocs",
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
-    "scipy-stubs==1.16.3.0"
-]
-deep = [
-    "torch>=2.7.0"
-]
-fdr = [
-    "online-fdr>=0.0.3"
-]
-docs = [
-    "mkdocs",
-    "mkdocs-material[imaging]",
-    "mkdocstrings[python]"
-]
-all = [
-    "nonconform[data,dev,docs,deep,fdr]"
+    "scipy-stubs==1.16.3.0",
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/OliverHennhoefer/nonconform"
 "Bugs" = "https://github.com/OliverHennhoefer/nonconform/issues"
-
 
 [tool.ruff]
 line-length = 88
@@ -94,10 +88,9 @@ include = [
     "*.pyi",
     "*.ipynb",
     "pyproject.toml", # Ruff can lint pyproject.toml
-    "*.md" # Add Markdown files
 ]
 exclude = [
-    "**/*.md",
+    "*.md",
     "paper.bib",
     ".bzr",
     ".direnv",

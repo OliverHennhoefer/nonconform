@@ -2,33 +2,12 @@
 # For more information, see https://pre-commit.com
 
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace # Trims trailing whitespace.
-      - id: end-of-file-fixer # Ensures files end with a single newline.
-      - id: check-yaml # Checks YAML files for parseable syntax.
-      - id: check-toml # Checks TOML files for parseable syntax.
-      - id: check-json # Checks JSON files for parseable syntax.
-      - id: check-added-large-files # Prevents committing large files.
-      - id: check-case-conflict # Checks for files that would conflict on case-insensitive filesystems.
-      - id: check-merge-conflict # Checks for files that contain merge conflict strings.
-      - id: debug-statements # Checks for leftover debugger imports and calls (e.g., pdb, breakpoint()).
-
-  # Ruff for linting and formatting
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Check for updates: https://github.com/astral-sh/ruff-pre-commit/releases
-    rev: v0.12.11
-    hooks:
-      # Run Ruff's linter.
-      - id: ruff
-        name: ruff (linter)
-        # Apply fixes for fixable violations and exit with a non-zero code if fixes were made.
-        # This ensures that if Ruff modifies files, the commit will be stopped,
-        # prompting you to `git add` the changes and re-commit.
-        args: [--fix, --exit-non-zero-on-fix]
-        # Ruff will automatically find and use your pyproject.toml configuration
-        # for selected rules, exclusions, target version, etc.
-      # Run Ruff's formatter (replaces Black).
-      - id: ruff-format
-        name: ruff (formatter)
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.14.4
+  hooks:
+    # Run the linter.
+    - id: ruff-check
+      args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
