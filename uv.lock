@@ -1198,7 +1198,7 @@ dev = [
     { name = "mkdocs-material", extras = ["imaging"] },
     { name = "mkdocstrings", extras = ["python"] },
     { name = "pre-commit" },
-    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "scipy-stubs", specifier = "==1.16.3.0" },

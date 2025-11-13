@@ -145,18 +145,17 @@ class Probabilistic(BaseEstimation):
         self._kde_cdf_values = cdf_values.copy()
         self._kde_total_weight = float(sum_calib_weight)
 
-        # Standard conformal: return survival function directly
-        if w_test is None:
+        # Standard conformal (or weighted without pseudo-counts):
+        # return survival function directly so extreme scores may yield 0.
+        if w_test is None or sum_calib_weight <= 0:
             return np.clip(survival, 0, 1)
 
         weighted_mass_above = sum_calib_weight * survival
-        numerator = weighted_mass_above + w_test
-        denominator = sum_calib_weight + w_test
         p_values = np.divide(
-            numerator,
-            denominator,
-            out=np.zeros_like(numerator),
-            where=denominator != 0,
+            weighted_mass_above,
+            sum_calib_weight,
+            out=np.zeros_like(weighted_mass_above),
+            where=sum_calib_weight != 0,
         )
 
         return np.clip(p_values, 0, 1)
