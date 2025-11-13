@@ -58,7 +58,7 @@ all = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.2",
+    "pytest",
     "pytest-cov",
     "ruff",
     "pre-commit",
