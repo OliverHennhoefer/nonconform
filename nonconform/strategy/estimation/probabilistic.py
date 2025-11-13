@@ -150,11 +150,12 @@ class Probabilistic(BaseEstimation):
             return np.clip(survival, 0, 1)
 
         weighted_mass_above = sum_calib_weight * survival
-        denominator = sum_calib_weight
+        numerator = weighted_mass_above + w_test
+        denominator = sum_calib_weight + w_test
         p_values = np.divide(
-            weighted_mass_above,
+            numerator,
             denominator,
-            out=np.zeros_like(weighted_mass_above),
+            out=np.zeros_like(numerator),
             where=denominator != 0,
         )
 

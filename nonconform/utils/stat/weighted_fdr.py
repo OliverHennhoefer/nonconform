@@ -381,8 +381,8 @@ def weighted_bh(
 ) -> np.ndarray:
     """Apply weighted Benjamini-Hochberg procedure.
 
-    Computes weighted conformal p-values and applies the Benjamini-Hochberg
-    procedure to return discovery decisions for FDR control under covariate shift.
+    Uses estimator-supplied weighted p-values when available and falls back on
+    recomputing them with the standard weighted conformal formula otherwise.
     Similar to scipy.stats.false_discovery_control but with importance weighting.
 
     Args:
@@ -397,21 +397,40 @@ def weighted_bh(
         covariate shift via weighted conformal p-values. arXiv preprint
         arXiv:2307.09291.
     """
-    test_scores = result.test_scores
-    calib_scores = result.calib_scores
-    test_weights = result.test_weights
-    calib_weights = result.calib_weights
+    if not (0.0 < alpha < 1.0):
+        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
-    m = len(test_scores)
-    sum_calib_weight = np.sum(calib_weights)
+    if result is None:
+        raise ValueError("weighted_bh requires a ConformalResult instance.")
 
-    # Compute weighted conformal p-values (strict <, no tie-breaking)
-    weighted_mass_below = np.sum(
-        (calib_scores >= test_scores[:, np.newaxis]) * calib_weights,
-        axis=1,
-    )
+    p_values = result.p_values
+    if p_values is not None:
+        p_values = np.asarray(p_values, dtype=float)
+    else:
+        required = {
+            "test_scores": result.test_scores,
+            "calib_scores": result.calib_scores,
+            "test_weights": result.test_weights,
+            "calib_weights": result.calib_weights,
+        }
+        missing = [name for name, arr in required.items() if arr is None]
+        if missing:
+            raise ValueError(
+                "Cannot recompute weighted p-values; missing: " + ", ".join(missing)
+            )
+        p_values = calculate_weighted_p_val(
+            np.asarray(required["test_scores"]),
+            np.asarray(required["calib_scores"]),
+            np.asarray(required["test_weights"]),
+            np.asarray(required["calib_weights"]),
+        )
 
-    p_values = weighted_mass_below / (sum_calib_weight + test_weights)
+    if p_values.ndim != 1:
+        raise ValueError(f"p_values must be a 1D array, got shape {p_values.shape!r}.")
+
+    m = len(p_values)
+    if m == 0:
+        return np.zeros(0, dtype=bool)
 
     # Apply BH procedure to get adjusted p-values
     sorted_idx = np.argsort(p_values)
