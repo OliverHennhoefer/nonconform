@@ -1,4 +1,5 @@
 import math
+import sys
 from collections.abc import Sequence
 
 import numpy as np
@@ -184,7 +185,7 @@ def _compute_cv_log_likelihood(
         try:
             kde = _fit_kde(train_data, bandwidth, kernel, train_weights)
             grid, pdf_values = kde.evaluate()
-            density_floor = np.finfo(pdf_values.dtype).tiny
+            density_floor = sys.float_info.min
             densities = np.interp(
                 val_data,
                 grid,
