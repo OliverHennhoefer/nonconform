@@ -184,7 +184,7 @@ def _compute_cv_log_likelihood(
 
         try:
             kde = _fit_kde(train_data, bandwidth, kernel, train_weights)
-            grid, pdf_values = kde.evaluate()
+            grid, pdf_values = kde.evaluate(2**14)
             density_floor = sys.float_info.min
             densities = np.interp(
                 val_data,
