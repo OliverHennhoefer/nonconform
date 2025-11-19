@@ -1,3 +1,4 @@
+import logging
 import math
 import sys
 from collections.abc import Sequence
@@ -70,6 +71,10 @@ def tune_kde_hyperparameters(
             "study": None,
         }
 
+    # Suppress Optuna's default output - route through project logger
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    logger = logging.getLogger("nonconform")
+
     warmup_steps = int(0.3 * n_trials)
     sampler = optuna.samplers.TPESampler(seed=seed, n_startup_trials=warmup_steps)
     study = optuna.create_study(direction="maximize", sampler=sampler)
@@ -101,7 +106,20 @@ def tune_kde_hyperparameters(
             calibration_set, kernel_enum, bandwidth, cv_folds, weights, seed
         )
 
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    def trial_callback(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+        if logger.isEnabledFor(logging.INFO):
+            kernel_val = trial.params.get("kernel", kernels[0].value)
+            logger.info(
+                f"Trial {trial.number}: bandwidth={trial.params['bandwidth']:.6f}, "
+                f"kernel={kernel_val}, score={trial.value:.4f}"
+            )
+
+    study.optimize(
+        objective,
+        n_trials=n_trials,
+        show_progress_bar=False,
+        callbacks=[trial_callback] if logger.isEnabledFor(logging.INFO) else None,
+    )
 
     best_kernel = (
         next(
