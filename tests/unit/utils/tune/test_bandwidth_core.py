@@ -86,10 +86,18 @@ class TestBandwidthRange:
     def test_range_computation(self):
         data = np.array([0.0, 10.0])
         bw_min, bw_max = compute_bandwidth_range(data)
-        data_range = 10.0
-        data_std = np.std(data)
-        expected_min = min(data_range * 0.001, data_std * 0.01)
-        expected_max = max(data_range * 0.5, data_std * 2)
+
+        # New implementation uses heuristic bandwidths to bound the range
+        heuristics = [
+            _silverman_bandwidth(data),
+            _scott_bandwidth(data),
+            _sheather_jones_bandwidth(data),
+        ]
+        valid_heuristics = [h for h in heuristics if np.isfinite(h) and h > 0]
+
+        expected_min = min(valid_heuristics) * 0.1
+        expected_max = max(valid_heuristics) * 10
+
         assert np.isclose(bw_min, expected_min)
         assert np.isclose(bw_max, expected_max)
 
@@ -114,6 +122,6 @@ class TestMathematicalCorrectness:
     def test_bandwidth_range_scales(self):
         data1 = np.array([0.0, 1.0])
         data2 = np.array([0.0, 100.0])
-        min1, max1 = compute_bandwidth_range(data1)
-        min2, max2 = compute_bandwidth_range(data2)
+        _, max1 = compute_bandwidth_range(data1)
+        _, max2 = compute_bandwidth_range(data2)
         assert max2 > max1

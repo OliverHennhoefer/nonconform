@@ -29,9 +29,25 @@ def _sheather_jones_bandwidth(data: np.ndarray) -> float:
 
 
 def compute_bandwidth_range(data: np.ndarray) -> tuple[float, float]:
-    """Compute bandwidth search range from data characteristics."""
-    data_range = np.ptp(data)
-    data_std = float(np.std(data))
-    bw_min = min(data_range * 0.001, data_std * 0.01)
-    bw_max = max(data_range * 0.5, data_std * 2)
+    """Compute bandwidth search range using robust statistics.
+
+    Uses percentile-based range and IQR-based spread to be robust against
+    outliers that can cause extreme bandwidth ranges.
+    """
+    # Robust range: use percentiles instead of min/max to ignore outliers
+    q1, q99 = np.percentile(data, [1, 99])
+    robust_range = q99 - q1
+
+    # Robust spread: IQR-based (same approach as Silverman's rule)
+    iqr = np.percentile(data, 75) - np.percentile(data, 25)
+    robust_std = iqr / 1.349 if iqr > 0 else float(np.std(data))
+
+    bw_min = min(robust_range * 0.001, robust_std * 0.01)
+    bw_max = max(robust_range * 0.5, robust_std * 2)
+
+    # Cap the ratio to prevent extreme search ranges
+    max_ratio = 1000
+    if bw_max / max(bw_min, 1e-10) > max_ratio:
+        bw_max = bw_min * max_ratio
+
     return bw_min, bw_max
