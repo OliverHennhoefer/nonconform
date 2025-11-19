@@ -87,16 +87,14 @@ class TestBandwidthRange:
         data = np.array([0.0, 10.0])
         bw_min, bw_max = compute_bandwidth_range(data)
 
-        # New implementation uses heuristic bandwidths to bound the range
-        heuristics = [
-            _silverman_bandwidth(data),
-            _scott_bandwidth(data),
-            _sheather_jones_bandwidth(data),
-        ]
-        valid_heuristics = [h for h in heuristics if np.isfinite(h) and h > 0]
+        # Current implementation uses robust percentile-based statistics
+        q1, q99 = np.percentile(data, [1, 99])
+        robust_range = q99 - q1
+        iqr = np.percentile(data, 75) - np.percentile(data, 25)
+        robust_std = iqr / 1.349 if iqr > 0 else float(np.std(data))
 
-        expected_min = min(valid_heuristics) * 0.1
-        expected_max = max(valid_heuristics) * 10
+        expected_min = min(robust_range * 0.001, robust_std * 0.01)
+        expected_max = max(robust_range * 0.5, robust_std * 2)
 
         assert np.isclose(bw_min, expected_min)
         assert np.isclose(bw_max, expected_max)
