@@ -1,3 +1,5 @@
+from pyod.models.hbos import HBOS
+
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import (
     BootstrapBaggedWeightEstimator,
@@ -12,7 +14,6 @@ from nonconform.utils.stat import (
     weighted_false_discovery_control,
 )
 from nonconform.utils.stat.weighted_fdr import weighted_bh
-from pyod.models.hbos import HBOS
 
 if __name__ == "__main__":
     x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)

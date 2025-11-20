@@ -1,10 +1,10 @@
+from pyod.models.auto_encoder import AutoEncoder
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
-from pyod.models.auto_encoder import AutoEncoder
 
 x_train, x_test, y_test = load(Dataset.FRAUD, setup=True)
 

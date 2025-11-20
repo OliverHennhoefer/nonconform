@@ -7,7 +7,6 @@ from collections import namedtuple
 
 import numpy as np
 import pytest
-
 from pyod.models.abod import ABOD
 from pyod.models.copod import COPOD
 from pyod.models.ecod import ECOD

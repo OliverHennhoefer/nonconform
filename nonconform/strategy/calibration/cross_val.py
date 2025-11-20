@@ -3,13 +3,13 @@ from copy import copy, deepcopy
 
 import numpy as np
 import pandas as pd
+from pyod.models.base import BaseDetector
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
 from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
-from pyod.models.base import BaseDetector
 
 
 class CrossValidation(BaseStrategy):
@@ -110,7 +110,7 @@ class CrossValidation(BaseStrategy):
         self._detector_list.clear()
         self._calibration_ids = []
 
-        _detector = detector
+        detector_ = detector
         n_samples = len(x)
 
         # Validate k before creating KFold
@@ -167,7 +167,7 @@ class CrossValidation(BaseStrategy):
             last_iteration_index = i
             self._calibration_ids.extend(calib_idx.tolist())
 
-            model = copy(_detector)
+            model = copy(detector_)
             model = _set_params(model, seed=seed, random_iteration=True, iteration=i)
             model.fit(x[train_idx])
 
@@ -182,7 +182,7 @@ class CrossValidation(BaseStrategy):
             calibration_offset += n_fold_samples
 
         if not self._plus:
-            model = copy(_detector)
+            model = copy(detector_)
             model = _set_params(
                 model,
                 seed=seed,

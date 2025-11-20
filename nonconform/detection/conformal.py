@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from pyod.models.base import BaseDetector as PyODBaseDetector
 from tqdm import tqdm
 
 from nonconform.detection.base import BaseConformalDetector
@@ -16,7 +17,6 @@ from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
 from nonconform.utils.stat.aggregation import aggregate
 from nonconform.utils.stat.results import ConformalResult
-from pyod.models.base import BaseDetector as PyODBaseDetector
 
 
 class ConformalDetector(BaseConformalDetector):

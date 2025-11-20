@@ -1,11 +1,11 @@
+from pyod.models.lscp import LSCP
+from pyod.models.pca import PCA
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import CrossValidation
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
-from pyod.models.lscp import LSCP
-from pyod.models.pca import PCA
 
 x_train, x_test, y_test = load(Dataset.FRAUD, setup=True)
 

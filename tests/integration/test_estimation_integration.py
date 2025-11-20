@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import LogisticWeightEstimator
@@ -11,7 +12,6 @@ from nonconform.strategy import Split
 from nonconform.strategy.estimation.empirical import Empirical
 from nonconform.strategy.estimation.probabilistic import Probabilistic
 from nonconform.utils.func.enums import Kernel
-from pyod.models.iforest import IForest
 
 
 def _build_detector(estimation):

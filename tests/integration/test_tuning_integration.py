@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import LogisticWeightEstimator
@@ -10,7 +11,6 @@ from nonconform.strategy import CrossValidation, Split
 from nonconform.strategy.estimation.probabilistic import Probabilistic
 from nonconform.utils.func.enums import Kernel
 from nonconform.utils.tune.tuning import tune_kde_hyperparameters
-from pyod.models.iforest import IForest
 
 
 def test_probabilistic_tuning_records_metadata(simple_dataset):

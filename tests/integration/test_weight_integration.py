@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import ForestWeightEstimator, LogisticWeightEstimator
 from nonconform.strategy import Empirical, Split
-from pyod.models.iforest import IForest
 
 
 def _build_weighted_detector(weight_estimator):

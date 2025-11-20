@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from nonconform.utils.data.registry import DATASET_REGISTRY, DatasetInfo
+from nonconform.utils.data.registry import DATASET_REGISTRY
 from nonconform.utils.func.enums import Dataset
 from nonconform.utils.func.logger import get_logger
 
@@ -89,7 +89,7 @@ class DatasetManager:
                 f"Dataset '{name}' not found. Available datasets: {available}"
             )
 
-        filename = DATASET_REGISTRY[name].filename
+        filename = DATASET_REGISTRY[name]
 
         # Download or retrieve from cache
         data_bytes = self._download(filename)
@@ -325,28 +325,6 @@ class DatasetManager:
         """
         return sorted(DATASET_REGISTRY.keys())
 
-    def get_info(self, dataset: Dataset) -> DatasetInfo:
-        """
-        Get metadata for a specific dataset.
-
-        Args:
-            dataset: The dataset to get info for (use Dataset enum values).
-
-        Returns:
-            DatasetInfo object with dataset metadata.
-
-        Raises:
-            ValueError: If the dataset is not found.
-        """
-        name = dataset.value  # Extract string value from enum
-
-        if name not in DATASET_REGISTRY:
-            available = ", ".join(sorted(DATASET_REGISTRY.keys()))
-            raise ValueError(
-                f"Dataset '{name}' not found. Available datasets: {available}"
-            )
-        return DATASET_REGISTRY[name]
-
     def get_cache_location(self) -> str:
         """
         Get the cache directory path.
@@ -445,24 +423,6 @@ def list_available() -> list[str]:
         ['breast', 'fraud', 'ionosphere', ...]
     """
     return _manager.list_available()
-
-
-def get_info(dataset: Dataset) -> DatasetInfo:
-    """
-    Get detailed metadata for a specific dataset.
-
-    Args:
-        dataset: The dataset to get info for (use Dataset enum values).
-
-    Returns:
-        DatasetInfo object with dataset metadata.
-
-    Examples:
-        >>> from nonconform.utils.data import Dataset
-        >>> info = get_info(Dataset.BREAST)
-        >>> print(info.description)
-    """
-    return _manager.get_info(dataset)
 
 
 def clear_cache(dataset: str | None = None, all_versions: bool = False) -> None:

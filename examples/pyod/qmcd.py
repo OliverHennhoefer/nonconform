@@ -1,10 +1,10 @@
+from pyod.models.qmcd import QMCD
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import CrossValidation
 from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
-from pyod.models.qmcd import QMCD
 
 x_train, x_test, y_test = load(Dataset.IONOSPHERE, setup=True)
 

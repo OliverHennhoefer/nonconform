@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from pyod.models.ecod import ECOD
 from pyod.models.iforest import IForest
 from pyod.models.knn import KNN

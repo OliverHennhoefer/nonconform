@@ -83,7 +83,7 @@ class TestForbiddenModels:
         detector.__class__ = CBLOF
         detector.get_params.return_value = {}
 
-        with pytest.raises(ValueError, match="IForest|HBOS|ECOD"):
+        with pytest.raises(ValueError, match=r"IForest|HBOS|ECOD"):
             _set_params(detector, seed=42)
 
     def test_forbidden_list_has_five_models(self):

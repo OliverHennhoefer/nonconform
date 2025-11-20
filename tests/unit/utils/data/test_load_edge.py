@@ -94,7 +94,7 @@ class TestSetupModeEdgeCases:
         minimal_data = buffer.read()
 
         with mock_urlopen(minimal_data):
-            x_train, x_test, y_test = temp_manager.load(
+            x_train, _x_test, _y_test = temp_manager.load(
                 Dataset.BREAST, setup=True, seed=42
             )
             assert len(x_train) > 0
@@ -110,7 +110,7 @@ class TestSetupModeEdgeCases:
         no_anomaly_data = buffer.read()
 
         with mock_urlopen(no_anomaly_data):
-            x_train, x_test, y_test = temp_manager.load(
+            x_train, _x_test, y_test = temp_manager.load(
                 Dataset.BREAST, setup=True, seed=42
             )
             assert len(x_train) > 0
@@ -128,7 +128,7 @@ class TestSetupModeEdgeCases:
         large_data = buffer.read()
 
         with mock_urlopen(large_data):
-            x_train, x_test, y_test = temp_manager.load(
+            _x_train, x_test, _y_test = temp_manager.load(
                 Dataset.BREAST, setup=True, seed=42
             )
             assert len(x_test) <= 1000

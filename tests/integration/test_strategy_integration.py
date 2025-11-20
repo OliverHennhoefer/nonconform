@@ -6,6 +6,7 @@ from collections import namedtuple
 
 import numpy as np
 import pytest
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import (
@@ -15,7 +16,6 @@ from nonconform.strategy import (
     Split,
 )
 from nonconform.utils.func.enums import Aggregation
-from pyod.models.iforest import IForest
 
 StrategyCase = namedtuple("StrategyCase", "name factory expected_calib")
 

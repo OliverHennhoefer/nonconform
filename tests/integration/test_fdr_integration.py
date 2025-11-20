@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import LogisticWeightEstimator
@@ -14,7 +15,6 @@ from nonconform.utils.stat.weighted_fdr import (
     weighted_bh,
     weighted_false_discovery_control,
 )
-from pyod.models.iforest import IForest
 
 
 def _fit_weighted_detector(x_train):

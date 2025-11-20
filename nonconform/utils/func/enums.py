@@ -46,11 +46,11 @@ class Aggregation(Enum):
 
 
 class Dataset(Enum):
-    """Available datasets for anomaly detection experiments.
+    """Available benchmark datasets for anomaly detection experiments.
 
-    This enumeration provides all built-in datasets that can be loaded
-    using the load() function. Each dataset is preprocessed for anomaly
-    detection tasks with normal and anomalous samples.
+    This enumeration provides built-in datasets that can be loaded
+    using the load() function. These are curated benchmark datasets
+    commonly used for anomaly detection research.
 
     Usage:
         from nonconform.utils.data import load, Dataset

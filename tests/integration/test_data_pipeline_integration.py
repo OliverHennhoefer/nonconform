@@ -6,13 +6,13 @@ import io
 
 import numpy as np
 import pandas as pd
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.data.generator import BatchGenerator, OnlineGenerator
 from nonconform.utils.data.load import DatasetManager
 from nonconform.utils.func.enums import Dataset
-from pyod.models.iforest import IForest
 
 
 def _make_fake_loader(

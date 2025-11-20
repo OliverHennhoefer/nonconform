@@ -2,7 +2,6 @@ import abc
 
 import numpy as np
 import pandas as pd
-
 from pyod.models.base import BaseDetector
 
 

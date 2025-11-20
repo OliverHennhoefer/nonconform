@@ -59,7 +59,7 @@ class TestTruncationWarning:
             n_batches=1,
             seed=42,
         )
-        x_batch, y_batch = next(gen.generate())
+        _x_batch, y_batch = next(gen.generate())
         assert y_batch.sum() == 0
 
 

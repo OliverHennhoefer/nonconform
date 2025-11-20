@@ -144,17 +144,19 @@ exclude = [
 
 
 [tool.ruff.lint]
+preview = true
 select = [
-    "E",  # pycodestyle errors
-    "F",  # Pyflakes
-    "W",  # pycodestyle warnings
-    "I",  # isort (import order)
-    "D",  # pydocstyle (docstrings)
-    "UP", # pyupgrade (modernize Python code)
-    "N",  # pep8-naming
-    "Q",  # flake8-quotes
-    "RUF",# Ruff-specific rules (includes some for Markdown, e.g. RUF200 for bad header increases)
-    "NPY" # NumPy-specific rules, for idiomatic NumPy code
+    "E",        # pycodestyle errors
+    "F",        # Pyflakes
+    "W",        # pycodestyle warnings
+    "I",        # isort (import order)
+    "D",        # pydocstyle (docstrings)
+    "UP",       # pyupgrade (modernize Python code)
+    "N",        # pep8-naming
+    "Q",        # flake8-quotes
+    "RUF",      # Ruff-specific rules (includes some for Markdown, e.g. RUF200 for bad header increases)
+    "RUF059",   # Explicitly enable RUF059 (not included in the default RUF group)
+    "NPY"       # NumPy-specific rules, for idiomatic NumPy code
 ]
 ignore = [
     "D100", # Missing docstring in public module (can be noisy initially)

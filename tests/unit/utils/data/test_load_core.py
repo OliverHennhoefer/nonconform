@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from nonconform.utils.data import Dataset, get_info, list_available, load
+from nonconform.utils.data import Dataset, list_available, load
 
 
 class TestDatasetLoading:
@@ -57,23 +57,23 @@ class TestSetupMode:
 
     def test_training_set_has_no_class_column(self, temp_manager, mock_urlopen):
         with mock_urlopen():
-            x_train, x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
+            x_train, x_test, _y_test = temp_manager.load(Dataset.BREAST, setup=True)
             assert "Class" not in x_train.columns
             assert "Class" not in x_test.columns
 
     def test_test_labels_are_series(self, temp_manager, mock_urlopen):
         with mock_urlopen():
-            x_train, x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
+            _x_train, x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
             assert len(y_test) == len(x_test)
 
     def test_setup_with_seed_reproducible(self, temp_manager, mock_urlopen):
         with mock_urlopen():
-            x_train1, x_test1, y_test1 = temp_manager.load(
+            x_train1, x_test1, _y_test1 = temp_manager.load(
                 Dataset.BREAST, setup=True, seed=42
             )
         temp_manager._memory_cache.clear()
         with mock_urlopen():
-            x_train2, x_test2, y_test2 = temp_manager.load(
+            x_train2, x_test2, _y_test2 = temp_manager.load(
                 Dataset.BREAST, setup=True, seed=42
             )
 
@@ -89,30 +89,16 @@ class TestSetupMode:
 
     def test_test_set_contains_anomalies(self, temp_manager, mock_urlopen):
         with mock_urlopen():
-            x_train, x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
+            _x_train, _x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
             assert 1 in y_test.values
 
     def test_test_set_contains_normal(self, temp_manager, mock_urlopen):
         with mock_urlopen():
-            x_train, x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
+            _x_train, _x_test, y_test = temp_manager.load(Dataset.BREAST, setup=True)
             assert 0 in y_test.values
 
 
 class TestMetadataAccess:
-    def test_get_info_returns_dataset_info(self, temp_manager):
-        info = temp_manager.get_info(Dataset.BREAST)
-        assert info.name == "breast"
-        assert info.filename == "breast_w.npz"
-
-    def test_get_info_has_required_fields(self, temp_manager):
-        info = temp_manager.get_info(Dataset.FRAUD)
-        assert hasattr(info, "name")
-        assert hasattr(info, "description")
-        assert hasattr(info, "filename")
-        assert hasattr(info, "samples")
-        assert hasattr(info, "features")
-        assert hasattr(info, "anomaly_rate")
-
     def test_list_available_returns_list(self, temp_manager):
         datasets = temp_manager.list_available()
         assert isinstance(datasets, list)
@@ -138,10 +124,6 @@ class TestPublicAPI:
         datasets = list_available()
         assert isinstance(datasets, list)
         assert len(datasets) > 0
-
-    def test_get_info_function(self):
-        info = get_info(Dataset.BREAST)
-        assert info.name == "breast"
 
 
 class TestDataTypeConversion:

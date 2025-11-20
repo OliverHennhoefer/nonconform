@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import CrossValidation
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.stat.aggregation import aggregate
-from pyod.models.iforest import IForest
 
 
 def _build_detector(aggregation: Aggregation):
