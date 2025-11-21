@@ -1,11 +1,11 @@
 import logging
 
+from oddball import Dataset, load
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import JackknifeBootstrap
-from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 if __name__ == "__main__":

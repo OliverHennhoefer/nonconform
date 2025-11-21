@@ -44,6 +44,7 @@ path = "nonconform/__init__.py"
 
 [project.optional-dependencies]
 data = [
+    "oddball>=1.1.0",
     "pyarrow>=16.1.0",
 ]
 deep = [
@@ -68,6 +69,7 @@ dev = [
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
     "scipy-stubs==1.16.3.0",
+    "oddball>=1.1.0",
 ]
 
 [project.urls]

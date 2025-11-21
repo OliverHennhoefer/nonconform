@@ -11,10 +11,10 @@ from scipy.stats import false_discovery_control
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
 from nonconform.utils.func import Aggregation
-from nonconform.utils.data import load, Dataset
+from oddball import Dataset, load
 
 # Load example data - downloads automatically and caches in memory
-x_train, x_test, y_test = load(Dataset.BREAST, setup=True)
+x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
 print(f"Training samples: {len(x_train)}, Test samples: {len(x_test)}")
 ```
 

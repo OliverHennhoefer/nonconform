@@ -15,8 +15,8 @@ Key features:
 ## Basic Usage
 
 ```python
-from nonconform.utils.data import load, Dataset
-from nonconform.utils.data.generator import OnlineGenerator
+from oddball import Dataset, load
+from oddball.generator import OnlineGenerator
 
 # Create online generator with exact 2% anomalies over 1000 instances
 online_gen = OnlineGenerator(
@@ -330,7 +330,7 @@ if len(fdrs) > 2:
 Compare streaming vs batch evaluation approaches:
 
 ```python
-from nonconform.utils.data.generator import BatchGenerator
+from oddball.generator import BatchGenerator
 
 # Streaming evaluation
 online_gen = OnlineGenerator(
@@ -403,12 +403,12 @@ print(f"  Total Anomalies: {sum(sum(y_batch.values) for _, y_batch in batch_gen.
 ### Different Datasets and Training Splits
 
 ```python
-from nonconform.utils.data import load, Dataset
+from oddball import Dataset, load
 
 # Test with different datasets and training split ratios
 configs = [
     (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), 0.5, "Shuttle"),
-    (lambda **kwargs: load(Dataset.BREAST, **kwargs), 0.6, "Breast Cancer"),
+    (lambda **kwargs: load(Dataset.BREASTW, **kwargs), 0.6, "Breast Cancer"),
     (lambda **kwargs: load(Dataset.FRAUD, **kwargs), 0.7, "Credit Fraud")
 ]
 

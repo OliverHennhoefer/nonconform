@@ -18,7 +18,7 @@ Installation via [PyPI](https://pypi.org/project/nonconform/):
 pip install nonconform
 ```
 
-> **Note:** The following examples use the built-in datasets. Install with `pip install nonconform[data]` to run these examples. (see [Optional Dependencies](#optional-dependencies))
+> **Note:** The following examples use an external dataset API. Install with `pip install oddball` or `pip install "nonconform[data]"` to include it. (see [Optional Dependencies](#optional-dependencies))
 
 
 ## Classical (Conformal) Approach
@@ -31,7 +31,7 @@ from scipy.stats import false_discovery_control
 
 from nonconform.strategy import Split
 from nonconform.detection import ConformalDetector
-from nonconform.utils.data import load, Dataset
+from oddball import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)

@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import io
-
 import numpy as np
 import pandas as pd
+from oddball.generator import BatchGenerator, OnlineGenerator
 from pyod.models.iforest import IForest
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Split
-from nonconform.utils.data.generator import BatchGenerator, OnlineGenerator
-from nonconform.utils.data.load import DatasetManager
-from nonconform.utils.func.enums import Dataset
 
 
 def _make_fake_loader(
@@ -89,24 +85,3 @@ def test_online_generator_stream(monkeypatch):
     assert y_stream.sum() == int(0.1 * 20)
     preds = detector.predict(x_stream)
     assert preds.shape[0] == 20
-
-
-def test_dataset_manager_setup_flow(monkeypatch):
-    """DatasetManager.load(setup=True) should integrate without network access."""
-    loader = _make_fake_loader(seed=5)
-    df = loader()
-    features = df.drop(columns=["Class"]).to_numpy()
-    labels = df["Class"].to_numpy()
-    buffer = io.BytesIO()
-    np.savez(buffer, X=features, y=labels)
-    payload = buffer.getvalue()
-
-    manager = DatasetManager()
-    monkeypatch.setattr(manager, "_download", lambda filename: payload)
-
-    x_train, x_test, y_test = manager.load(Dataset.BREAST, setup=True, seed=6)
-    detector = _build_detector()
-    detector.fit(x_train.to_numpy())
-    p_values = detector.predict(x_test.to_numpy())
-
-    assert p_values.shape[0] == len(y_test)

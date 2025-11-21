@@ -1144,11 +1144,13 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "oddball" },
     { name = "online-fdr" },
     { name = "pyarrow" },
     { name = "torch" },
 ]
 data = [
+    { name = "oddball" },
     { name = "pyarrow" },
 ]
 deep = [
@@ -1164,6 +1166,7 @@ dev = [
     { name = "mkdocs" },
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocstrings", extra = ["python"] },
+    { name = "oddball" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1176,6 +1179,8 @@ dev = [
 requires-dist = [
     { name = "kdepy", specifier = ">=1.1.12" },
     { name = "numpy", specifier = ">=2.2.0,<2.3" },
+    { name = "oddball", marker = "extra == 'all'", specifier = ">=1.1.0" },
+    { name = "oddball", marker = "extra == 'data'", specifier = ">=1.1.0" },
     { name = "online-fdr", marker = "extra == 'all'", specifier = ">=0.0.3" },
     { name = "online-fdr", marker = "extra == 'fdr'", specifier = ">=0.0.3" },
     { name = "optuna", specifier = ">=4.5.0" },
@@ -1197,6 +1202,7 @@ dev = [
     { name = "mkdocs" },
     { name = "mkdocs-material", extras = ["imaging"] },
     { name = "mkdocstrings", extras = ["python"] },
+    { name = "oddball", specifier = ">=1.1.0" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1401,6 +1407,20 @@ version = "12.8.90"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/eb/86626c1bbc2edb86323022371c39aa48df6fd8b0a1647bc274577f72e90b/nvidia_nvtx_cu12-12.8.90-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:5b17e2001cc0d751a5bc2c6ec6d26ad95913324a4adb86788c944f8ce9ba441f", size = 89954, upload-time = "2025-03-07T01:42:44.131Z" },
+]
+
+[[package]]
+name = "oddball"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/aa/0eb15b2a7d846fa79dacc9033de0eed500e0d309475d6a96d9384cc641b7/oddball-1.1.0.tar.gz", hash = "sha256:23089c65ce0cbcd34fa25c7479a26e65af4b526e8eacfce3cb1655869d72161c", size = 33781, upload-time = "2025-11-21T14:31:13.409Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/7c/431a529997583816d4456143d14867fac9317ff9b3feec0dbd36467ce625/oddball-1.1.0-py3-none-any.whl", hash = "sha256:1310ca2d5d615ed9db232c51bce32c664f3d3bb202c7bfaa9c02719b5ffb9c1b", size = 14250, upload-time = "2025-11-21T14:31:12.07Z" },
 ]
 
 [[package]]

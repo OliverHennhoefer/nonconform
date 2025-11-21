@@ -71,7 +71,7 @@ print(f"No adjustment: {no_adjustment} detections")
 ```python
 from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import JackknifeBootstrap
-from nonconform.utils.data import Dataset, load
+from oddball import Dataset, load
 from nonconform.utils.stat import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 

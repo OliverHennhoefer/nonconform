@@ -1,9 +1,9 @@
+from oddball import Dataset, load
 from pyod.models.hbos import HBOS
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Probabilistic, Split
-from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 if __name__ == "__main__":

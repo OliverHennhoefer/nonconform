@@ -2,15 +2,15 @@
 
 This guide will get you started with `nonconform` in just a few minutes.
 
-## Built-in Datasets
+## Benchmark Datasets (via oddball)
 
-For quick experimentation, nonconform includes several benchmark anomaly detection datasets. Install with `pip install nonconform[data]` to enable dataset functionality.
+For quick experimentation, use the external `oddball` package, which ships benchmark anomaly detection datasets. Install it via `pip install oddball` or `pip install "nonconform[data]"` to pull it in as an optional extra.
 
 ```python
-from nonconform.utils.data import load, Dataset
+from oddball import Dataset, load
 
-# Load a dataset - automatically downloads and caches
-x_train, x_test, y_test = load(Dataset.BREAST, setup=True)
+# Load a dataset - automatically downloads and caches through oddball
+x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
 
 print(f"Training data shape: {x_train.shape}")
 print(f"Test data shape: {x_test.shape}")
@@ -19,7 +19,7 @@ print(f"Anomaly ratio in test set: {y_test.mean():.2%}")
 
 **Note**: Datasets are downloaded on first use and cached both in memory and on disk for faster subsequent loads.
 
-Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `BREAST`, `FRAUD`, `IONOSPHERE`, `MAMMOGRAPHY`, `MUSK`, `SHUTTLE`, `THYROID`, `WBC`.
+Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `BREASTW`, `FRAUD`, `IONOSPHERE`, `MAMMOGRAPHY`, `MUSK`, `SHUTTLE`, `THYROID`, `WBC`, and more (see `oddball.list_available()`).
 
 ## Basic Usage
 

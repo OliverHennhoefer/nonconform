@@ -1,4 +1,5 @@
 import numpy as np
+from oddball import Dataset, load
 from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
@@ -6,8 +7,6 @@ from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Jackknife, JackknifeBootstrap, Probabilistic, Split
-from nonconform.utils.data import load
-from nonconform.utils.func.enums import Dataset
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 

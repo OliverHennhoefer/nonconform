@@ -2,7 +2,6 @@ import pytest
 
 from nonconform.utils.func.enums import (
     Aggregation,
-    Dataset,
     Distribution,
     Kernel,
     Pruning,
@@ -56,38 +55,12 @@ class TestAggregation:
 
 
 class TestDataset:
-    def test_has_29_datasets(self):
-        assert len(list(Dataset)) == 29
+    def test_dataset_enum_removed(self):
+        import importlib
 
-    def test_has_breast_dataset(self):
-        assert Dataset.BREAST.value == "breast"
-
-    def test_has_fraud_dataset(self):
-        assert Dataset.FRAUD.value == "fraud"
-
-    def test_has_mnist_dataset(self):
-        assert Dataset.MNIST.value == "mnist"
-
-    def test_all_values_are_lowercase(self):
-        for dataset in Dataset:
-            assert dataset.value.islower()
-
-    def test_member_names_match_pattern(self):
-        for dataset in Dataset:
-            assert dataset.name.isupper()
-
-    def test_specific_datasets_exist(self):
-        expected = [
-            "ANNTHYROID",
-            "BACKDOOR",
-            "BREAST",
-            "CARDIO",
-            "FRAUD",
-            "MNIST",
-            "THYROID",
-        ]
-        for name in expected:
-            assert hasattr(Dataset, name)
+        enums = importlib.import_module("nonconform.utils.func.enums")
+        with pytest.raises(AttributeError):
+            getattr(enums, "Dataset")
 
 
 class TestPruning:
@@ -166,20 +139,12 @@ class TestEnumProperties:
 
     def test_enum_string_representation(self):
         assert "MEAN" in str(Aggregation.MEAN)
-        assert "BREAST" in str(Dataset.BREAST)
 
 
 class TestEnumValidation:
     def test_invalid_member_access_raises_error(self):
         with pytest.raises(AttributeError):
             _ = Aggregation.INVALID
-
-    def test_dataset_value_lookup(self):
-        assert Dataset("breast") == Dataset.BREAST
-
-    def test_invalid_value_raises_error(self):
-        with pytest.raises(ValueError):
-            Dataset("nonexistent")
 
 
 class TestEnumUsage:

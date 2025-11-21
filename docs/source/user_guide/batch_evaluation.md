@@ -11,8 +11,8 @@ The `BatchGenerator` creates evaluation batches with configurable anomaly propor
 ## Basic Usage
 
 ```python
-from nonconform.utils.data import load, Dataset
-from nonconform.utils.data.generator import BatchGenerator
+from oddball import Dataset, load
+from oddball.generator import BatchGenerator
 
 # Create batch generator with proportional mode (default)
 batch_gen = BatchGenerator(
@@ -157,12 +157,12 @@ print(f"Average FDR: {mean_fdr:.3f}, Average Power: {mean_power:.3f}")
 ### Different Datasets
 
 ```python
-from nonconform.utils.data import load, Dataset
+from oddball import Dataset, load
 
 # Test with different datasets - limited generation example
 datasets = [
     (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), "Shuttle"),
-    (lambda **kwargs: load(Dataset.BREAST, **kwargs), "Breast Cancer"),
+    (lambda **kwargs: load(Dataset.BREASTW, **kwargs), "Breast Cancer"),
     (lambda **kwargs: load(Dataset.FRAUD, **kwargs), "Credit Fraud")
 ]
 

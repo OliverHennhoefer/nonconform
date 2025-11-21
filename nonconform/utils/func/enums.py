@@ -45,49 +45,6 @@ class Aggregation(Enum):
     MAXIMUM = auto()
 
 
-class Dataset(Enum):
-    """Available benchmark datasets for anomaly detection experiments.
-
-    This enumeration provides built-in datasets that can be loaded
-    using the load() function. These are curated benchmark datasets
-    commonly used for anomaly detection research.
-
-    Usage:
-        from nonconform.utils.data import load, Dataset
-        df = load(Dataset.FRAUD, setup=True, seed=42)
-    """
-
-    ANNTHYROID = "annthyroid"
-    BACKDOOR = "backdoor"
-    BREAST = "breast"
-    CARDIO = "cardio"
-    COVER = "cover"
-    DONORS = "donors"
-    FRAUD = "fraud"
-    GLASS = "glass"
-    HEPATITIS = "hepatitis"
-    HTTP = "http"
-    IONOSPHERE = "ionosphere"
-    LETTER = "letter"
-    LYMPHOGRAPHY = "lymphography"
-    MAGIC_GAMMA = "magic_gamma"
-    MAMMOGRAPHY = "mammography"
-    MNIST = "mnist"
-    MUSK = "musk"
-    OPTDIGITS = "optdigits"
-    PAGEBLOCKS = "pageblocks"
-    PENDIGITS = "pendigits"
-    SATIMAGE2 = "satimage2"
-    SHUTTLE = "shuttle"
-    SMTP = "smtp"
-    STAMPS = "stamps"
-    THYROID = "thyroid"
-    VOWELS = "vowels"
-    WBC = "wbc"
-    WINE = "wine"
-    YEAST = "yeast"
-
-
 class Pruning(Enum):
     """Available pruning strategies for weighted FDR control.
 

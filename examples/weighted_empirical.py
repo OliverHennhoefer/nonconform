@@ -1,3 +1,4 @@
+from oddball import Dataset, load
 from pyod.models.hbos import HBOS
 
 from nonconform.detection import ConformalDetector
@@ -6,7 +7,6 @@ from nonconform.detection.weight import (
     LogisticWeightEstimator,
 )
 from nonconform.strategy import Split
-from nonconform.utils.data import Dataset, load
 from nonconform.utils.func.enums import Pruning
 from nonconform.utils.stat import (
     false_discovery_rate,

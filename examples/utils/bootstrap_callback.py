@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from oddball import Dataset, load
 from pyod.models.iforest import IForest
 from scipy.stats import (
     entropy,
@@ -10,7 +11,6 @@ from scipy.stats import (
 
 from nonconform.detection import ConformalDetector
 from nonconform.strategy import Bootstrap
-from nonconform.utils.data import Dataset, load
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 if __name__ == "__main__":

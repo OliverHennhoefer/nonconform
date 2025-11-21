@@ -1,6 +1,5 @@
-from nonconform.utils.data import Dataset
-from nonconform.utils.data.generator import BatchGenerator, OnlineGenerator
-from nonconform.utils.data.load import load
+from oddball import Dataset, load
+from oddball.generator import BatchGenerator, OnlineGenerator
 
 
 def demonstrate_batch_generation():
@@ -31,7 +30,7 @@ def demonstrate_batch_generation():
     # Probabilistic mode - global target across all batches
     print("\n2. Probabilistic Mode (5% anomalies globally across 10 batches):")
     batch_gen_prob = BatchGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
+        load_data_func=lambda **kwargs: load(Dataset.BREASTW, **kwargs),
         batch_size=50,
         anomaly_proportion=0.05,
         anomaly_mode="probabilistic",
@@ -91,7 +90,7 @@ def demonstrate_online_generation():
     # Smaller example to show exact control
     print("\nSmaller Example (exactly 1% anomalies over 100 instances):")
     online_gen_small = OnlineGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.BREAST, **kwargs),
+        load_data_func=lambda **kwargs: load(Dataset.BREASTW, **kwargs),
         anomaly_proportion=0.01,
         n_instances=100,
         seed=42,
@@ -153,7 +152,7 @@ def demonstrate_different_datasets():
 
     datasets = [
         (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), "Shuttle"),
-        (lambda **kwargs: load(Dataset.BREAST, **kwargs), "Breast Cancer"),
+        (lambda **kwargs: load(Dataset.BREASTW, **kwargs), "Breast Cancer"),
     ]
 
     for load_func, name in datasets:
