@@ -64,6 +64,7 @@ nav:
     - Batch Evaluation: user_guide/batch_evaluation.md
     - Streaming Evaluation: user_guide/streaming_evaluation.md
     - Statistical Concepts: user_guide/statistical_concepts.md
+    - Input Validation: user_guide/input_validation.md
     - Best Practices: user_guide/best_practices.md
     - Logging: user_guide/logging.md
     - Troubleshooting: user_guide/troubleshooting.md

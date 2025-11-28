@@ -4,9 +4,9 @@ This guide explains how to use weighted conformal p-values in `nonconform` for h
 
 ## Overview
 
-Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. When it holds you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift.
+Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. When it holds you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift [[Jin & Candès, 2023](#references)].
 
-The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights using logistic regression to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
+The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
 
 ## Basic Usage
 
@@ -178,6 +178,110 @@ for agg_method in aggregation_methods:
     print(f"{agg_method.value}: {(p_vals < 0.05).sum()} detections")
 ```
 
+## Weight Estimators
+
+`nonconform` provides two weight estimators for handling covariate shift:
+
+### LogisticWeightEstimator
+
+Uses logistic regression to estimate likelihood ratios between calibration and test distributions:
+
+```python
+from nonconform.detection.weight import LogisticWeightEstimator
+
+# Default configuration with L2 regularization
+weight_est = LogisticWeightEstimator(seed=42)
+
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=strategy,
+    aggregation=Aggregation.MEDIAN,
+    weight_estimator=weight_est,
+    seed=42
+)
+```
+
+**When to use**:
+- Linear or moderately complex distribution shifts
+- High-dimensional data where interpretability matters
+- Fast weight estimation is needed
+- Default choice for most applications
+
+**Parameters**:
+- `penalty`: Regularization type ('l2', 'l1', 'elasticnet', 'none')
+- `C`: Inverse regularization strength (default: 1.0)
+- `solver`: Optimization algorithm (default: 'lbfgs')
+- `max_iter`: Maximum iterations (default: 1000)
+- `seed`: Random state for reproducibility
+
+### ForestWeightEstimator
+
+Uses random forest classification to estimate likelihood ratios:
+
+```python
+from nonconform.detection.weight import ForestWeightEstimator
+
+# Forest-based weight estimation
+weight_est = ForestWeightEstimator(
+    n_estimators=100,
+    max_depth=10,
+    seed=42
+)
+
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=strategy,
+    aggregation=Aggregation.MEDIAN,
+    weight_estimator=weight_est,
+    seed=42
+)
+```
+
+**When to use**:
+- Complex, non-linear distribution shifts
+- Feature interactions are important
+- More robust to outliers in feature space
+- When you have sufficient calibration data (hundreds+ samples)
+
+**Parameters**:
+- `n_estimators`: Number of trees (default: 100)
+- `max_depth`: Maximum tree depth (default: None)
+- `min_samples_split`: Minimum samples to split (default: 2)
+- `min_samples_leaf`: Minimum samples in leaf (default: 1)
+- `seed`: Random state for reproducibility
+
+### Comparison
+
+```python
+# Compare weight estimators on complex shift
+from nonconform.detection.weight import LogisticWeightEstimator, ForestWeightEstimator
+
+estimators = {
+    'Logistic': LogisticWeightEstimator(seed=42),
+    'Forest': ForestWeightEstimator(n_estimators=100, seed=42)
+}
+
+for name, weight_est in estimators.items():
+    detector = ConformalDetector(
+        detector=base_detector,
+        strategy=Split(n_calib=0.2),
+        aggregation=Aggregation.MEDIAN,
+        weight_estimator=weight_est,
+        seed=42
+    )
+    detector.fit(X_train)
+    p_values = detector.predict(X_test_shifted, raw=False)
+
+    print(f"{name}: {(p_values < 0.05).sum()} detections")
+```
+
+**General recommendations**:
+- Start with `LogisticWeightEstimator` (faster, more interpretable)
+- Switch to `ForestWeightEstimator` if:
+  - Distribution shift is highly non-linear
+  - You have >500 calibration samples
+  - Logistic weights show poor discrimination
+
 ## Strategy Selection
 
 Different strategies can be used with weighted conformal detection:
@@ -205,29 +309,15 @@ cv_detector = ConformalDetector(
     weight_estimator=LogisticWeightEstimator(seed=42),
     seed=42
 )
+```
 
 ## Weighted Conformal Selection
 
-Weighted
-conformal
-p - values
-are
-valid
-on
-their
-own.To
-obtain
-finite - sample
-FDR
-control
-under
-covariate
-shift, combine
-them
-with Weighted Conformal Selection (WCS):
+Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS) [[Jin & Candès, 2023](#references)]:
 
 ```python
 from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform.utils.func.enums import Pruning
 
 # Collect weighted p-values and cached statistics
 weighted_detector.predict(X_test_shifted, raw=False)
@@ -235,24 +325,104 @@ weighted_detector.predict(X_test_shifted, raw=False)
 wcs_mask = weighted_false_discovery_control(
     result=weighted_detector.last_result,
     alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,  # deterministic pruning; use heterogeneous/homogeneous for randomized variants
+    pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 
 print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
 ```
 
-After any call to ``predict()``, the detector caches the relevant arrays
-``(p_values, scores, weights)`` inside ``detector.last_result``. Passing this object to
-``weighted_false_discovery_control`` avoids plumbing the raw arrays manually.
+After any call to `predict()`, the detector caches the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`. Passing this object to `weighted_false_discovery_control` avoids plumbing the raw arrays manually.
 
-When the ``Probabilistic`` estimator is active, this snapshot also stores the
-KDE grid and cumulative distribution so that WCS can optionally use the smoothed
-mass estimates. If no KDE metadata is available, the selector automatically
-falls back to the empirical weighted ranks from Jin & Candès (2023).
+### Pruning Modes
 
-The ``pruning`` parameter matches the choices in Jin & Candès (2023): ``DETERMINISTIC`` keeps the procedure deterministic, while ``HOMOGENEOUS`` and ``HETEROGENEOUS`` draw one or multiple auxiliary random variables. Provide ``seed`` when reproducibility is important.
+The `pruning` parameter controls how ties and randomization are handled in the WCS procedure [[Jin & Candès, 2023](#references)]:
+
+#### Pruning.DETERMINISTIC
+
+```python
+wcs_mask = weighted_false_discovery_control(
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,  # seed has no effect for deterministic mode
+)
 ```
+
+**Behavior**: Uses a deterministic threshold without randomization. When there are tied p-values at the threshold, includes all or none based on deterministic rule.
+
+**When to use**:
+- Reproducibility is critical
+- You don't want any randomness in selections
+- Reporting results that must be exactly reproducible
+
+**Trade-off**: May be slightly conservative (reject fewer hypotheses) compared to randomized methods.
+
+#### Pruning.HOMOGENEOUS
+
+```python
+wcs_mask = weighted_false_discovery_control(
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.HOMOGENEOUS,
+    seed=42,  # controls randomization
+)
+```
+
+**Behavior**: Draws a single uniform random variable and applies the same randomized threshold to all test instances. Handles ties by probabilistically including tied instances.
+
+**When to use**:
+- Default randomized method
+- Want exact FDR control in expectation
+- Acceptable to have some randomness
+
+**Trade-off**: Less conservative than DETERMINISTIC, but results vary across random seeds.
+
+#### Pruning.HETEROGENEOUS
+
+```python
+wcs_mask = weighted_false_discovery_control(
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.HETEROGENEOUS,
+    seed=42,  # controls randomization
+)
+```
+
+**Behavior**: Draws independent uniform random variables for each test instance. Provides the most flexible randomization.
+
+**When to use**:
+- Maximum power (fewer false negatives)
+- Most aggressive FDR control
+- Research settings where slight variance is acceptable
+
+**Trade-off**: Highest variance across random seeds, but best expected power.
+
+### Comparison of Pruning Methods
+
+```python
+from nonconform.utils.func.enums import Pruning
+
+pruning_methods = [
+    Pruning.DETERMINISTIC,
+    Pruning.HOMOGENEOUS,
+    Pruning.HETEROGENEOUS
+]
+
+weighted_detector.predict(X_test_shifted, raw=False)
+
+for pruning_method in pruning_methods:
+    wcs_mask = weighted_false_discovery_control(
+        result=weighted_detector.last_result,
+        alpha=0.05,
+        pruning=pruning_method,
+        seed=42,
+    )
+
+    print(f"{pruning_method.name}: {wcs_mask.sum()} detections")
+```
+
+**Expected relationship**: Typically HETEROGENEOUS ≥ HOMOGENEOUS ≥ DETERMINISTIC in terms of number of detections, though this can vary with data.
 
 
 ## Performance Considerations
@@ -463,9 +633,18 @@ def debug_weighted_conformal(detector, X_train, X_test):
 debug_weighted_conformal(weighted_detector, X_train, X_test_shifted)
 ```
 
+## References
+
+- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Foundational paper on weighted conformal inference and WCS procedure]
+
+- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with covariate shift]
+
+- **Genovese, C. R., Roeder, K., & Wasserman, L. (2006)**. *False Discovery Control with p-value Weighting*. Biometrika, 93(3), 509-524. [Theoretical foundation for weighted FDR control]
+
 ## Next Steps
 
 - Learn about [FDR control](fdr_control.md) for multiple testing scenarios
 - Explore [different conformalization strategies](conformalization_strategies.md) for various use cases
 - Read about [best practices](best_practices.md) for robust anomaly detection
 - Check the [troubleshooting guide](troubleshooting.md) for common issues
+- See [input validation](input_validation.md) for parameter constraints and edge cases

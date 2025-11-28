@@ -4,7 +4,7 @@ This guide explains the key statistical concepts that underpin nonconform's func
 
 ## Conformal Inference
 
-Conformal inference is a framework for uncertainty quantification that provides valid prediction intervals and p-values without making strong distributional assumptions. In the context of anomaly detection, it allows us to:
+Conformal inference is a framework for uncertainty quantification that provides valid prediction intervals and p-values without making strong distributional assumptions [[Vovk et al., 2005](#references); [Angelopoulos & Bates, 2023](#references)]. In the context of anomaly detection [[Bates et al., 2023](#references)], it allows us to:
 
 1. Convert raw anomaly scores into statistically valid p-values
 2. Control false discovery rates at specified levels
@@ -12,7 +12,7 @@ Conformal inference is a framework for uncertainty quantification that provides 
 
 ### Exchangeability
 
-The key assumption in conformal inference is exchangeability, which is weaker than independence. Data points are exchangeable if their joint distribution is invariant to permutations. This means:
+The key assumption in conformal inference is exchangeability [[Vovk et al., 2005](#references)], which is weaker than independence. Data points are exchangeable if their joint distribution is invariant to permutations. This means:
 
 - The order of the data points doesn't matter
 - Each data point is treated equally in the analysis
@@ -28,7 +28,7 @@ In nonconform, p-values represent the probability of observing a more extreme an
 
 ## False Discovery Rate (FDR) Control
 
-FDR control is a multiple testing procedure that limits the expected proportion of false discoveries among all discoveries. nonconform implements the Benjamini-Hochberg procedure, which:
+FDR control is a multiple testing procedure that limits the expected proportion of false discoveries among all discoveries [[Benjamini & Hochberg, 1995](#references)]. nonconform implements the Benjamini-Hochberg procedure, which:
 
 1. Controls FDR at a specified level α
 2. Is more powerful than family-wise error rate control
@@ -42,7 +42,7 @@ FDR control is a multiple testing procedure that limits the expected proportion 
 
 ## Weighted Conformal p-values
 
-When the exchangeability assumption is violated (e.g., due to covariate shift), weighted conformal p-values can be used. These:
+When the exchangeability assumption is violated (e.g., due to covariate shift), weighted conformal p-values can be used [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. These:
 
 1. Account for differences between training and test distributions
 2. Maintain statistical validity under weaker assumptions
@@ -74,4 +74,25 @@ For optimal statistical performance:
 2. Ensure the calibration data is representative of the normal class
 3. Consider using resampling strategies in low-data regimes
 4. Use weighted conformal p-values when dealing with distributional shifts
-5. Validate the exchangeability assumption when possible 
+5. Validate the exchangeability assumption when possible
+
+## References
+
+- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [Foundational theory of conformal prediction and exchangeability]
+
+- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Application of conformal prediction to anomaly detection]
+
+- **Angelopoulos, A. N., & Bates, S. (2023)**. *Conformal Prediction: A Gentle Introduction*. Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive modern introduction to conformal prediction]
+
+- **Benjamini, Y., & Hochberg, Y. (1995)**. *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing*. Journal of the Royal Statistical Society: Series B, 57(1), 289-300. [FDR control methodology]
+
+- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal inference under covariate shift]
+
+- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with distribution shift]
+
+## Next Steps
+
+- See [conformal inference](conformal_inference.md) for detailed theoretical foundations
+- Learn about [weighted conformal p-values](weighted_conformal.md) for handling distribution shift
+- Explore [conformalization strategies](conformalization_strategies.md) for different data scenarios
+- Check [input validation](input_validation.md) for parameter constraints 

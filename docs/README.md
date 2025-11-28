@@ -5,10 +5,11 @@
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 [![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
 
-  ## Conformal Anomaly Detection
-Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees about the anomalies they identify. **nonconform** wraps your favorite anomaly detection model from [*PyOD*](https://pyod.readthedocs.io/en/latest/) (see [Supported Estimators](#supported-estimators)) and transforms its raw anomaly scores into statistically valid $p$-values. It applies principles from [**conformal prediction**](https://en.wikipedia.org/wiki/Conformal_prediction) to the setting of [one-class classification](https://en.wikipedia.org/wiki/One-class_classification), enabling anomaly detection with provable statistical guarantees and a controlled [false discovery rate](https://en.wikipedia.org/wiki/False_discovery_rate).
+## Conformal Anomaly Detection
 
-> **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables). Therefore, the package is not suited for data with spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
+Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees about the anomalies they identify. **nonconform** wraps your favorite anomaly detection model from [*PyOD*](https://pyod.readthedocs.io/en/latest/) (see [Supported Estimators](#supported-estimators)) and transforms its raw anomaly scores into statistically valid $p$-values. It applies principles from [**conformal prediction**](https://en.wikipedia.org/wiki/Conformal_prediction) [Vovk et al., 2005] to the setting of [one-class classification](https://en.wikipedia.org/wiki/One-class_classification), enabling anomaly detection with provable statistical guarantees [Bates et al., 2023] and a controlled [false discovery rate](https://en.wikipedia.org/wiki/False_discovery_rate) [Benjamini & Hochberg, 1995].
+
+> **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables) [Vovk et al., 2005]. Therefore, the package is not suited for data with spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
 
 
 # :hatching_chick: Getting Started

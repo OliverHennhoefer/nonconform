@@ -127,6 +127,7 @@ When dealing with covariate shift, use weighted conformal p-values:
 from nonconform.detection import ConformalDetector
 from nonconform.detection.weight import LogisticWeightEstimator
 from nonconform.strategy import Split
+from nonconform.utils.func.enums import Pruning
 
 # Create weighted conformal anomaly detector
 weighted_strategy = Split(n_calib=0.3)

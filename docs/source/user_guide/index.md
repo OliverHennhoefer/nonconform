@@ -17,6 +17,7 @@ Comprehensive documentation for using Nonconform effectively.
 
 ## Practical Usage
 
+- [Input Validation](input_validation.md) - Parameter constraints and error handling
 - [Batch Evaluation](batch_evaluation.md) - Evaluating detector performance
 - [Streaming Evaluation](streaming_evaluation.md) - Online evaluation methods
 - [Best Practices](best_practices.md) - Recommended usage patterns

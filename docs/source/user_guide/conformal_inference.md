@@ -4,7 +4,7 @@ This guide explains the theoretical foundations and practical applications of co
 
 ## What is Conformal Inference?
 
-Conformal inference is a framework for creating prediction intervals or hypothesis tests with finite-sample validity guarantees. In the context of anomaly detection, it transforms raw anomaly scores into statistically valid p-values.
+Conformal inference is a framework for creating prediction intervals or hypothesis tests with finite-sample validity guarantees [[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In the context of anomaly detection, it transforms raw anomaly scores into statistically valid p-values [[Bates et al., 2023](#references)].
 
 ### The Problem with Traditional Anomaly Detection
 
@@ -67,7 +67,7 @@ where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
 ### Statistical Validity
 
-**Key Property**: If $X_{test}$ is exchangeable with the calibration data (i.e., drawn from the same distribution), then:
+**Key Property**: If $X_{test}$ is exchangeable with the calibration data (i.e., drawn from the same distribution), then [[Vovk et al., 2005](#references)]:
 
 $$\mathbb{P}(p_{classical}(X_{test}) \leq \alpha) \leq \alpha$$
 
@@ -89,11 +89,11 @@ The p-value answers the question: "If this test instance were actually normal, w
 
 ### What is Exchangeability?
 
-Exchangeability is weaker than the i.i.d. assumption. A sequence of random variables $(X_1, X_2, \ldots, X_n)$ is exchangeable if their joint distribution is invariant to permutations. Formally, for any permutation $\pi$ of $\{1, 2, \ldots, n\}$:
+Exchangeability is weaker than the i.i.d. assumption [[Vovk et al., 2005](#references)]. A sequence of random variables $(X_1, X_2, \ldots, X_n)$ is exchangeable if their joint distribution is invariant to permutations. Formally, for any permutation $\pi$ of $\{1, 2, \ldots, n\}$:
 
 $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(n)} \leq x_n)$$
 
-**Key insight for conformal prediction**: Under exchangeability, if we add a new observation $X_{n+1}$ from the same distribution, then $(X_1, \ldots, X_n, X_{n+1})$ remains exchangeable. This means that $X_{n+1}$ is equally likely to have the $k$-th largest value among all $n+1$ observations for any $k \in \{1, \ldots, n+1\}$.
+**Key insight for conformal prediction**: Under exchangeability, if we add a new observation $X_{n+1}$ from the same distribution, then $(X_1, \ldots, X_n, X_{n+1})$ remains exchangeable [[Angelopoulos & Bates, 2023](#references)]. This means that $X_{n+1}$ is equally likely to have the $k$-th largest value among all $n+1$ observations for any $k \in \{1, \ldots, n+1\}$.
 
 ### When Exchangeability Holds
 
@@ -117,7 +117,7 @@ Under exchangeability, standard conformal p-values provide exact finite-sample f
 
 **Statistical consequence**: When exchangeability fails, standard conformal p-values lose their coverage guarantees and may become systematically miscalibrated.
 
-**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data, potentially restoring valid inference under **specific types of covariate shift**. **Key limitations**:
+**Solution**: Weighted conformal prediction [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)] uses density ratio estimation to reweight calibration data, potentially restoring valid inference under **specific types of covariate shift**. **Key limitations**:
 
 1. **Assumption**: Requires that P(Y|X) remains constant while only P(X) changes
 2. **Density ratio estimation errors**: Inaccurate weight estimation can degrade or even worsen performance
@@ -421,6 +421,32 @@ def predict_in_batches(detector, X_test, batch_size=1000):
 p_values = predict_in_batches(detector, X_test_large)
 ```
 
+## References
+
+### Foundational Conformal Prediction
+
+- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [The foundational book on conformal prediction theory and exchangeability]
+
+- **Shafer, G., & Vovk, V. (2008)**. *A Tutorial on Conformal Prediction*. Journal of Machine Learning Research, 9, 371-421. [Accessible introduction to conformal prediction]
+
+### Conformal Anomaly Detection
+
+- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Application of conformal prediction to anomaly detection with finite-sample guarantees]
+
+- **Angelopoulos, A. N., & Bates, S. (2023)**. *Conformal Prediction: A Gentle Introduction*. Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive modern introduction to conformal prediction]
+
+### Weighted Conformal Inference
+
+- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal methods for handling distribution shift]
+
+- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with covariate shift]
+
+### Additional Resources
+
+- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**. *Predictive Inference with the Jackknife+*. The Annals of Statistics, 49(1), 486-507. [Jackknife+ method for efficient conformal prediction]
+
+- **Benjamini, Y., & Hochberg, Y. (1995)**. *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing*. Journal of the Royal Statistical Society: Series B, 57(1), 289-300. [FDR control methodology used in multiple testing]
+
 ## Next Steps
 
 - Learn about [different conformalization strategies](conformalization_strategies.md) in detail
@@ -428,3 +454,4 @@ p_values = predict_in_batches(detector, X_test_large)
 - Explore [FDR control](fdr_control.md) for multiple testing scenarios
 - Check out [best practices](best_practices.md) for production deployment
 - Review the [troubleshooting guide](troubleshooting.md) for common issues
+- See [input validation](input_validation.md) for parameter constraints and error handling
