@@ -219,7 +219,7 @@ Bootstrap(sample_ratio=0.8) # -> resampling_ratio=0.8
 **Problem**: Problems integrating with other libraries or custom detectors.
 
 **Solutions**:
-- Ensure your detector implements the PyOD BaseDetector interface
+- Ensure your detector implements the AnomalyDetector protocol (fit, decision_function, get_params, set_params)
 - Check for version compatibility
 - Verify that the detector's output format matches expectations
 - Use the correct aggregation enum values

@@ -143,7 +143,8 @@ exclude = [
 ]
 "examples/**/*.py" = [ # Allow more relaxed rules for examples
     "D100", "D103", "D101", "D102", "D104", "D105", "D107",
-    "E501" # Line too long, common in example plots/data
+    "E501", # Line too long, common in example plots/data
+    "N803"  # Uppercase X is ML convention for data matrices
 ]
 "tests/**/*.py" = [ # Allow more relaxed rules for tests
     "D100", "D101", "D102", "D103", "D104", "D105", "D107",

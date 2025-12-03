@@ -161,9 +161,11 @@ selected = weighted_false_discovery_control(
 print(f"Weighted FDR-controlled detections: {selected.sum()}")
 ```
 
-## Integration with PyOD
+## Using Different Detectors
 
-nonconform integrates seamlessly with PyOD detectors:
+### PyOD Detectors
+
+nonconform integrates seamlessly with PyOD detectors (install with `pip install nonconform[pyod]`):
 
 ```python
 from pyod.models.knn import KNN
@@ -194,6 +196,10 @@ for name, base_det in detectors.items():
     results[name] = detections
     print(f"{name}: {detections} detections")
 ```
+
+### Custom Detectors
+
+Any detector implementing the `AnomalyDetector` protocol works with nonconform. See [Detector Compatibility](user_guide/detector_compatibility.md) for details on implementing custom detectors.
 
 ## Complete Example
 

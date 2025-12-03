@@ -64,7 +64,7 @@ def engineer_features(X, categorical_cols=None, k_best=None):
 
 ### 1. Choosing a Detector
 
-Consider the following when selecting a detector:
+Consider the following when selecting a detector. The examples below use PyOD detectors, but any detector implementing the `AnomalyDetector` protocol works—see [Detector Compatibility](detector_compatibility.md).
 
 #### Data Size Considerations
 - **Small datasets (< 1,000 samples)**: Use simpler models (IsolationForest, LOF)

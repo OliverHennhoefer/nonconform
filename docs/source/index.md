@@ -1,6 +1,6 @@
 # Welcome to Nonconform's Documentation!
 
-**Nonconform** is a Python library for conformal anomaly detection that provides uncertainty quantification for PyOD detectors. It implements statistically rigorous anomaly detection with p-values and error control metrics like False Discovery Rate (FDR).
+**Nonconform** is a Python library for conformal anomaly detection that provides uncertainty quantification for anomaly detectors (PyOD, scikit-learn, or custom). It implements statistically rigorous anomaly detection with p-values and error control metrics like False Discovery Rate (FDR).
 
 ## Quick Links
 
@@ -14,7 +14,7 @@
 ## Key Features
 
 - **Conformal Inference**: Distribution-free uncertainty quantification
-- **PyOD Integration**: Works with popular anomaly detection library
+- **Detector Agnostic**: Works with PyOD, scikit-learn, or custom detectors via the AnomalyDetector protocol
 - **Multiple Strategies**: Split, Bootstrap, Cross-validation, Jackknife+
 - **FDR Control**: False Discovery Rate control for multiple testing
 - **Weighted Conformal**: Handle non-exchangeable data

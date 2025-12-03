@@ -9,7 +9,7 @@
 
 ## Conformal Anomaly Detection
 
-Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees about the anomalies they identify. **nonconform** wraps your favorite anomaly detection model from [*PyOD*](https://pyod.readthedocs.io/en/latest/) (see [Supported Estimators](#supported-estimators)) and transforms its raw anomaly scores into statistically valid $p$-values. It applies principles from [**conformal prediction**](https://en.wikipedia.org/wiki/Conformal_prediction) [Vovk et al., 2005] to the setting of [one-class classification](https://en.wikipedia.org/wiki/One-class_classification), enabling anomaly detection with provable statistical guarantees [Bates et al., 2023] and a controlled [false discovery rate](https://en.wikipedia.org/wiki/False_discovery_rate) [Benjamini & Hochberg, 1995].
+Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees about the anomalies they identify. **nonconform** wraps anomaly detectors—from [*PyOD*](https://pyod.readthedocs.io/en/latest/), scikit-learn, or custom implementations—and transforms their raw anomaly scores into statistically valid $p$-values. It applies principles from [**conformal prediction**](https://en.wikipedia.org/wiki/Conformal_prediction) [Vovk et al., 2005] to the setting of [one-class classification](https://en.wikipedia.org/wiki/One-class_classification), enabling anomaly detection with provable statistical guarantees [Bates et al., 2023] and a controlled [false discovery rate](https://en.wikipedia.org/wiki/False_discovery_rate) [Benjamini & Hochberg, 1995].
 
 > **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables) [Vovk et al., 2005]. Therefore, the package is not suited for data with spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
 
@@ -92,6 +92,21 @@ estimator = ConformalDetector(
 While primarily designed for static (single-batch) applications, the library supports streaming scenarios through ``BatchGenerator()`` and ``OnlineGenerator()``. For statistically valid FDR control in streaming data, use the optional ``onlineFDR`` dependency, which implements appropriate statistical methods.
 
 
+# Custom Detectors
+
+Any detector implementing the `AnomalyDetector` protocol works with nonconform:
+
+```python
+class MyDetector:
+    def fit(self, X, y=None) -> Self: ...
+    def decision_function(self, X) -> np.ndarray: ...  # higher = more anomalous
+    def get_params(self, deep=True) -> dict: ...
+    def set_params(self, **params) -> Self: ...
+```
+
+See the [documentation](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
+
+
 # Citation
 
 If you find this repository useful for your research, please cite the following papers:
@@ -111,47 +126,12 @@ If you find this repository useful for your research, please cite the following 
 # Optional Dependencies
 
 _For additional features, you might need optional dependencies:_
-- `pip install nonconform[data]` - Includes pyarrow for loading example data (via remote download)
-- `pip install nonconform[deep]` - Includes deep learning dependencies (PyTorch)
+- `pip install nonconform[pyod]` - Includes PyOD anomaly detection library
+- `pip install nonconform[data]` - Includes oddball for loading benchmark datasets
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[dev]` - Includes development tools documentation tools
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
-
-# Supported Estimators
-
-Only anomaly estimators suitable for unsupervised one-class classification are supported. Since detectors are trained exclusively on normal data, threshold parameters are automatically set to minimal values.
-
-Models that are **currently supported** include:
-
-* Angle-Based Outlier Detection (**ABOD**)
-* Autoencoder (**AE**)
-* Cook's Distance (**CD**)
-* Copula-based Outlier Detector (**COPOD**)
-* Deep Isolation Forest (**DIF**)
-* Empirical-Cumulative-distribution-based Outlier Detection (**ECOD**)
-* Gaussian Mixture Model (**GMM**)
-* Histogram-based Outlier Detection (**HBOS**)
-* Isolation-based Anomaly Detection using Nearest-Neighbor Ensembles (**INNE**)
-* Isolation Forest (**IForest**)
-* Kernel Density Estimation (**KDE**)
-* *k*-Nearest Neighbor (***k*NN**)
-* Kernel Principal Component Analysis (**KPCA**)
-* Linear Model Deviation-base Outlier Detection (**LMDD**)
-* Local Outlier Factor (**LOF**)
-* Local Correlation Integral (**LOCI**)
-* Lightweight Online Detector of Anomalies (**LODA**)
-* Locally Selective Combination of Parallel Outlier Ensembles (**LSCP**)
-* GNN-based Anomaly Detection Method (**LUNAR**)
-* Median Absolute Deviation (**MAD**)
-* Minimum Covariance Determinant (**MCD**)
-* One-Class SVM (**OCSVM**)
-* Principal Component Analysis (**PCA**)
-* Quasi-Monte Carlo Discrepancy Outlier Detection (**QMCD**)
-* Rotation-based Outlier Detection (**ROD**)
-* Subspace Outlier Detection (**SOD**)
-* Scalable Unsupervised Outlier Detection (**SUOD**)
 
 # Contact
 **Bug reporting:** [https://github.com/OliverHennhoefer/nonconform/issues](https://github.com/OliverHennhoefer/nonconform/issues)

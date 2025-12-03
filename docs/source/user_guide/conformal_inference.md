@@ -331,34 +331,36 @@ for agg_method in aggregation_methods:
 
 ### Custom Scoring Functions
 
-For advanced users, you can create custom detectors:
+Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 
 ```python
-from pyod.models.base import BaseDetector
+from typing import Any, Self
+import numpy as np
 
-class CustomDetector(BaseDetector):
-    """Custom anomaly detector following PyOD interface."""
+class CustomDetector:
+    """Custom anomaly detector implementing AnomalyDetector protocol."""
 
-    def __init__(self, contamination=0.1):
-        super().__init__(contamination=contamination)
+    def __init__(self, random_state: int | None = None):
+        self.random_state = random_state
 
-    def fit(self, X, y=None):
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> Self:
         # Your custom fitting logic here
-        self.decision_scores_ = self._compute_scores(X)
-        self._process_decision_scores()
         return self
 
-    def decision_function(self, X):
-        # Your custom scoring logic here
-        return self._compute_scores(X)
-
-    def _compute_scores(self, X):
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
         # Higher scores should indicate more anomalous behavior
-        # This is a dummy implementation
-        return np.random.random(len(X))
+        return np.random.default_rng(self.random_state).random(len(X))
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        return {"random_state": self.random_state}
+
+    def set_params(self, **params: Any) -> Self:
+        for key, value in params.items():
+            setattr(self, key, value)
+        return self
 
 # Use with conformal detection
-custom_detector = CustomDetector()
+custom_detector = CustomDetector(random_state=42)
 detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
@@ -366,6 +368,8 @@ detector = ConformalDetector(
     seed=42
 )
 ```
+
+See [Detector Compatibility](detector_compatibility.md) for more details on implementing custom detectors.
 
 ## Performance Considerations
 
