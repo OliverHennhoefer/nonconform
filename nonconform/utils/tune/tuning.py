@@ -213,7 +213,8 @@ def _compute_cv_log_likelihood(
             )
             densities = np.maximum(densities, density_floor)
             log_likelihoods.append(np.mean(np.log(densities)))
-        except Exception:
+        except (ValueError, np.linalg.LinAlgError):
+            # KDE fitting can fail with singular data or numerical issues
             return -np.inf
 
     return np.mean(log_likelihoods)

@@ -4,10 +4,11 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector as PyODBaseDetector
 from tqdm import tqdm
 
+from nonconform.detection.adapter import adapt
 from nonconform.detection.base import BaseConformalDetector
+from nonconform.detection.protocol import AnomalyDetector
 from nonconform.detection.weight import BaseWeightEstimator, IdentityWeightEstimator
 from nonconform.strategy import BaseStrategy, Empirical
 from nonconform.strategy.estimation.base import BaseEstimation
@@ -23,9 +24,10 @@ class ConformalDetector(BaseConformalDetector):
     """Unified conformal anomaly detector with optional covariate shift handling.
 
     Provides distribution-free anomaly detection with valid p-values and False Discovery
-    Rate (FDR) control by wrapping any PyOD detector with conformal inference.
-    Optionally handles covariate shift through importance weighting when a weight
-    estimator is specified.
+    Rate (FDR) control by wrapping any anomaly detector with conformal inference.
+    Supports PyOD detectors, sklearn-compatible detectors, and custom detectors
+    implementing the AnomalyDetector protocol. Optionally handles covariate shift
+    through importance weighting when a weight estimator is specified.
 
     When no weight estimator is provided (standard conformal prediction):
     - Uses classical conformal inference for exchangeable data
@@ -76,7 +78,7 @@ class ConformalDetector(BaseConformalDetector):
         ```
 
     Attributes:
-        detector: The underlying PyOD anomaly detection model.
+        detector: The underlying anomaly detection model.
         strategy: The calibration strategy for computing p-values.
         weight_estimator: Optional weight estimator for handling covariate shift.
         aggregation: Method for combining scores from multiple models.
@@ -86,11 +88,25 @@ class ConformalDetector(BaseConformalDetector):
         is_fitted: Whether the detector has been fitted.
         calibration_samples: Data instances used for calibration (only for
             weighted mode).
+
+    Note:
+        Some PyOD detectors are incompatible with conformal anomaly detection
+        because they require clustering or grouping which is incompatible with
+        one-class training. Known incompatible detectors include:
+
+        - CBLOF (Cluster-Based Local Outlier Factor)
+        - COF (Connectivity-based Outlier Factor)
+        - RGraph (R-Graph)
+        - Sampling
+        - SOS (Stochastic Outlier Selection)
+
+        These detectors may raise errors or produce unreliable results.
+        Use detectors like IForest, HBOS, ECOD, or LOF instead.
     """
 
     def __init__(
         self,
-        detector: PyODBaseDetector,
+        detector: Any,
         strategy: BaseStrategy,
         estimation: BaseEstimation = Empirical(),
         weight_estimator: BaseWeightEstimator | None = None,
@@ -100,8 +116,8 @@ class ConformalDetector(BaseConformalDetector):
         """Initialize the ConformalDetector.
 
         Args:
-            detector: The base anomaly detection model to be used (e.g., an
-                instance of a PyOD detector).
+            detector: Anomaly detector (PyOD, sklearn-compatible, or custom
+                implementing AnomalyDetector protocol).
             strategy: The conformal strategy to apply for fitting and calibration.
             weight_estimator: Weight estimator for handling covariate shift. If
                 None, uses standard conformal prediction (equivalent to
@@ -114,7 +130,8 @@ class ConformalDetector(BaseConformalDetector):
 
         Raises:
             ValueError: If seed is negative.
-            TypeError: If aggregation is not an Aggregation enum.
+            TypeError: If aggregation is not an Aggregation enum or detector
+                doesn't conform to AnomalyDetector protocol.
         """
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
@@ -130,7 +147,8 @@ class ConformalDetector(BaseConformalDetector):
 
         from nonconform.strategy.estimation.empirical import Empirical
 
-        self.detector: PyODBaseDetector = _set_params(deepcopy(detector), seed)
+        adapted_detector = adapt(detector)
+        self.detector: AnomalyDetector = _set_params(deepcopy(adapted_detector), seed)
         self.strategy: BaseStrategy = strategy
         self.weight_estimator: BaseWeightEstimator | None = weight_estimator
         self.estimation = estimation if estimation is not None else Empirical()
@@ -147,7 +165,7 @@ class ConformalDetector(BaseConformalDetector):
             weight_estimator, IdentityWeightEstimator
         )
 
-        self._detector_set: list[PyODBaseDetector] = []
+        self._detector_set: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
         self._last_result: ConformalResult | None = None
@@ -289,11 +307,11 @@ class ConformalDetector(BaseConformalDetector):
         return p_values
 
     @property
-    def detector_set(self) -> list[PyODBaseDetector]:
+    def detector_set(self) -> list[AnomalyDetector]:
         """Returns a copy of the list of trained detector models.
 
         Returns:
-            list[PyODBaseDetector]: Copy of trained detectors populated after fit().
+            list[AnomalyDetector]: Copy of trained detectors populated after fit().
 
         Note:
             Returns a defensive copy to prevent external modification of internal state.

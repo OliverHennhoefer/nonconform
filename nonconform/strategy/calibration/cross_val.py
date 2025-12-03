@@ -3,10 +3,10 @@ from copy import copy, deepcopy
 
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
+from nonconform.detection.protocol import AnomalyDetector
 from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.utils.func.logger import get_logger
 from nonconform.utils.func.params import _set_params
@@ -25,7 +25,7 @@ class CrossValidation(BaseStrategy):
     Attributes:
         _k (int): Number of folds for cross-validation
         _plus (bool): Whether to use the plus variant (ensemble of models)
-        _detector_list (list[BaseDetector]): List of trained detectors
+        _detector_list (list[AnomalyDetector]): List of trained detectors
         _calibration_set (list[float]): List of calibration scores
         _calibration_ids (list[int]): Indices of samples used for calibration
     """
@@ -59,18 +59,18 @@ class CrossValidation(BaseStrategy):
                 "for statistical guarantees."
             )
 
-        self._detector_list: list[BaseDetector] = []
+        self._detector_list: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
 
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], np.ndarray]:
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fit and calibrate the detector using k-fold cross-validation.
 
         This method implements the cross-validation strategy by:
@@ -87,7 +87,7 @@ class CrossValidation(BaseStrategy):
         Args:
             x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
-            detector (BaseDetector): The base anomaly detector to be used.
+            detector (AnomalyDetector): The base anomaly detector to be used.
             weighted (bool, optional): Whether to use weighted calibration.
                 Currently not implemented for cross-validation. Defaults to False.
             seed (int | None, optional): Random seed for reproducibility.
@@ -97,7 +97,7 @@ class CrossValidation(BaseStrategy):
                 Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], list[float]]: A tuple containing:
+            tuple[list[AnomalyDetector], list[float]]: A tuple containing:
                 * List of trained detectors (either k models in plus mode or
                   a single model in standard mode)
                 * Array of calibration scores from all folds

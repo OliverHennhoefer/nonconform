@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector
 from sklearn.model_selection import train_test_split
 
+from nonconform.detection.protocol import AnomalyDetector
 from nonconform.strategy.calibration.base import BaseStrategy
 
 
@@ -46,11 +46,11 @@ class Split(BaseStrategy):
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         weighted: bool = False,
         seed: int | None = None,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], np.ndarray]:
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fits a detector and generates calibration scores using a data split.
 
         The input data `x` is split into a training set and a calibration
@@ -64,7 +64,7 @@ class Split(BaseStrategy):
 
         Args:
             x (pd.DataFrame | np.ndarray): The input data.
-            detector (BaseDetector): The PyOD base detector instance to train.
+            detector (AnomalyDetector): The detector instance to train.
                 This instance is modified in place by fitting.
             weighted (bool, optional): If ``True``, the indices of the
                 calibration samples are stored. Defaults to ``False``.
@@ -74,8 +74,8 @@ class Split(BaseStrategy):
                 Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], np.ndarray]: A tuple containing:
-                * A list containing the single trained PyOD detector instance.
+            tuple[list[AnomalyDetector], np.ndarray]: A tuple containing:
+                * A list containing the single trained detector instance.
                 * An array of calibration scores from the calibration set.
         """
         x_id = np.arange(len(x))

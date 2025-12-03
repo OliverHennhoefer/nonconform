@@ -1,6 +1,14 @@
+"""Base classes for weight estimation in weighted conformal prediction."""
+
 from abc import ABC, abstractmethod
 
 import numpy as np
+
+# Default clipping bounds when adaptive clipping is disabled
+DEFAULT_CLIP_BOUNDS = (0.35, 45.0)
+
+# Small epsilon to prevent division by zero in probability ratios
+EPSILON = 1e-9
 
 
 class BaseWeightEstimator(ABC):
@@ -83,3 +91,101 @@ class BaseWeightEstimator(ABC):
             Tuple of (calibration_weights, test_weights) as numpy arrays.
         """
         pass
+
+    # --------------------------------------------------------------------------
+    # Helper methods for subclasses (shared logic)
+    # --------------------------------------------------------------------------
+
+    @staticmethod
+    def _prepare_training_data(
+        calibration_samples: np.ndarray,
+        test_samples: np.ndarray,
+        seed: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Prepare labeled and shuffled training data for classifier-based estimation.
+
+        Labels calibration samples as 0 and test samples as 1, then shuffles.
+
+        Args:
+            calibration_samples: Calibration data samples.
+            test_samples: Test data samples.
+            seed: Random seed for shuffling.
+
+        Returns:
+            Tuple of (X, y) arrays ready for classifier training.
+        """
+        # Label calibration samples as 0, test samples as 1
+        calib_labeled = np.hstack(
+            (calibration_samples, np.zeros((calibration_samples.shape[0], 1)))
+        )
+        test_labeled = np.hstack((test_samples, np.ones((test_samples.shape[0], 1))))
+
+        # Combine and shuffle
+        joint_labeled = np.vstack((calib_labeled, test_labeled))
+        rng = np.random.default_rng(seed=seed)
+        rng.shuffle(joint_labeled)
+
+        x_joint = joint_labeled[:, :-1]
+        y_joint = joint_labeled[:, -1]
+
+        return x_joint, y_joint
+
+    @staticmethod
+    def _compute_density_ratios(
+        calib_prob: np.ndarray, test_prob: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Compute density ratios from classifier probabilities.
+
+        Args:
+            calib_prob: Predicted probabilities for calibration samples (n_calib, 2).
+            test_prob: Predicted probabilities for test samples (n_test, 2).
+
+        Returns:
+            Tuple of (w_calib, w_test) density ratio weights.
+        """
+        # w(z) = p_test(z) / p_calib(z) = P(label=1|z) / P(label=0|z)
+        w_calib = calib_prob[:, 1] / (calib_prob[:, 0] + EPSILON)
+        w_test = test_prob[:, 1] / (test_prob[:, 0] + EPSILON)
+        return w_calib, w_test
+
+    @staticmethod
+    def _compute_clip_bounds(
+        w_calib: np.ndarray,
+        w_test: np.ndarray,
+        clip_quantile: float | None,
+    ) -> tuple[float, float]:
+        """Compute clipping bounds for weight stabilization.
+
+        Args:
+            w_calib: Calibration weights.
+            w_test: Test weights.
+            clip_quantile: Quantile for adaptive clipping (e.g., 0.05 clips to
+                5th-95th percentile). If None, uses default fixed bounds.
+
+        Returns:
+            Tuple of (lower_bound, upper_bound) for clipping.
+        """
+        if clip_quantile is not None:
+            all_weights = np.concatenate([w_calib, w_test])
+            lower_bound = np.percentile(all_weights, clip_quantile * 100)
+            upper_bound = np.percentile(all_weights, (1 - clip_quantile) * 100)
+            return (lower_bound, upper_bound)
+        return DEFAULT_CLIP_BOUNDS
+
+    @staticmethod
+    def _clip_weights(
+        w_calib: np.ndarray,
+        w_test: np.ndarray,
+        clip_bounds: tuple[float, float],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Apply clipping to stabilize weights.
+
+        Args:
+            w_calib: Calibration weights.
+            w_test: Test weights.
+            clip_bounds: Tuple of (lower, upper) bounds.
+
+        Returns:
+            Tuple of clipped (w_calib, w_test) arrays.
+        """
+        return np.clip(w_calib, *clip_bounds), np.clip(w_test, *clip_bounds)

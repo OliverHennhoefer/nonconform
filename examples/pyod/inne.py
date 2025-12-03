@@ -3,14 +3,14 @@ from pyod.models.inne import INNE
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform.strategy import Split
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
 ce = ConformalDetector(
     detector=INNE(),
-    strategy=Bootstrap(resampling_ratio=0.99, n_calib=2_000),
+    strategy=Split(n_calib=1_000),
 )
 
 ce.fit(x_train)

@@ -3,14 +3,12 @@ from pyod.models.rod import ROD
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
 
-ce = ConformalDetector(
-    detector=ROD(), strategy=Bootstrap(n_bootstraps=50, resampling_ratio=0.975)
-)
+ce = ConformalDetector(detector=ROD(), strategy=JackknifeBootstrap(n_bootstraps=100))
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)

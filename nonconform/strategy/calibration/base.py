@@ -2,7 +2,8 @@ import abc
 
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector
+
+from nonconform.detection.protocol import AnomalyDetector
 
 
 class BaseStrategy(abc.ABC):
@@ -34,11 +35,11 @@ class BaseStrategy(abc.ABC):
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], np.ndarray]:
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fits the detector and performs calibration.
 
         This abstract method must be implemented by subclasses to define the
@@ -50,7 +51,7 @@ class BaseStrategy(abc.ABC):
             x (pd.DataFrame | np.ndarray): The input data, which
                 may be used for both fitting the detector and deriving
                 calibration data.
-            detector (BaseDetector): The PyOD anomaly detection model to be
+            detector (AnomalyDetector): The anomaly detection model to be
                 fitted and/or calibrated.
             weighted (bool | None): A flag indicating whether a weighted
                 approach should be used during calibration, if applicable to

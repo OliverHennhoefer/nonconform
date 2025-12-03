@@ -8,18 +8,48 @@ import pytest
 
 @pytest.fixture
 def mock_detector():
-    """Create a mock PyOD detector with configurable parameters."""
+    """Create a mock detector with configurable parameters."""
 
-    def _create(has_contamination=True, has_n_jobs=True, has_random_state=True):
+    def _create(
+        has_contamination=True,
+        has_n_jobs=True,
+        has_random_state=True,
+        param_aliases=None,
+    ):
+        """Create mock detector with optional parameter aliases.
+
+        Args:
+            has_contamination: Include contamination parameter
+            has_n_jobs: Include n_jobs parameter
+            has_random_state: Include random_state parameter
+            param_aliases: Dict mapping standard names to custom names
+                          e.g., {"random_state": "seed", "n_jobs": "n_threads"}
+        """
         detector = MagicMock()
         params = {}
 
-        if has_contamination:
-            params["contamination"] = 0.1
-        if has_n_jobs:
-            params["n_jobs"] = 1
-        if has_random_state:
-            params["random_state"] = None
+        if param_aliases:
+            if has_random_state and "random_state" in param_aliases:
+                params[param_aliases["random_state"]] = None
+            elif has_random_state:
+                params["random_state"] = None
+
+            if has_n_jobs and "n_jobs" in param_aliases:
+                params[param_aliases["n_jobs"]] = 1
+            elif has_n_jobs:
+                params["n_jobs"] = 1
+
+            if has_contamination and "contamination" in param_aliases:
+                params[param_aliases["contamination"]] = 0.1
+            elif has_contamination:
+                params["contamination"] = 0.1
+        else:
+            if has_contamination:
+                params["contamination"] = 0.1
+            if has_n_jobs:
+                params["n_jobs"] = 1
+            if has_random_state:
+                params["random_state"] = None
 
         detector.get_params.return_value = params
         detector.set_params = MagicMock(

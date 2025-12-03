@@ -1,6 +1,9 @@
 import numpy as np
 
 from nonconform.utils.tune.bandwidth import (
+    IQR_TO_STD_FACTOR,
+    SCOTT_CONSTANT,
+    SILVERMAN_CONSTANT,
     _scott_bandwidth,
     _sheather_jones_bandwidth,
     _silverman_bandwidth,
@@ -13,7 +16,7 @@ class TestScottBandwidth:
         data = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         n = len(data)
         sigma = np.std(data, ddof=1)
-        expected = 1.06 * sigma * n ** (-0.2)
+        expected = SCOTT_CONSTANT * sigma * n ** (-0.2)
         result = _scott_bandwidth(data)
         assert np.isclose(result, expected)
 
@@ -37,8 +40,8 @@ class TestSilvermanBandwidth:
         n = len(data)
         sigma = np.std(data, ddof=1)
         iqr = np.percentile(data, 75) - np.percentile(data, 25)
-        sigma_hat = min(sigma, iqr / 1.34)
-        expected = 0.9 * sigma_hat * n ** (-0.2)
+        sigma_hat = min(sigma, iqr / IQR_TO_STD_FACTOR)
+        expected = SILVERMAN_CONSTANT * sigma_hat * n ** (-0.2)
         result = _silverman_bandwidth(data)
         assert np.isclose(result, expected)
 
@@ -91,7 +94,7 @@ class TestBandwidthRange:
         q1, q99 = np.percentile(data, [1, 99])
         robust_range = q99 - q1
         iqr = np.percentile(data, 75) - np.percentile(data, 25)
-        robust_std = iqr / 1.349 if iqr > 0 else float(np.std(data))
+        robust_std = iqr / IQR_TO_STD_FACTOR if iqr > 0 else float(np.std(data))
 
         expected_min = min(robust_range * 0.001, robust_std * 0.01)
         expected_max = max(robust_range * 0.5, robust_std * 2)

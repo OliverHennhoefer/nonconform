@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector
 
+from nonconform.detection.protocol import AnomalyDetector
 from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.strategy.calibration.cross_val import CrossValidation
 
@@ -30,7 +30,7 @@ class Jackknife(BaseStrategy):
             the input data `x` used for calibration. Populated after
             :meth:`fit_calibrate` and accessible via :attr:`calibration_ids`.
             Initially ``None``.
-        _detector_list (List[BaseDetector]): A list of trained detector models,
+        _detector_list (List[AnomalyDetector]): A list of trained detector models,
             populated by :meth:`fit_calibrate` via the internal strategy.
         _calibration_set (numpy.ndarray): An array of calibration scores, one for
             each sample, populated by :meth:`fit_calibrate` via the internal
@@ -63,17 +63,17 @@ class Jackknife(BaseStrategy):
         self._strategy: CrossValidation = CrossValidation(k=1, plus=plus)
         self._calibration_ids: list[int] | None = None
 
-        self._detector_list: list[BaseDetector] = []
+        self._detector_list: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
 
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         weighted: bool = False,  # Parameter passed to internal strategy
         seed: int | None = None,
         iteration_callback=None,
-    ) -> tuple[list[BaseDetector], np.ndarray]:
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fits detector(s) and gets calibration scores using jackknife.
 
         This method configures the internal
@@ -87,7 +87,7 @@ class Jackknife(BaseStrategy):
 
         Args:
             x (pd.DataFrame | np.ndarray): The input data.
-            detector (BaseDetector): The PyOD base detector instance.
+            detector (AnomalyDetector): The PyOD base detector instance.
             weighted (bool, optional): Passed to the internal `CrossValidation`
                 strategy's `fit_calibrate` method. Its effect depends on the
                 `CrossValidation` implementation. Defaults to ``False``.
@@ -97,7 +97,7 @@ class Jackknife(BaseStrategy):
                 Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], np.ndarray]: A tuple containing:
+            tuple[list[AnomalyDetector], np.ndarray]: A tuple containing:
                 * A list of trained PyOD detector models.
                 * An array of calibration scores (one per sample in `x`).
         """

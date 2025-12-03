@@ -6,9 +6,9 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
-from pyod.models.base import BaseDetector
 from tqdm import tqdm
 
+from nonconform.detection.protocol import AnomalyDetector
 from nonconform.strategy.calibration.base import BaseStrategy
 from nonconform.utils.func.enums import Aggregation
 from nonconform.utils.func.logger import get_logger
@@ -31,10 +31,13 @@ class JackknifeBootstrap(BaseStrategy):
         _n_bootstraps (int): Number of bootstrap iterations
         _aggregation_method (Aggregation): How to aggregate OOB predictions
         _plus (bool): Whether to use the plus variant (ensemble of models)
-        _detector_list (list[BaseDetector]): List of trained detectors (ensemble/single)
-        _calibration_set (list[float]): List of calibration scores from JaB+ procedure
+        _detector_list (list[AnomalyDetector]): List of trained detectors
+            (ensemble/single)
+        _calibration_set (list[float]): List of calibration scores from
+            JaB+ procedure
         _calibration_ids (list[int]): Indices of samples used for calibration
-        _bootstrap_models (list[BaseDetector]): Models trained on each bootstrap sample
+        _bootstrap_models (list[AnomalyDetector]): Models trained on each
+            bootstrap sample
         _oob_mask (np.ndarray): Boolean matrix of shape (n_bootstraps, n_samples)
             indicating out-of-bag status
     """
@@ -101,23 +104,23 @@ class JackknifeBootstrap(BaseStrategy):
         self._n_bootstraps: int = n_bootstraps
         self._aggregation_method: Aggregation = aggregation_method
 
-        self._detector_list: list[BaseDetector] = []
+        self._detector_list: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_ids: list[int] = []
 
         # Internal state for JaB+ computation
-        self._bootstrap_models: list[BaseDetector] = []
+        self._bootstrap_models: list[AnomalyDetector] = []
         self._oob_mask: np.ndarray = np.array([])
 
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
         iteration_callback: Callable[[int, np.ndarray], None] | None = None,
         n_jobs: int | None = None,
-    ) -> tuple[list[BaseDetector], np.ndarray]:
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fit and calibrate using Jackknife+-after-Bootstrap method.
 
         This method implements the JaB+ algorithm:
@@ -129,7 +132,7 @@ class JackknifeBootstrap(BaseStrategy):
         Args:
             x (pd.DataFrame | np.ndarray): Input data matrix of shape
                 (n_samples, n_features).
-            detector (BaseDetector): The base anomaly detector to be used.
+            detector (AnomalyDetector): The base anomaly detector to be used.
             seed (int | None, optional): Random seed for reproducibility.
                 Defaults to None.
             weighted (bool, optional): Not used in JaB+ method. Defaults to False.
@@ -141,7 +144,7 @@ class JackknifeBootstrap(BaseStrategy):
                 training. If None, uses sequential processing. Defaults to None.
 
         Returns:
-            tuple[list[BaseDetector], list[float]]: A tuple containing:
+            tuple[list[AnomalyDetector], list[float]]: A tuple containing:
                 * List of trained detector models (if plus=True, single if plus=False)
                 * Array of calibration scores from JaB+ procedure
         """
@@ -272,12 +275,12 @@ class JackknifeBootstrap(BaseStrategy):
 
     def _train_single_model(
         self,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         x: pd.DataFrame | np.ndarray,
         bootstrap_indices: np.ndarray,
         seed: int | None,
         iteration: int,
-    ) -> BaseDetector:
+    ) -> AnomalyDetector:
         """Train a single bootstrap model."""
         model = deepcopy(detector)
         model = _set_params(
@@ -288,7 +291,7 @@ class JackknifeBootstrap(BaseStrategy):
 
     def _train_models_parallel(
         self,
-        detector: BaseDetector,
+        detector: AnomalyDetector,
         x: pd.DataFrame | np.ndarray,
         all_bootstrap_indices: np.ndarray,
         seed: int | None,

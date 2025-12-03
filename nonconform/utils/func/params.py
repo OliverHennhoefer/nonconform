@@ -1,89 +1,122 @@
-"""Manages and configures anomaly detection models from the PyOD library.
+"""Configure anomaly detector parameters.
 
-This module provides utilities for setting up PyOD detector models,
-including handling a list of models that are restricted or unsupported
-for use with conformal anomaly detection.
-
-Attributes:
-    forbidden_model_list (list[type[BaseDetector]]): A list of PyOD detector
-        classes that are considered unsupported or restricted for use by
-        the `set_params` function. These models are not suitable for
-        conformal anomaly detection due to their specific design requirements.
+This module provides utilities for setting up detector models with
+standard parameters for conformal anomaly detection, supporting any
+detector that conforms to the AnomalyDetector protocol.
 """
 
+import logging
 import sys
+from typing import Any
 
-from pyod.models.base import BaseDetector
-from pyod.models.cblof import CBLOF
-from pyod.models.cof import COF
-from pyod.models.rgraph import RGraph
-from pyod.models.sampling import Sampling
-from pyod.models.sos import SOS
+from nonconform.detection.protocol import AnomalyDetector
 
-forbidden_model_list: list[type[BaseDetector]] = [
-    CBLOF,
-    COF,
-    RGraph,
-    Sampling,
-    SOS,
-]
+logger = logging.getLogger(__name__)
+
+_RANDOM_STATE_ALIASES = ["random_state", "seed", "random_seed"]
+_N_JOBS_ALIASES = ["n_jobs", "n_threads", "num_workers"]
+_CONTAMINATION_ALIASES = ["contamination"]
 
 
 def _set_params(
-    detector: BaseDetector,
+    detector: AnomalyDetector,
     seed: int | None,
     random_iteration: bool = False,
     iteration: int | None = None,
-) -> BaseDetector:
-    """Configure a PyOD detector with specific default and dynamic parameters.
+) -> AnomalyDetector:
+    """Configure a detector with parameters for conformal prediction.
 
-    **Internal use only.** This function modifies PyOD detector instances by setting
-    common parameters for one-class conformal prediction: contamination to zero,
-    n_jobs to use all cores, and random_state for reproducibility.
+    Sets common parameters following sklearn conventions with fallback aliases:
+    - contamination: Set to minimum for one-class training (optional)
+    - n_jobs/n_threads: Set to -1 to use all cores (optional)
+    - random_state/seed: Set for reproducibility (required if seed provided)
 
     Args:
-        detector: The PyOD detector instance to configure.
-        seed: The base random seed for reproducibility.
-        random_iteration: If True and iteration is provided, creates varying
+        detector: Detector instance to configure.
+        seed: Base random seed for reproducibility.
+        random_iteration: If True and iteration provided, creates varying
             random_state per iteration.
-        iteration: Current iteration number for dynamic random_state generation.
+        iteration: Current iteration number for dynamic random_state.
 
     Returns:
-        The configured detector instance with updated parameters.
+        Configured detector instance.
 
     Raises:
-        ValueError: If the detector class is in the forbidden_model_list.
+        ValueError: If seed provided but no random_state parameter exists.
 
     Note:
-        Forbidden models (CBLOF, COF, RGraph, Sampling, SOS) require clustering
-        or grouping which is incompatible with one-class training.
+        Logs warnings if optional parameters (contamination, n_jobs) unavailable.
     """
-    if detector.__class__ in forbidden_model_list:
-        forbidden_names = ", ".join([cls.__name__ for cls in forbidden_model_list])
-        raise ValueError(
-            f"{detector.__class__.__name__} is not supported for conformal prediction. "
-            f"Forbidden detectors: {forbidden_names}. "
-            f"These models require clustering or grouping which is incompatible with "
-            f"one-class training. Use detectors like IForest, HBOS, or ECOD instead."
-        )
+    params = detector.get_params()
 
-    # Set contamination to the smallest possible float for one-class classification
-    if "contamination" in detector.get_params():
-        detector.set_params(contamination=sys.float_info.min)
+    _try_set_contamination(detector, params)
+    _try_set_parallelism(detector, params)
 
-    # Utilize all available cores if n_jobs parameter exists
-    if "n_jobs" in detector.get_params():
-        detector.set_params(n_jobs=-1)
-
-    # Set random_state for reproducibility when a seed is provided
-    if seed is not None and "random_state" in detector.get_params():
+    if seed is not None:
         if random_iteration and iteration is not None:
-            # Create a reproducible but varying seed per iteration
-            # Ensure the result is within the typical 32-bit unsigned int range
-            # for random seeds.
             dynamic_seed = hash((iteration, seed)) % (2**32)
-            detector.set_params(random_state=dynamic_seed)
+            _set_random_state(detector, params, dynamic_seed)
         else:
-            detector.set_params(random_state=seed)
+            _set_random_state(detector, params, seed)
 
     return detector
+
+
+def _try_set_contamination(detector: AnomalyDetector, params: dict[str, Any]) -> None:
+    """Try to set contamination to minimum for one-class training.
+
+    Args:
+        detector: Detector to configure.
+        params: Current detector parameters.
+    """
+    for alias in _CONTAMINATION_ALIASES:
+        if alias in params:
+            detector.set_params(**{alias: sys.float_info.min})
+            logger.debug(f"Set {alias}={sys.float_info.min} for one-class training")
+            return
+
+    logger.debug("Detector has no contamination parameter (acceptable)")
+
+
+def _try_set_parallelism(detector: AnomalyDetector, params: dict[str, Any]) -> None:
+    """Try to set parallelism to use all cores.
+
+    Args:
+        detector: Detector to configure.
+        params: Current detector parameters.
+    """
+    for alias in _N_JOBS_ALIASES:
+        if alias in params:
+            detector.set_params(**{alias: -1})
+            logger.debug(f"Set {alias}=-1 for parallelism")
+            return
+
+    logger.debug("Detector has no parallelism parameter (acceptable)")
+
+
+def _set_random_state(
+    detector: AnomalyDetector, params: dict[str, Any], seed: int
+) -> None:
+    """Set random state for reproducibility.
+
+    Args:
+        detector: Detector to configure.
+        params: Current detector parameters.
+        seed: Random seed value.
+
+    Note:
+        Logs warning if no random_state parameter exists (some detectors
+        are deterministic and don't need randomness).
+    """
+    for alias in _RANDOM_STATE_ALIASES:
+        if alias in params:
+            detector.set_params(**{alias: seed})
+            logger.debug(f"Set {alias}={seed} for reproducibility")
+            return
+
+    tried_names = ", ".join(_RANDOM_STATE_ALIASES)
+    logger.warning(
+        f"Detector has no random_state parameter. Tried: {tried_names}. "
+        f"Reproducibility cannot be guaranteed if detector uses randomness. "
+        f"This is acceptable for deterministic detectors."
+    )

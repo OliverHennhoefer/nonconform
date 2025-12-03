@@ -1,13 +1,15 @@
 """nonconform: Conformal Anomaly Detection with Uncertainty Quantification.
 
 This package provides statistically rigorous anomaly detection with p-values
-and error control metrics like False Discovery Rate (FDR) for PyOD detectors.
+and error control metrics like False Discovery Rate (FDR). Supports PyOD
+detectors, sklearn-compatible detectors, and custom detectors.
 
 Main Components:
 - Conformal detectors with uncertainty quantification
 - Calibration strategies for different data scenarios
 - Weighted conformal detection for covariate shift
 - Statistical utilities and data handling tools
+- AnomalyDetector protocol for custom detector implementations
 
 Logging Control:
 By default, INFO level messages and above are shown (INFO, WARNING, ERROR).

@@ -28,7 +28,6 @@ dependencies = [
     "numpy>=2.2.0,<2.3",
     "pandas>=2.2.1",
     "scikit-learn>=1.5.2,<1.6",
-    "pyod==2.0.5",
     "scipy>=1.13.0",
     "tqdm>=4.66.2",
     "optuna>=4.5.0",
@@ -43,18 +42,18 @@ build-backend = "hatchling.build"
 path = "nonconform/__init__.py"
 
 [project.optional-dependencies]
-data = [
-    "oddball>=1.1.0",
-    "pyarrow>=16.1.0",
+pyod = [
+    "pyod==2.0.5",
 ]
-deep = [
-    "torch>=2.7.0",
+data = [
+    "oddball>=1.3.0",
+    "pyarrow>=16.1.0",
 ]
 fdr = [
     "online-fdr>=0.0.3",
 ]
 all = [
-    "nonconform[data,deep,fdr]"
+    "nonconform[pyod,data,fdr]"
 ]
 
 [dependency-groups]
@@ -69,7 +68,8 @@ dev = [
     "mkdocs-material[imaging]",
     "mkdocstrings[python]",
     "scipy-stubs==1.16.3.0",
-    "oddball>=1.1.0",
+    "oddball>=1.3.0",
+    "pyod==2.0.5",
 ]
 
 [project.urls]
@@ -131,6 +131,12 @@ exclude = [
 "nonconform/estimation/weighted_conformal.py" = [
     "E402" # Module level import not at top of file
 ]
+"nonconform/detection/protocol.py" = [
+    "N803" # Uppercase X is ML convention for data matrices
+]
+"nonconform/detection/adapter.py" = [
+    "N803" # Uppercase X is ML convention for data matrices
+]
 "docs/source/conf.py" = [
     "D100", # Missing docstring in public module
     "E402"  # Module level import not at top of file (sys.path.insert)
@@ -140,8 +146,10 @@ exclude = [
     "E501" # Line too long, common in example plots/data
 ]
 "tests/**/*.py" = [ # Allow more relaxed rules for tests
-    "D100", "D101", "D102", "D103", "D104", "D107",
-    "S101" # assert allowed in tests
+    "D100", "D101", "D102", "D103", "D104", "D105", "D107",
+    "S101", # assert allowed in tests
+    "N803", # Uppercase X is ML convention for data matrices
+    "N806"  # Same - uppercase X for local variables in tests
 ]
 
 

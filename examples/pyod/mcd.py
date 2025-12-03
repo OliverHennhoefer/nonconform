@@ -3,14 +3,12 @@ from pyod.models.mcd import MCD
 from scipy.stats import false_discovery_control
 
 from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform.strategy import JackknifeBootstrap
 from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.IONOSPHERE, setup=True)
 
-ce = ConformalDetector(
-    detector=MCD(), strategy=Bootstrap(resampling_ratio=0.95, n_calib=2_000)
-)
+ce = ConformalDetector(detector=MCD(), strategy=JackknifeBootstrap(n_bootstraps=100))
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)
