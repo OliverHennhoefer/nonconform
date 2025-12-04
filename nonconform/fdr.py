@@ -357,10 +357,8 @@ def weighted_bh(
         p_values = calculate_weighted_p_val(
             np.asarray(required["test_scores"]),
             np.asarray(required["calib_scores"]),
-            (
-                np.asarray(required["calib_weights"]),
-                np.asarray(required["test_weights"]),
-            ),
+            np.asarray(required["test_weights"]),
+            np.asarray(required["calib_weights"]),
         )
 
     if p_values.ndim != 1:
