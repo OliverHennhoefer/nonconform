@@ -37,6 +37,9 @@ DEFAULT_CLIP_BOUNDS = (0.35, 45.0)
 # Small epsilon to prevent division by zero in probability ratios
 EPSILON = 1e-9
 
+# Module-level logger for bagging operations
+_bagged_logger = logging.getLogger("nonconform.weighting.bagged")
+
 
 class ProbabilisticClassifier(Protocol):
     """Protocol for classifiers that support probability estimation."""
@@ -473,11 +476,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         sample_size = min(n_calib, n_test)
         rng = np.random.default_rng(self._seed)
 
-        # Use logging module directly (avoid import from _internal during transition)
-        logger = logging.getLogger("nonconform.weighting.bagged")
-
-        if logger.isEnabledFor(logging.INFO):
-            logger.info(
+        if _bagged_logger.isEnabledFor(logging.INFO):
+            _bagged_logger.info(
                 f"Bootstrap: n_calib={n_calib}, n_test={n_test}, "
                 f"sample_size={sample_size}, n_bootstrap={self.n_bootstrap}. "
                 f"Perfect coverage: all instances weighted in all iterations."
@@ -489,7 +489,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 
         bootstrap_iterator = (
             tqdm(range(self.n_bootstrap), desc="Weighting")
-            if logger.isEnabledFor(logging.INFO)
+            if _bagged_logger.isEnabledFor(logging.INFO)
             else range(self.n_bootstrap)
         )
 
