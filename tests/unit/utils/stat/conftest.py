@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from nonconform.utils.stat.results import ConformalResult
+from nonconform import ConformalResult
 
 
 @pytest.fixture

@@ -6,12 +6,13 @@ import numpy as np
 import pytest
 from pyod.models.iforest import IForest
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Split
-from nonconform.strategy.estimation.probabilistic import Probabilistic
-from nonconform.utils.func.enums import Kernel, Pruning
-from nonconform.utils.stat.weighted_fdr import (
+from nonconform import (
+    ConformalDetector,
+    Kernel,
+    Probabilistic,
+    Pruning,
+    Split,
+    logistic_weight_estimator,
     weighted_bh,
     weighted_false_discovery_control,
 )
@@ -22,7 +23,7 @@ def _fit_weighted_detector(x_train):
         detector=IForest(n_estimators=30, max_samples=0.8, random_state=0),
         strategy=Split(n_calib=0.2),
         estimation=Probabilistic(kernel=[Kernel.GAUSSIAN], n_trials=0),
-        weight_estimator=LogisticWeightEstimator(seed=4),
+        weight_estimator=logistic_weight_estimator(seed=4),
         seed=4,
     )
     detector.fit(x_train)

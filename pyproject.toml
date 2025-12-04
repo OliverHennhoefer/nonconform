@@ -178,6 +178,7 @@ ignore = [
     "D213", # Multi-line docstring summary should start at the second line (conflicts with D212, pick one or use formatter)
     "D402", # First line of docstring should not be the function's signature
     "D415", # Ends in ".", "?", "!" (can be too strict)
+    "N803", # Uppercase X is ML convention for data matrices (sklearn compatible)
 ]
 fixable = [
     "ALL"

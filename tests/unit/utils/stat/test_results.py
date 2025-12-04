@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.utils.stat.results import ConformalResult
+from nonconform import ConformalResult
 
 
 class TestInstantiation:

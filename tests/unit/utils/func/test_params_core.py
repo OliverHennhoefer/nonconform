@@ -1,26 +1,26 @@
 import sys
 
-from nonconform.utils.func.params import _set_params
+from nonconform._internal.config import set_params
 
 
 class TestContaminationSetting:
     def test_sets_contamination_to_min_float(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["contamination"] == sys.float_info.min
 
     def test_contamination_value_is_positive(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["contamination"] > 0
 
     def test_contamination_value_is_very_small(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["contamination"] < 1e-300
@@ -29,7 +29,7 @@ class TestContaminationSetting:
 class TestRandomStateSetting:
     def test_sets_random_state_with_seed(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["random_state"] == 42
@@ -38,8 +38,8 @@ class TestRandomStateSetting:
         detector1 = mock_detector()
         detector2 = mock_detector()
 
-        _set_params(detector1, seed=42)
-        _set_params(detector2, seed=123)
+        set_params(detector1, seed=42)
+        set_params(detector2, seed=123)
 
         assert (
             detector1.get_params()["random_state"]
@@ -50,8 +50,8 @@ class TestRandomStateSetting:
         detector1 = mock_detector()
         detector2 = mock_detector()
 
-        _set_params(detector1, seed=42)
-        _set_params(detector2, seed=42)
+        set_params(detector1, seed=42)
+        set_params(detector2, seed=42)
 
         assert (
             detector1.get_params()["random_state"]
@@ -62,7 +62,7 @@ class TestRandomStateSetting:
 class TestNJobsSetting:
     def test_sets_n_jobs_to_minus_one(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["n_jobs"] == -1
@@ -70,7 +70,7 @@ class TestNJobsSetting:
     def test_n_jobs_enables_parallel_processing(self, mock_detector):
         detector = mock_detector()
         initial_n_jobs = detector.get_params()["n_jobs"]
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         assert detector.get_params()["n_jobs"] != initial_n_jobs
 
@@ -78,21 +78,21 @@ class TestNJobsSetting:
 class TestParameterExistence:
     def test_handles_detector_without_contamination(self, mock_detector):
         detector = mock_detector(has_contamination=False)
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert "contamination" not in params
 
     def test_handles_detector_without_n_jobs(self, mock_detector):
         detector = mock_detector(has_n_jobs=False)
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert "n_jobs" not in params
 
     def test_handles_detector_without_random_state(self, mock_detector):
         detector = mock_detector(has_random_state=False)
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert "random_state" not in params
@@ -101,7 +101,7 @@ class TestParameterExistence:
         detector = mock_detector(
             has_contamination=True, has_n_jobs=False, has_random_state=True
         )
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["contamination"] == sys.float_info.min
@@ -112,13 +112,13 @@ class TestParameterExistence:
 class TestReturnValue:
     def test_returns_detector_instance(self, mock_detector):
         detector = mock_detector()
-        result = _set_params(detector, seed=42)
+        result = set_params(detector, seed=42)
 
         assert result is detector
 
     def test_returned_detector_has_updated_params(self, mock_detector):
         detector = mock_detector()
-        result = _set_params(detector, seed=42)
+        result = set_params(detector, seed=42)
 
         params = result.get_params()
         assert params["contamination"] == sys.float_info.min
@@ -128,7 +128,7 @@ class TestReturnValue:
 class TestMultipleParameterSetting:
     def test_all_parameters_set_together(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=99)
+        set_params(detector, seed=99)
 
         params = detector.get_params()
         assert params["contamination"] == sys.float_info.min
@@ -137,7 +137,7 @@ class TestMultipleParameterSetting:
 
     def test_parameters_not_overwritten_by_defaults(self, mock_detector):
         detector = mock_detector()
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         params = detector.get_params()
         assert params["random_state"] == 42

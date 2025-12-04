@@ -1,7 +1,7 @@
 import numpy as np
 
-from nonconform.utils.func.enums import Kernel
-from nonconform.utils.tune.tuning import (
+from nonconform import Kernel
+from nonconform._internal.tuning import (
     _compute_cv_log_likelihood,
     _fit_kde,
     _normalise_kernels,

@@ -7,8 +7,7 @@ import pandas as pd
 from oddball.generator import BatchGenerator, OnlineGenerator
 from pyod.models.iforest import IForest
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
+from nonconform import ConformalDetector, Split
 
 
 def _make_fake_loader(

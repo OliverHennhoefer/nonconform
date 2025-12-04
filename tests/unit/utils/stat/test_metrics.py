@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.utils.stat.metrics import false_discovery_rate, statistical_power
+from nonconform import false_discovery_rate, statistical_power
 
 
 class TestFDRCalculation:

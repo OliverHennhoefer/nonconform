@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.utils.tune.bandwidth import (
+from nonconform._internal.tuning import (
     IQR_TO_STD_FACTOR,
     SCOTT_CONSTANT,
     SILVERMAN_CONSTANT,

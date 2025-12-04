@@ -1,6 +1,6 @@
 import logging
 
-from nonconform.utils.func.logger import get_logger
+from nonconform._internal.log_utils import get_logger
 
 
 class TestLoggerCreation:

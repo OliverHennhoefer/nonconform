@@ -2,9 +2,13 @@ from oddball import Dataset, load
 from pyod.models.hbos import HBOS
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Empirical, Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    Empirical,
+    Split,
+    false_discovery_rate,
+    statistical_power,
+)
 
 if __name__ == "__main__":
     x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)

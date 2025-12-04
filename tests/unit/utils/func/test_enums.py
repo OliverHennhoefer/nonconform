@@ -1,11 +1,6 @@
 import pytest
 
-from nonconform.utils.func.enums import (
-    Aggregation,
-    Distribution,
-    Kernel,
-    Pruning,
-)
+from nonconform import Aggregation, Distribution, Kernel, Pruning
 
 
 class TestDistribution:
@@ -58,9 +53,9 @@ class TestDataset:
     def test_dataset_enum_removed(self):
         import importlib
 
-        enums = importlib.import_module("nonconform.utils.func.enums")
+        constants = importlib.import_module("nonconform._internal.constants")
         with pytest.raises(AttributeError):
-            getattr(enums, "Dataset")
+            getattr(constants, "Dataset")
 
 
 class TestPruning:

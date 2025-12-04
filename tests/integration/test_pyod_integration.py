@@ -29,9 +29,7 @@ except Exception:  # pragma: no cover - optional dependency missing
     AutoEncoder = None
     HAS_AUTO_ENCODER = False
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 
 DetectorCase = namedtuple(
     "DetectorCase", "name factory expects_random_state expects_n_jobs"

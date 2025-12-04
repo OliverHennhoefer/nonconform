@@ -6,10 +6,7 @@ import numpy as np
 import pytest
 from pyod.models.iforest import IForest
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import CrossValidation
-from nonconform.utils.func.enums import Aggregation
-from nonconform.utils.stat.aggregation import aggregate
+from nonconform import Aggregation, ConformalDetector, CrossValidation, aggregate
 
 
 def _build_detector(aggregation: Aggregation):

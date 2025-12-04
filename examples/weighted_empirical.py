@@ -1,19 +1,17 @@
 from oddball import Dataset, load
 from pyod.models.hbos import HBOS
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import (
+from nonconform import (
     BootstrapBaggedWeightEstimator,
-    LogisticWeightEstimator,
-)
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Pruning
-from nonconform.utils.stat import (
+    ConformalDetector,
+    Pruning,
+    Split,
     false_discovery_rate,
+    logistic_weight_estimator,
     statistical_power,
+    weighted_bh,
     weighted_false_discovery_control,
 )
-from nonconform.utils.stat.weighted_fdr import weighted_bh
 
 if __name__ == "__main__":
     x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
@@ -23,7 +21,7 @@ if __name__ == "__main__":
         detector=HBOS(),
         strategy=Split(n_calib=1_000),
         weight_estimator=BootstrapBaggedWeightEstimator(
-            base_estimator=LogisticWeightEstimator(),
+            base_estimator=logistic_weight_estimator(),
             n_bootstrap=100,
         ),
         seed=1,
@@ -40,6 +38,7 @@ if __name__ == "__main__":
         seed=1,
     )
 
+    print("Standard Benjamini-Hochberg")
     print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.00
     print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.00
 
