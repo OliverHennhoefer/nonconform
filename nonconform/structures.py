@@ -9,6 +9,7 @@ Classes:
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Protocol, Self, runtime_checkable
 
@@ -129,10 +130,10 @@ class ConformalResult:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def copy(self) -> ConformalResult:
-        """Return a shallow copy with numpy arrays duplicated.
+        """Return a copy with arrays and metadata fully duplicated.
 
         Returns:
-            A new ConformalResult with copied arrays.
+            A new ConformalResult with copied arrays and deep-copied metadata.
         """
         return ConformalResult(
             p_values=None if self.p_values is None else self.p_values.copy(),
@@ -146,7 +147,7 @@ class ConformalResult:
             calib_weights=None
             if self.calib_weights is None
             else self.calib_weights.copy(),
-            metadata=self.metadata.copy(),
+            metadata=deepcopy(self.metadata),
         )
 
 
