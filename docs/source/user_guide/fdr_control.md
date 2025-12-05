@@ -1,19 +1,17 @@
 # False Discovery Rate Control
 
-This guide explains how to use False Discovery Rate (FDR) control in `nonconform` for multiple testing scenarios. For exchangeable data you can rely on ``scipy.stats.false_discovery_control``. When you work with weighted conformal p-values under covariate shift, use ``nonconform.utils.stat.weighted_false_discovery_control`` to keep statistical guarantees.
+Use FDR control in `nonconform` for multiple testing. For exchangeable data, use `scipy.stats.false_discovery_control`. For weighted conformal p-values under covariate shift, use `weighted_false_discovery_control` to maintain guarantees.
 
 ## Overview
 
-FDR control is a statistical method for handling multiple hypothesis testing. In anomaly detection, it helps control the proportion of false positives among all detected anomalies. Instead of using a fixed significance level α for all tests, FDR control adjusts the threshold to maintain a desired false discovery rate.
+FDR control handles multiple hypothesis testing by adjusting thresholds to maintain a target false discovery proportion, rather than using a fixed α for all tests.
 
 ## Basic Usage
 
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 from pyod.models.lof import LOF
 
 # Prepare detector and data
@@ -37,20 +35,23 @@ print(f"FDR-controlled discoveries: {discoveries.sum()}")
 
 ## Weighted Conformal Selection
 
-When calibration and test data follow different covariate distributions, accompany weighted conformal p-values with Weighted Conformal Selection (WCS). This routine automatically handles the additional randomness introduced by importance weights and pruning.
+When calibration and test distributions differ, use Weighted Conformal Selection (WCS) with weighted conformal p-values. WCS handles randomness from importance weights and pruning.
 
 ```python
 import numpy as np
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import JackknifeBootstrap
-from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform import (
+    ConformalDetector,
+    JackknifeBootstrap,
+    Pruning,
+    logistic_weight_estimator,
+    weighted_false_discovery_control,
+)
 from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=JackknifeBootstrap(n_bootstraps=50),
-    weight_estimator=LogisticWeightEstimator(seed=1),
+    weight_estimator=logistic_weight_estimator(seed=1),
     seed=1,
 )
 
@@ -126,7 +127,7 @@ Use FDR control when:
 - Running ensemble methods with multiple detectors
 
 ### Benefits
-1. **Controlled False Discovery Rate**: Maintains the expected proportion of false positives
+1. **Controlled FDR**: Bounds expected false positive proportion
 2. **Increased Power**: Often more powerful than family-wise error rate (FWER) control
 3. **Scalability**: Works well with large numbers of tests
 
@@ -170,11 +171,14 @@ FDR control works naturally with conformal prediction p-values:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.stat import weighted_false_discovery_control
-from nonconform.utils.func import Aggregation
+from nonconform import (
+    Aggregation,
+    ConformalDetector,
+    Pruning,
+    Split,
+    logistic_weight_estimator,
+    weighted_false_discovery_control,
+)
 from pyod.models.lof import LOF
 
 # Standard conformal detector: use scipy for FDR control
@@ -199,7 +203,7 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(seed=42),
     seed=42,
 )
 weighted_detector.fit(X_train)
@@ -308,15 +312,20 @@ for batch in data_batches:
 
 ### Combining Multiple Detection Methods
 ```python
-from scipy.stats import combine_pvalues
+from scipy.stats import combine_pvalues, false_discovery_control
+from pyod.models.lof import LOF
+from pyod.models.knn import KNN
+from pyod.models.ocsvm import OCSVM
+from nonconform import Aggregation, ConformalDetector, Split
 
 # Get p-values from multiple detectors
 detectors = [LOF(), KNN(), OCSVM()]
 p_values_list = []
+strategy = Split(n_calib=0.2)
 
-for detector in detectors:
+for base_detector in detectors:
     conf_detector = ConformalDetector(
-        detector=detector,
+        detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42

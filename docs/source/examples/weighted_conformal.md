@@ -1,6 +1,6 @@
 # Weighted Conformal Anomaly Detection
 
-This example demonstrates how to use weighted conformal prediction for handling distribution shift in anomaly detection.
+Use weighted conformal prediction to handle distribution shift in anomaly detection.
 
 ## Setup
 
@@ -8,10 +8,7 @@ This example demonstrates how to use weighted conformal prediction for handling 
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split, logistic_weight_estimator
 
 # Load example data
 data = load_breast_cancer()
@@ -31,7 +28,7 @@ detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(seed=42),
     seed=42,
 )
 
@@ -147,7 +144,7 @@ print(f"Weighted conformal detections: {(weighted_p_values < 0.05).sum()}")
 
 ```python
 # Apply WCS to weighted scores
-from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform import Pruning, weighted_false_discovery_control
 
 weighted_p_values = detector.predict(X, raw=False)
 
@@ -239,28 +236,28 @@ for agg_method in aggregation_methods:
     print(f"{agg_method.value} aggregation: {(p_vals < 0.05).sum()} detections")
 ```
 
-## Bootstrap Strategy with Weighted Conformal
+## JaB+ Strategy with Weighted Conformal
 
 ```python
-from nonconform.strategy import Bootstrap
+from nonconform import JackknifeBootstrap, logistic_weight_estimator
 
-# Use bootstrap strategy for better stability
-bootstrap_strategy = Bootstrap(n_bootstraps=50, resampling_ratio=0.8)
+# Use JaB+ strategy for better stability
+jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 
-weighted_bootstrap_detector = ConformalDetector(
+weighted_jab_detector = ConformalDetector(
     detector=base_detector,
-    strategy=bootstrap_strategy,
+    strategy=jab_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(seed=42),
     seed=42
 )
 
-weighted_bootstrap_detector.fit(X_train)
-bootstrap_p_values = weighted_bootstrap_detector.predict(X_test_with_anomalies, raw=False)
+weighted_jab_detector.fit(X_train)
+jab_p_values = weighted_jab_detector.predict(X_test_with_anomalies, raw=False)
 
-print(f"\nBootstrap + Weighted Conformal:")
-print(f"Detections: {(bootstrap_p_values < 0.05).sum()}")
-print(f"Comparison with split strategy: {(bootstrap_p_values < 0.05).sum() - (weighted_p_values < 0.05).sum()}")
+print(f"\nJaB+ + Weighted Conformal:")
+print(f"Detections: {(jab_p_values < 0.05).sum()}")
+print(f"Comparison with split strategy: {(jab_p_values < 0.05).sum() - (weighted_p_values < 0.05).sum()}")
 ```
 
 ## Next Steps

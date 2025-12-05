@@ -1,12 +1,12 @@
 # Conformalization Strategies
 
-Calibration strategies for conformal anomaly detection with different trade-offs between computational efficiency and statistical robustness.
+Calibration strategies with trade-offs between efficiency and robustness.
 
 ## Available Strategies
 
 ### Split Strategy
 
-Simple train/calibration split for fast, straightforward conformal prediction.
+Simple train/calibration split. Fast and straightforward.
 
 ```python
 from nonconform.strategy import Split

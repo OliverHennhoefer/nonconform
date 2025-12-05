@@ -1,10 +1,10 @@
 # Quickstart Guide
 
-This guide will get you started with `nonconform` in just a few minutes.
+Get started with nonconform in minutes.
 
 ## Benchmark Datasets (via oddball)
 
-For quick experimentation, use the external `oddball` package, which ships benchmark anomaly detection datasets. Install it via `pip install oddball` or `pip install "nonconform[data]"` to pull it in as an optional extra.
+For quick experimentation, use `oddball`, which provides benchmark anomaly detection datasets. Install it via `pip install oddball` or `pip install "nonconform[data]"` to pull it in as an optional extra.
 
 ```python
 from oddball import Dataset, load
@@ -17,7 +17,8 @@ print(f"Test data shape: {x_test.shape}")
 print(f"Anomaly ratio in test set: {y_test.mean():.2%}")
 ```
 
-**Note**: Datasets are downloaded on first use and cached both in memory and on disk for faster subsequent loads.
+!!! info "Dataset Caching"
+    Datasets download on first use and cache both in memory and on disk for faster subsequent loads.
 
 Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `BREASTW`, `FRAUD`, `IONOSPHERE`, `MAMMOGRAPHY`, `MUSK`, `SHUTTLE`, `THYROID`, `WBC`, and more (see `oddball.list_available()`).
 
@@ -25,15 +26,13 @@ Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `
 
 ### 1. Classical Conformal Anomaly Detection
 
-The most straightforward way to use nonconform is with classical conformal anomaly detection:
+Classical conformal anomaly detection:
 
 ```python
 import numpy as np
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 
 # Generate some example data
 X_normal, _ = make_blobs(n_samples=1000, centers=1, random_state=42)
@@ -67,7 +66,7 @@ print(f"Number of potential anomalies (p < 0.05): {(p_values < 0.05).sum()}")
 
 ### 2. False Discovery Rate Control
 
-Control the False Discovery Rate using scipy's Benjamini-Hochberg procedure:
+Control the False Discovery Rate with Benjamini-Hochberg:
 
 ```python
 from scipy.stats import false_discovery_control
@@ -86,21 +85,10 @@ print(f"Discovered anomaly indices: {anomaly_indices}")
 
 ### 3. Resampling-based Strategies
 
-For better performance in low-data regimes, use resampling-based strategies:
+For small datasets, use resampling-based strategies:
 
 ```python
-from nonconform.strategy import Jackknife, CrossValidation
-
-# Jackknife (Leave-One-Out) Conformal Anomaly Detection
-jackknife_strategy = Jackknife()
-jackknife_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jackknife_strategy,
-    aggregation=Aggregation.MEDIAN,
-    seed=42
-)
-jackknife_detector.fit(X_normal)
-jackknife_p_values = jackknife_detector.predict(X_test, raw=False)
+from nonconform import CrossValidation, JackknifeBootstrap
 
 # Cross-Validation Conformal Anomaly Detection
 cv_strategy = CrossValidation(k=5)
@@ -113,21 +101,35 @@ cv_detector = ConformalDetector(
 cv_detector.fit(X_normal)
 cv_p_values = cv_detector.predict(X_test, raw=False)
 
+# Jackknife+-after-Bootstrap (JaB+) Strategy
+jab_strategy = JackknifeBootstrap(n_bootstraps=50)
+jab_detector = ConformalDetector(
+    detector=base_detector,
+    strategy=jab_strategy,
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+jab_detector.fit(X_normal)
+jab_p_values = jab_detector.predict(X_test, raw=False)
+
 print("Comparison of strategies:")
 print(f"Split: {(p_values < 0.05).sum()} detections")
-print(f"Jackknife: {(jackknife_p_values < 0.05).sum()} detections")
 print(f"Cross-Validation: {(cv_p_values < 0.05).sum()} detections")
+print(f"JaB+: {(jab_p_values < 0.05).sum()} detections")
 ```
 
 ## Weighted Conformal p-values
 
-When dealing with covariate shift, use weighted conformal p-values:
+For covariate shift, use weighted conformal p-values:
 
 ```python
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Pruning
+from nonconform import (
+    ConformalDetector,
+    Pruning,
+    Split,
+    logistic_weight_estimator,
+    weighted_false_discovery_control,
+)
 
 # Create weighted conformal anomaly detector
 weighted_strategy = Split(n_calib=0.3)
@@ -135,7 +137,7 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=weighted_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(seed=42),  # (1)
     seed=42
 )
 weighted_detector.fit(X_normal)
@@ -146,32 +148,34 @@ weighted_p_values = weighted_detector.predict(X_test, raw=False)
 
 print(f"Weighted p-values range: {weighted_p_values.min():.4f} - {weighted_p_values.max():.4f}")
 
-# Optionally apply Weighted Conformal Selection for FDR control
-from nonconform.utils.stat import weighted_false_discovery_control
-
+# Apply Weighted Conformal Selection for FDR control
 selected = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+    result=weighted_detector.last_result,  # (2)
     alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 
-# detector.last_result bundles the cached scores and weights for reuse
-
 print(f"Weighted FDR-controlled detections: {selected.sum()}")
 ```
+
+1. Factory function returns a configured weight estimator
+2. `last_result` bundles cached scores and weights for downstream analysis
+
+!!! warning "Covariate Shift Assumption"
+    Weighted conformal methods assume P(Y|X) remains stable while only P(X) changes. Ensure density ratios can be reliably estimated.
 
 ## Using Different Detectors
 
 ### PyOD Detectors
 
-nonconform integrates seamlessly with PyOD detectors (install with `pip install nonconform[pyod]`):
+nonconform works with any PyOD detector (install with `pip install "nonconform[pyod]"`):
 
 ```python
 from pyod.models.knn import KNN
 from pyod.models.lof import LOF
 from pyod.models.ocsvm import OCSVM
-from nonconform.strategy import Split
+from nonconform import Aggregation, ConformalDetector, Split
 
 # Try different PyOD detectors
 detectors = {
@@ -199,11 +203,9 @@ for name, base_det in detectors.items():
 
 ### Custom Detectors
 
-Any detector implementing the `AnomalyDetector` protocol works with nonconform. See [Detector Compatibility](user_guide/detector_compatibility.md) for details on implementing custom detectors.
+Any detector implementing `AnomalyDetector` works. See [Detector Compatibility](user_guide/detector_compatibility.md) for custom implementations.
 
 ## Complete Example
-
-Here's a complete example that ties everything together:
 
 ```python
 import numpy as np
@@ -211,9 +213,7 @@ import matplotlib.pyplot as plt
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 
 # Generate data
 np.random.seed(42)

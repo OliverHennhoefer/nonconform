@@ -1,6 +1,6 @@
-# Bootstrap-based Conformal Detection
+# Jackknife+-after-Bootstrap (JaB+) Conformal Detection
 
-This example demonstrates how to use bootstrap resampling for conformal anomaly detection.
+This example demonstrates how to use bootstrap resampling for conformal anomaly detection using the JaB+ strategy.
 
 ## Setup
 
@@ -9,9 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap
 
 # Load example data
 data = load_breast_cancer()
@@ -25,16 +23,13 @@ y = data.target
 # Initialize base detector
 base_detector = LOF()
 
-# Create bootstrap strategy
-bootstrap_strategy = Bootstrap(
-    n_bootstraps=100,
-    resampling_ratio=0.8
-)
+# Create JaB+ strategy
+jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 
-# Initialize detector with bootstrap strategy
+# Initialize detector with JaB+ strategy
 detector = ConformalDetector(
     detector=base_detector,
-    strategy=bootstrap_strategy,
+    strategy=jab_strategy,
     aggregation=Aggregation.MEDIAN,
     seed=42
 )
@@ -165,13 +160,13 @@ plt.show()
 ## Comparison with Other Strategies
 
 ```python
-from nonconform.strategy import Split, Jackknife
+from nonconform import CrossValidation, JackknifeBootstrap, Split
 
-# Compare bootstrap with other strategies
+# Compare strategies
 strategies = {
-    'Bootstrap': Bootstrap(n_bootstraps=100, resampling_ratio=0.8),
+    'JaB+': JackknifeBootstrap(n_bootstraps=50),
     'Split': Split(n_calib=0.2),
-    'Jackknife': Jackknife()
+    'CV': CrossValidation(k=5)
 }
 
 comparison_results = {}

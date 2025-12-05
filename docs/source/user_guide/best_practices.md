@@ -1,6 +1,6 @@
 # Best Practices Guide
 
-This guide provides recommendations for using nonconform effectively in different scenarios with the new API.
+Recommendations for using nonconform effectively.
 
 ## Data Preparation
 
@@ -42,8 +42,15 @@ def prepare_data(X):
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.preprocessing import LabelEncoder
 
-def engineer_features(X, categorical_cols=None, k_best=None):
-    """Feature engineering pipeline."""
+def engineer_features(X, y_labels=None, categorical_cols=None, k_best=None):
+    """Feature engineering pipeline.
+
+    Args:
+        X: Feature matrix
+        y_labels: Labels for feature selection (required if k_best is set)
+        categorical_cols: Indices of categorical columns
+        k_best: Number of best features to select
+    """
     X_engineered = X.copy()
 
     # Handle categorical variables
@@ -53,9 +60,9 @@ def engineer_features(X, categorical_cols=None, k_best=None):
             X_engineered[:, col] = encoder.fit_transform(X_engineered[:, col])
 
     # Feature selection
-    if k_best:
+    if k_best and y_labels is not None:
         selector = SelectKBest(f_classif, k=k_best)
-        X_engineered = selector.fit_transform(X_engineered, y_normal_indicator)
+        X_engineered = selector.fit_transform(X_engineered, y_labels)
 
     return X_engineered
 ```
@@ -64,7 +71,7 @@ def engineer_features(X, categorical_cols=None, k_best=None):
 
 ### 1. Choosing a Detector
 
-Consider the following when selecting a detector. The examples below use PyOD detectors, but any detector implementing the `AnomalyDetector` protocol works—see [Detector Compatibility](detector_compatibility.md).
+When selecting a detector, consider the following. Examples use PyOD, but any `AnomalyDetector` works—see [Detector Compatibility](detector_compatibility.md).
 
 #### Data Size Considerations
 - **Small datasets (< 1,000 samples)**: Use simpler models (IsolationForest, LOF)
@@ -99,13 +106,15 @@ accurate_detectors = {
 
 ### 2. Ensemble Methods
 
-Consider using multiple detectors for improved robustness:
+Use multiple detectors for robustness:
 
 ```python
-from nonconform.detection.standard import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 from scipy.stats import false_discovery_control
+from pyod.models.lof import LOF
+from pyod.models.iforest import IForest
+from pyod.models.ocsvm import OCSVM
+import numpy as np
 
 # Create multiple detectors
 detectors = {
@@ -116,11 +125,11 @@ detectors = {
 
 # Get p-values from each detector
 all_p_values = {}
-strategy = SplitStrategy(calibration_size=0.2)
+strategy = Split(n_calib=0.2)
 
-for name, detector in detectors.items():
+for name, base_detector in detectors.items():
     conf_detector = ConformalDetector(
-        detector=detector,
+        detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42
@@ -144,7 +153,7 @@ Best for:
 - When you have enough data for reliable calibration
 
 ```python
-from nonconform.strategy import Split
+from nonconform import Split
 
 # For large datasets
 strategy = Split(n_calib=0.2)  # Use 20% for calibration
@@ -153,38 +162,7 @@ strategy = Split(n_calib=0.2)  # Use 20% for calibration
 strategy = Split(n_calib=1000)  # Use 1000 samples
 ```
 
-### 2. Jackknife (Leave-One-Out)
-
-Best for:
-- Small datasets (< 1,000 samples)
-- When you need maximum statistical power
-- When computational cost is not a primary concern
-
-```python
-from nonconform.strategy import Jackknife
-
-# For small datasets where every sample matters
-strategy = Jackknife()
-```
-
-### 3. Bootstrap
-
-Best for:
-- Medium-sized datasets (1,000-10,000 samples)
-- When you need robust estimates
-- When you want to balance efficiency and power
-
-```python
-from nonconform.strategy import Bootstrap
-
-# Balanced approach for medium datasets
-strategy = Bootstrap(
-    n_bootstraps=50,
-    resampling_ratio=0.8
-)
-```
-
-### 4. Cross-Validation
+### 2. Cross-Validation
 
 Best for:
 - When you want to use all data efficiently
@@ -192,10 +170,27 @@ Best for:
 - When you need stable performance estimates
 
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 # Good balance of efficiency and stability
 strategy = CrossValidation(k=5)
+
+# For small datasets, use higher k (leave-one-out approximation)
+strategy = CrossValidation(k=len(X_train))
+```
+
+### 3. JackknifeBootstrap (JaB+)
+
+Best for:
+- Medium-sized datasets (1,000-10,000 samples)
+- When you need robust estimates
+- When you want to balance efficiency and power
+
+```python
+from nonconform import JackknifeBootstrap
+
+# Balanced approach for medium datasets
+strategy = JackknifeBootstrap(n_bootstraps=50)
 ```
 
 ## Calibration Best Practices
@@ -203,18 +198,20 @@ strategy = CrossValidation(k=5)
 ### 1. Calibration Set Size
 
 ```python
+from nonconform import CrossValidation, JackknifeBootstrap, Split
+
 def choose_calibration_strategy(n_samples):
     """Choose appropriate strategy based on dataset size."""
     if n_samples < 500:
-        return Jackknife()
+        return JackknifeBootstrap(n_bootstraps=50)
     elif n_samples < 2000:
-        return Bootstrap(n_bootstraps=50, resampling_ratio=0.8)
-    elif n_samples < 10000:
         return CrossValidation(k=5)
+    elif n_samples < 10000:
+        return CrossValidation(k=10)
     else:
         # Use absolute number for very large datasets
         calib_size = min(2000, int(0.2 * n_samples))
-        return Split(calib_size=calib_size)
+        return Split(n_calib=calib_size)
 ```
 
 ### 2. Calibration Data Quality
@@ -441,7 +438,7 @@ class ScalableAnomalyDetector:
 ```python
 from dataclasses import dataclass
 from typing import Optional
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation
 
 
 @dataclass
@@ -608,16 +605,20 @@ This comprehensive approach ensures robust, scalable, and maintainable anomaly d
 For streaming anomaly detection where you process small batches against a large historical calibration set:
 
 ```python
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import ForestWeightEstimator
-from nonconform.detection.weight.wrapper.bagging import BootstrapBaggedWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import (
+    Aggregation,
+    BootstrapBaggedWeightEstimator,
+    ConformalDetector,
+    Pruning,
+    Split,
+    forest_weight_estimator,
+    weighted_false_discovery_control,
+)
 from pyod.models.iforest import IForest
 
 # Premium configuration for small-batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=ForestWeightEstimator(n_estimators=50, seed=42),
+    base_estimator=forest_weight_estimator(n_estimators=50, seed=42),
     n_bootstrap=50,
     clip_quantile=0.05
 )
@@ -636,9 +637,6 @@ detector.fit(X_historical)
 # Process small incoming batches (e.g., 10-50 samples)
 for X_batch in stream:
     p_values = detector.predict(X_batch, raw=False)
-
-    from nonconform.utils.stat import weighted_false_discovery_control
-    from nonconform.utils.func.enums import Pruning
 
     discoveries = weighted_false_discovery_control(
         result=detector.last_result,

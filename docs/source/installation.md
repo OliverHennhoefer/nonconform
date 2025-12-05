@@ -1,51 +1,71 @@
 # Installation
 
-Here you will learn how to install the `nonconform` package.
+Install nonconform with pip or uv.
 
 ## Prerequisites
 
-- Python 3.12 or higher is recommended
+- Python 3.12 or higher
 
-## Installation with pip
+## Installation
 
-To install `nonconform`, run the following command in your terminal:
+=== "pip"
+    ```bash
+    pip install nonconform
+    ```
 
-```bash
-pip install nonconform
-```
-## Optional dependencies
+=== "uv"
+    ```bash
+    uv add nonconform
+    ```
 
-Existing optional dependencies are grouped into `[data]`, `[dev]`, `[docs]`, `[deep]`, `[fdr]` and `[all]`:
-- `[data]`: Dataset loading functionality (includes `pyarrow`)
-- `[dev]`: Development dependencies
-- `[docs]`: Documentation dependencies
-- `[deep]`: Deep Learning dependencies (`pytorch`)
+## Optional Dependencies
+
+Available extras: `[pyod]`, `[data]`, `[fdr]`, `[all]`.
+
+- `[pyod]`: PyOD detector support
+- `[data]`: Benchmark datasets via `oddball` + `pyarrow`
 - `[fdr]`: Online False Discovery Rate control (`online-fdr`)
-- `[all]`: All optional dependencies
+- `[all]`: All optional extras (`nonconform[pyod,data,fdr]`)
 
-### Installing with specific dependencies
+### Installing with Specific Dependencies
 
-To install with datasets support:
-```bash
-pip install nonconform[data]
-```
+=== "pip"
+    ```bash
+    # With PyOD support
+    pip install "nonconform[pyod]"
 
-**Note**: The datasets are downloaded automatically when first used and cached both in memory and on disk (in `~/.cache/nonconform/`) for faster subsequent access.
+    # With datasets support
+    pip install "nonconform[data]"
 
-To install with online FDR control for streaming scenarios:
-```bash
-pip install nonconform[fdr]
-```
+    # With online FDR control
+    pip install "nonconform[fdr]"
 
-To install with all optional dependencies:
-```bash
-pip install nonconform[all]
-```
+    # All optional dependencies
+    pip install "nonconform[all]"
+    ```
 
-## Get started
+=== "uv"
+    ```bash
+    # With PyOD support
+    uv add "nonconform[pyod]"
 
-You are all set to find your first anomalies!
+    # With datasets support
+    uv add "nonconform[data]"
 
-```bash
+    # With online FDR control
+    uv add "nonconform[fdr]"
+
+    # All optional dependencies
+    uv add "nonconform[all]"
+    ```
+
+!!! note "Dataset Caching"
+    Datasets download automatically on first use and cache both in memory and on disk (`~/.cache/nonconform/`) for faster subsequent access.
+
+## Get Started
+
+You're ready to detect anomalies.
+
+```python
 import nonconform
 ```

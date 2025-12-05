@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-This guide addresses common issues you might encounter while using nonconform and provides solutions.
+Common issues and solutions for nonconform.
 
 ## Common Issues and Solutions
 
@@ -12,22 +12,16 @@ This guide addresses common issues you might encounter while using nonconform an
 
 ```python
 # Old API (deprecated)
-from nonconform.detection.configuration import DetectorConfig
-
-detector = ConformalDetector(
-    detector=LOF(),
-    strategy=Split(calib_size=0.2),
-    config=DetectorConfig(alpha=0.1)
-)
+# from nonconform.detection.configuration import DetectorConfig
+# config=DetectorConfig(alpha=0.1)
 
 # New API
-from nonconform.detection.standard import ConformalDetector
-from nonconform.strategy import SplitStrategy
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
+from pyod.models.lof import LOF
 
 detector = ConformalDetector(
     detector=LOF(),
-    strategy=Split(calib_size=0.2),
+    strategy=Split(n_calib=0.2),
     aggregation=Aggregation.MEDIAN,
     seed=42
 )
@@ -51,7 +45,7 @@ scores = detector.predict(X, raw=True)     # Get raw scores
 
 ### 3. Memory Issues
 
-**Problem**: Running out of memory when using large datasets or certain detectors.
+**Problem**: Out of memory with large datasets or certain detectors.
 
 **Solutions**:
 - Use batch processing for large datasets
@@ -73,7 +67,7 @@ def process_in_batches(detector, X, batch_size=1000):
 
 ### 4. Slow Performance
 
-**Problem**: Processing takes too long, especially with large datasets.
+**Problem**: Slow processing, especially with large datasets.
 
 **Solutions**:
 - Use faster detectors (e.g., IsolationForest, LOF)
@@ -99,7 +93,7 @@ print(f"Fit time: {fit_time:.2f}s, Predict time: {predict_time:.2f}s")
 
 ### 5. Invalid P-values
 
-**Problem**: P-values don't seem to be properly calibrated or all values are extreme.
+**Problem**: P-values are miscalibrated or extreme.
 
 **Solutions**:
 - Ensure your calibration data is representative of the normal class
@@ -162,12 +156,11 @@ if y_true is not None:
 
 ```python
 # Try multiple strategies for comparison
-from nonconform.strategy import Bootstrap
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation, JackknifeBootstrap, Split
 
 strategies = {
-    'Split': Split(calib_size=0.2),
-    'Bootstrap': Bootstrap(n_bootstraps=100, resampling_ratio=0.8),
+    'Split': Split(n_calib=0.2),
+    'JaB+': JackknifeBootstrap(n_bootstraps=50),
     'CV': CrossValidation(k=5)
 }
 
@@ -188,18 +181,20 @@ for name, strategy in strategies.items():
 
 **Problem**: Cannot import strategy classes with old import paths.
 
-**Solution**: Update import statements to use new module structure:
+**Solution**: Import all strategies from the package root:
 
 ```python
 # Old imports (deprecated)
-# Removed - use individual imports
+# from nonconform.strategy import Split, Jackknife, Bootstrap
 
-# New imports
-from nonconform.strategy import Split
-from nonconform.strategy import CrossValidation
-from nonconform.strategy import Jackknife
-from nonconform.strategy import Bootstrap
+# New imports - use package root
+from nonconform import Split, CrossValidation, JackknifeBootstrap
 ```
+
+!!! note "Available Strategies"
+    - `Split` - Simple train/calibration split
+    - `CrossValidation` - K-fold cross-validation (use high k for leave-one-out)
+    - `JackknifeBootstrap` - Jackknife+-after-Bootstrap (JaB+)
 
 ### 9. Parameter Name Changes
 
@@ -208,10 +203,10 @@ from nonconform.strategy import Bootstrap
 **Solution**: Update parameter names:
 
 ```python
-# Old parameter names
-Split(calibration_size=0.2)           # -> calib_size=0.2
-CrossValidation(n_splits=5)            # -> k=5
-Bootstrap(sample_ratio=0.8) # -> resampling_ratio=0.8
+# Old parameter names → New parameter names
+Split(calibration_size=0.2)     # → Split(n_calib=0.2)
+CrossValidation(n_splits=5)     # → CrossValidation(k=5)
+JackknifeBootstrap(...)         # → JackknifeBootstrap(n_bootstraps=50)
 ```
 
 ### 10. Integration Issues
@@ -225,7 +220,7 @@ Bootstrap(sample_ratio=0.8) # -> resampling_ratio=0.8
 - Use the correct aggregation enum values
 
 ```python
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation
 
 # Correct usage of aggregation enums
 detector = ConformalDetector(
@@ -334,8 +329,8 @@ def debug_weighted_conformal(detector, X_train, X_test):
     """Debug weighted conformal detection specifically."""
     print("=== Weighted Conformal Debug ===")
 
-    # Check if it's actually a weighted detector
-    from nonconform.detection.weighted import ConformalDetector
+    # Check if it's actually a conformal detector
+    from nonconform import ConformalDetector
     if not isinstance(detector, ConformalDetector):
         print("WARNING: Not a ConformalDetector")
         return
@@ -394,14 +389,16 @@ def optimized_batch_processing(detector, X, batch_size=1000):
 ### 2. Strategy-Specific Optimizations
 
 ```python
+from nonconform import CrossValidation, JackknifeBootstrap, Split
+
 # For large datasets, use split strategy with smaller calibration
-strategy = SplitStrategy(calibration_size=0.1)  # Smaller calibration set
+strategy = Split(n_calib=0.1)  # Smaller calibration set
 
 # For small datasets, use bootstrap for stability
-strategy = BootstrapStrategy(n_bootstraps=50, sample_ratio=0.8)
+strategy = JackknifeBootstrap(n_bootstraps=50)
 
 # For medium datasets, use cross-validation
-strategy = CrossValidationStrategy(n_splits=5)
+strategy = CrossValidation(k=5)
 ```
 
 ### 3. Detector Selection for Performance
@@ -422,7 +419,7 @@ fast_detectors = [
 
 ## Getting Help
 
-If you encounter issues not covered in this guide:
+If you encounter other issues:
 
 1. **Check the New API**: Ensure you're using the updated API with direct parameters instead of DetectorConfig
 2. **Update Import Statements**: Use the new module structure for strategy imports

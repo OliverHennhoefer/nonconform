@@ -1,6 +1,6 @@
 # FDR Control for Multiple Testing
 
-This example demonstrates how to use False Discovery Rate (FDR) control in anomaly detection using scipy.stats.false_discovery_control.
+Use FDR control in anomaly detection with `scipy.stats.false_discovery_control`.
 
 ## Setup
 
