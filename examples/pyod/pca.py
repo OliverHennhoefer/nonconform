@@ -2,13 +2,18 @@ from oddball import Dataset, load
 from pyod.models.pca import PCA
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Jackknife
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    false_discovery_rate,
+    statistical_power,
+)
 
 x_train, x_test, y_test = load(Dataset.THYROID, setup=True)
 
-ce = ConformalDetector(detector=PCA(n_components=5), strategy=Jackknife(plus=True))
+ce = ConformalDetector(
+    detector=PCA(n_components=5), strategy=CrossValidation.jackknife(plus=True)
+)
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)

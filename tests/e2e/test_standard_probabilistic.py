@@ -5,9 +5,15 @@ from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Jackknife, JackknifeBootstrap, Probabilistic, Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    JackknifeBootstrap,
+    Probabilistic,
+    Split,
+    false_discovery_rate,
+    statistical_power,
+)
 
 
 class TestStandardProbabilistic:
@@ -36,7 +42,7 @@ class TestStandardProbabilistic:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=Jackknife(plus=False),
+            strategy=CrossValidation.jackknife(plus=False),
             estimation=Probabilistic(n_trials=10),
             seed=1,
         )

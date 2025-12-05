@@ -6,16 +6,16 @@ from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import (
+from nonconform import (
+    ConformalDetector,
     CrossValidation,
     Empirical,
-    Jackknife,
     JackknifeBootstrap,
     Split,
+    false_discovery_rate,
+    logistic_weight_estimator,
+    statistical_power,
 )
-from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 
 class TestWeightedEmpirical:
@@ -26,7 +26,7 @@ class TestWeightedEmpirical:
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
             estimation=Empirical(),
-            weight_estimator=LogisticWeightEstimator(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
@@ -45,7 +45,7 @@ class TestWeightedEmpirical:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=Jackknife(plus=False),
+            strategy=CrossValidation.jackknife(plus=False),
             estimation=Empirical(),
             seed=1,
         )

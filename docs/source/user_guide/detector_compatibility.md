@@ -1,6 +1,6 @@
 # Detector Compatibility Guide
 
-Any detector implementing the `AnomalyDetector` protocol works with nonconform. This includes PyOD detectors, scikit-learn compatible detectors, and custom implementations.
+Any detector implementing `AnomalyDetector` works with nonconform: PyOD, scikit-learn, or custom implementations.
 
 ## AnomalyDetector Protocol
 
@@ -32,7 +32,7 @@ The detector must also be copyable (`copy.copy` and `copy.deepcopy`).
 
 ## PyOD Detectors
 
-PyOD detectors are fully supported and automatically adapted. Install PyOD with:
+PyOD detectors are fully supported. Install PyOD with:
 
 ```sh
 pip install nonconform[pyod]
@@ -40,7 +40,7 @@ pip install nonconform[pyod]
 
 ### Compatible Detectors
 
-All detectors suitable for one-class classification work with nonconform:
+One-class classification detectors work with nonconform:
 
 | Detector | Class | Best For |
 |----------|-------|----------|
@@ -155,7 +155,7 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Ensure `decision_function` returns scores where higher values indicate more anomalous samples. Some sklearn detectors return the opposite convention.
+> **Note:** `decision_function` must return higher scores for more anomalous samples. Some sklearn detectors use the opposite convention.
 
 ## Troubleshooting
 

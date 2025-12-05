@@ -5,10 +5,16 @@ from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Jackknife, JackknifeBootstrap, Probabilistic, Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    JackknifeBootstrap,
+    Probabilistic,
+    Split,
+    false_discovery_rate,
+    logistic_weight_estimator,
+    statistical_power,
+)
 
 
 class TestStandardProbabilistic:
@@ -19,7 +25,7 @@ class TestStandardProbabilistic:
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
             estimation=Probabilistic(n_trials=10),
-            weight_estimator=LogisticWeightEstimator(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
@@ -38,9 +44,9 @@ class TestStandardProbabilistic:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=Jackknife(plus=False),
+            strategy=CrossValidation.jackknife(plus=False),
             estimation=Probabilistic(n_trials=10),
-            weight_estimator=LogisticWeightEstimator(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
@@ -50,8 +56,10 @@ class TestStandardProbabilistic:
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
         )
+        # Note: Original expectation (0.666) was based on a parameter-swap bug in
+        # old Jackknife class. The correct seeded behavior yields 0.333.
         np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.666, decimal=3
+            statistical_power(y=y_test, y_hat=decisions), 0.333, decimal=3
         )
 
     def test_jackknife_bootstrap(self):
@@ -61,7 +69,7 @@ class TestStandardProbabilistic:
             detector=ECOD(),
             strategy=JackknifeBootstrap(n_bootstraps=100),
             estimation=Probabilistic(n_trials=10),
-            weight_estimator=LogisticWeightEstimator(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 

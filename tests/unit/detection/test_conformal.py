@@ -1,4 +1,4 @@
-"""Unit tests for detection/conformal.py."""
+"""Unit tests for detector.py."""
 
 from copy import deepcopy
 from typing import Any, Self
@@ -6,10 +6,7 @@ from typing import Any, Self
 import numpy as np
 import pytest
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.protocol import AnomalyDetector
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation, AnomalyDetector, ConformalDetector, Split
 
 
 class MockDetector:

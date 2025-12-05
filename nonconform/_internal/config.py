@@ -1,15 +1,17 @@
-"""Configure anomaly detector parameters.
+"""Detector parameter configuration utilities.
 
 This module provides utilities for setting up detector models with
-standard parameters for conformal anomaly detection, supporting any
-detector that conforms to the AnomalyDetector protocol.
+standard parameters for conformal anomaly detection.
 """
+
+from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from nonconform.detection.protocol import AnomalyDetector
+if TYPE_CHECKING:
+    from nonconform.structures import AnomalyDetector
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ _N_JOBS_ALIASES = ["n_jobs", "n_threads", "num_workers"]
 _CONTAMINATION_ALIASES = ["contamination"]
 
 
-def _set_params(
+def set_params(
     detector: AnomalyDetector,
     seed: int | None,
     random_iteration: bool = False,
@@ -41,9 +43,6 @@ def _set_params(
     Returns:
         Configured detector instance.
 
-    Raises:
-        ValueError: If seed provided but no random_state parameter exists.
-
     Note:
         Logs warnings if optional parameters (contamination, n_jobs) unavailable.
     """
@@ -63,12 +62,7 @@ def _set_params(
 
 
 def _try_set_contamination(detector: AnomalyDetector, params: dict[str, Any]) -> None:
-    """Try to set contamination to minimum for one-class training.
-
-    Args:
-        detector: Detector to configure.
-        params: Current detector parameters.
-    """
+    """Try to set contamination to minimum for one-class training."""
     for alias in _CONTAMINATION_ALIASES:
         if alias in params:
             detector.set_params(**{alias: sys.float_info.min})
@@ -79,12 +73,7 @@ def _try_set_contamination(detector: AnomalyDetector, params: dict[str, Any]) ->
 
 
 def _try_set_parallelism(detector: AnomalyDetector, params: dict[str, Any]) -> None:
-    """Try to set parallelism to use all cores.
-
-    Args:
-        detector: Detector to configure.
-        params: Current detector parameters.
-    """
+    """Try to set parallelism to use all cores."""
     for alias in _N_JOBS_ALIASES:
         if alias in params:
             detector.set_params(**{alias: -1})
@@ -97,17 +86,7 @@ def _try_set_parallelism(detector: AnomalyDetector, params: dict[str, Any]) -> N
 def _set_random_state(
     detector: AnomalyDetector, params: dict[str, Any], seed: int
 ) -> None:
-    """Set random state for reproducibility.
-
-    Args:
-        detector: Detector to configure.
-        params: Current detector parameters.
-        seed: Random seed value.
-
-    Note:
-        Logs warning if no random_state parameter exists (some detectors
-        are deterministic and don't need randomness).
-    """
+    """Set random state for reproducibility."""
     for alias in _RANDOM_STATE_ALIASES:
         if alias in params:
             detector.set_params(**{alias: seed})
@@ -120,3 +99,8 @@ def _set_random_state(
         f"Reproducibility cannot be guaranteed if detector uses randomness. "
         f"This is acceptable for deterministic detectors."
     )
+
+
+__all__ = [
+    "set_params",
+]

@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from nonconform.utils.func.params import _set_params
+from nonconform._internal.config import set_params
 
 
 class TestParameterAliases:
@@ -15,7 +15,7 @@ class TestParameterAliases:
         params_dict = {"seed": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         detector.set_params.assert_called()
         assert params_dict["seed"] == 42
@@ -27,7 +27,7 @@ class TestParameterAliases:
         params_dict = {"random_seed": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=99)
+        set_params(detector, seed=99)
 
         detector.set_params.assert_called()
         assert params_dict["random_seed"] == 99
@@ -39,7 +39,7 @@ class TestParameterAliases:
         params_dict = {"n_threads": 1}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=None)
+        set_params(detector, seed=None)
 
         assert params_dict["n_threads"] == -1
 
@@ -50,7 +50,7 @@ class TestParameterAliases:
         params_dict = {"num_workers": 1, "random_state": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         assert params_dict["num_workers"] == -1
 
@@ -61,7 +61,7 @@ class TestParameterAliases:
         params_dict = {"random_state": None, "seed": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         assert params_dict["random_state"] == 42
         assert params_dict["seed"] is None
@@ -84,7 +84,7 @@ class TestMissingRandomState:
 
         try:
             with caplog.at_level(logging.WARNING, logger="nonconform"):
-                _set_params(detector, seed=42)
+                set_params(detector, seed=42)
 
             # Check caplog records, stderr, and caplog.text for warning
             captured = capfd.readouterr()
@@ -105,7 +105,7 @@ class TestMissingRandomState:
         detector.get_params.return_value = {}
 
         with caplog.at_level(logging.WARNING):
-            _set_params(detector, seed=None)
+            set_params(detector, seed=None)
 
         assert "random_state" not in caplog.text
 
@@ -120,7 +120,7 @@ class TestOptionalParameters:
         params_dict = {"random_state": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
     def test_n_jobs_optional(self):
         """Test n_jobs parameter is optional."""
@@ -129,7 +129,7 @@ class TestOptionalParameters:
         params_dict = {"random_state": None}
         detector.set_params.side_effect = lambda **kwargs: params_dict.update(kwargs)
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
 
 class TestRandomIteration:
@@ -138,11 +138,11 @@ class TestRandomIteration:
     def test_random_iteration_creates_different_seed(self, mock_detector):
         """Test different iterations produce different seeds."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=0)
+        set_params(detector, seed=42, random_iteration=True, iteration=0)
         seed0 = detector.get_params()["random_state"]
 
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=1)
+        set_params(detector, seed=42, random_iteration=True, iteration=1)
         seed1 = detector.get_params()["random_state"]
 
         assert seed0 != seed1
@@ -150,10 +150,10 @@ class TestRandomIteration:
     def test_same_iteration_and_seed_produces_same_random_state(self, mock_detector):
         """Test reproducibility with same seed and iteration."""
         detector1 = mock_detector()
-        _set_params(detector1, seed=42, random_iteration=True, iteration=5)
+        set_params(detector1, seed=42, random_iteration=True, iteration=5)
 
         detector2 = mock_detector()
-        _set_params(detector2, seed=42, random_iteration=True, iteration=5)
+        set_params(detector2, seed=42, random_iteration=True, iteration=5)
 
         assert (
             detector1.get_params()["random_state"]
@@ -163,10 +163,10 @@ class TestRandomIteration:
     def test_different_base_seeds_with_same_iteration(self, mock_detector):
         """Test different base seeds produce different results."""
         detector1 = mock_detector()
-        _set_params(detector1, seed=42, random_iteration=True, iteration=0)
+        set_params(detector1, seed=42, random_iteration=True, iteration=0)
 
         detector2 = mock_detector()
-        _set_params(detector2, seed=99, random_iteration=True, iteration=0)
+        set_params(detector2, seed=99, random_iteration=True, iteration=0)
 
         assert (
             detector1.get_params()["random_state"]
@@ -176,7 +176,7 @@ class TestRandomIteration:
     def test_random_state_within_32bit_range(self, mock_detector):
         """Test generated random_state fits in 32-bit range."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=999999)
+        set_params(detector, seed=42, random_iteration=True, iteration=999999)
 
         random_state = detector.get_params()["random_state"]
         assert 0 <= random_state < 2**32
@@ -184,14 +184,14 @@ class TestRandomIteration:
     def test_random_iteration_false_uses_base_seed(self, mock_detector):
         """Test random_iteration=False uses base seed directly."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=False, iteration=10)
+        set_params(detector, seed=42, random_iteration=False, iteration=10)
 
         assert detector.get_params()["random_state"] == 42
 
     def test_random_iteration_without_iteration_uses_base_seed(self, mock_detector):
         """Test missing iteration parameter uses base seed."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=None)
+        set_params(detector, seed=42, random_iteration=True, iteration=None)
 
         assert detector.get_params()["random_state"] == 42
 
@@ -202,14 +202,14 @@ class TestEdgeCases:
     def test_iteration_zero(self, mock_detector):
         """Test iteration=0 is valid."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=0)
+        set_params(detector, seed=42, random_iteration=True, iteration=0)
 
         assert detector.get_params()["random_state"] is not None
 
     def test_large_iteration_number(self, mock_detector):
         """Test very large iteration numbers work correctly."""
         detector = mock_detector()
-        _set_params(detector, seed=42, random_iteration=True, iteration=1000000)
+        set_params(detector, seed=42, random_iteration=True, iteration=1000000)
 
         random_state = detector.get_params()["random_state"]
         assert 0 <= random_state < 2**32
@@ -217,7 +217,7 @@ class TestEdgeCases:
     def test_negative_seed(self, mock_detector):
         """Test negative seeds are accepted."""
         detector = mock_detector()
-        _set_params(detector, seed=-42, random_iteration=False)
+        set_params(detector, seed=-42, random_iteration=False)
 
         assert detector.get_params()["random_state"] == -42
 
@@ -225,14 +225,14 @@ class TestEdgeCases:
         """Test very large seeds work correctly."""
         large_seed = 2**31 - 1
         detector = mock_detector()
-        _set_params(detector, seed=large_seed, random_iteration=False)
+        set_params(detector, seed=large_seed, random_iteration=False)
 
         assert detector.get_params()["random_state"] == large_seed
 
     def test_zero_seed(self, mock_detector):
         """Test seed=0 is valid."""
         detector = mock_detector()
-        _set_params(detector, seed=0, random_iteration=False)
+        set_params(detector, seed=0, random_iteration=False)
 
         assert detector.get_params()["random_state"] == 0
 
@@ -245,7 +245,7 @@ class TestReproducibility:
         results = []
         for _ in range(5):
             detector = mock_detector()
-            _set_params(detector, seed=42, random_iteration=True, iteration=7)
+            set_params(detector, seed=42, random_iteration=True, iteration=7)
             results.append(detector.get_params()["random_state"])
 
         assert len(set(results)) == 1
@@ -255,7 +255,7 @@ class TestReproducibility:
         seeds = []
         for i in range(10):
             detector = mock_detector()
-            _set_params(detector, seed=42, random_iteration=True, iteration=i)
+            set_params(detector, seed=42, random_iteration=True, iteration=i)
             seeds.append(detector.get_params()["random_state"])
 
         assert len(set(seeds)) == 10
@@ -265,7 +265,7 @@ class TestReproducibility:
         seeds = set()
         for i in range(100):
             detector = mock_detector()
-            _set_params(detector, seed=42, random_iteration=True, iteration=i)
+            set_params(detector, seed=42, random_iteration=True, iteration=i)
             seeds.add(detector.get_params()["random_state"])
 
         assert len(seeds) >= 99
@@ -280,7 +280,7 @@ class TestParameterOverride:
         initial_params = detector.get_params().copy()
         initial_params["contamination"] = 0.5
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         import sys
 
@@ -292,7 +292,7 @@ class TestParameterOverride:
         initial_params = detector.get_params().copy()
         initial_params["n_jobs"] = 1
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         assert detector.get_params()["n_jobs"] == -1
 
@@ -302,6 +302,6 @@ class TestParameterOverride:
         initial_params = detector.get_params().copy()
         initial_params["random_state"] = 999
 
-        _set_params(detector, seed=42)
+        set_params(detector, seed=42)
 
         assert detector.get_params()["random_state"] == 42

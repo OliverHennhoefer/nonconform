@@ -12,10 +12,7 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 
 ```python
 import numpy as np
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.func.enums import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split, logistic_weight_estimator
 from pyod.models.lof import LOF
 
 # Initialize base detector
@@ -27,8 +24,8 @@ detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
-    seed=42
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 
 # Fit on training data
@@ -127,8 +124,8 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
-    seed=42
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 
 # Fit both on training data
@@ -169,8 +166,8 @@ for agg_method in aggregation_methods:
         detector=base_detector,
         strategy=strategy,
         aggregation=agg_method,
-        weight_estimator=LogisticWeightEstimator(seed=42),
-        seed=42
+        weight_estimator=logistic_weight_estimator(),
+        seed=42,
     )
     detector.fit(X_train)
     p_vals = detector.predict(X_test_shifted, raw=False)
@@ -180,24 +177,21 @@ for agg_method in aggregation_methods:
 
 ## Weight Estimators
 
-`nonconform` provides two weight estimators for handling covariate shift:
+`nonconform` provides two weight estimator factory functions for handling covariate shift:
 
-### LogisticWeightEstimator
+### logistic_weight_estimator
 
 Uses logistic regression to estimate likelihood ratios between calibration and test distributions:
 
 ```python
-from nonconform.detection.weight import LogisticWeightEstimator
-
-# Default configuration with L2 regularization
-weight_est = LogisticWeightEstimator(seed=42)
+from nonconform import logistic_weight_estimator
 
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=weight_est,
-    seed=42
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 ```
 
@@ -208,32 +202,24 @@ detector = ConformalDetector(
 - Default choice for most applications
 
 **Parameters**:
-- `penalty`: Regularization type ('l2', 'l1', 'elasticnet', 'none')
-- `C`: Inverse regularization strength (default: 1.0)
-- `solver`: Optimization algorithm (default: 'lbfgs')
+- `regularization`: Regularization strength ('auto' or float C value)
+- `clip_quantile`: Quantile for weight clipping (default: 0.05)
+- `class_weight`: Class weights for LogisticRegression (default: 'balanced')
 - `max_iter`: Maximum iterations (default: 1000)
-- `seed`: Random state for reproducibility
 
-### ForestWeightEstimator
+### forest_weight_estimator
 
 Uses random forest classification to estimate likelihood ratios:
 
 ```python
-from nonconform.detection.weight import ForestWeightEstimator
-
-# Forest-based weight estimation
-weight_est = ForestWeightEstimator(
-    n_estimators=100,
-    max_depth=10,
-    seed=42
-)
+from nonconform import forest_weight_estimator
 
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=weight_est,
-    seed=42
+    weight_estimator=forest_weight_estimator(n_estimators=100, max_depth=10),
+    seed=42,
 )
 ```
 
@@ -245,20 +231,19 @@ detector = ConformalDetector(
 
 **Parameters**:
 - `n_estimators`: Number of trees (default: 100)
-- `max_depth`: Maximum tree depth (default: None)
-- `min_samples_split`: Minimum samples to split (default: 2)
-- `min_samples_leaf`: Minimum samples in leaf (default: 1)
-- `seed`: Random state for reproducibility
+- `max_depth`: Maximum tree depth (default: 5)
+- `min_samples_leaf`: Minimum samples in leaf (default: 10)
+- `clip_quantile`: Quantile for weight clipping (default: 0.05)
 
 ### Comparison
 
 ```python
 # Compare weight estimators on complex shift
-from nonconform.detection.weight import LogisticWeightEstimator, ForestWeightEstimator
+from nonconform import logistic_weight_estimator, forest_weight_estimator
 
 estimators = {
-    'Logistic': LogisticWeightEstimator(seed=42),
-    'Forest': ForestWeightEstimator(n_estimators=100, seed=42)
+    'Logistic': logistic_weight_estimator(),
+    'Forest': forest_weight_estimator(n_estimators=100),
 }
 
 for name, weight_est in estimators.items():
@@ -267,7 +252,7 @@ for name, weight_est in estimators.items():
         strategy=Split(n_calib=0.2),
         aggregation=Aggregation.MEDIAN,
         weight_estimator=weight_est,
-        seed=42
+        seed=42,
     )
     detector.fit(X_train)
     p_values = detector.predict(X_test_shifted, raw=False)
@@ -276,8 +261,8 @@ for name, weight_est in estimators.items():
 ```
 
 **General recommendations**:
-- Start with `LogisticWeightEstimator` (faster, more interpretable)
-- Switch to `ForestWeightEstimator` if:
+- Start with `logistic_weight_estimator()` (faster, more interpretable)
+- Switch to `forest_weight_estimator()` if:
   - Distribution shift is highly non-linear
   - You have >500 calibration samples
   - Logistic weights show poor discrimination
@@ -287,15 +272,14 @@ for name, weight_est in estimators.items():
 Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios:
 
 ```python
-from nonconform.detection.weight.wrapper.bagging import BootstrapBaggedWeightEstimator
-from nonconform.detection.weight import ForestWeightEstimator
+from nonconform import BootstrapBaggedWeightEstimator, forest_weight_estimator
 
 # Bootstrap bagging with forest base (best for extreme imbalance)
 weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=ForestWeightEstimator(n_estimators=50, seed=42),
+    base_estimator=forest_weight_estimator(n_estimators=50),
     n_bootstrap=50,
     clip_bounds=(0.35, 45.0),
-    clip_quantile=0.05
+    clip_quantile=0.05,
 )
 
 detector = ConformalDetector(
@@ -303,7 +287,7 @@ detector = ConformalDetector(
     strategy=Split(n_calib=1000),
     aggregation=Aggregation.MEDIAN,
     weight_estimator=weight_est,
-    seed=42
+    seed=42,
 )
 ```
 
@@ -373,7 +357,7 @@ Empirical testing shows context-dependent value:
 | FDR | 0.000 | 0.190 | Acceptable trade-off |
 | Time | 0.24s | 6.4s | 27x slower |
 
-**Verdict**: **Strongly recommended** for extreme imbalance. Best combination: `ForestWeightEstimator + Bagging`.
+**Verdict**: **Strongly recommended** for extreme imbalance. Best combination: `forest_weight_estimator + Bagging`.
 
 #### Configuration Parameters
 
@@ -398,29 +382,27 @@ Empirical testing shows context-dependent value:
 For online/streaming anomaly detection with small batches:
 
 ```python
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import ForestWeightEstimator
-from nonconform.detection.weight.wrapper.bagging import BootstrapBaggedWeightEstimator
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import (
+    Aggregation,
+    BootstrapBaggedWeightEstimator,
+    ConformalDetector,
+    Split,
+    forest_weight_estimator,
+)
 
 # Configuration for small batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=ForestWeightEstimator(
-        n_estimators=50,
-        max_depth=10,
-        seed=42
-    ),
+    base_estimator=forest_weight_estimator(n_estimators=50, max_depth=10),
     n_bootstrap=50,
-    clip_quantile=0.05  # Adaptive clipping
+    clip_quantile=0.05,  # Adaptive clipping
 )
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new", random_state=42),
+    detector=IForest(behaviour="new"),
     strategy=Split(n_calib=1000),  # Large calibration set
     aggregation=Aggregation.MEDIAN,
     weight_estimator=weight_est,
-    seed=42
+    seed=42,
 )
 
 # Train on historical data
@@ -453,7 +435,7 @@ for X_batch in stream_data(batch_size=25):
 | Forest (Base) | 0.24s | Good for non-linear | Standard scenarios |
 | **Forest + Bagging(50)** | **6.4s** | **Perfect detection** | **Extreme imbalance, premium quality** |
 
-**Recommendation**: Use `ForestWeightEstimator + BootstrapBaggedWeightEstimator` when:
+**Recommendation**: Use `forest_weight_estimator + BootstrapBaggedWeightEstimator` when:
 - Calibration set is 40x larger than test batch (e.g., 1000:25)
 - Missing anomalies is very costly
 - Computational budget allows 20-50x overhead
@@ -467,16 +449,16 @@ for X_batch in stream_data(batch_size=25):
 ┌─ Is your test batch very small (<50) AND calibration large (>1000)?
 │
 ├─ YES → BootstrapBaggedWeightEstimator(
-│         ForestWeightEstimator(50), n_bootstrap=50
+│         forest_weight_estimator(50), n_bootstrap=50
 │       )
 │       Cost: High (6-7s), Quality: Best (perfect detection)
 │
 └─ NO → Standard weight estimators
     │
-    ├─ Linear/moderate shift → LogisticWeightEstimator()
+    ├─ Linear/moderate shift → logistic_weight_estimator()
     │                          Cost: Low (0.14s), Quality: Good
     │
-    └─ Complex/non-linear shift → ForestWeightEstimator(50)
+    └─ Complex/non-linear shift → forest_weight_estimator(50)
                                    Cost: Medium (0.24s), Quality: Better
 ```
 
@@ -494,7 +476,7 @@ bootstrap_detector = ConformalDetector(
     detector=base_detector,
     strategy=bootstrap_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 
@@ -504,7 +486,7 @@ cv_detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 ```
@@ -738,7 +720,7 @@ for domain in domains:
         detector=base_detector,
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
-        weight_estimator=LogisticWeightEstimator(seed=42),
+        weight_estimator=logistic_weight_estimator(),
         seed=42
     )
     detector.fit(X_train)  # Common training set

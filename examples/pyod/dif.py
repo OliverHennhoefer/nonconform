@@ -2,15 +2,13 @@ from oddball import Dataset, load
 from pyod.models.dif import DIF
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
 ce = ConformalDetector(
     detector=DIF(max_samples=10),
-    strategy=Bootstrap(resampling_ratio=0.95, n_bootstraps=20),
+    strategy=Split(n_calib=0.3),
 )
 
 ce.fit(x_train)

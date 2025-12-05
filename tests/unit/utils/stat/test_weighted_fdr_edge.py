@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
 
-from nonconform.utils.stat.weighted_fdr import (
-    weighted_bh,
-    weighted_false_discovery_control,
-)
+from nonconform import weighted_bh, weighted_false_discovery_control
 
 
 class TestNoDiscoveries:

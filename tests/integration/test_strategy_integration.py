@@ -8,14 +8,13 @@ import numpy as np
 import pytest
 from pyod.models.iforest import IForest
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import (
+from nonconform import (
+    Aggregation,
+    ConformalDetector,
     CrossValidation,
-    Jackknife,
     JackknifeBootstrap,
     Split,
 )
-from nonconform.utils.func.enums import Aggregation
 
 StrategyCase = namedtuple("StrategyCase", "name factory expected_calib")
 
@@ -42,7 +41,7 @@ STRATEGY_CASES = [
     ),
     StrategyCase(
         "jackknife",
-        lambda: Jackknife(plus=True),
+        lambda: CrossValidation.jackknife(plus=True),
         lambda n: n,
     ),
     StrategyCase(
@@ -90,7 +89,7 @@ PLUS_CASES: tuple[PlusCase, ...] = (
     ),
     PlusCase(
         "jackknife",
-        lambda plus: Jackknife(plus=plus),
+        lambda plus: CrossValidation.jackknife(plus=plus),
         lambda plus, n: n if plus else 1,
     ),
     PlusCase(

@@ -1,9 +1,6 @@
 import numpy as np
 
-from nonconform.utils.stat.weighted_fdr import (
-    weighted_bh,
-    weighted_false_discovery_control,
-)
+from nonconform import weighted_bh, weighted_false_discovery_control
 
 
 class TestBasicFDRControl:

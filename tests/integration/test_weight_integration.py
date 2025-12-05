@@ -1,14 +1,16 @@
 """Integration tests for covariate-shift weight estimators."""
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 from pyod.models.iforest import IForest
 
-from nonconform.detection import ConformalDetector
-from nonconform.detection.weight import ForestWeightEstimator, LogisticWeightEstimator
-from nonconform.strategy import Empirical, Split
+from nonconform import (
+    ConformalDetector,
+    Empirical,
+    Split,
+    forest_weight_estimator,
+    logistic_weight_estimator,
+)
 
 
 def _build_weighted_detector(weight_estimator):
@@ -22,14 +24,14 @@ def _build_weighted_detector(weight_estimator):
 
 
 @pytest.mark.parametrize(
-    "estimator_cls",
-    [LogisticWeightEstimator, ForestWeightEstimator],
+    "estimator_factory",
+    [logistic_weight_estimator, forest_weight_estimator],
     ids=["logistic", "forest"],
 )
-def test_weight_estimators_attach_weights(shifted_dataset, estimator_cls):
+def test_weight_estimators_attach_weights(shifted_dataset, estimator_factory):
     """Both estimators should populate weights in the conformal result."""
     x_train, x_test, _ = shifted_dataset(n_train=180, n_test=60, n_features=4)
-    estimator = estimator_cls(seed=7, clip_quantile=0.1)
+    estimator = estimator_factory(clip_quantile=0.1)
     detector = _build_weighted_detector(estimator)
 
     detector.fit(x_train)
@@ -51,7 +53,7 @@ def test_weighted_vs_unweighted_predictions_differ(shifted_dataset):
     """Importance weighting should change p-values under covariate shift."""
     x_train, x_test, _ = shifted_dataset(n_train=200, n_test=80, n_features=5)
 
-    weighted = _build_weighted_detector(LogisticWeightEstimator(seed=21))
+    weighted = _build_weighted_detector(logistic_weight_estimator())
     standard = ConformalDetector(
         detector=IForest(n_estimators=25, max_samples=0.8, random_state=0),
         strategy=Split(n_calib=0.2),
@@ -70,7 +72,7 @@ def test_weighted_vs_unweighted_predictions_differ(shifted_dataset):
 
 def test_weight_clipping_bounds_propagate(shifted_dataset):
     """Verify estimator clipping bounds constrain stored weights."""
-    estimator = LogisticWeightEstimator(seed=9, clip_quantile=0.2)
+    estimator = logistic_weight_estimator(clip_quantile=0.2)
     detector = _build_weighted_detector(estimator)
 
     x_train, x_test, _ = shifted_dataset(n_train=160, n_test=64, n_features=3)

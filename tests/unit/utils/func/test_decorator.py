@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from nonconform.utils.func.decorator import _ensure_numpy_array
+from nonconform._internal.log_utils import ensure_numpy_array
 
 
 class TestDataFrameConversion:
     def test_dataframe_converts_to_numpy(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -15,7 +15,7 @@ class TestDataFrameConversion:
         assert isinstance(result, np.ndarray)
 
     def test_conversion_preserves_shape(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -24,7 +24,7 @@ class TestDataFrameConversion:
         assert result.shape == (20, 5)
 
     def test_conversion_preserves_values(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -33,7 +33,7 @@ class TestDataFrameConversion:
         np.testing.assert_array_equal(result, df.to_numpy())
 
     def test_single_column_dataframe(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -44,7 +44,7 @@ class TestDataFrameConversion:
 
 class TestSeriesConversion:
     def test_series_converts_to_numpy(self, sample_series):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -53,7 +53,7 @@ class TestSeriesConversion:
         assert isinstance(result, np.ndarray)
 
     def test_series_preserves_length(self, sample_series):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -62,7 +62,7 @@ class TestSeriesConversion:
         assert len(result) == 25
 
     def test_series_preserves_values(self, sample_series):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -73,7 +73,7 @@ class TestSeriesConversion:
 
 class TestPassThrough:
     def test_numpy_array_unchanged(self, sample_array):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -83,7 +83,7 @@ class TestPassThrough:
         assert result is arr
 
     def test_different_shapes_pass_through(self, sample_array):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -98,7 +98,7 @@ class TestPassThrough:
 
 class TestEdgeCases:
     def test_empty_dataframe(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -108,7 +108,7 @@ class TestEdgeCases:
         assert result.shape == (0, 0)
 
     def test_empty_series(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -118,7 +118,7 @@ class TestEdgeCases:
         assert len(result) == 0
 
     def test_empty_array(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -128,7 +128,7 @@ class TestEdgeCases:
         assert len(result) == 0
 
     def test_integer_dtype_dataframe(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -137,7 +137,7 @@ class TestEdgeCases:
         assert result.dtype == np.int32
 
     def test_float64_dtype_series(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def dummy_method(self, x):
             return x
 
@@ -148,14 +148,14 @@ class TestEdgeCases:
 
 class TestMetadataPreservation:
     def test_function_name_preserved(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def test_function(self, x):
             return x
 
         assert test_function.__name__ == "test_function"
 
     def test_docstring_preserved(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def documented_function(self, x):
             """This is a test docstring."""
             return x
@@ -163,7 +163,7 @@ class TestMetadataPreservation:
         assert documented_function.__doc__ == "This is a test docstring."
 
     def test_decorated_function_callable(self):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def test_function(self, x):
             return x
 
@@ -172,7 +172,7 @@ class TestMetadataPreservation:
 
 class TestAdditionalArguments:
     def test_decorator_with_args(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def method_with_args(self, x, arg1, arg2):
             return x, arg1, arg2
 
@@ -183,7 +183,7 @@ class TestAdditionalArguments:
         assert result_arg2 == 42
 
     def test_decorator_with_kwargs(self, sample_dataframe):
-        @_ensure_numpy_array
+        @ensure_numpy_array
         def method_with_kwargs(self, x, **kwargs):
             return x, kwargs
 

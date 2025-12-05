@@ -1,4 +1,4 @@
-"""Unit tests for detection/adapter.py."""
+"""Unit tests for adapters.py."""
 
 from copy import copy, deepcopy
 from typing import Any, Self
@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from nonconform.detection.adapter import PyODAdapter, _looks_like_pyod, adapt
-from nonconform.detection.protocol import AnomalyDetector
+from nonconform import AnomalyDetector
+from nonconform.adapters import PyODAdapter, _looks_like_pyod, adapt
 
 
 class MockProtocolCompliantDetector:
@@ -262,3 +262,54 @@ class TestAdaptWithActualPyOD:
         detector = IForest(n_estimators=10, random_state=42)
         adapted = adapt(detector)
         assert isinstance(adapted, AnomalyDetector)
+
+
+class TestPyODAdapterPickle:
+    """Tests for PyODAdapter pickle serialization."""
+
+    def test_pickle_roundtrip(self):
+        """Verify PyODAdapter survives pickle/unpickle cycle."""
+        import importlib.util
+        import pickle
+
+        if importlib.util.find_spec("pyod") is None:
+            pytest.skip("PyOD not installed")
+
+        from pyod.models.iforest import IForest
+
+        # Create and fit adapter
+        detector = IForest(n_estimators=10, random_state=42)
+        adapter = PyODAdapter(detector)
+        X = np.random.default_rng(42).standard_normal((100, 5))
+        adapter.fit(X)
+
+        # Pickle round-trip
+        pickled = pickle.dumps(adapter)
+        restored = pickle.loads(pickled)
+
+        # Verify restored adapter works
+        original_scores = adapter.decision_function(X)
+        restored_scores = restored.decision_function(X)
+        np.testing.assert_array_equal(original_scores, restored_scores)
+
+    def test_pickle_unfitted_adapter(self):
+        """Verify unfitted PyODAdapter can be pickled."""
+        import importlib.util
+        import pickle
+
+        if importlib.util.find_spec("pyod") is None:
+            pytest.skip("PyOD not installed")
+
+        from pyod.models.iforest import IForest
+
+        adapter = PyODAdapter(IForest(n_estimators=10, random_state=42))
+
+        # Pickle round-trip
+        pickled = pickle.dumps(adapter)
+        restored = pickle.loads(pickled)
+
+        # Verify restored adapter can be fitted and used
+        X = np.random.default_rng(42).standard_normal((100, 5))
+        restored.fit(X)
+        scores = restored.decision_function(X)
+        assert len(scores) == 100

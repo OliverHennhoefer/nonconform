@@ -1,7 +1,6 @@
 import numpy as np
 
-from nonconform.utils.func.enums import Pruning
-from nonconform.utils.stat.weighted_fdr import weighted_false_discovery_control
+from nonconform import Pruning, weighted_false_discovery_control
 
 
 class TestHeterogeneousPruning:

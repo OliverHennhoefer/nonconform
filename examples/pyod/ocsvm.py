@@ -2,13 +2,16 @@ from oddball import Dataset, load
 from pyod.models.ocsvm import OCSVM
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Jackknife
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    false_discovery_rate,
+    statistical_power,
+)
 
 x_train, x_test, y_test = load(Dataset.IONOSPHERE, setup=True)
 
-ce = ConformalDetector(detector=OCSVM(), strategy=Jackknife())
+ce = ConformalDetector(detector=OCSVM(), strategy=CrossValidation.jackknife())
 
 ce.fit(x_train)
 estimates = ce.predict(x_test)
