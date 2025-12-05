@@ -224,8 +224,7 @@ class CrossValidation(BaseStrategy):
             detector_list, calib_scores = strategy.fit_calibrate(X, detector)
             ```
         """
-        # Match original Jackknife behavior: shuffle=True for data randomization
-        return cls(k=None, plus=plus, shuffle=True)
+        return cls(k=None, plus=plus, shuffle=False)
 
     def fit_calibrate(
         self,

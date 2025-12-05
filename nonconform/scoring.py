@@ -103,7 +103,10 @@ class Empirical(BaseEstimation):
         numerator = weighted_sum_ge + w_scores
         denominator = np.sum(w_calib) + w_scores
         return np.divide(
-            numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0
+            numerator,
+            denominator,
+            out=np.zeros_like(numerator, dtype=np.float64),
+            where=denominator != 0,
         )
 
 
@@ -148,7 +151,10 @@ def calculate_weighted_p_val(
     numerator = weighted_sum_ge + w_scores
     denominator = np.sum(w_calib) + w_scores
     return np.divide(
-        numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0
+        numerator,
+        denominator,
+        out=np.zeros_like(numerator, dtype=np.float64),
+        where=denominator != 0,
     )
 
 

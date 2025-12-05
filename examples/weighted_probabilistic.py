@@ -47,5 +47,5 @@ if __name__ == "__main__":
     w_decisions = weighted_bh(wpce.last_result, alpha=0.2)
 
     print("Weighted Benjamini-Hochberg")
-    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.11
+    print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=w_decisions)}")  # 0.10
     print(f"Empirical Power: {statistical_power(y=y_test, y_hat=w_decisions)}")  # 0.94
