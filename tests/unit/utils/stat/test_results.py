@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.utils.stat.results import ConformalResult
+from nonconform import ConformalResult
 
 
 class TestInstantiation:
@@ -68,13 +68,15 @@ class TestCopyFunctionality:
         np.testing.assert_array_equal(copied.test_weights, result.test_weights)
         np.testing.assert_array_equal(copied.calib_weights, result.calib_weights)
 
-    def test_metadata_shallow_copy(self):
+    def test_metadata_deep_copy(self):
+        """Metadata is deep-copied, so nested mutations are independent."""
         metadata = {"key": [1, 2, 3]}
         result = ConformalResult(metadata=metadata)
         copied = result.copy()
 
         copied.metadata["key"].append(4)
-        assert len(result.metadata["key"]) == 4
+        assert len(result.metadata["key"]) == 3  # Original unchanged
+        assert len(copied.metadata["key"]) == 4  # Copy modified
 
 
 class TestEdgeCases:

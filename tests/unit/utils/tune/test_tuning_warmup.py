@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform.utils.tune.tuning import (
+from nonconform._internal.tuning import (
     _collect_heuristic_bandwidths,
     tune_kde_hyperparameters,
 )

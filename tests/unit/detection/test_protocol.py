@@ -1,10 +1,10 @@
-"""Unit tests for detection/protocol.py."""
+"""Unit tests for structures.py (AnomalyDetector protocol)."""
 
 from typing import Any, Self
 
 import numpy as np
 
-from nonconform.detection.protocol import AnomalyDetector
+from nonconform import AnomalyDetector
 
 
 class CompliantDetector:

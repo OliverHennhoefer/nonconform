@@ -8,9 +8,7 @@ This example demonstrates how to use classical conformal prediction for anomaly 
 import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 from oddball import Dataset, load
 
 # Load example data - downloads automatically and caches in memory
@@ -25,7 +23,7 @@ print(f"Training samples: {len(x_train)}, Test samples: {len(x_test)}")
 base_detector = LOF()
 
 # Create conformal detector with split strategy
-strategy = Split(calib_size=0.2)
+strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
@@ -62,7 +60,7 @@ print(f"Empirical FDR: {(discoveries & (y_test == 0)).sum() / max(1, discoveries
 ## Advanced Usage with Cross-Validation
 
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 # Use cross-validation strategy for better calibration
 cv_strategy = CrossValidation(k=5)

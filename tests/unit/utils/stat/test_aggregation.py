@@ -1,7 +1,6 @@
 import numpy as np
 
-from nonconform.utils.func.enums import Aggregation
-from nonconform.utils.stat.aggregation import aggregate
+from nonconform import Aggregation, aggregate
 
 
 class TestMeanAggregation:

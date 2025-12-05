@@ -1,9 +1,6 @@
 import numpy as np
 
-from nonconform.utils.stat.statistical import (
-    calculate_p_val,
-    calculate_weighted_p_val,
-)
+from nonconform.scoring import calculate_p_val, calculate_weighted_p_val
 
 
 class TestBasicPValueCalculation:

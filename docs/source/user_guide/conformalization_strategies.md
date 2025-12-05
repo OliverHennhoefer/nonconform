@@ -1,12 +1,12 @@
 # Conformalization Strategies
 
-Calibration strategies for conformal anomaly detection with different trade-offs between computational efficiency and statistical robustness.
+Calibration strategies with trade-offs between efficiency and robustness.
 
 ## Available Strategies
 
 ### Split Strategy
 
-Simple train/calibration split for fast, straightforward conformal prediction.
+Simple train/calibration split. Fast and straightforward.
 
 ```python
 from nonconform.strategy import Split
@@ -135,12 +135,13 @@ detector = ConformalDetector(
 )
 
 # Weighted conformal with bootstrap
-from nonconform.detection.weight import LogisticWeightEstimator
+from nonconform import logistic_weight_estimator
 
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Bootstrap(n_bootstraps=100),
-    weight_estimator=LogisticWeightEstimator(seed=42)
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 ```
 

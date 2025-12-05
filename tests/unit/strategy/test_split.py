@@ -6,7 +6,7 @@ from typing import Any, Self
 import numpy as np
 import pytest
 
-from nonconform.strategy import Split
+from nonconform import Split
 
 
 class MockDetector:

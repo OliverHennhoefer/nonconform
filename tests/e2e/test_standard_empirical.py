@@ -6,15 +6,15 @@ from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
 from scipy.stats import false_discovery_control
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import (
+from nonconform import (
+    ConformalDetector,
     CrossValidation,
     Empirical,
-    Jackknife,
     JackknifeBootstrap,
     Split,
+    false_discovery_rate,
+    statistical_power,
 )
-from nonconform.utils.stat import false_discovery_rate, statistical_power
 
 
 class TestStandardEmpirical:
@@ -43,7 +43,7 @@ class TestStandardEmpirical:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=Jackknife(plus=False),
+            strategy=CrossValidation.jackknife(plus=False),
             estimation=Empirical(),
             seed=1,
         )

@@ -1,6 +1,6 @@
 # Understanding Conformal Inference
 
-This guide explains the theoretical foundations and practical applications of conformal inference in anomaly detection using the new nonconform API.
+Learn the theoretical foundations of conformal inference for anomaly detection.
 
 ## What is Conformal Inference?
 
@@ -8,7 +8,7 @@ Conformal inference is a framework for creating prediction intervals or hypothes
 
 ### The Problem with Traditional Anomaly Detection
 
-Traditional anomaly detection methods output scores and require setting arbitrary thresholds:
+Traditional anomaly detectors output scores and require arbitrary thresholds:
 
 ```python
 # Traditional approach - arbitrary threshold
@@ -17,10 +17,10 @@ anomalies = scores < -0.5  # Why -0.5? No statistical justification!
 ```
 
 This approach has several issues:
-- No statistical guarantees about error rates
-- Threshold selection is often arbitrary
-- No control over false positive rates
-- Results are not interpretable in probabilistic terms
+- No error rate guarantees
+- Arbitrary threshold selection
+- No false positive control
+- Non-probabilistic output
 
 ### The Conformal Solution
 
@@ -28,9 +28,8 @@ Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
 # Conformal approach - statistically valid p-values
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
+from scipy.stats import false_discovery_control
 
 # Create conformal detector
 strategy = Split(n_calib=0.2)
@@ -46,9 +45,6 @@ detector.fit(X_train)
 
 # Get valid p-values
 p_values = detector.predict(X_test, raw=False)
-
-# Now we can control error rates with FDR control!
-from scipy.stats import false_discovery_control
 
 # Apply Benjamini-Hochberg FDR control
 fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
@@ -67,19 +63,21 @@ where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
 ### Statistical Validity
 
-**Key Property**: If $X_{test}$ is exchangeable with the calibration data (i.e., drawn from the same distribution), then [[Vovk et al., 2005](#references)]:
+!!! tip "Key Property"
+    If $X_{test}$ is exchangeable with the calibration data (i.e., drawn from the same distribution), then [[Vovk et al., 2005](#references)]:
 
-$$\mathbb{P}(p_{classical}(X_{test}) \leq \alpha) \leq \alpha$$
+    $$\mathbb{P}(p_{classical}(X_{test}) \leq \alpha) \leq \alpha$$
 
-for any $\alpha \in (0,1)$.
+    for any $\alpha \in (0,1)$.
 
-**Important Note**: This guarantee holds under the null hypothesis that $X_{test}$ is from the same distribution as the calibration data. For a test instance that is truly anomalous (not from the calibration distribution), this probability statement does not apply.
+!!! warning "Statistical Assumption"
+    This guarantee holds under the null hypothesis that $X_{test}$ comes from the same distribution as calibration data. For truly anomalous instances (not from the calibration distribution), this probability statement does not apply.
 
 This means that if we declare $X_{test}$ anomalous when $p_{classical}(X_{test}) \leq 0.05$, we'll have at most a 5% false positive rate **among normal instances**. The overall false positive rate in practice depends on the proportion of normal vs. anomalous instances in your test data.
 
 ### Intuitive Understanding
 
-The p-value answers the question: "If this test instance were actually normal, what's the probability of observing an anomaly score at least as extreme as what we observed?"
+The p-value answers: "If this instance were normal, what's the probability of a score this extreme or higher?"
 
 - **High p-value (e.g., 0.8)**: The test instance looks very similar to calibration data
 - **Medium p-value (e.g., 0.3)**: The test instance is somewhat unusual but not clearly anomalous
@@ -97,7 +95,7 @@ $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(
 
 ### When Exchangeability Holds
 
-**Practical insight**: Exchangeability means that the order in which you observe your data points doesn't matter - there's no systematic pattern or trend that makes earlier observations systematically different from later ones.
+**Practical insight**: Exchangeability means observation order doesn't matter—no systematic differences between earlier and later observations.
 
 **Conditions for validity**:
 - Training and test data come from the same source/process
@@ -117,7 +115,7 @@ Under exchangeability, standard conformal p-values provide exact finite-sample f
 
 **Statistical consequence**: When exchangeability fails, standard conformal p-values lose their coverage guarantees and may become systematically miscalibrated.
 
-**Solution**: Weighted conformal prediction [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)] uses density ratio estimation to reweight calibration data, potentially restoring valid inference under **specific types of covariate shift**. **Key limitations**:
+**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data, restoring validity under certain covariate shifts [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key limitations**:
 
 1. **Assumption**: Requires that P(Y|X) remains constant while only P(X) changes
 2. **Density ratio estimation errors**: Inaccurate weight estimation can degrade or even worsen performance
@@ -125,7 +123,7 @@ Under exchangeability, standard conformal p-values provide exact finite-sample f
 4. **Distribution support**: Requires sufficient overlap between calibration and test distributions
 5. **No guarantee**: Unlike standard conformal prediction, weighted methods may not maintain exact finite-sample guarantees when assumptions are violated
 
-The method estimates the likelihood ratio dP_test(X)/dP_calib(X) and reweights calibration data accordingly. Success depends critically on both the validity of the covariate shift assumption and the quality of density ratio estimation.
+The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success depends on both valid covariate shift assumptions and accurate density ratio estimation.
 
 ## Practical Implementation
 
@@ -134,9 +132,7 @@ The method estimates the likelihood ratio dP_test(X)/dP_calib(X) and reweights c
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, Split
 
 # 1. Prepare your data
 X_train = load_normal_training_data()  # Normal data for training and calibration
@@ -191,10 +187,10 @@ for i, p_val in enumerate(p_values[:5]):
 
 ### 1. Split Strategy
 
-Best for large datasets where you can afford to hold out calibration data:
+Best for large datasets with sufficient calibration data:
 
 ```python
-from nonconform.strategy import Split
+from nonconform import Split
 
 # Use 20% of data for calibration
 strategy = Split(n_calib=0.2)
@@ -205,10 +201,10 @@ strategy = Split(n_calib=1000)
 
 ### 2. Cross-Validation Strategy
 
-Better utilization of data by using all samples for both training and calibration:
+Uses all samples for both training and calibration:
 
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 # 5-fold cross-validation
 strategy = CrossValidation(k=5)
@@ -221,33 +217,15 @@ detector = ConformalDetector(
 )
 ```
 
-### 3. Bootstrap Strategy
+### 3. Jackknife+-after-Bootstrap (JaB+) Strategy
 
 Provides robust estimates through resampling:
 
 ```python
-from nonconform.strategy import Bootstrap
+from nonconform import JackknifeBootstrap
 
-# 100 bootstrap samples with 80% sampling ratio
-strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
-
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
-    seed=42
-)
-```
-
-### 4. Jackknife Strategy (Leave-One-Out)
-
-Maximum use of small datasets:
-
-```python
-from nonconform.strategy import Jackknife
-
-# Leave-one-out cross-validation
-strategy = Jackknife()
+# 50 bootstrap samples
+strategy = JackknifeBootstrap(n_bootstraps=50)
 
 detector = ConformalDetector(
     detector=base_detector,
@@ -256,6 +234,9 @@ detector = ConformalDetector(
     seed=42
 )
 ```
+
+!!! info "Leave-One-Out (Jackknife)"
+    For leave-one-out cross-validation, use `CrossValidation(k=n)` where `n` is your dataset size, or simply use a high `k` value like `CrossValidation(k=len(X_train))`.
 
 ## Common Pitfalls and Solutions
 
@@ -327,7 +308,7 @@ for agg_method in aggregation_methods:
     print(f"{agg_method.value}: {(p_values < 0.05).sum()} detections")
 ```
 
-**Note on p-value averaging**: The aggregation shown here averages conformal p-values from the same underlying procedure with different aggregation methods (e.g., MEAN vs. MEDIAN). This is distinct from traditional p-value combination methods and preserves conformal validity since all p-values derive from the same exchangeable framework.
+**Note**: This aggregation averages conformal p-values from the same procedure—not traditional p-value combination. Validity is preserved because all p-values derive from the same exchangeable framework.
 
 ### Custom Scoring Functions
 
@@ -379,12 +360,12 @@ Different strategies have different computational costs:
 
 ```python
 import time
+from nonconform import CrossValidation, JackknifeBootstrap, Split
 
 strategies = {
-    'Split': Split(calib_size=0.2),
+    'Split': Split(n_calib=0.2),
     'Cross-Val (5-fold)': CrossValidation(k=5),
-    'Bootstrap (50)': Bootstrap(n_bootstraps=50, resampling_ratio=0.8),
-    'Jackknife': Jackknife()
+    'JaB+ (50)': JackknifeBootstrap(n_bootstraps=50),
 }
 
 for name, strategy in strategies.items():
@@ -395,7 +376,6 @@ for name, strategy in strategies.items():
         strategy=strategy,
         aggregation=Aggregation.MEDIAN,
         seed=42,
-        silent=True
     )
     detector.fit(X_train)
     p_values = detector.predict(X_test, raw=False)

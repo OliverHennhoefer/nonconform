@@ -1,6 +1,6 @@
 # FDR Control for Multiple Testing
 
-This example demonstrates how to use False Discovery Rate (FDR) control in anomaly detection using scipy.stats.false_discovery_control.
+Use FDR control in anomaly detection with `scipy.stats.false_discovery_control`.
 
 ## Setup
 
@@ -69,10 +69,9 @@ print(f"No adjustment: {no_adjustment} detections")
 ## Weighted Conformal Selection (Covariate Shift)
 
 ```python
-from nonconform.detection.weight import LogisticWeightEstimator
-from nonconform.strategy import JackknifeBootstrap
+from nonconform import JackknifeBootstrap, logistic_weight_estimator
+from nonconform import weighted_false_discovery_control
 from oddball import Dataset, load
-from nonconform.utils.stat import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 # Load a dataset that exhibits covariate shift between calibration and test sets
@@ -82,7 +81,7 @@ weighted_detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=JackknifeBootstrap(n_bootstraps=50),
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=1),
+    weight_estimator=logistic_weight_estimator(),
     seed=1,
 )
 

@@ -1,6 +1,6 @@
 # Cross-validation Conformal Detection
 
-This example demonstrates how to use k-fold cross-validation for conformal anomaly detection.
+Use k-fold cross-validation for conformal anomaly detection.
 
 ## Setup
 
