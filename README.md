@@ -66,12 +66,12 @@ Two advanced approaches are implemented that may increase the power of a conform
 Probabilistic Conformal Approach:
 
 ```python
-from pyod.models.hbos import HBOS
+from pyod.models.iforest import IForest
 
 from nonconform import ConformalDetector, Split, Probabilistic
 
 detector = ConformalDetector(
-    detector=HBOS(),
+    detector=IForest(behaviour="new"),
     strategy=Split(n_calib=1_000),
     estimation=Probabilistic(n_trials=10),
     seed=42,
