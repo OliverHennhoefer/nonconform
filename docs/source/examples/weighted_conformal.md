@@ -8,7 +8,11 @@ Use weighted conformal prediction to handle distribution shift in anomaly detect
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
-from nonconform import Aggregation, ConformalDetector, Split, logistic_weight_estimator
+from nonconform import (
+    Aggregation, ConformalDetector, Split, Pruning,
+    logistic_weight_estimator, weighted_false_discovery_control,
+    false_discovery_rate, statistical_power,
+)
 
 # Load example data
 data = load_breast_cancer()
@@ -39,11 +43,16 @@ detector.fit(X)
 # The detector automatically estimates importance weights internally
 p_values = detector.predict(X, raw=False)
 
-# Get raw scores
-scores = detector.predict(X, raw=True)
+# Apply Weighted Conformal Selection (WCS) for FDR control
+discoveries = weighted_false_discovery_control(
+    result=detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
 
 print(f"Weighted p-values range: {p_values.min():.4f} - {p_values.max():.4f}")
-print(f"Number of anomalies detected: {(p_values < 0.05).sum()}")
+print(f"Discoveries with WCS (FDR control): {discoveries.sum()}")
 ```
 
 ## Handling Distribution Shift
@@ -68,14 +77,24 @@ detector_shifted.fit(X)
 # Predict on shifted data
 p_values_shifted = detector_shifted.predict(X_shifted, raw=False)
 
+# Apply WCS for FDR control
+discoveries_shifted = weighted_false_discovery_control(
+    result=detector_shifted.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
+
 print(f"\nShifted data results:")
 print(f"Weighted p-values range: {p_values_shifted.min():.4f} - {p_values_shifted.max():.4f}")
-print(f"Number of anomalies detected: {(p_values_shifted < 0.05).sum()}")
+print(f"Discoveries with WCS: {discoveries_shifted.sum()}")
 ```
 
 ## Comparison with Standard Conformal Detection
 
 ```python
+from scipy.stats import false_discovery_control
+
 # Standard conformal detector for comparison
 standard_detector = ConformalDetector(
     detector=base_detector,
@@ -90,10 +109,12 @@ standard_detector.fit(X)
 # Compare on shifted data
 standard_p_values = standard_detector.predict(X_shifted, raw=False)
 
-print(f"\nComparison on shifted data:")
-print(f"Standard conformal detections: {(standard_p_values < 0.05).sum()}")
-print(f"Weighted conformal detections: {(p_values_shifted < 0.05).sum()}")
-print(f"Difference: {(p_values_shifted < 0.05).sum() - (standard_p_values < 0.05).sum()}")
+# Apply FDR control to standard conformal (BH procedure)
+standard_disc = false_discovery_control(standard_p_values, method='bh') < 0.05
+
+print(f"\nComparison on shifted data (with FDR control):")
+print(f"Standard conformal discoveries (BH): {standard_disc.sum()}")
+print(f"Weighted conformal discoveries (WCS): {discoveries_shifted.sum()}")
 ```
 
 ## Severe Distribution Shift Example
@@ -135,40 +156,44 @@ weighted_detector = ConformalDetector(
 weighted_detector.fit(X_train)
 weighted_p_values = weighted_detector.predict(X_test_with_anomalies, raw=False)
 
-print(f"\nSevere distribution shift results:")
-print(f"Standard conformal detections: {(standard_p_values < 0.05).sum()}")
-print(f"Weighted conformal detections: {(weighted_p_values < 0.05).sum()}")
+# Apply FDR control
+standard_disc_severe = false_discovery_control(standard_p_values, method='bh') < 0.05
+weighted_disc_severe = weighted_false_discovery_control(
+    result=weighted_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
+
+print(f"\nSevere distribution shift results (with FDR control):")
+print(f"Standard conformal discoveries (BH): {standard_disc_severe.sum()}")
+print(f"Weighted conformal discoveries (WCS): {weighted_disc_severe.sum()}")
+print(f"Empirical FDR (weighted): {false_discovery_rate(y=y_true, y_hat=weighted_disc_severe):.3f}")
+print(f"Statistical Power (weighted): {statistical_power(y=y_true, y_hat=weighted_disc_severe):.3f}")
 ```
 
-## FDR Control with Weighted Conformal
+## Evaluation with Ground Truth
 
 ```python
-# Apply WCS to weighted scores
-from nonconform import Pruning, weighted_false_discovery_control
+# Evaluate weighted conformal selection with ground truth
+# y_anomaly from breast cancer: target=0 is malignant (anomaly), target=1 is benign
+y_anomaly = 1 - y
 
-weighted_p_values = detector.predict(X, raw=False)
+# Re-run on breast cancer data with proper FDR control
+detector.fit(X)
+_ = detector.predict(X, raw=False)
 
-discoveries = weighted_false_discovery_control(
+eval_discoveries = weighted_false_discovery_control(
     result=detector.last_result,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
-# detector.last_result stores the cached conformal statistics for reuse
 
-# Evaluate performance
-true_positives = np.sum(discoveries & (y_true == 1))
-false_positives = np.sum(discoveries & (y_true == 0))
-precision = true_positives / max(1, discoveries.sum())
-recall = true_positives / np.sum(y_true == 1)
-
-print(f"\nWeighted Conformal + FDR Control Results:")
-print(f"Discoveries: {discoveries.sum()}")
-print(f"True Positives: {true_positives}")
-print(f"False Positives: {false_positives}")
-print(f"Precision: {precision:.3f}")
-print(f"Recall: {recall:.3f}")
-print(f"Empirical FDR: {false_positives / max(1, discoveries.sum()):.3f}")
+print(f"\nWeighted Conformal Selection Results:")
+print(f"Discoveries: {eval_discoveries.sum()}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_anomaly, y_hat=eval_discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_anomaly, y_hat=eval_discoveries):.3f}")
 ```
 
 ## Visualization
@@ -202,15 +227,14 @@ axes[1, 0].set_ylabel('Frequency')
 axes[1, 0].set_title('P-value Distributions')
 axes[1, 0].legend()
 
-# Detection comparison
+# Detection comparison (with FDR control)
 detection_comparison = {
-    'Standard': (standard_p_values < 0.05).sum(),
-    'Weighted': (weighted_p_values < 0.05).sum(),
-    'FDR-controlled': discoveries.sum()
+    'Standard (BH)': standard_disc_severe.sum(),
+    'Weighted (WCS)': weighted_disc_severe.sum(),
 }
 axes[1, 1].bar(detection_comparison.keys(), detection_comparison.values())
-axes[1, 1].set_ylabel('Number of Detections')
-axes[1, 1].set_title('Detection Comparison')
+axes[1, 1].set_ylabel('Number of Discoveries')
+axes[1, 1].set_title('Discovery Comparison (with FDR control)')
 
 plt.tight_layout()
 plt.show()
@@ -223,23 +247,29 @@ plt.show()
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
-    detector = ConformalDetector(
+    det = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
         aggregation=agg_method,
         weight_estimator=logistic_weight_estimator(),
         seed=42
     )
-    detector.fit(X_train)
-    p_vals = detector.predict(X_test_with_anomalies, raw=False)
+    det.fit(X_train)
+    _ = det.predict(X_test_with_anomalies, raw=False)
 
-    print(f"{agg_method.value} aggregation: {(p_vals < 0.05).sum()} detections")
+    disc = weighted_false_discovery_control(
+        result=det.last_result,
+        alpha=0.05,
+        pruning=Pruning.DETERMINISTIC,
+        seed=42,
+    )
+    print(f"{agg_method.value} aggregation: {disc.sum()} discoveries")
 ```
 
 ## JaB+ Strategy with Weighted Conformal
 
 ```python
-from nonconform import JackknifeBootstrap, logistic_weight_estimator
+from nonconform import JackknifeBootstrap
 
 # Use JaB+ strategy for better stability
 jab_strategy = JackknifeBootstrap(n_bootstraps=50)
@@ -253,11 +283,20 @@ weighted_jab_detector = ConformalDetector(
 )
 
 weighted_jab_detector.fit(X_train)
-jab_p_values = weighted_jab_detector.predict(X_test_with_anomalies, raw=False)
+_ = weighted_jab_detector.predict(X_test_with_anomalies, raw=False)
 
-print(f"\nJaB+ + Weighted Conformal:")
-print(f"Detections: {(jab_p_values < 0.05).sum()}")
-print(f"Comparison with split strategy: {(jab_p_values < 0.05).sum() - (weighted_p_values < 0.05).sum()}")
+# Apply WCS for FDR control
+jab_discoveries = weighted_false_discovery_control(
+    result=weighted_jab_detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
+
+print(f"\nJaB+ + Weighted Conformal (with WCS):")
+print(f"Discoveries: {jab_discoveries.sum()}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_true, y_hat=jab_discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_true, y_hat=jab_discoveries):.3f}")
 ```
 
 ## Next Steps

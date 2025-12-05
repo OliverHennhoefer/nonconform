@@ -9,10 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer, make_blobs
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.func import Aggregation
-from nonconform.utils.stat.metrics import false_discovery_rate
+from nonconform import Aggregation, ConformalDetector, Split, Pruning, false_discovery_rate
 
 # Load example data
 data = load_breast_cancer()
@@ -315,7 +312,7 @@ for effect_size in effect_sizes:
     # Fit detector and get p-values
     detector = ConformalDetector(
         detector=LOF(contamination=0.1),
-        strategy=SplitStrategy(calibration_size=0.2),
+        strategy=Split(n_calib=0.2),
         aggregation=Aggregation.MEDIAN,
         seed=42
     )

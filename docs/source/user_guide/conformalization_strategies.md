@@ -9,7 +9,7 @@ Calibration strategies with trade-offs between efficiency and robustness.
 Simple train/calibration split. Fast and straightforward.
 
 ```python
-from nonconform.strategy import Split
+from nonconform import Split
 
 # Use 30% of data for calibration
 strategy = Split(n_calib=0.3)
@@ -29,13 +29,13 @@ strategy = Split(n_calib=100)
 K-fold cross-validation for robust calibration using all data.
 
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 # 5-fold cross-validation
-strategy = CrossValidation(n_folds=5, plus=False)
+strategy = CrossValidation(k=5, plus=False)
 
 # Enable plus mode for tighter prediction intervals
-strategy = CrossValidation(n_folds=5, plus=True)
+strategy = CrossValidation(k=5, plus=True)
 ```
 
 **Characteristics:**
@@ -44,18 +44,18 @@ strategy = CrossValidation(n_folds=5, plus=True)
 - **Higher computational cost**
 - **Recommended for small datasets**
 
-### Bootstrap Strategy
+### JaB+ Strategy (Jackknife+-after-Bootstrap)
 
-Bootstrap resampling with configurable ensemble parameters.
+Bootstrap resampling with Jackknife+ for robust calibration.
 
 ```python
-from nonconform.strategy import Bootstrap
+from nonconform import JackknifeBootstrap
 
-# Basic bootstrap with 100 models
-strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
+# Basic JaB+ with 50 bootstraps
+strategy = JackknifeBootstrap(n_bootstraps=50)
 
-# Automated configuration
-strategy = Bootstrap(n_calib=200)  # Auto-calculate other parameters
+# Higher precision with more bootstraps
+strategy = JackknifeBootstrap(n_bootstraps=100)
 ```
 
 **Characteristics:**
@@ -69,13 +69,13 @@ strategy = Bootstrap(n_calib=200)  # Auto-calculate other parameters
 Leave-one-out cross-validation for maximum data utilization [[Barber et al., 2021](#references)].
 
 ```python
-from nonconform.strategy import Jackknife
+from nonconform import CrossValidation
 
-# Standard jackknife
-strategy = Jackknife(plus=False)
+# Standard jackknife (LOO-CV)
+strategy = CrossValidation.jackknife(plus=False)
 
 # Jackknife+ for tighter intervals
-strategy = Jackknife(plus=True)
+strategy = CrossValidation.jackknife(plus=True)
 ```
 
 **Characteristics:**
@@ -95,13 +95,12 @@ strategy = Jackknife(plus=True)
 
 ## Plus Mode
 
-All strategies support "plus" mode for tighter prediction intervals [[Barber et al., 2021](#references)]:
+CrossValidation strategies support "plus" mode for tighter prediction intervals [[Barber et al., 2021](#references)]:
 
 ```python
-# Enable plus mode for any strategy
-strategy = CrossValidation(n_folds=5, plus=True)
-strategy = Bootstrap(n_bootstraps=50, plus=True)
-strategy = Jackknife(plus=True)
+# Enable plus mode for CV strategies
+strategy = CrossValidation(k=5, plus=True)
+strategy = CrossValidation.jackknife(plus=True)
 ```
 
 **Plus mode provides:**
@@ -117,15 +116,15 @@ The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined version that often
 |----------|---------------|--------------|-------------------|
 | Split | Fast | Low | Good |
 | CrossValidation | Medium | Medium | Excellent |
-| Bootstrap | Medium-High | Medium-High | Very Good |
-| Jackknife | Slow | High | Excellent |
+| JackknifeBootstrap | Medium-High | Medium-High | Very Good |
+| Jackknife (LOO) | Slow | High | Excellent |
 
 ## Integration with Detectors
 
 All strategies work with any conformal detector:
 
 ```python
-from nonconform.detection import ConformalDetector
+from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, logistic_weight_estimator
 from pyod.models.lof import LOF
 
 # Standard conformal with cross-validation
@@ -134,12 +133,10 @@ detector = ConformalDetector(
     strategy=CrossValidation(k=5)
 )
 
-# Weighted conformal with bootstrap
-from nonconform import logistic_weight_estimator
-
+# Weighted conformal with JaB+
 detector = ConformalDetector(
     detector=LOF(),
-    strategy=Bootstrap(n_bootstraps=100),
+    strategy=JackknifeBootstrap(n_bootstraps=50),
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )

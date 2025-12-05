@@ -36,7 +36,7 @@ Nonconform provides four calibration strategies, each with distinct trade-offs:
 
 **Configuration example:**
 ```python
-from nonconform.strategy import Split
+from nonconform import Split
 
 # For large datasets
 strategy = Split(n_calib=0.2)  # Use 20% for calibration
@@ -66,13 +66,13 @@ strategy = Split(n_calib=2000)  # Use exactly 2000 samples
 
 **Configuration example:**
 ```python
-from nonconform.strategy import Jackknife
+from nonconform import CrossValidation
 
-# Standard Jackknife+ (recommended)
-strategy = Jackknife(plus=True)
+# Standard Jackknife+ (recommended) - use factory method
+strategy = CrossValidation.jackknife(plus=True)
 
 # Regular Jackknife (less conservative)
-strategy = Jackknife(plus=False)
+strategy = CrossValidation.jackknife(plus=False)
 ```
 
 ### Cross-Validation Conformal
@@ -97,16 +97,16 @@ strategy = Jackknife(plus=False)
 
 **Configuration example:**
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 # Standard 5-fold CV+ (recommended)
-strategy = CrossValidation(n_folds=5, plus=True)
+strategy = CrossValidation(k=5, plus=True)
 
 # More folds for smaller datasets
-strategy = CrossValidation(n_folds=10, plus=True)
+strategy = CrossValidation(k=10, plus=True)
 
 # Faster alternative without plus correction
-strategy = CrossValidation(n_folds=3, plus=False)
+strategy = CrossValidation(k=3, plus=False)
 ```
 
 ### Bootstrap Conformal
@@ -132,16 +132,16 @@ strategy = CrossValidation(n_folds=3, plus=False)
 **Configuration example:**
 
 ```python
-from nonconform.strategy import Bootstrap
+from nonconform import JackknifeBootstrap
 
-# Standard bootstrap (recommended starting point)
-strategy = Bootstrap(n_bootstraps=50, n_calib=0.2)
+# Standard JaB+ (recommended starting point)
+strategy = JackknifeBootstrap(n_bootstraps=50)
 
-# High-precision bootstrap for research
-strategy = Bootstrap(n_bootstraps=200, n_calib=0.3)
+# High-precision JaB+ for research
+strategy = JackknifeBootstrap(n_bootstraps=200)
 
-# Fast bootstrap for prototyping
-strategy = Bootstrap(n_bootstraps=20, n_calib=0.15)
+# Fast JaB+ for prototyping
+strategy = JackknifeBootstrap(n_bootstraps=20)
 ```
 
 ## Decision Framework
@@ -186,13 +186,13 @@ strategy = Split(n_calib=1000)  # Fixed size for predictable performance
 **Balanced (general applications):**
 ```python
 # Good accuracy with reasonable speed
-strategy = Jackknife(plus=True)
+strategy = CrossValidation.jackknife(plus=True)
 ```
 
 **Maximum accuracy (research/critical applications):**
 ```python
 # Most robust but slower
-strategy = CrossValidation(n_folds=10, plus=True)
+strategy = CrossValidation(k=10, plus=True)
 ```
 
 ## Advanced Considerations
@@ -272,13 +272,17 @@ If you observe degraded performance after strategy changes:
 Always validate your strategy choice with performance metrics:
 
 ```python
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from scipy.stats import false_discovery_control
+from nonconform import (
+    ConformalDetector, Split, CrossValidation,
+    false_discovery_rate, statistical_power,
+)
 
 # Compare strategies on your data
 strategies = {
     'Split': Split(n_calib=0.2),
-    'Jackknife+': Jackknife(plus=True),
-    'CrossVal': CrossValidation(n_folds=5, plus=True)
+    'Jackknife+': CrossValidation.jackknife(plus=True),
+    'CrossVal': CrossValidation(k=5, plus=True)
 }
 
 for name, strategy in strategies.items():
@@ -290,8 +294,9 @@ for name, strategy in strategies.items():
     detector.fit(X_train)
     p_values = detector.predict(X_test)
 
-    # Evaluate performance
-    decisions = false_discovery_control(p_values) <= 0.1
+    # Apply FDR control and evaluate performance
+    adjusted = false_discovery_control(p_values, method='bh')
+    decisions = adjusted <= 0.1
     fdr = false_discovery_rate(y_test, decisions)
     power = statistical_power(y_test, decisions)
 

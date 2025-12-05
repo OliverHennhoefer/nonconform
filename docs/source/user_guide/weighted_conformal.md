@@ -138,7 +138,7 @@ weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 
 # Apply FDR control for proper comparison
 from scipy.stats import false_discovery_control
-from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform import Pruning, weighted_false_discovery_control
 
 standard_mask = false_discovery_control(standard_p_values, method="bh") < 0.05
 
@@ -159,6 +159,8 @@ The choice of aggregation method can affect performance under distribution shift
 
 ```python
 # Compare different aggregation methods
+from nonconform import Pruning, weighted_false_discovery_control
+
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
@@ -170,9 +172,15 @@ for agg_method in aggregation_methods:
         seed=42,
     )
     detector.fit(X_train)
-    p_vals = detector.predict(X_test_shifted, raw=False)
+    _ = detector.predict(X_test_shifted, raw=False)
 
-    print(f"{agg_method.value}: {(p_vals < 0.05).sum()} detections")
+    wcs_mask = weighted_false_discovery_control(
+        result=detector.last_result,
+        alpha=0.05,
+        pruning=Pruning.DETERMINISTIC,
+        seed=42,
+    )
+    print(f"{agg_method.value}: {wcs_mask.sum()} discoveries")
 ```
 
 ## Weight Estimators
@@ -255,9 +263,15 @@ for name, weight_est in estimators.items():
         seed=42,
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test_shifted, raw=False)
+    _ = detector.predict(X_test_shifted, raw=False)
 
-    print(f"{name}: {(p_values < 0.05).sum()} detections")
+    wcs_mask = weighted_false_discovery_control(
+        result=detector.last_result,
+        alpha=0.05,
+        pruning=Pruning.DETERMINISTIC,
+        seed=42,
+    )
+    print(f"{name}: {wcs_mask.sum()} discoveries")
 ```
 
 **General recommendations**:
@@ -413,8 +427,7 @@ for X_batch in stream_data(batch_size=25):
     p_values = detector.predict(X_batch, raw=False)
 
     # Apply weighted FDR control
-    from nonconform.utils.stat import weighted_false_discovery_control
-    from nonconform.utils.func.enums import Pruning
+    from nonconform import Pruning, weighted_false_discovery_control
 
     discoveries = weighted_false_discovery_control(
         result=detector.last_result,
@@ -467,14 +480,13 @@ for X_batch in stream_data(batch_size=25):
 Different strategies can be used with weighted conformal detection:
 
 ```python
-from nonconform.strategy import Bootstrap
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation, JackknifeBootstrap
 
-# Bootstrap strategy for stability
-bootstrap_strategy = Bootstrap(n_bootstraps=100, resampling_ratio=0.8)
-bootstrap_detector = ConformalDetector(
+# JaB+ strategy for stability
+jab_strategy = JackknifeBootstrap(n_bootstraps=50)
+jab_detector = ConformalDetector(
     detector=base_detector,
-    strategy=bootstrap_strategy,
+    strategy=jab_strategy,
     aggregation=Aggregation.MEDIAN,
     weight_estimator=logistic_weight_estimator(),
     seed=42
@@ -496,8 +508,7 @@ cv_detector = ConformalDetector(
 Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS) [[Jin & Candès, 2023](#references)]:
 
 ```python
-from nonconform.utils.stat import weighted_false_discovery_control
-from nonconform.utils.func.enums import Pruning
+from nonconform import Pruning, weighted_false_discovery_control
 
 # Collect weighted p-values and cached statistics
 weighted_detector.predict(X_test_shifted, raw=False)
@@ -581,7 +592,7 @@ wcs_mask = weighted_false_discovery_control(
 ### Comparison of Pruning Methods
 
 ```python
-from nonconform.utils.func.enums import Pruning
+from nonconform import Pruning, weighted_false_discovery_control
 
 pruning_methods = [
     Pruning.DETERMINISTIC,
@@ -673,7 +684,7 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 ### 2. Combine with Weighted Conformal Selection
 
 ```python
-from nonconform.utils.stat import weighted_false_discovery_control
+from nonconform import Pruning, weighted_false_discovery_control
 
 weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 wcs_mask = weighted_false_discovery_control(
@@ -683,8 +694,7 @@ wcs_mask = weighted_false_discovery_control(
     seed=42,
 )
 
-print(f"Raw detections: {(weighted_p_values < 0.05).sum()}")
-print(f"WCS-controlled detections: {wcs_mask.sum()}")
+print(f"WCS-controlled discoveries: {wcs_mask.sum()}")
 ```
 
 ### 3. Monitor Weight Quality
@@ -726,11 +736,19 @@ for domain in domains:
     detector.fit(X_train)  # Common training set
     domain_detectors[domain] = detector
 
-# Predict on domain-specific test sets
+# Predict on domain-specific test sets with WCS
+from nonconform import Pruning, weighted_false_discovery_control
+
 for domain in domains:
     X_test_domain = load_domain_data(domain)  # Load domain-specific test data
-    p_values = domain_detectors[domain].predict(X_test_domain, raw=False)
-    print(f"{domain}: {(p_values < 0.05).sum()} detections")
+    _ = domain_detectors[domain].predict(X_test_domain, raw=False)
+    wcs_mask = weighted_false_discovery_control(
+        result=domain_detectors[domain].last_result,
+        alpha=0.05,
+        pruning=Pruning.DETERMINISTIC,
+        seed=42,
+    )
+    print(f"{domain}: {wcs_mask.sum()} discoveries")
 ```
 
 ### Online Adaptation
@@ -751,10 +769,16 @@ def online_weighted_detection(detector, data_stream, window_size=1000):
                 X_calib = get_recent_data(start_idx, window_size)
                 detector.fit(X_calib)
 
-            # Predict on current batch
-            p_values = detector.predict(X_batch, raw=False)
-            batch_detections = (p_values < 0.05).sum()
-            detections.append(batch_detections)
+            # Predict on current batch with WCS
+            _ = detector.predict(X_batch, raw=False)
+            from nonconform import Pruning, weighted_false_discovery_control
+            wcs_mask = weighted_false_discovery_control(
+                result=detector.last_result,
+                alpha=0.05,
+                pruning=Pruning.DETERMINISTIC,
+                seed=42,
+            )
+            detections.append(wcs_mask.sum())
 
     return detections
 ```

@@ -8,7 +8,7 @@ This example demonstrates how to use classical conformal prediction for anomaly 
 import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
 from oddball import Dataset, load
 
 # Load example data - downloads automatically and caches in memory
@@ -37,24 +37,17 @@ detector.fit(x_train)
 # Get p-values for test data
 p_values = detector.predict(x_test, raw=False)
 
-# Get raw anomaly scores
+# Get raw anomaly scores (optional)
 scores = detector.predict(x_test, raw=True)
 
-# Simple anomaly detection at 5% significance level
-anomalies = p_values < 0.05
-print(f"Number of anomalies detected: {anomalies.sum()}")
-print(f"True anomaly rate in test set: {y_test.mean():.2%}")
-```
-
-## FDR Control
-
-```python
-# Control False Discovery Rate at 5%
+# Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
 discoveries = adjusted_p_values < 0.05
 
-print(f"Number of discoveries with FDR control: {discoveries.sum()}")
-print(f"Empirical FDR: {(discoveries & (y_test == 0)).sum() / max(1, discoveries.sum()):.3f}")
+print(f"Discoveries with FDR control: {discoveries.sum()}")
+print(f"True anomaly rate in test set: {y_test.mean():.2%}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_test, y_hat=discoveries):.3f}")
 ```
 
 ## Advanced Usage with Cross-Validation
@@ -110,24 +103,25 @@ for agg_method in aggregation_methods:
 ```python
 import matplotlib.pyplot as plt
 
-# Plot p-value distribution
+# Plot p-value distribution (visualization only - use FDR-controlled decisions for actual detection)
 plt.figure(figsize=(10, 5))
 
 plt.subplot(1, 2, 1)
 plt.hist(p_values, bins=50, alpha=0.7, color='blue', edgecolor='black')
-plt.axvline(x=0.05, color='red', linestyle='--', label='α=0.05')
+plt.axvline(x=0.05, color='red', linestyle='--', label='α=0.05 (reference)')
 plt.xlabel('p-value')
 plt.ylabel('Frequency')
 plt.title('P-value Distribution')
 plt.legend()
 
 plt.subplot(1, 2, 2)
-plt.scatter(range(len(p_values)), p_values, c=p_values < 0.05,
+# Color by FDR-controlled discoveries, not raw p-values
+plt.scatter(range(len(p_values)), p_values, c=discoveries,
             cmap='coolwarm', alpha=0.6)
-plt.axhline(y=0.05, color='red', linestyle='--', label='α=0.05')
+plt.axhline(y=0.05, color='red', linestyle='--', label='α=0.05 (reference)')
 plt.xlabel('Sample Index')
 plt.ylabel('p-value')
-plt.title('P-values by Sample')
+plt.title('P-values with FDR-controlled Discoveries')
 plt.legend()
 
 plt.tight_layout()

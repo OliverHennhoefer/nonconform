@@ -9,9 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import CrossValidation
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector, CrossValidation, false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()
@@ -40,9 +38,10 @@ detector = ConformalDetector(
 detector.fit(X)
 p_values = detector.predict(X, raw=False)
 
-# Detect anomalies
-anomalies = p_values < 0.05
-print(f"Number of anomalies detected: {anomalies.sum()}")
+# Apply FDR control (Benjamini-Hochberg)
+adjusted_p_values = false_discovery_control(p_values, method='bh')
+discoveries = adjusted_p_values < 0.05
+print(f"Discoveries with FDR control: {discoveries.sum()}")
 ```
 
 ## Cross-Validation Plus Mode
@@ -62,8 +61,11 @@ detector_plus = ConformalDetector(
 detector_plus.fit(X)
 p_values_plus = detector_plus.predict(X, raw=False)
 
-print(f"CV detections: {(p_values < 0.05).sum()}")
-print(f"CV+ detections: {(p_values_plus < 0.05).sum()}")
+# Compare with FDR control
+cv_disc = false_discovery_control(p_values, method='bh') < 0.05
+cv_plus_disc = false_discovery_control(p_values_plus, method='bh') < 0.05
+print(f"CV discoveries: {cv_disc.sum()}")
+print(f"CV+ discoveries: {cv_plus_disc.sum()}")
 ```
 
 ## Comparing Different Numbers of Folds
@@ -83,22 +85,23 @@ for n_folds in fold_options:
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
 
-    results[f"{n_folds}-fold"] = (p_vals < 0.05).sum()
-    print(f"{n_folds}-fold CV: {results[f'{n_folds}-fold']} detections")
+    results[f"{n_folds}-fold"] = disc.sum()
+    print(f"{n_folds}-fold CV: {results[f'{n_folds}-fold']} discoveries")
 ```
 
-## FDR Control
+## Evaluation Metrics
 
 ```python
-# Apply FDR control to cross-validation p-values
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# With ground truth labels available (y from breast cancer dataset)
+# Note: In breast cancer, target=0 is malignant (anomaly), target=1 is benign (normal)
+y_anomaly = 1 - y  # Convert so 1 = anomaly
 
-print(f"\nFDR Control Results:")
+print(f"\nEvaluation with FDR Control:")
 print(f"Discoveries: {discoveries.sum()}")
-print(f"Original detections: {(p_values < 0.05).sum()}")
-print(f"FDR-controlled precision improvement: {(discoveries.sum() / max(1, (p_values < 0.05).sum())):.2%}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_anomaly, y_hat=discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_anomaly, y_hat=discoveries):.3f}")
 ```
 
 ## Stratified Cross-Validation
@@ -140,7 +143,8 @@ for seed in seeds:
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
-    cv_results.append((p_vals < 0.05).sum())
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    cv_results.append(disc.sum())
 
 plt.figure(figsize=(10, 5))
 
@@ -167,17 +171,14 @@ print(f"Std detections: {np.std(cv_results):.1f}")
 ## Comparison with Other Strategies
 
 ```python
-from nonconform.strategy import Split
-from nonconform.strategy import Bootstrap
-from nonconform.strategy import Jackknife
+from nonconform import Split, JackknifeBootstrap
 
 # Compare cross-validation with other strategies
 strategies = {
     'Split': Split(n_calib=0.2),
     '5-fold CV': CrossValidation(k=5),
     '10-fold CV': CrossValidation(k=10),
-    'Bootstrap': Bootstrap(n_bootstraps=100, resampling_ratio=0.8),
-    'Jackknife': Jackknife()
+    'JaB+': JackknifeBootstrap(n_bootstraps=50),
 }
 
 comparison_results = {}
@@ -192,22 +193,21 @@ for name, strategy in strategies.items():
     p_vals = detector.predict(X, raw=False)
 
     # Apply FDR control
-    adj_p_vals = false_discovery_control(p_vals, method='bh')
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     comparison_results[name] = {
-        'raw_detections': (p_vals < 0.05).sum(),
-        'fdr_detections': (adj_p_vals < 0.05).sum(),
+        'discoveries': disc.sum(),
         'min_p': p_vals.min(),
-        'calibration_size': len(detector.calibration_set)
+        'mean_p': p_vals.mean()
     }
 
-print("\nStrategy Comparison:")
-print("-" * 70)
-print(f"{'Strategy':<15} {'Raw Det.':<10} {'FDR Det.':<10} {'Min p-val':<12} {'Cal. Size':<10}")
-print("-" * 70)
+print("\nStrategy Comparison (with FDR control):")
+print("-" * 55)
+print(f"{'Strategy':<15} {'Discoveries':<12} {'Min p-val':<12} {'Mean p-val':<12}")
+print("-" * 55)
 for name, results in comparison_results.items():
-    print(f"{name:<15} {results['raw_detections']:<10} {results['fdr_detections']:<10} "
-          f"{results['min_p']:<12.4f} {results['calibration_size']:<10}")
+    print(f"{name:<15} {results['discoveries']:<12} "
+          f"{results['min_p']:<12.4f} {results['mean_p']:<12.4f}")
 ```
 
 ## Next Steps

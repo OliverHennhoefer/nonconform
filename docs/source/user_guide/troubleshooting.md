@@ -173,8 +173,9 @@ for name, strategy in strategies.items():
     )
     detector.fit(X_train)
     p_vals = detector.predict(X_test, raw=False)
-    detections = (p_vals < 0.05).sum()
-    print(f"{name}: {detections} detections")
+    adjusted = false_discovery_control(p_vals, method='bh')
+    detections = (adjusted < 0.05).sum()
+    print(f"{name}: {detections} discoveries")
 ```
 
 ### 8. Strategy Import Issues
@@ -513,7 +514,7 @@ logging.basicConfig(
 )
 
 # This will show all internal operations and warnings
-detector = ConformalDetector(detector=LOF(), strategy=Bootstrap())
+detector = ConformalDetector(detector=LOF(), strategy=JackknifeBootstrap(n_bootstraps=50))
 detector.fit(X_train)
 ```
 

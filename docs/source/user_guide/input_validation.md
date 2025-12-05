@@ -11,7 +11,7 @@ The calibration set size is the most critical parameter affecting the statistica
 #### Value Types and Ranges
 
 ```python
-from nonconform.strategy import Split
+from nonconform import Split
 
 # Absolute count (integer)
 strategy = Split(n_calib=2000)  # Use exactly 2000 samples for calibration
@@ -87,7 +87,7 @@ n_calib_validated = validate_calibration_size(X_train, n_calib=0.2)
 For cross-validation-based strategies:
 
 ```python
-from nonconform.strategy import CrossValidation
+from nonconform import CrossValidation
 
 strategy = CrossValidation(k=5)
 ```
@@ -105,14 +105,14 @@ strategy = CrossValidation(k=5)
 - **Larger k**: Better statistical efficiency, higher computational cost
 - **Smaller k**: Faster computation, potentially less stable estimates
 
-### Bootstrap Parameters (`n_bootstraps`, `ratio`)
+### Bootstrap Parameters (`n_bootstraps`)
 
 For bootstrap-based strategies:
 
 ```python
-from nonconform.strategy.experimental import Bootstrap
+from nonconform import JackknifeBootstrap
 
-strategy = Bootstrap(n_bootstraps=100, ratio=0.5)
+strategy = JackknifeBootstrap(n_bootstraps=100)
 ```
 
 **Valid values**:
@@ -284,7 +284,7 @@ if np.any(weights > 1000) or np.any(weights < 0.001):
 ## Aggregation Method Constraints
 
 ```python
-from nonconform.utils.func import Aggregation
+from nonconform import Aggregation, ConformalDetector
 
 detector = ConformalDetector(
     detector=base_det,

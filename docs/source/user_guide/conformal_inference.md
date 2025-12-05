@@ -160,18 +160,18 @@ p_values = detector.predict(X_test, raw=False)
 ### Understanding the Output
 
 ```python
+from scipy.stats import false_discovery_control
+
 # p-values are between 0 and 1
 print(f"P-values range: [{p_values.min():.4f}, {p_values.max():.4f}]")
 
-# Small p-values indicate anomalies
-suspicious_indices = np.where(p_values < 0.05)[0]
-print(f"Suspicious instances: {len(suspicious_indices)}")
+# For actual anomaly detection, always apply FDR control
+adjusted_p_values = false_discovery_control(p_values, method='bh')
+discoveries = adjusted_p_values < 0.05
+print(f"FDR-controlled discoveries: {discoveries.sum()}")
 
-# Very small p-values are strong evidence
-very_suspicious = np.where(p_values < 0.01)[0]
-print(f"Very suspicious instances: {len(very_suspicious)}")
-
-# P-value interpretation
+# Individual p-value interpretation (for understanding, not decision-making)
+# Note: Use FDR-controlled decisions for actual anomaly detection
 for i, p_val in enumerate(p_values[:5]):
     if p_val < 0.01:
         print(f"Instance {i}: p={p_val:.4f} - Strong evidence of anomaly")
@@ -293,6 +293,8 @@ When using ensemble strategies, you can control how multiple model outputs are c
 
 ```python
 # Different aggregation methods
+from scipy.stats import false_discovery_control
+
 aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
 
 for agg_method in aggregation_methods:
@@ -305,7 +307,10 @@ for agg_method in aggregation_methods:
     detector.fit(X_train)
     p_values = detector.predict(X_test, raw=False)
 
-    print(f"{agg_method.value}: {(p_values < 0.05).sum()} detections")
+    # Apply FDR control before counting discoveries
+    adjusted = false_discovery_control(p_values, method='bh')
+    discoveries = (adjusted < 0.05).sum()
+    print(f"{agg_method.value}: {discoveries} discoveries")
 ```
 
 **Note**: This aggregation averages conformal p-values from the same procedure—not traditional p-value combination. Validity is preserved because all p-values derive from the same exchangeable framework.
@@ -380,8 +385,12 @@ for name, strategy in strategies.items():
     detector.fit(X_train)
     p_values = detector.predict(X_test, raw=False)
 
+    # Apply FDR control
+    adjusted = false_discovery_control(p_values, method='bh')
+    discoveries = (adjusted < 0.05).sum()
+
     elapsed = time.time() - start_time
-    print(f"{name}: {elapsed:.2f}s ({(p_values < 0.05).sum()} detections)")
+    print(f"{name}: {elapsed:.2f}s ({discoveries} discoveries)")
 ```
 
 ### Memory Usage

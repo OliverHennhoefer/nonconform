@@ -69,8 +69,7 @@ These detectors require anomaly labels during training and are **not supported**
 
 ```python
 from pyod.models.iforest import IForest
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
+from nonconform import ConformalDetector, Split
 
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
@@ -127,8 +126,7 @@ class MahalanobisDetector:
 Use it like any other detector:
 
 ```python
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
+from nonconform import ConformalDetector, Split
 
 detector = ConformalDetector(
     detector=MahalanobisDetector(random_state=42),
@@ -145,8 +143,7 @@ Scikit-learn detectors that implement `fit`, `decision_function`, `get_params`, 
 
 ```python
 from sklearn.svm import OneClassSVM
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
+from nonconform import ConformalDetector, Split
 
 detector = ConformalDetector(
     detector=OneClassSVM(kernel="rbf", nu=0.05),

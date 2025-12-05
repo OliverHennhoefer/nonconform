@@ -69,9 +69,8 @@ for prop in proportions:
 
 ```python
 from pyod.models.iforest import IForest
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from onlinefdr import Alpha_investing
+from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
 
 # Create online generator
 online_gen = OnlineGenerator(
@@ -90,8 +89,11 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-# Streaming evaluation
-predictions = []
+# Streaming evaluation with online FDR control
+import numpy as np
+
+online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
+decisions = []
 labels = []
 running_metrics = []
 
@@ -99,31 +101,29 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000))
     # Get p-value for instance
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
 
-    predictions.append(p_value)
+    # Online FDR-controlled decision
+    decision = online_fdr.run_single(p_value)
+    decisions.append(decision)
     labels.append(y_label)
 
     # Calculate running metrics every 100 instances
     if (i + 1) % 100 == 0:
-        current_decisions = [p < 0.05 for p in predictions]
-        fdr = false_discovery_rate(labels, current_decisions)
-        power = statistical_power(labels, current_decisions)
+        fdr = false_discovery_rate(labels, decisions)
+        power = statistical_power(labels, decisions)
 
         running_metrics.append({
             'instances': i + 1,
             'fdr': fdr,
             'power': power,
             'anomalies_seen': sum(labels),
-            'detections': sum(current_decisions)
+            'detections': sum(decisions)
         })
 
         print(f"Instances {i + 1}: FDR={fdr:.3f}, Power={power:.3f}, Anomalies={sum(labels)}")
 
 # Final evaluation
-import numpy as np
-
-final_decisions = [p < 0.05 for p in predictions]
-final_fdr = false_discovery_rate(labels, final_decisions)
-final_power = statistical_power(labels, final_decisions)
+final_fdr = false_discovery_rate(labels, decisions)
+final_power = statistical_power(labels, decisions)
 print(f"\nFinal Results: FDR={final_fdr:.3f}, Power={final_power:.3f}")
 print(f"Total anomalies: {sum(labels)}/2000 = {sum(labels) / 2000:.3f}")
 ```
@@ -144,11 +144,13 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
 
-# Sliding window configuration
+# Sliding window configuration with online FDR
+from scipy.stats import false_discovery_control
+
 window_size = 100
 window_predictions = []
 window_labels = []
@@ -164,7 +166,9 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
 
     # Process completed window
     if len(window_predictions) == window_size:
-        window_decisions = [p < 0.05 for p in window_predictions]
+        # Apply FDR control to window
+        adjusted = false_discovery_control(window_predictions, method='bh')
+        window_decisions = list(adjusted < 0.05)
         window_fdr = false_discovery_rate(window_labels, window_decisions)
         window_power = statistical_power(window_labels, window_decisions)
 
@@ -215,9 +219,12 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
+
+# Online FDR controller for streaming
+online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
 
 # Measure streaming performance
 latencies = []
@@ -226,9 +233,9 @@ start_time = time.time()
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     instance_start = time.time()
 
-    # Process instance (this is what would be timed in real application)
+    # Process instance with online FDR control
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
-    decision = p_value < 0.05
+    decision = online_fdr.run_single(p_value)
 
     instance_end = time.time()
     latencies.append(instance_end - instance_start)
@@ -265,11 +272,13 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
 
-# Track metrics in blocks
+# Track metrics in blocks with FDR control
+from scipy.stats import false_discovery_control
+
 block_size = 150
 block_results = []
 current_block_preds = []
@@ -283,7 +292,8 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500))
 
     # Process completed block
     if len(current_block_preds) == block_size:
-        block_decisions = [p < 0.05 for p in current_block_preds]
+        adjusted = false_discovery_control(current_block_preds, method='bh')
+        block_decisions = list(adjusted < 0.05)
         block_fdr = false_discovery_rate(current_block_labels, block_decisions)
         block_power = statistical_power(current_block_labels, block_decisions)
 
@@ -343,20 +353,21 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
 
-# Online evaluation
-online_predictions = []
+# Online evaluation with online FDR control
+online_fdr_ctrl = Alpha_investing(alpha=0.05, w0=0.05)
+online_decisions = []
 online_labels = []
 
 for x_instance, y_label in online_gen.generate(n_instances=600):
     p_value = detector.predict(x_instance.reshape(1, -1))[0]
-    online_predictions.append(p_value)
+    decision = online_fdr_ctrl.run_single(p_value)
+    online_decisions.append(decision)
     online_labels.append(y_label)
 
-online_decisions = [p < 0.05 for p in online_predictions]
 online_fdr = false_discovery_rate(online_labels, online_decisions)
 online_power = statistical_power(online_labels, online_decisions)
 
@@ -375,7 +386,8 @@ batch_powers = []
 
 for x_batch, y_batch in batch_gen.generate():
     p_values = detector.predict(x_batch)
-    batch_decisions = p_values < 0.05
+    adjusted = false_discovery_control(p_values, method='bh')
+    batch_decisions = adjusted < 0.05
 
     batch_fdr = false_discovery_rate(y_batch, batch_decisions)
     batch_power = statistical_power(y_batch, batch_decisions)
@@ -486,7 +498,7 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
 

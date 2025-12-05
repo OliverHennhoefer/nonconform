@@ -41,8 +41,7 @@ import logging
 # Enable progress bars and informational messages
 logging.getLogger('nonconform').setLevel(logging.INFO)
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import CrossValidation
+from nonconform import ConformalDetector, CrossValidation
 from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
@@ -80,12 +79,12 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Bootstrap
+from nonconform import ConformalDetector, JackknifeBootstrap
+from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
     detector=IForest(),
-    strategy=Bootstrap(n_calib=100, resampling_ratio=0.8)
+    strategy=JackknifeBootstrap(n_bootstraps=50)
 )
 detector.fit(X_train)  # Shows detailed debug information and warnings
 ```

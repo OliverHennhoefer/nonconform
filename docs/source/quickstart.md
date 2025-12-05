@@ -32,7 +32,8 @@ Classical conformal anomaly detection:
 import numpy as np
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
-from nonconform import Aggregation, ConformalDetector, Split
+from scipy.stats import false_discovery_control
+from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
 
 # Generate some example data
 X_normal, _ = make_blobs(n_samples=1000, centers=1, random_state=42)
@@ -60,23 +61,12 @@ detector.fit(X_normal)
 # Get p-values for test instances
 p_values = detector.predict(X_test, raw=False)
 
-print(f"P-values range: {p_values.min():.4f} - {p_values.max():.4f}")
-print(f"Number of potential anomalies (p < 0.05): {(p_values < 0.05).sum()}")
-```
-
-### 2. False Discovery Rate Control
-
-Control the False Discovery Rate with Benjamini-Hochberg:
-
-```python
-from scipy.stats import false_discovery_control
-
-# Control FDR at 5% level
+# Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
 discoveries = adjusted_p_values < 0.05
 
-print(f"Number of discoveries: {discoveries.sum()}")
-print(f"Adjusted p-values range: {adjusted_p_values.min():.4f} - {adjusted_p_values.max():.4f}")
+print(f"P-values range: {p_values.min():.4f} - {p_values.max():.4f}")
+print(f"Discoveries with FDR control: {discoveries.sum()}")
 
 # Get indices of discovered anomalies
 anomaly_indices = np.where(discoveries)[0]
@@ -112,10 +102,15 @@ jab_detector = ConformalDetector(
 jab_detector.fit(X_normal)
 jab_p_values = jab_detector.predict(X_test, raw=False)
 
-print("Comparison of strategies:")
-print(f"Split: {(p_values < 0.05).sum()} detections")
-print(f"Cross-Validation: {(cv_p_values < 0.05).sum()} detections")
-print(f"JaB+: {(jab_p_values < 0.05).sum()} detections")
+# Apply FDR control to all strategies for fair comparison
+split_discoveries = false_discovery_control(p_values, method='bh') < 0.05
+cv_discoveries = false_discovery_control(cv_p_values, method='bh') < 0.05
+jab_discoveries = false_discovery_control(jab_p_values, method='bh') < 0.05
+
+print("Comparison of strategies (with FDR control):")
+print(f"Split: {split_discoveries.sum()} discoveries")
+print(f"Cross-Validation: {cv_discoveries.sum()} discoveries")
+print(f"JaB+: {jab_discoveries.sum()} discoveries")
 ```
 
 ## Weighted Conformal p-values
@@ -196,9 +191,10 @@ for name, base_det in detectors.items():
     )
     detector.fit(X_normal)
     p_vals = detector.predict(X_test, raw=False)
-    detections = (p_vals < 0.05).sum()
-    results[name] = detections
-    print(f"{name}: {detections} detections")
+    # Apply FDR control before counting discoveries
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    results[name] = disc.sum()
+    print(f"{name}: {disc.sum()} discoveries")
 ```
 
 ### Custom Detectors
@@ -213,7 +209,7 @@ import matplotlib.pyplot as plt
 from pyod.models.iforest import IForest
 from sklearn.datasets import make_blobs
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
 
 # Generate data
 np.random.seed(42)
@@ -236,23 +232,16 @@ detector = ConformalDetector(
 )
 detector.fit(X_normal)
 
-# Get p-values and control FDR
+# Get p-values and apply FDR control
 p_values = detector.predict(X_test, raw=False)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
 discoveries = adjusted_p_values < 0.05
 
-# Evaluate results
-true_positives = np.sum(discoveries & (y_true == 1))
-false_positives = np.sum(discoveries & (y_true == 0))
-precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0
-recall = true_positives / np.sum(y_true == 1)
-
+# Evaluate results using nonconform metrics
 print(f"Results with FDR control at 5%:")
-print(f"True Positives: {true_positives}")
-print(f"False Positives: {false_positives}")
-print(f"Precision: {precision:.3f}")
-print(f"Recall: {recall:.3f}")
-print(f"Empirical FDR: {false_positives / max(1, discoveries.sum()):.3f}")
+print(f"Discoveries: {discoveries.sum()}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_true, y_hat=discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_true, y_hat=discoveries):.3f}")
 ```
 
 ## Next Steps

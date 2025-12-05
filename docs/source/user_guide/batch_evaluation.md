@@ -102,9 +102,8 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 
 ```python
 from pyod.models.lof import LOF
-from nonconform.detection import ConformalDetector
-from nonconform.strategy import Split
-from nonconform.utils.stat import false_discovery_rate, statistical_power
+from scipy.stats import false_discovery_control
+from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
 
 # Create batch generator
 batch_gen = BatchGenerator(
@@ -129,8 +128,9 @@ for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     # Get p-values
     p_values = detector.predict(x_batch)
 
-    # Apply significance threshold
-    decisions = p_values < 0.05
+    # Apply FDR control (Benjamini-Hochberg)
+    adjusted_p_values = false_discovery_control(p_values, method='bh')
+    decisions = adjusted_p_values < 0.05
 
     # Calculate metrics
     fdr = false_discovery_rate(y_batch, decisions)
@@ -237,7 +237,7 @@ for contamination in contamination_levels:
     x_train = batch_gen.get_training_data()
     detector = ConformalDetector(
         detector=LOF(n_neighbors=20),
-        strategy=Split(calib_size=0.3)
+        strategy=Split(n_calib=0.3)
     )
     detector.fit(x_train)
 
@@ -249,7 +249,8 @@ for contamination in contamination_levels:
         if i >= 4:  # Stop after 5 batches
             break
         p_values = detector.predict(x_batch)
-        decisions = p_values < 0.05
+        adjusted_p_values = false_discovery_control(p_values, method='bh')
+        decisions = adjusted_p_values < 0.05
 
         fdr = false_discovery_rate(y_batch, decisions)
         power = statistical_power(y_batch, decisions)
@@ -354,7 +355,7 @@ batch_gen = BatchGenerator(
 x_train = batch_gen.get_training_data()
 detector = ConformalDetector(
     detector=LOF(n_neighbors=20),
-    strategy=Split(calib_size=0.3)
+    strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
 

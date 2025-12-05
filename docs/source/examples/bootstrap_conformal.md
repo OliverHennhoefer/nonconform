@@ -9,7 +9,7 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap
+from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap, false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()
@@ -38,9 +38,10 @@ detector = ConformalDetector(
 detector.fit(X)
 p_values = detector.predict(X, raw=False)
 
-# Detect anomalies
-anomalies = p_values < 0.05
-print(f"Number of anomalies detected: {anomalies.sum()}")
+# Apply FDR control (Benjamini-Hochberg)
+adjusted_p_values = false_discovery_control(p_values, method='bh')
+discoveries = adjusted_p_values < 0.05
+print(f"Discoveries with FDR control: {discoveries.sum()}")
 ```
 
 ## Bootstrap Plus Mode
@@ -64,8 +65,11 @@ detector_plus = ConformalDetector(
 detector_plus.fit(X)
 p_values_plus = detector_plus.predict(X, raw=False)
 
-print(f"Bootstrap detections: {(p_values < 0.05).sum()}")
-print(f"Bootstrap+ detections: {(p_values_plus < 0.05).sum()}")
+# Compare with FDR control
+bootstrap_disc = false_discovery_control(p_values, method='bh') < 0.05
+bootstrap_plus_disc = false_discovery_control(p_values_plus, method='bh') < 0.05
+print(f"Bootstrap discoveries: {bootstrap_disc.sum()}")
+print(f"Bootstrap+ discoveries: {bootstrap_plus_disc.sum()}")
 ```
 
 ## Comparing Different Bootstrap Configurations
@@ -89,23 +93,24 @@ for config in configurations:
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     key = f"B={config['n_bootstraps']}, r={config['resampling_ratio']}"
-    results[key] = (p_vals < 0.05).sum()
-    print(f"{key}: {results[key]} detections")
+    results[key] = disc.sum()
+    print(f"{key}: {results[key]} discoveries")
 ```
 
-## FDR Control with Bootstrap
+## Evaluation Metrics
 
 ```python
-# Apply FDR control to bootstrap p-values
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# With ground truth labels available (y from breast cancer dataset)
+# Note: In breast cancer, target=0 is malignant (anomaly), target=1 is benign (normal)
+y_anomaly = 1 - y  # Convert so 1 = anomaly
 
-print(f"\nFDR Control Results:")
+print(f"\nEvaluation with FDR Control:")
 print(f"Discoveries: {discoveries.sum()}")
-print(f"Original detections: {(p_values < 0.05).sum()}")
-print(f"Reduction: {(p_values < 0.05).sum() - discoveries.sum()}")
+print(f"Empirical FDR: {false_discovery_rate(y=y_anomaly, y_hat=discoveries):.3f}")
+print(f"Statistical Power: {statistical_power(y=y_anomaly, y_hat=discoveries):.3f}")
 ```
 
 ## Uncertainty Quantification
@@ -147,7 +152,8 @@ for _ in range(10):
     )
     det.fit(X)
     p_vals = det.predict(X, raw=False)
-    stability_results.append((p_vals < 0.05).sum())
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    stability_results.append(disc.sum())
 
 plt.boxplot(stability_results)
 plt.ylabel('Number of Detections')
@@ -179,16 +185,17 @@ for name, strategy in strategies.items():
     )
     detector.fit(X)
     p_vals = detector.predict(X, raw=False)
+    disc = false_discovery_control(p_vals, method='bh') < 0.05
     comparison_results[name] = {
-        'detections': (p_vals < 0.05).sum(),
+        'discoveries': disc.sum(),
         'min_p': p_vals.min(),
         'mean_p': p_vals.mean()
     }
 
-print("\nStrategy Comparison:")
+print("\nStrategy Comparison (with FDR control):")
 for name, results in comparison_results.items():
     print(f"{name}:")
-    print(f"  Detections: {results['detections']}")
+    print(f"  Discoveries: {results['discoveries']}")
     print(f"  Min p-value: {results['min_p']:.4f}")
     print(f"  Mean p-value: {results['mean_p']:.4f}")
 ```
