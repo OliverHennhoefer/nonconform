@@ -2,22 +2,51 @@
 
 Complete API documentation for all Nonconform modules and classes.
 
-## Core Modules
+## Detector
 
-### Detection
-::: nonconform.detection
+::: nonconform.detector
     options:
       show_root_heading: true
       heading_level: 3
 
-### Strategy
-::: nonconform.strategy
+## Resampling Strategies
+
+::: nonconform.resampling
     options:
       show_root_heading: true
       heading_level: 3
 
-### Utils
-::: nonconform.utils
+## P-Value Estimation
+
+::: nonconform.scoring
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Weight Estimation
+
+::: nonconform.weighting
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## FDR Control
+
+::: nonconform.fdr
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Data Structures
+
+::: nonconform.structures
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Adapters
+
+::: nonconform.adapters
     options:
       show_root_heading: true
       heading_level: 3
