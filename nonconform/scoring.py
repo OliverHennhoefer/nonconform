@@ -84,11 +84,7 @@ class Empirical(BaseEstimation):
         self, scores: np.ndarray, calibration_set: np.ndarray
     ) -> np.ndarray:
         """Standard conformal p-value computation."""
-        sorted_cal = np.sort(calibration_set)
-        n_cal = len(calibration_set)
-        # Count calibration scores >= test score using binary search
-        ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
-        return (1.0 + ranks) / (1.0 + n_cal)
+        return calculate_p_val(scores, calibration_set)
 
     def _compute_weighted(
         self,
@@ -98,16 +94,7 @@ class Empirical(BaseEstimation):
     ) -> np.ndarray:
         """Weighted conformal p-value computation."""
         w_calib, w_scores = weights
-        comparison_matrix = calibration_set >= scores[:, np.newaxis]
-        weighted_sum_ge = np.sum(comparison_matrix * w_calib, axis=1)
-        numerator = weighted_sum_ge + w_scores
-        denominator = np.sum(w_calib) + w_scores
-        return np.divide(
-            numerator,
-            denominator,
-            out=np.zeros_like(numerator, dtype=np.float64),
-            where=denominator != 0,
-        )
+        return calculate_weighted_p_val(scores, calibration_set, w_scores, w_calib)
 
 
 # Standalone p-value functions (consolidated from utils/stat/statistical.py)

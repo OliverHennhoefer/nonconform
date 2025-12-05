@@ -206,7 +206,7 @@ class ConformalDetector(BaseConformalDetector):
         self._last_result: ConformalResult | None = None
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray, iteration_callback=None) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
         """Fit detector model(s) and compute calibration scores.
 
         Uses the specified strategy to train the base detector(s) and calculate
@@ -214,16 +214,12 @@ class ConformalDetector(BaseConformalDetector):
 
         Args:
             x: The dataset used for fitting and calibration.
-            iteration_callback: Optional callback for strategies that support
-                iteration tracking (e.g., Bootstrap). Called after each
-                iteration with (iteration, scores). Defaults to None.
         """
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             x=x,
             detector=self.detector,
             weighted=self._is_weighted_mode,
             seed=self.seed,
-            iteration_callback=iteration_callback,
         )
 
         # Store calibration samples only for weighted mode

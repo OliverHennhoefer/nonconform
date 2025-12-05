@@ -42,14 +42,33 @@ _bagged_logger = logging.getLogger("nonconform.weighting.bagged")
 
 
 class ProbabilisticClassifier(Protocol):
-    """Protocol for classifiers that support probability estimation."""
+    """Protocol for classifiers that support probability estimation.
 
-    def fit(self, X, y) -> ProbabilisticClassifier:
-        """Fit the classifier."""
+    This protocol defines the interface for sklearn-compatible classifiers
+    that can produce probability estimates for weight computation.
+    """
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> ProbabilisticClassifier:
+        """Fit the classifier on training data.
+
+        Args:
+            X: Feature matrix of shape (n_samples, n_features).
+            y: Target labels of shape (n_samples,).
+
+        Returns:
+            The fitted classifier instance.
+        """
         ...
 
-    def predict_proba(self, X) -> np.ndarray:
-        """Return probability estimates."""
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Return probability estimates for samples.
+
+        Args:
+            X: Feature matrix of shape (n_samples, n_features).
+
+        Returns:
+            Probability estimates of shape (n_samples, n_classes).
+        """
         ...
 
     classes_: np.ndarray

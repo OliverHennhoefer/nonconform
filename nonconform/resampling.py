@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import abc
 import logging
-from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import copy, deepcopy
 from typing import TYPE_CHECKING
@@ -64,7 +63,6 @@ class BaseStrategy(abc.ABC):
         detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
-        iteration_callback: Callable | None = None,
     ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fits the detector and performs calibration.
 
@@ -73,7 +71,6 @@ class BaseStrategy(abc.ABC):
             detector: The anomaly detection model to be fitted and calibrated.
             seed: Random seed for reproducibility. Defaults to None.
             weighted: Whether to use weighted approach. Defaults to False.
-            iteration_callback: Optional callback for iteration tracking.
 
         Returns:
             Tuple of (list of trained detectors, calibration scores array).
@@ -84,7 +81,7 @@ class BaseStrategy(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def calibration_ids(self) -> list[int]:
+    def calibration_ids(self) -> list[int] | None:
         """Indices of data points used for calibration."""
         pass
 
@@ -121,7 +118,6 @@ class Split(BaseStrategy):
         detector: AnomalyDetector,
         weighted: bool = False,
         seed: int | None = None,
-        iteration_callback: Callable | None = None,
     ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fits detector and generates calibration scores using a data split.
 
@@ -130,7 +126,6 @@ class Split(BaseStrategy):
             detector: The detector instance to train.
             weighted: If True, stores calibration sample indices. Defaults to False.
             seed: Random seed for reproducibility. Defaults to None.
-            iteration_callback: Not used in Split strategy.
 
         Returns:
             Tuple of (list with trained detector, calibration scores array).
@@ -232,7 +227,6 @@ class CrossValidation(BaseStrategy):
         detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
-        iteration_callback: Callable | None = None,
     ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fit and calibrate using k-fold cross-validation.
 
@@ -241,7 +235,6 @@ class CrossValidation(BaseStrategy):
             detector: The base anomaly detector.
             seed: Random seed for reproducibility. Defaults to None.
             weighted: Whether to use weighted calibration. Defaults to False.
-            iteration_callback: Optional callback. Defaults to None.
 
         Returns:
             Tuple of (list of trained detectors, calibration scores array).
@@ -304,7 +297,7 @@ class CrossValidation(BaseStrategy):
                 try:
                     model.set_params(random_state=seed)
                 except (TypeError, ValueError):
-                    pass
+                    pass  # Detector may not support random_state parameter
             model.fit(x[train_idx])
 
             if self._plus:
@@ -323,7 +316,7 @@ class CrossValidation(BaseStrategy):
                 try:
                     model.set_params(random_state=seed)
                 except (TypeError, ValueError):
-                    pass
+                    pass  # Detector may not support random_state parameter
             model.fit(x)
             self._detector_list.append(deepcopy(model))
 
@@ -371,7 +364,7 @@ def _train_bootstrap_model(
         try:
             model.set_params(random_state=seed)
         except (TypeError, ValueError):
-            pass
+            pass  # Detector may not support random_state parameter
     model.fit(x[bootstrap_indices])
     return model
 
@@ -430,7 +423,7 @@ class JackknifeBootstrap(BaseStrategy):
         self._calibration_ids: list[int] = []
 
         # Internal state
-        self._bootstrap_models: list[AnomalyDetector] = []
+        self._bootstrap_models: list[AnomalyDetector | None] = []
         self._oob_mask: np.ndarray = np.array([])
 
     def fit_calibrate(
@@ -439,7 +432,6 @@ class JackknifeBootstrap(BaseStrategy):
         detector: AnomalyDetector,
         seed: int | None = None,
         weighted: bool = False,
-        iteration_callback: Callable[[int, np.ndarray], None] | None = None,
         n_jobs: int | None = None,
     ) -> tuple[list[AnomalyDetector], np.ndarray]:
         """Fit and calibrate using JaB+ method.
@@ -449,7 +441,6 @@ class JackknifeBootstrap(BaseStrategy):
             detector: The base anomaly detector.
             seed: Random seed for reproducibility. Defaults to None.
             weighted: Not used in JaB+. Defaults to False.
-            iteration_callback: Optional callback after iterations.
             n_jobs: Number of parallel jobs. Defaults to None (sequential).
 
         Returns:
@@ -488,9 +479,6 @@ class JackknifeBootstrap(BaseStrategy):
         # Compute OOB scores
         oob_scores = self._compute_oob_scores(x)
 
-        if iteration_callback is not None:
-            iteration_callback(self._n_bootstraps, oob_scores)
-
         self._calibration_set = oob_scores
         self._calibration_ids = list(range(n_samples))
 
@@ -503,7 +491,7 @@ class JackknifeBootstrap(BaseStrategy):
                 try:
                     final_model.set_params(random_state=seed)
                 except (TypeError, ValueError):
-                    pass
+                    pass  # Detector may not support random_state parameter
             final_model.fit(x)
             self._detector_list = [final_model]
 

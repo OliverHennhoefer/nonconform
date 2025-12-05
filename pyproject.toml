@@ -170,7 +170,6 @@ select = [
     "NPY"       # NumPy-specific rules, for idiomatic NumPy code
 ]
 ignore = [
-    "D100", # Missing docstring in public module (can be noisy initially)
     "D104", # Missing docstring in public package (for __init__.py files)
     "D107", # Missing docstring in __init__
     "D203", # 1 blank line required before class docstring (conflicts with D211)
