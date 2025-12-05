@@ -9,8 +9,6 @@ Functions:
     weighted_bh: Apply weighted Benjamini-Hochberg procedure.
 """
 
-from __future__ import annotations
-
 import logging
 
 import numpy as np
@@ -25,8 +23,6 @@ from ._internal import Pruning, get_logger
 def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
     """Return indices of BH rejection set for given p-values."""
     m = len(p_values)
-    if m == 0:
-        return np.array([], dtype=int)
     sorted_idx = np.argsort(p_values)
     sorted_p = p_values[sorted_idx]
     thresholds = q * (np.arange(1, m + 1) / m)
@@ -39,8 +35,6 @@ def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
 
 def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
     """Return size of BH rejection set for given p-values."""
-    if p_values.size == 0:
-        return 0
     sorted_p = np.sort(p_values)
     below = np.nonzero(sorted_p <= thresholds)[0]
     return 0 if len(below) == 0 else int(below[-1] + 1)
@@ -50,8 +44,6 @@ def _calib_weight_mass_below(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
     """Compute weighted calibration mass strictly below each target score."""
-    if len(calib_scores) == 0:
-        return np.zeros_like(targets, dtype=float)
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
@@ -205,21 +197,18 @@ def weighted_false_discovery_control(
             except KeyError:
                 kde_support = None
 
-    need_scores = p_values is None
+    required_arrays = (test_scores, calib_scores, test_weights, calib_weights)
+    if any(arr is None for arr in required_arrays):
+        raise ValueError(
+            "test_scores, calib_scores, test_weights, and calib_weights "
+            "must all be provided."
+        )
+    test_scores = np.asarray(test_scores)
+    calib_scores = np.asarray(calib_scores)
+    test_weights = np.asarray(test_weights)
+    calib_weights = np.asarray(calib_weights)
 
-    if need_scores:
-        if any(
-            arr is None
-            for arr in (test_scores, calib_scores, test_weights, calib_weights)
-        ):
-            raise ValueError(
-                "test_scores, calib_scores, test_weights, and calib_weights "
-                "must be provided when p_values is None."
-            )
-        test_scores = np.asarray(test_scores)
-        calib_scores = np.asarray(calib_scores)
-        test_weights = np.asarray(test_weights)
-        calib_weights = np.asarray(calib_weights)
+    if p_values is None:
         p_vals = calculate_weighted_p_val(
             test_scores, calib_scores, test_weights, calib_weights
         )
@@ -227,18 +216,6 @@ def weighted_false_discovery_control(
         p_vals = np.asarray(p_values)
         if p_vals.ndim != 1:
             raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
-        if any(
-            arr is None
-            for arr in (test_scores, calib_scores, test_weights, calib_weights)
-        ):
-            raise ValueError(
-                "test_scores, calib_scores, test_weights, and calib_weights "
-                "must be provided when supplying p_values."
-            )
-        test_scores = np.asarray(test_scores)
-        calib_scores = np.asarray(calib_scores)
-        test_weights = np.asarray(test_weights)
-        calib_weights = np.asarray(calib_weights)
 
     m = len(test_scores)
     if len(test_weights) != m or len(p_vals) != m:
@@ -248,11 +225,8 @@ def weighted_false_discovery_control(
     if len(calib_scores) != len(calib_weights):
         raise ValueError("calib_scores and calib_weights must have the same length.")
 
-    if seed is None:
-        seed = np.random.SeedSequence().entropy
     rng = np.random.default_rng(seed)
 
-    # Precompute constants
     if kde_support is not None:
         eval_grid, cdf_values, total_weight = kde_support
         sum_calib_weight = total_weight
@@ -291,16 +265,12 @@ def weighted_false_discovery_control(
             include_self_weight=use_self_weight,
         )
 
-    # Compute thresholds
     thresholds = alpha * r_sizes / m
-
-    # First selection set
     first_sel_idx = np.flatnonzero(p_vals <= thresholds)
 
     if len(first_sel_idx) == 0:
         return np.zeros(m, dtype=bool)
 
-    # Pruning
     sizes_sel = r_sizes[first_sel_idx]
     if pruning == Pruning.HETEROGENEOUS:
         final_sel_idx = _prune_heterogeneous(first_sel_idx, sizes_sel, rng)
@@ -368,11 +338,8 @@ def weighted_bh(
     if m == 0:
         return np.zeros(0, dtype=bool)
 
-    # Apply BH procedure
     sorted_idx = np.argsort(p_values)
     sorted_p = p_values[sorted_idx]
-
-    # Compute adjusted p-values
     adjusted_sorted = np.minimum.accumulate((sorted_p * m / np.arange(1, m + 1))[::-1])[
         ::-1
     ]

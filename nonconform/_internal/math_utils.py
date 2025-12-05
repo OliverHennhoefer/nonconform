@@ -4,8 +4,6 @@ This module provides aggregation, metrics, and statistical utilities
 used throughout the package.
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 from .constants import Aggregation

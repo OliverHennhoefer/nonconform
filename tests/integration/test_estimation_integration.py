@@ -80,7 +80,7 @@ def test_weighted_estimation_populates_metadata(shifted_dataset, name, factory):
         detector=IForest(n_estimators=25, max_samples=0.8, random_state=0),
         strategy=Split(n_calib=0.2),
         estimation=factory(),
-        weight_estimator=logistic_weight_estimator(seed=3),
+        weight_estimator=logistic_weight_estimator(),
         seed=3,
     )
 

@@ -33,11 +33,11 @@ Examples:
     >>> detector = ConformalDetector(
     ...     detector=IForest(),
     ...     strategy=Split(n_calib=0.2),
-    ...     weight_estimator=logistic_weight_estimator(seed=42),
+    ...     weight_estimator=logistic_weight_estimator(),
     ... )
 """
 
-__version__ = "0.97.0"
+__version__ = "0.98.0"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

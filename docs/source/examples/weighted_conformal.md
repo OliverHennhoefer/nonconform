@@ -28,7 +28,7 @@ detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=logistic_weight_estimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
 
@@ -58,7 +58,7 @@ detector_shifted = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 
@@ -129,7 +129,7 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=LogisticWeightEstimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 weighted_detector.fit(X_train)
@@ -227,7 +227,7 @@ for agg_method in aggregation_methods:
         detector=base_detector,
         strategy=strategy,
         aggregation=agg_method,
-        weight_estimator=LogisticWeightEstimator(seed=42),
+        weight_estimator=logistic_weight_estimator(),
         seed=42
     )
     detector.fit(X_train)
@@ -248,7 +248,7 @@ weighted_jab_detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=logistic_weight_estimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 

@@ -47,7 +47,7 @@ def test_weighted_tuning_matches_total_weight(shifted_dataset):
         detector=IForest(n_estimators=25, max_samples=0.8, random_state=0),
         strategy=Split(n_calib=0.2),
         estimation=Probabilistic(kernel=[Kernel.GAUSSIAN], n_trials=0),
-        weight_estimator=logistic_weight_estimator(seed=12),
+        weight_estimator=logistic_weight_estimator(),
         seed=12,
     )
     detector.fit(x_train)

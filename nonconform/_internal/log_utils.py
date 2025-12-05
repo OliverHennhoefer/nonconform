@@ -3,8 +3,6 @@
 This module provides logging and decorator utilities used throughout the package.
 """
 
-from __future__ import annotations
-
 import logging
 from collections.abc import Callable
 from functools import wraps

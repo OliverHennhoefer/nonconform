@@ -135,12 +135,13 @@ detector = ConformalDetector(
 )
 
 # Weighted conformal with bootstrap
-from nonconform.detection.weight import LogisticWeightEstimator
+from nonconform import logistic_weight_estimator
 
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Bootstrap(n_bootstraps=100),
-    weight_estimator=LogisticWeightEstimator(seed=42)
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 ```
 

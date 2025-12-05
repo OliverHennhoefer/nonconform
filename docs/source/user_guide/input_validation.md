@@ -253,13 +253,13 @@ Reduce n_calib to leave data for training the base detector.
 When using weighted conformal inference:
 
 ```python
-from nonconform.estimation.weight import LogisticWeightEstimator
+from nonconform import logistic_weight_estimator
 
-weight_est = LogisticWeightEstimator(penalty='l2', C=1.0)
 detector = ConformalDetector(
     detector=base_det,
     strategy=strategy,
-    weight_estimator=weight_est
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
 )
 ```
 

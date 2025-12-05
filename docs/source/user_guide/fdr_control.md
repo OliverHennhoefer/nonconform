@@ -51,7 +51,7 @@ from pyod.models.iforest import IForest
 detector = ConformalDetector(
     detector=IForest(behaviour="new"),
     strategy=JackknifeBootstrap(n_bootstraps=50),
-    weight_estimator=logistic_weight_estimator(seed=1),
+    weight_estimator=logistic_weight_estimator(),
     seed=1,
 )
 
@@ -203,7 +203,7 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=logistic_weight_estimator(seed=42),
+    weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
 weighted_detector.fit(X_train)

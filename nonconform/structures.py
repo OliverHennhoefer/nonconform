@@ -135,18 +135,16 @@ class ConformalResult:
         Returns:
             A new ConformalResult with copied arrays and deep-copied metadata.
         """
+
+        def _copy_arr(arr: np.ndarray | None) -> np.ndarray | None:
+            return arr.copy() if arr is not None else None
+
         return ConformalResult(
-            p_values=None if self.p_values is None else self.p_values.copy(),
-            test_scores=None if self.test_scores is None else self.test_scores.copy(),
-            calib_scores=None
-            if self.calib_scores is None
-            else self.calib_scores.copy(),
-            test_weights=None
-            if self.test_weights is None
-            else self.test_weights.copy(),
-            calib_weights=None
-            if self.calib_weights is None
-            else self.calib_weights.copy(),
+            p_values=_copy_arr(self.p_values),
+            test_scores=_copy_arr(self.test_scores),
+            calib_scores=_copy_arr(self.calib_scores),
+            test_weights=_copy_arr(self.test_weights),
+            calib_weights=_copy_arr(self.calib_weights),
             metadata=deepcopy(self.metadata),
         )
 

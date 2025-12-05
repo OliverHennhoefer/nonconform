@@ -31,13 +31,8 @@ from tqdm import tqdm
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator
 
-# Default clipping bounds when adaptive clipping is disabled
 DEFAULT_CLIP_BOUNDS = (0.35, 45.0)
-
-# Small epsilon to prevent division by zero in probability ratios
 EPSILON = 1e-9
-
-# Module-level logger for bagging operations
 _bagged_logger = logging.getLogger("nonconform.weighting.bagged")
 
 
@@ -175,7 +170,6 @@ class BaseWeightEstimator(ABC):
         )
         test_labeled = np.hstack((test_samples, np.ones((test_samples.shape[0], 1))))
 
-        # Combine and shuffle
         joint_labeled = np.vstack((calib_labeled, test_labeled))
         rng = np.random.default_rng(seed=seed)
         rng.shuffle(joint_labeled)
@@ -327,7 +321,6 @@ class SklearnWeightEstimator(BaseWeightEstimator):
         )
         self.clip_quantile = clip_quantile
 
-        # FAIL FAST: Check predict_proba support
         if not hasattr(self.base_estimator, "predict_proba"):
             raise ValueError(
                 f"The provided base_estimator {type(self.base_estimator).__name__} "
@@ -338,7 +331,6 @@ class SklearnWeightEstimator(BaseWeightEstimator):
         # Seed inheritance attribute (may be set by ConformalDetector)
         self._seed: int | None = None
 
-        # Fitted state
         self.estimator_: ProbabilisticClassifier | None = None
         self._test_class_idx: int | None = None  # Column index for P(Test)
         self._w_calib: np.ndarray | None = None
@@ -364,21 +356,17 @@ class SklearnWeightEstimator(BaseWeightEstimator):
             calibration_samples, test_samples, self._seed
         )
 
-        # CLONE the user's estimator - copies params but resets internal state
-        # CRITICAL for cross-validation safety
         self.estimator_ = clone(self.base_estimator)
+        if self._seed is not None:
+            self._apply_seed_to_estimator(self.estimator_, self._seed)
         self.estimator_.fit(x_joint, y_joint)
 
-        # CRITICAL: Verify class order after fitting
-        # sklearn sorts classes_ - we need the correct column index for P(Test)
+        # sklearn sorts classes_ - get correct column index for P(Test)
         self._test_class_idx = int(
             np.where(self.estimator_.classes_ == self.TEST_LABEL)[0][0]
         )
 
-        # Compute weights using verified class index
         w_calib, w_test = self._compute_weights(calibration_samples, test_samples)
-
-        # Compute and apply clipping
         self._clip_bounds = self._compute_clip_bounds(
             w_calib, w_test, self.clip_quantile
         )
@@ -413,6 +401,23 @@ class SklearnWeightEstimator(BaseWeightEstimator):
         """Score new data using fitted model."""
         w_calib, w_test = self._compute_weights(calibration_samples, test_samples)
         return self._clip_weights(w_calib, w_test, self._clip_bounds)
+
+    @staticmethod
+    def _apply_seed_to_estimator(estimator: ProbabilisticClassifier, seed: int) -> None:
+        """Apply random seed to sklearn estimator or pipeline.
+
+        Args:
+            estimator: Sklearn estimator or pipeline to configure.
+            seed: Random seed value to set.
+        """
+        from sklearn.pipeline import Pipeline
+
+        if isinstance(estimator, Pipeline):
+            for _, step in estimator.steps:
+                if hasattr(step, "random_state"):
+                    step.random_state = seed
+        elif hasattr(estimator, "random_state"):
+            estimator.random_state = seed
 
 
 class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
@@ -473,7 +478,6 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         # Seed inheritance attribute (set by ConformalDetector)
         self._seed: int | None = None
 
-        # Weight storage
         self._w_calib: np.ndarray | None = None
         self._w_test: np.ndarray | None = None
         self._is_fitted = False
@@ -592,7 +596,6 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 def logistic_weight_estimator(
     regularization: str | float = "auto",
     clip_quantile: float = 0.05,
-    seed: int | None = None,
     class_weight: str | dict = "balanced",
     max_iter: int = 1000,
 ) -> SklearnWeightEstimator:
@@ -601,11 +604,14 @@ def logistic_weight_estimator(
     This factory function provides behavioral equivalence with the old
     LogisticWeightEstimator class.
 
+    Note:
+        When used with ConformalDetector, the detector's seed is automatically
+        propagated to the weight estimator for reproducibility.
+
     Args:
         regularization: Regularization parameter. If 'auto', uses C=1.0.
             If float, uses as C parameter.
         clip_quantile: Quantile for weight clipping. Defaults to 0.05.
-        seed: Random seed for reproducibility.
         class_weight: Class weights for LogisticRegression. Defaults to 'balanced'.
         max_iter: Maximum iterations for solver convergence. Defaults to 1000.
 
@@ -614,7 +620,7 @@ def logistic_weight_estimator(
 
     Examples:
         ```python
-        estimator = logistic_weight_estimator(regularization=0.5, seed=42)
+        estimator = logistic_weight_estimator(regularization=0.5)
         estimator.fit(calib_samples, test_samples)
         w_calib, w_test = estimator.get_weights()
         ```
@@ -628,15 +634,12 @@ def logistic_weight_estimator(
         LogisticRegression(
             C=c_param,
             max_iter=max_iter,
-            random_state=seed,
             class_weight=class_weight,
         ),
     )
-    estimator = SklearnWeightEstimator(
+    return SklearnWeightEstimator(
         base_estimator=base_estimator, clip_quantile=clip_quantile
     )
-    estimator._seed = seed
-    return estimator
 
 
 def forest_weight_estimator(
@@ -644,26 +647,28 @@ def forest_weight_estimator(
     max_depth: int | None = 5,
     min_samples_leaf: int = 10,
     clip_quantile: float = 0.05,
-    seed: int | None = None,
 ) -> SklearnWeightEstimator:
     """Create weight estimator using Random Forest.
 
     This factory function provides behavioral equivalence with the old
     ForestWeightEstimator class.
 
+    Note:
+        When used with ConformalDetector, the detector's seed is automatically
+        propagated to the weight estimator for reproducibility.
+
     Args:
         n_estimators: Number of trees in the forest. Defaults to 100.
         max_depth: Maximum depth of trees. Defaults to 5.
         min_samples_leaf: Minimum samples at leaf node. Defaults to 10.
         clip_quantile: Quantile for weight clipping. Defaults to 0.05.
-        seed: Random seed for reproducibility.
 
     Returns:
         Configured SklearnWeightEstimator instance.
 
     Examples:
         ```python
-        estimator = forest_weight_estimator(n_estimators=200, seed=42)
+        estimator = forest_weight_estimator(n_estimators=200)
         estimator.fit(calib_samples, test_samples)
         w_calib, w_test = estimator.get_weights()
         ```
@@ -674,15 +679,12 @@ def forest_weight_estimator(
         n_estimators=n_estimators,
         max_depth=max_depth,
         min_samples_leaf=min_samples_leaf,
-        random_state=seed,
         class_weight="balanced",
         n_jobs=-1,
     )
-    estimator = SklearnWeightEstimator(
+    return SklearnWeightEstimator(
         base_estimator=base_estimator, clip_quantile=clip_quantile
     )
-    estimator._seed = seed
-    return estimator
 
 
 __all__ = [

@@ -242,7 +242,6 @@ class CrossValidation(BaseStrategy):
         Raises:
             ValueError: If k < 2 or not enough samples for specified k.
         """
-        # Reset state
         self._detector_list.clear()
         self._calibration_ids = []
 
@@ -252,7 +251,6 @@ class CrossValidation(BaseStrategy):
         # Determine k (for jackknife mode, k=n)
         k = n_samples if self._is_jackknife else self._k
 
-        # Validate k
         if k < 2:
             exc = ValueError(
                 f"k must be at least 2 for k-fold cross-validation, got {k}"
@@ -272,7 +270,6 @@ class CrossValidation(BaseStrategy):
             exc.add_note(f"Each fold needs at least 1 sample, but {n_samples} < {k}.")
             raise exc
 
-        # Pre-allocate calibration array
         self._calibration_set = np.empty(n_samples, dtype=np.float64)
         calibration_offset = 0
 
@@ -292,7 +289,6 @@ class CrossValidation(BaseStrategy):
             self._calibration_ids.extend(calib_idx.tolist())
 
             model = copy(detector_)
-            # Set seed for this fold
             if hasattr(model, "set_params"):
                 try:
                     model.set_params(random_state=seed)
@@ -303,7 +299,6 @@ class CrossValidation(BaseStrategy):
             if self._plus:
                 self._detector_list.append(deepcopy(model))
 
-            # Store calibration scores
             fold_scores = model.decision_function(x[calib_idx])
             n_fold_samples = len(fold_scores)
             end_idx = calibration_offset + n_fold_samples
@@ -454,13 +449,11 @@ class JackknifeBootstrap(BaseStrategy):
             f"{self._n_bootstraps:,} iterations"
         )
 
-        # Generate bootstrap samples
         self._bootstrap_models = [None] * self._n_bootstraps
         all_bootstrap_indices, self._oob_mask = self._generate_bootstrap_indices(
             generator, n_samples
         )
 
-        # Train models
         if n_jobs is None or n_jobs == 1:
             bootstrap_iterator = (
                 tqdm(range(self._n_bootstraps), desc="Calibration")
@@ -476,13 +469,11 @@ class JackknifeBootstrap(BaseStrategy):
                 detector, x, all_bootstrap_indices, seed, n_jobs
             )
 
-        # Compute OOB scores
         oob_scores = self._compute_oob_scores(x)
 
         self._calibration_set = oob_scores
         self._calibration_ids = list(range(n_samples))
 
-        # Handle plus variant
         if self._plus:
             self._detector_list = self._bootstrap_models.copy()
         else:

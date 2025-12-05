@@ -618,17 +618,17 @@ from pyod.models.iforest import IForest
 
 # Premium configuration for small-batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=forest_weight_estimator(n_estimators=50, seed=42),
+    base_estimator=forest_weight_estimator(n_estimators=50),
     n_bootstrap=50,
-    clip_quantile=0.05
+    clip_quantile=0.05,
 )
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new", random_state=42),
+    detector=IForest(behaviour="new"),
     strategy=Split(n_calib=1000),  # Large historical calibration
     aggregation=Aggregation.MEDIAN,
     weight_estimator=weight_est,
-    seed=42
+    seed=42,
 )
 
 # Train once on historical data
@@ -655,7 +655,7 @@ for X_batch in stream:
 - Achieves near-perfect detection (100% recall) with controlled FDR
 
 **Performance (1000 calib vs 25 test)**:
-- Standard LogisticWeightEstimator: 6.7% recall, 0.14s
+- Standard logistic_weight_estimator: 6.7% recall, 0.14s
 - Bootstrap Bagged Forest: **100% recall**, 6.4s (46x slower but perfect detection)
 - Eliminates all extreme weights, 48% better weight stability
 

@@ -146,7 +146,7 @@ class ConformalDetector(BaseConformalDetector):
         detector = ConformalDetector(
             detector=IForest(),
             strategy=Split(n_calib=0.2),
-            weight_estimator=logistic_weight_estimator(seed=42),
+            weight_estimator=logistic_weight_estimator(),
             seed=42,
         )
         detector.fit(X_train)
@@ -222,15 +222,12 @@ class ConformalDetector(BaseConformalDetector):
             seed=self.seed,
         )
 
-        # Store calibration samples only for weighted mode
-        if self._is_weighted_mode:
-            if (
-                self.strategy.calibration_ids is not None
-                and len(self.strategy.calibration_ids) > 0
-            ):
-                self._calibration_samples = x[self.strategy.calibration_ids]
-            else:
-                self._calibration_samples = np.array([])
+        if (
+            self._is_weighted_mode
+            and self.strategy.calibration_ids is not None
+            and len(self.strategy.calibration_ids) > 0
+        ):
+            self._calibration_samples = x[self.strategy.calibration_ids]
         else:
             self._calibration_samples = np.array([])
 
@@ -270,7 +267,6 @@ class ConformalDetector(BaseConformalDetector):
             else self._detector_set
         )
 
-        # Collect detector outputs as a 2D array
         scores = np.vstack(
             [np.asarray(model.decision_function(x)) for model in iterable]
         )

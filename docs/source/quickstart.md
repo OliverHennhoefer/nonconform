@@ -137,7 +137,7 @@ weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=weighted_strategy,
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=logistic_weight_estimator(seed=42),  # (1)
+    weight_estimator=logistic_weight_estimator(),  # (1)
     seed=42
 )
 weighted_detector.fit(X_normal)

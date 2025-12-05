@@ -66,7 +66,7 @@ def adapt(detector: Any) -> AnomalyDetector:
         return detector
 
     # PyOD detector - wrap if available
-    if PYOD_AVAILABLE and PyODBaseDetector and isinstance(detector, PyODBaseDetector):
+    if PYOD_AVAILABLE and isinstance(detector, PyODBaseDetector):
         return PyODAdapter(detector)
 
     # Looks like PyOD but not installed

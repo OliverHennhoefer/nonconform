@@ -8,8 +8,6 @@ Classes:
     Probabilistic: KDE-based probabilistic p-value estimation.
 """
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Any
@@ -196,13 +194,11 @@ class Probabilistic(BaseEstimation):
 
         Lazy fitting: tunes and fits KDE on first call or when calibration changes.
         """
-        # Extract weights
         if weights is not None:
             w_calib, w_test = weights
         else:
             w_calib, w_test = None, None
 
-        # Hash for cache invalidation
         if weights is None:
             current_hash = hash(calibration_set.tobytes())
         else:
@@ -222,7 +218,7 @@ class Probabilistic(BaseEstimation):
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None) -> None:
         """Fit KDE with automatic hyperparameter tuning."""
-        # Lazy import to avoid dependency issues during package restructuring
+        # Lazy import to avoid circular dependency
         try:
             from KDEpy import FFTKDE
 
@@ -235,7 +231,6 @@ class Probabilistic(BaseEstimation):
 
         calibration_set = calibration_set.ravel()
 
-        # Sort data and weights together
         if weights is not None:
             sort_idx = np.argsort(calibration_set)
             calibration_set = calibration_set[sort_idx]
@@ -289,12 +284,10 @@ class Probabilistic(BaseEstimation):
         )
         survival = 1.0 - cdf_func(scores)  # P(X >= score)
 
-        # Cache metadata
         self._kde_eval_grid = eval_grid.copy()
         self._kde_cdf_values = cdf_values.copy()
         self._kde_total_weight = float(sum_calib_weight)
 
-        # Return survival function for standard conformal
         if w_test is None or sum_calib_weight <= 0:
             return np.clip(survival, 0, 1)
 
