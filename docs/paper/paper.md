@@ -22,13 +22,13 @@ bibliography: paper.bib
 
 Quantifying uncertainty is fundamental for AI systems in safety-critical, high-cost-of-error domains, as reliable decision-making depends on it. The Python package `nonconform` offers statistically principled uncertainty quantification for semi-supervised anomaly detection based on one-class classification [@Tax2001]. It implements methods from conformal anomaly detection [@Laxhammar2010; @Bates2023; @Jin2023], grounded in conformal inference [@Papadopoulos2002; @Vovk2005; @Lei2012].
 
-The package `nonconform` calibrates anomaly detection models to produce statistically valid $p$-values from raw anomaly scores. Conformal calibration uses a hold-out set $\mathcal{D}_{\text{calib}}$ of size $n$ containing normal instances, while the model is trained on a separate normal dataset. For a new observation $X_{n+1}$ with anomaly score $\hat{s}(X_{n+1})$, the $p$-value is computed by comparing this score to the empirical distribution of calibration scores $\hat{s}(X_i)$ for $i \in \mathcal{D}_{\text{calib}}$. The conformal $p$-value $\hat{u}(X_{n+1})$ is defined as the normalized rank of $\hat{s}(X_{n+1})$ among the calibration scores [@Liang2024]:
+The package `nonconform` calibrates anomaly detection models to produce statistically valid $p$-values from raw anomaly scores. Conformal calibration uses a hold-out set $\mathcal{D}_{\text{calib}}$ of size $n$ containing normal instances, while the model is trained on a separate normal dataset. For a new observation $X_{n+1}$ with anomaly score $\hat{s}(X_{n+1})$, the $p$-value is computed by comparing this score to the empirical distribution of calibration scores $\hat{s}(X_i)$ for $i \in \mathcal{D}_{\text{calib}}$. The conformal $p$-value $\hat{u}(X_{n+1})$ is calculated by ranking the new score among the calibration scores augmented by the test score itself [@Bates2023; @Liang2024]:
 
 $$
-\hat{u}(X_{n+1}) \;=\; \frac{\lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert}{n}.
+\hat{u}(X_{n+1}) \;=\; \frac{1 + \lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert}{n + 1}.
 $$
 
-By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the *marginal* (average) false discovery rate (FDR) [@Benjamini1995; @Bates2023] at a predefined significance level via appropriate statistical procedures.
+By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the *marginal* (average) false discovery rate (FDR) [@Benjamini1995]. For standard exchangeable data, conformal $p$-values satisfy the PRDS property, allowing the use of the Benjamini-Hochberg procedure [@Bates2023].
 The library integrates seamlessly with the widely used `pyod` library [@Zhao2019; @Zhao2024], extending conformal techniques to a broad range of anomaly detection models.
 
 # Statement of Need
@@ -44,7 +44,7 @@ $$
 Conformal methods are *nonparametric* and *model-agnostic*, applying to any model that produces consistent anomaly scores on arbitrarily distributed data. Their key requirement is the assumption of *exchangeability* between calibration and test data, ensuring the validity of resulting conformal $p$-values.  
 Exchangeability only requires that the joint data distribution is invariant under permutations, making it more general---and less restrictive---than the independent and identically distributed (*i.i.d.*) assumption common in classical machine learning.
 
-To operationalize this assumption, `nonconform` constructs calibration sets from training data using several strategies, including approaches for low-data regimes [@Hennhofer2024] that do not require a dedicated hold-out set. Based on these calibration sets, the package computes *standard* or *weighted* conformal $p$-values [@Jin2023], which are particularly useful under covariate shift, when exchangeability is only approximate.  
+To operationalize this assumption, `nonconform` constructs calibration sets from training data using several strategies, including approaches for low-data regimes [@Hennhofer2024] that do not require a dedicated hold-out set. Based on these calibration sets, the package computes *standard* or *weighted* conformal $p$-values [@Jin2023], which address scenarios of covariate shift where the assumption of exchangeability is violated. Under covariate shift, specialized weighted selection procedures are required to maintain FDR control [@Jin2023].
 These tools enable practitioners to build anomaly detectors whose outputs are statistically controlled to maintain the FDR at a chosen nominal level.
 
 Overall, reliance on exchangeability makes these methods well-suited to cross-sectional data but less appropriate for time series applications, where temporal ordering conveys essential information.
