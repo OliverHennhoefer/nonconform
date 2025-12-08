@@ -116,12 +116,13 @@ strategy = JackknifeBootstrap(n_bootstraps=100)
 ```
 
 **Valid values**:
-- `n_bootstraps`: Integer >= 1 (typical: 20-200)
-- `ratio`: Float in (0, 1] - proportion of data in each bootstrap sample
+- `n_bootstraps`: Integer ≥ 2 (typical: 20-200)
+- `aggregation_method`: `Aggregation.MEAN` or `Aggregation.MEDIAN`
+- `plus`: Whether to keep all bootstrap models for aggregation (recommended)
 
 **Constraints**:
 - More bootstraps improve stability but increase computation
-- `ratio` controls calibration set size (lower = more data for training)
+- Using `plus=False` trades validity for speed; `plus=True` is recommended
 
 ### Random Seed (`seed`)
 
@@ -186,8 +187,8 @@ def check_calibration_diversity(calib_scores, tolerance=1e-10):
             "(3) insufficient data diversity."
         )
 
-# Access last calibration scores
-calib_scores = detector.last_result.calibration_scores
+# Access calibration scores stored on the detector
+calib_scores = detector.calibration_set
 check_calibration_diversity(calib_scores)
 ```
 
@@ -296,7 +297,7 @@ detector = ConformalDetector(
 **Valid values**:
 - `Aggregation.MEAN`: Average p-values across splits (default for many strategies)
 - `Aggregation.MEDIAN`: Median p-value (more robust to outliers)
-- `Aggregation.MAX`: Most conservative (maximum p-value)
+- `Aggregation.MAXIMUM`: Most conservative (maximum p-value)
 
 **When it matters**:
 - Only relevant for strategies that produce multiple p-values (CrossValidation, Jackknife, Bootstrap)

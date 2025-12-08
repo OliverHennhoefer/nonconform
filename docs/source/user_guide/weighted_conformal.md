@@ -161,7 +161,11 @@ The choice of aggregation method can affect performance under distribution shift
 # Compare different aggregation methods
 from nonconform import Pruning, weighted_false_discovery_control
 
-aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
+aggregation_methods = [
+    Aggregation.MEAN,
+    Aggregation.MEDIAN,
+    Aggregation.MAXIMUM,
+]
 
 for agg_method in aggregation_methods:
     detector = ConformalDetector(
@@ -182,6 +186,8 @@ for agg_method in aggregation_methods:
     )
     print(f"{agg_method.value}: {wcs_mask.sum()} discoveries")
 ```
+
+**Note**: Aggregation is applied to the raw anomaly scores from each model before conformal p-values are computed. P-values are not averaged; the aggregated score is turned into a single p-value per point.
 
 ## Weight Estimators
 

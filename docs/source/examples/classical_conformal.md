@@ -81,7 +81,11 @@ print(f"Cross-validation detections: {(cv_fdr < 0.05).sum()}")
 
 ```python
 # Try different aggregation methods
-aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
+aggregation_methods = [
+    Aggregation.MEAN,
+    Aggregation.MEDIAN,
+    Aggregation.MAXIMUM,
+]
 
 for agg_method in aggregation_methods:
     detector = ConformalDetector(

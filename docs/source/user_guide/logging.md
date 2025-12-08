@@ -1,10 +1,10 @@
 # Logging and Progress Control
 
-nonconform uses Python's standard logging framework to control progress bars and informational output. This provides flexible, fine-grained control over the library's output that integrates seamlessly with existing logging infrastructure.
+nonconform uses Python's standard logging framework to control progress bars and informational output. The `verbose` flag on `ConformalDetector` controls aggregation progress bars, while logger levels drive strategy-level progress bars. This provides flexible, fine-grained control that integrates seamlessly with existing logging infrastructure.
 
 ## Overview
 
-The library replaces the previous `silent` parameter with logger-based progress control, offering several advantages:
+Progress is controlled via the `verbose` flag (aggregation) and logger levels (strategy):
 
 - **Standard Integration**: Uses Python's built-in logging framework
 - **Granular Control**: Configure different loggers independently
@@ -328,33 +328,40 @@ log_output = log_stream.getvalue()
 assert "Bootstrap Configuration" in log_output
 ```
 
-## Migration from Silent Parameter
+## Progress Control Recipes
 
-If you're migrating from code that used the `silent` parameter:
+Use these patterns to tune output:
 
-**Before:**
-```python
-# Old API with silent parameter
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.2),
-    silent=True  # Hide progress bars
-)
-```
-
-**After:**
-```python
-import logging
-
-# New API with logging control
-logging.getLogger('nonconform').setLevel(logging.WARNING)  # Hide progress bars
-
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.2)
-    # No silent parameter needed
-)
-```
+- **Fully quiet (production)**:
+    ```python
+    import logging
+    logging.getLogger("nonconform").setLevel(logging.WARNING)
+    detector = ConformalDetector(
+        detector=IForest(),
+        strategy=Split(n_calib=0.2),
+        verbose=False,  # hide aggregation bars
+    )
+    ```
+- **Show aggregation only**:
+    ```python
+    import logging
+    logging.getLogger("nonconform").setLevel(logging.WARNING)  # hide strategy bars
+    detector = ConformalDetector(
+        detector=IForest(),
+        strategy=Split(n_calib=0.2),
+        verbose=True,  # show aggregation bars
+    )
+    ```
+- **Show everything (development)**:
+    ```python
+    import logging
+    logging.getLogger("nonconform").setLevel(logging.INFO)
+    detector = ConformalDetector(
+        detector=IForest(),
+        strategy=Split(n_calib=0.2),
+        verbose=True,
+    )
+    ```
 
 ## Performance Considerations
 

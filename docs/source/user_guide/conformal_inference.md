@@ -295,7 +295,11 @@ When using ensemble strategies, you can control how multiple model outputs are c
 # Different aggregation methods
 from scipy.stats import false_discovery_control
 
-aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
+aggregation_methods = [
+    Aggregation.MEAN,
+    Aggregation.MEDIAN,
+    Aggregation.MAXIMUM,
+]
 
 for agg_method in aggregation_methods:
     detector = ConformalDetector(
@@ -313,7 +317,7 @@ for agg_method in aggregation_methods:
     print(f"{agg_method.value}: {discoveries} discoveries")
 ```
 
-**Note**: This aggregation averages conformal p-values from the same procedure—not traditional p-value combination. Validity is preserved because all p-values derive from the same exchangeable framework.
+**Note**: Aggregation is applied to the raw anomaly scores coming from each fold/bootstrapped detector, and the combined score is then converted to a single conformal p-value. It does *not* merge already-computed p-values. Validity is preserved because every aggregated score still comes from the same exchangeable procedure.
 
 ### Custom Scoring Functions
 

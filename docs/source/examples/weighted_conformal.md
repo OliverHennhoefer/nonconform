@@ -244,7 +244,11 @@ plt.show()
 
 ```python
 # Compare different aggregation methods for weighted conformal
-aggregation_methods = [Aggregation.MEAN, Aggregation.MEDIAN, Aggregation.MAX]
+aggregation_methods = [
+    Aggregation.MEAN,
+    Aggregation.MEDIAN,
+    Aggregation.MAXIMUM,
+]
 
 for agg_method in aggregation_methods:
     det = ConformalDetector(

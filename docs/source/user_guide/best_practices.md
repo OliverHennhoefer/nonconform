@@ -413,7 +413,7 @@ class ScalableAnomalyDetector:
             strategy=strategy,
             aggregation=self.detector_config['aggregation'],
             seed=self.detector_config['seed'],
-            silent=self.detector_config.get('silent', True)
+            verbose=self.detector_config.get('verbose', False),
         )
 
         self.detector.fit(X_train)
@@ -437,7 +437,6 @@ class ScalableAnomalyDetector:
 
 ```python
 from dataclasses import dataclass
-from typing import Optional
 from nonconform import Aggregation
 
 
@@ -449,7 +448,7 @@ class AnomalyDetectionConfig:
     detector_type: str = "iforest"
     aggregation: Aggregation = Aggregation.MEDIAN
     seed: int = 42
-    silent: bool = True
+    verbose: bool = False
     batch_size: int = 1000
     fdr_method: str = 'bh'
 
@@ -508,7 +507,7 @@ class AnomalyDetectionPipeline:
             strategy=strategy,
             aggregation=self.config.aggregation,
             seed=self.config.seed,
-            silent=self.config.silent
+            verbose=self.config.verbose,
         )
 
         # Fit detector
@@ -565,7 +564,7 @@ class AnomalyDetectionPipeline:
                 'detector': self._create_detector(),
                 'aggregation': self.config.aggregation,
                 'seed': self.config.seed,
-                'silent': self.config.silent
+                'verbose': self.config.verbose,
             },
             batch_size=self.config.batch_size
         )

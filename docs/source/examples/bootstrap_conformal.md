@@ -44,19 +44,19 @@ discoveries = adjusted_p_values < 0.05
 print(f"Discoveries with FDR control: {discoveries.sum()}")
 ```
 
-## Bootstrap Plus Mode
+## Plus Mode for JaB+
 
 ```python
-# Use bootstrap plus mode for better calibration
-bootstrap_plus_strategy = Bootstrap(
+# Use plus mode to keep all bootstrap models for aggregation
+jab_plus_strategy = JackknifeBootstrap(
     n_bootstraps=100,
-    resampling_ratio=0.8,
+    aggregation_method=Aggregation.MEDIAN,
     plus=True
 )
 
 detector_plus = ConformalDetector(
     detector=base_detector,
-    strategy=bootstrap_plus_strategy,
+    strategy=jab_plus_strategy,
     aggregation=Aggregation.MEDIAN,
     seed=42
 )
@@ -66,25 +66,21 @@ detector_plus.fit(X)
 p_values_plus = detector_plus.predict(X, raw=False)
 
 # Compare with FDR control
-bootstrap_disc = false_discovery_control(p_values, method='bh') < 0.05
-bootstrap_plus_disc = false_discovery_control(p_values_plus, method='bh') < 0.05
-print(f"Bootstrap discoveries: {bootstrap_disc.sum()}")
-print(f"Bootstrap+ discoveries: {bootstrap_plus_disc.sum()}")
+jab_disc = false_discovery_control(p_values, method='bh') < 0.05
+jab_plus_disc = false_discovery_control(p_values_plus, method='bh') < 0.05
+print(f"JaB+ discoveries: {jab_disc.sum()}")
+print(f"JaB+ (plus) discoveries: {jab_plus_disc.sum()}")
 ```
 
 ## Comparing Different Bootstrap Configurations
 
 ```python
 # Try different bootstrap configurations
-configurations = [
-    {"n_bootstraps": 50, "resampling_ratio": 0.7},
-    {"n_bootstraps": 100, "resampling_ratio": 0.8},
-    {"n_bootstraps": 200, "resampling_ratio": 0.9}
-]
+bootstrap_counts = [50, 100, 200]
 
 results = {}
-for config in configurations:
-    strategy = Bootstrap(**config)
+for n_bootstraps in bootstrap_counts:
+    strategy = JackknifeBootstrap(n_bootstraps=n_bootstraps)
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
@@ -95,7 +91,7 @@ for config in configurations:
     p_vals = detector.predict(X, raw=False)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
-    key = f"B={config['n_bootstraps']}, r={config['resampling_ratio']}"
+    key = f"B={n_bootstraps}"
     results[key] = disc.sum()
     print(f"{key}: {results[key]} discoveries")
 ```
@@ -146,7 +142,7 @@ stability_results = []
 for _ in range(10):
     det = ConformalDetector(
         detector=base_detector,
-        strategy=Bootstrap(n_bootstraps=50, resampling_ratio=0.8),
+        strategy=JackknifeBootstrap(n_bootstraps=50),
         aggregation=Aggregation.MEDIAN,
         seed=np.random.randint(1000)
     )

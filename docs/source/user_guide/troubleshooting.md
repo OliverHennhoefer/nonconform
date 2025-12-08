@@ -447,11 +447,11 @@ When migrating from older versions of nonconform:
 - [ ] Add FDR control using `scipy.stats.false_discovery_control`
 - [ ] Test with small datasets first
 - [ ] Update any custom code that depends on the old API
-- [ ] Replace `silent=True/False` with logging configuration
+- [ ] Replace `silent=True/False` with `verbose` (aggregation) and logging levels (strategy progress)
 
 ## Logging Configuration
 
-nonconform uses Python's standard logging framework to control progress bars and informational output. This provides more flexibility than the old `silent` parameter.
+nonconform uses Python's standard logging framework to control progress bars and informational output, plus the `verbose` flag on `ConformalDetector` for aggregation progress. This provides more flexibility than the old `silent` parameter.
 
 ### Basic Logging Setup
 
