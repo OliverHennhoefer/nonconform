@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+
+pytest.importorskip("pyod", reason="pyod not installed")
 from pyod.models.iforest import IForest
 
 from nonconform import Aggregation, ConformalDetector, CrossValidation, aggregate

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from pyod.models.iforest import IForest
+
+pytest.importorskip("pyod", reason="pyod not installed")
 
 from nonconform import (
     ConformalDetector,

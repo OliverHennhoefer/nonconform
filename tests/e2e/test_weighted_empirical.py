@@ -1,4 +1,9 @@
 import numpy as np
+import pytest
+
+pytest.importorskip("pyod", reason="pyod not installed")
+pytest.importorskip("oddball", reason="oddball not installed")
+
 from oddball import Dataset, load
 from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
+
+pytest.importorskip("pyod", reason="pyod not installed")
+pytest.importorskip("oddball", reason="oddball not installed")
+
 from oddball.generator import BatchGenerator, OnlineGenerator
 from pyod.models.iforest import IForest
 
