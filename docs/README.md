@@ -2,8 +2,10 @@
 
 ---
 
-![Python](https://img.shields.io/badge/python-3.12%2B-blue)
-[![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
+![Python versions](https://img.shields.io/pypi/pyversions/nonconform.svg)
+[![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/branch/main/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
+[![PyPI version](https://img.shields.io/pypi/v/nonconform.svg)](https://pypi.org/project/nonconform/)
+[![Docs](https://github.com/OliverHennhoefer/nonconform/actions/workflows/docs.yml/badge.svg)](https://oliverhennhoefer.github.io/nonconform/)
 
 ## Conformal Anomaly Detection
 
