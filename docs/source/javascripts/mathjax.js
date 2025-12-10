@@ -11,6 +11,9 @@ window.MathJax = {
   }
 };
 
-document.addEventListener('DOMContentLoaded', function() {
-  MathJax.typesetPromise();
-});
+document$.subscribe(() => {
+  MathJax.startup.output.clearCache()
+  MathJax.typesetClear()
+  MathJax.texReset()
+  MathJax.typesetPromise()
+})
