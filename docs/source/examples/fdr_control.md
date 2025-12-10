@@ -7,15 +7,16 @@ Use FDR control in anomaly detection with `scipy.stats.false_discovery_control`.
 ```python
 import numpy as np
 from pyod.models.lof import LOF
-from sklearn.datasets import load_breast_cancer, make_blobs
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split, Pruning, false_discovery_rate
+from oddball import Dataset, load
+from nonconform import Aggregation, ConformalDetector, Split, Pruning, false_discovery_rate, statistical_power
 
-# Load example data
-data = load_breast_cancer()
-X = data.data
-y = data.target
+# Load benchmark data
+X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
 ```
+
+!!! note "Prerequisites"
+    All code blocks below require running the Setup block above first.
 
 ## Basic Usage
 
@@ -75,7 +76,7 @@ from pyod.models.iforest import IForest
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
 weighted_detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(random_state=1),
     strategy=JackknifeBootstrap(n_bootstraps=50),
     aggregation=Aggregation.MEDIAN,
     weight_estimator=logistic_weight_estimator(),
@@ -121,42 +122,29 @@ for alpha in fdr_levels:
 ## Evaluating FDR Control Performance
 
 ```python
-# Create synthetic data with known ground truth
-np.random.seed(42)
-
-# Generate normal data
-X_normal, _ = make_blobs(n_samples=800, centers=1, cluster_std=1.0, random_state=42)
-
-# Generate anomalies
-X_anomalies = np.random.uniform(-6, 6, (200, X_normal.shape[1]))
-
-# Combine data
-X_combined = np.vstack([X_normal, X_anomalies])
-y_true = np.hstack([np.zeros(len(X_normal)), np.ones(len(X_anomalies))])
+# Use benchmark data with known ground truth (loaded in Setup)
+# X contains training data (normal), X_test contains test data, y_test contains labels
 
 # Fit detector and get p-values
-detector.fit(X_normal)  # Fit only on normal data
-p_values = detector.predict(X_combined, raw=False)
+detector.fit(X)  # Fit only on normal data
+p_values = detector.predict(X_test, raw=False)
 
 # Apply different FDR control levels
 fdr_levels = [0.05, 0.1, 0.15, 0.2]
 
 print("\nFDR Control Performance Evaluation:")
-print("-" * 80)
-print(f"{'FDR Level':<10} {'Discoveries':<12} {'True Pos':<10} {'False Pos':<10} {'Precision':<10} {'Empirical FDR':<12}")
-print("-" * 80)
+print("-" * 60)
+print(f"{'FDR Level':<12} {'Discoveries':<14} {'Empirical FDR':<14} {'Power':<10}")
+print("-" * 60)
 
 for alpha in fdr_levels:
     adjusted_p_vals = false_discovery_control(p_values, method="bh", alpha=alpha)
     discoveries = adjusted_p_vals < alpha
 
-    true_positives = np.sum(discoveries & (y_true == 1))
-    false_positives = np.sum(discoveries & (y_true == 0))
-    precision = true_positives / max(1, discoveries.sum())
-    empirical_fdr = false_positives / max(1, discoveries.sum())
+    empirical_fdr = false_discovery_rate(y_test, discoveries)
+    power = statistical_power(y_test, discoveries)
 
-    print(f"{alpha:<10} {discoveries.sum():<12} {true_positives:<10} {false_positives:<10} "
-          f"{precision:<10.3f} {empirical_fdr:<12.3f}")
+    print(f"{alpha:<12} {discoveries.sum():<14} {empirical_fdr:<14.3f} {power:<10.3f}")
 ```
 
 ## Multiple Detectors with FDR Control
@@ -183,14 +171,14 @@ for name, base_det in detectors.items():
         aggregation=Aggregation.MEDIAN,
         seed=42
     )
-    detector.fit(X_normal)
-    p_vals = detector.predict(X_combined, raw=False)
+    detector.fit(X)
+    p_vals = detector.predict(X_test, raw=False)
     all_p_values[name] = p_vals
 
 # Apply FDR control to each detector's p-values
 print("\nMultiple Detectors with FDR Control:")
 print("-" * 60)
-print(f"{'Detector':<10} {'Raw Det.':<10} {'FDR Det.':<10} {'True Pos':<10} {'Precision':<10}")
+print(f"{'Detector':<10} {'Raw Det.':<12} {'FDR Det.':<12} {'Emp. FDR':<12} {'Power':<10}")
 print("-" * 60)
 
 for name, p_vals in all_p_values.items():
@@ -201,11 +189,11 @@ for name, p_vals in all_p_values.items():
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     fdr_discoveries = adj_p_vals < 0.05
 
-    # Performance metrics
-    true_pos = np.sum(fdr_discoveries & (y_true == 1))
-    precision = true_pos / max(1, fdr_discoveries.sum())
+    # Performance metrics using nonconform functions
+    empirical_fdr = false_discovery_rate(y_test, fdr_discoveries)
+    power = statistical_power(y_test, fdr_discoveries)
 
-    print(f"{name:<10} {raw_detections:<10} {fdr_discoveries.sum():<10} {true_pos:<10} {precision:<10.3f}")
+    print(f"{name:<10} {raw_detections:<12} {fdr_discoveries.sum():<12} {empirical_fdr:<12.3f} {power:<10.3f}")
 ```
 
 ## Ensemble with FDR Control
@@ -223,17 +211,14 @@ combined_stats, combined_p_values = combine_pvalues(np.array(p_values_list).T, m
 adj_combined_p_vals = false_discovery_control(combined_p_values, method='bh', alpha=0.05)
 combined_discoveries = adj_combined_p_vals < 0.05
 
-# Evaluate ensemble performance
-ensemble_true_pos = np.sum(combined_discoveries & (y_true == 1))
-ensemble_false_pos = np.sum(combined_discoveries & (y_true == 0))
-ensemble_precision = ensemble_true_pos / max(1, combined_discoveries.sum())
+# Evaluate ensemble performance using nonconform metrics
+ensemble_fdr = false_discovery_rate(y_test, combined_discoveries)
+ensemble_power = statistical_power(y_test, combined_discoveries)
 
 print(f"\nEnsemble with FDR Control:")
 print(f"Discoveries: {combined_discoveries.sum()}")
-print(f"True Positives: {ensemble_true_pos}")
-print(f"False Positives: {ensemble_false_pos}")
-print(f"Precision: {ensemble_precision:.3f}")
-print(f"Empirical FDR: {ensemble_false_pos / max(1, combined_discoveries.sum()):.3f}")
+print(f"Empirical FDR: {ensemble_fdr:.3f}")
+print(f"Statistical Power: {ensemble_power:.3f}")
 ```
 
 ## Visualization
@@ -298,41 +283,34 @@ plt.show()
 ## Power Analysis
 
 ```python
-# Analyze statistical power under different scenarios
-effect_sizes = [0.5, 1.0, 1.5, 2.0]  # Distance between normal and anomaly centers
+# Analyze statistical power at different FDR levels using benchmark data
+alpha_levels = [0.01, 0.05, 0.1, 0.2]
 power_results = {}
 
-for effect_size in effect_sizes:
-    # Generate data with specified effect size
-    X_norm = np.random.normal(0, 1, (500, 2))
-    X_anom = np.random.normal(effect_size, 1, (100, 2))
-    X_test = np.vstack([X_norm, X_anom])
-    y_test = np.hstack([np.zeros(500), np.ones(100)])
+# Use benchmark data loaded in Setup
+detector = ConformalDetector(
+    detector=LOF(contamination=0.1),
+    strategy=Split(n_calib=0.2),
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+detector.fit(X)
+p_vals = detector.predict(X_test, raw=False)
 
-    # Fit detector and get p-values
-    detector = ConformalDetector(
-        detector=LOF(contamination=0.1),
-        strategy=Split(n_calib=0.2),
-        aggregation=Aggregation.MEDIAN,
-        seed=42
-    )
-    detector.fit(X_norm)
-    p_vals = detector.predict(X_test, raw=False)
+for alpha in alpha_levels:
+    # Apply FDR control at different significance levels
+    adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=alpha)
+    discoveries = adj_p_vals < alpha
 
-    # Apply FDR control
-    adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
-    discoveries = adj_p_vals < 0.05
-
-    # Calculate power (true positive rate)
-    power = np.sum(discoveries & (y_test == 1)) / np.sum(y_test == 1)
-    power_results[effect_size] = power
+    # Calculate power using nonconform's statistical_power
+    power_results[alpha] = statistical_power(y_test, discoveries)
 
 print("\nPower Analysis:")
 print("-" * 30)
-print(f"{'Effect Size':<12} {'Power':<8}")
+print(f"{'Alpha Level':<12} {'Power':<8}")
 print("-" * 30)
-for effect_size, power in power_results.items():
-    print(f"{effect_size:<12} {power:<8.3f}")
+for alpha, power in power_results.items():
+    print(f"{alpha:<12} {power:<8.3f}")
 ```
 
 ## Next Steps

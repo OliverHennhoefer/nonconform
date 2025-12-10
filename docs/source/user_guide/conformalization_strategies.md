@@ -2,6 +2,19 @@
 
 Calibration strategies with trade-offs between efficiency and robustness.
 
+## Quick Decision Guide
+
+| Dataset Size | Speed Priority | Recommendation |
+|-------------|----------------|----------------|
+| Large (>5,000) | Yes | `Split(n_calib=0.2)` |
+| Large (>5,000) | No | `CrossValidation(k=5)` |
+| Medium (500–5,000) | Any | `CrossValidation(k=5)` |
+| Small (<500) | Any | `CrossValidation.jackknife()` or `JackknifeBootstrap(n_bootstraps=50)` |
+
+For detailed guidance, see [Choosing Strategies](choosing_strategies.md).
+
+---
+
 ## Available Strategies
 
 ### Split Strategy

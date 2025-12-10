@@ -1,98 +1,86 @@
-# Statistical Concepts in nonconform
+# Statistical Concepts Quick Reference
 
-This guide explains the key statistical concepts that underpin nonconform's functionality.
+A quick reference for the key statistical terms used throughout nonconform. For detailed explanations and mathematical foundations, see [Understanding Conformal Inference](conformal_inference.md).
 
-## Conformal Inference
+---
 
-Conformal inference is a framework for uncertainty quantification that provides valid prediction intervals and p-values without making strong distributional assumptions [[Vovk et al., 2005](#references); [Angelopoulos & Bates, 2023](#references)]. In the context of anomaly detection [[Bates et al., 2023](#references)], it allows us to:
+## P-values
 
-1. Convert raw anomaly scores into statistically valid p-values
-2. Control false discovery rates at specified levels
-3. Provide uncertainty quantification for anomaly detection
+**What it is**: A number between 0 and 1 indicating how "extreme" an observation is compared to a reference distribution.
 
-### Exchangeability
+**In nonconform**: The p-value tells you the probability of seeing an anomaly score at least as extreme as this observation, assuming it's normal. Lower p-values = more likely to be an anomaly.
 
-The key assumption in conformal inference is exchangeability [[Vovk et al., 2005](#references)], which is weaker than independence. Data points are exchangeable if their joint distribution is invariant to permutations. This means:
+**Example**: A p-value of 0.02 means only 2% of normal observations would have a score this extreme.
 
-- The order of the data points doesn't matter
-- Each data point is treated equally in the analysis
-- The statistical guarantees hold under this assumption
+---
 
-### P-values in Anomaly Detection
+## False Discovery Rate (FDR)
 
-In nonconform, p-values represent the probability of observing a more extreme anomaly score under the null hypothesis (that the point is normal). Specifically:
+**What it is**: The expected proportion of false positives among all points you flag as anomalies.
 
-- Small p-values indicate strong evidence against the null hypothesis
-- Large p-values suggest the point is likely normal
-- The p-values are valid in the sense that under the null hypothesis, they are stochastically larger than uniform
+**Why it matters**: When you test many observations, some will look anomalous by chance. FDR control ensures that at most (say) 5% of your "discoveries" are actually false positives.
 
-## False Discovery Rate (FDR) Control
+**In nonconform**: Use `scipy.stats.false_discovery_control(p_values, method='bh')` to apply Benjamini-Hochberg FDR control.
 
-FDR control is a multiple testing procedure that limits the expected proportion of false discoveries among all discoveries [[Benjamini & Hochberg, 1995](#references)]. nonconform implements the Benjamini-Hochberg procedure, which:
+---
 
-1. Controls FDR at a specified level α
-2. Is more powerful than family-wise error rate control
-3. Provides valid inference even when tests are dependent
+## Exchangeability
 
-### How FDR Control Works
+**What it is**: Data points are exchangeable if shuffling their order doesn't change their statistical properties.
 
-1. Sort p-values in ascending order
-2. Find the largest p-value that satisfies p(i) ≤ (i/m)α
-3. Reject all null hypotheses with p-values less than or equal to this threshold
+**Why it matters**: This is the key assumption for conformal prediction guarantees. If your calibration and test data are exchangeable, the p-values are valid.
 
-## Weighted Conformal p-values
+**When it holds**: Training and test data from the same source, collected the same way, without systematic changes over time.
 
-When the exchangeability assumption is violated (e.g., due to covariate shift), weighted conformal p-values can be used [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. These:
+**When it's violated**: Distribution shift, temporal drift, or different data collection procedures between training and test.
 
-1. Account for differences between training and test distributions
-2. Maintain statistical validity under weaker assumptions
-3. Can improve power in the presence of distributional shifts
+---
 
-## Calibration and Validation
+## Calibration Set
 
-The calibration process in nonconform involves:
+**What it is**: A held-out portion of training data used to compute reference anomaly scores.
 
-1. Splitting the data into training and calibration sets
-2. Computing nonconformity scores on the calibration set
-3. Using these scores to calibrate the p-values for new observations
+**Why it matters**: The calibration set provides the "baseline" for computing p-values. Test scores are compared against calibration scores.
 
-This process ensures that the resulting p-values are valid and can be used for statistical inference.
+**How big should it be**: Generally 100+ samples for reliable p-values. Larger is better, but diminishing returns after ~1000.
 
-## Statistical Guarantees
+---
 
-nonconform provides the following statistical guarantees:
+## Statistical Power
 
-1. **Marginal Validity**: P-values are valid marginally over the calibration set
-2. **FDR Control**: The Benjamini-Hochberg procedure controls FDR at the specified level
-3. **Power**: The methods are designed to maximize power while maintaining validity
+**What it is**: The proportion of true anomalies that you successfully detect.
 
-## Best Practices
+**In nonconform**: Use `statistical_power(y_true, predictions)` to measure this.
 
-For optimal statistical performance:
+**Trade-off**: Higher power (detecting more anomalies) often means higher FDR (more false positives). Choose your FDR threshold based on the cost of false positives vs. missed anomalies.
 
-1. Use sufficient calibration data (typically >1000 points)
-2. Ensure the calibration data is representative of the normal class
-3. Consider using resampling strategies in low-data regimes
-4. Use weighted conformal p-values when dealing with distributional shifts
-5. Validate the exchangeability assumption when possible
+---
+
+## Covariate Shift
+
+**What it is**: When the feature distribution P(X) differs between training and test data, but the relationship P(Y|X) stays the same.
+
+**Example**: Training on data from Sensor A, testing on data from Sensor B (different readings, same underlying physics).
+
+**Solution**: Use weighted conformal prediction to adjust for the distribution difference. See [Weighted Conformal](weighted_conformal.md).
+
+---
+
+## Key Relationships
+
+| Concept | Controls | Affected by |
+|---------|----------|-------------|
+| **p-value** | False positive rate (per test) | Calibration set size, detector quality |
+| **FDR** | False positives among discoveries | p-value validity, number of tests |
+| **Power** | True positive rate | FDR threshold, detector quality |
+| **Exchangeability** | p-value validity | Data collection process, distribution shift |
+
+---
 
 ## References
 
-- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [Foundational theory of conformal prediction and exchangeability]
+For full mathematical foundations and proofs:
 
-- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Application of conformal prediction to anomaly detection]
-
-- **Angelopoulos, A. N., & Bates, S. (2023)**. *Conformal Prediction: A Gentle Introduction*. Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive modern introduction to conformal prediction]
-
-- **Benjamini, Y., & Hochberg, Y. (1995)**. *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing*. Journal of the Royal Statistical Society: Series B, 57(1), 289-300. [FDR control methodology]
-
-- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal inference under covariate shift]
-
-- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with distribution shift]
-
-## Next Steps
-
-- See [conformal inference](conformal_inference.md) for detailed theoretical foundations
-- Learn about [weighted conformal p-values](weighted_conformal.md) for handling distribution shift
-- Explore [conformalization strategies](conformalization_strategies.md) for different data scenarios
-- Check [input validation](input_validation.md) for parameter constraints 
+- [Understanding Conformal Inference](conformal_inference.md) – Complete theory guide
+- [FDR Control](fdr_control.md) – Multiple testing in detail
+- [Weighted Conformal](weighted_conformal.md) – Handling distribution shift

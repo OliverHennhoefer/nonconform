@@ -623,7 +623,7 @@ weight_est = BootstrapBaggedWeightEstimator(
 )
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=1000),  # Large historical calibration
     aggregation=Aggregation.MEDIAN,
     weight_estimator=weight_est,

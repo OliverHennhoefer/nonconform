@@ -1,12 +1,10 @@
 # Installation
 
-Install nonconform with pip or uv.
-
 ## Prerequisites
 
 - Python 3.12 or higher
 
-## Installation
+## Basic Installation
 
 === "pip"
     ```bash
@@ -18,54 +16,64 @@ Install nonconform with pip or uv.
     uv add nonconform
     ```
 
+This installs nonconform with its core dependencies (NumPy, SciPy, scikit-learn). You can use any scikit-learn compatible anomaly detector out of the box.
+
 ## Optional Dependencies
 
-Available extras: `[pyod]`, `[data]`, `[fdr]`, `[all]`.
+nonconform offers optional extras for specific use cases:
 
-- `[pyod]`: PyOD detector support
-- `[data]`: Benchmark datasets via `oddball` + `pyarrow`
-- `[fdr]`: Online False Discovery Rate control (`online-fdr`)
-- `[all]`: All optional extras (`nonconform[pyod,data,fdr]`)
+| Extra | What it adds | Install when you need |
+|-------|-------------|----------------------|
+| `[pyod]` | [PyOD](https://pyod.readthedocs.io/) library | Access to 40+ anomaly detection algorithms (Isolation Forest, LOF, KNN, etc.) |
+| `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) + PyArrow | Benchmark datasets for experimentation and testing |
+| `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Streaming/online FDR control for real-time applications |
+| `[all]` | All of the above | Full functionality |
 
-### Installing with Specific Dependencies
+### Installing Extras
 
 === "pip"
     ```bash
-    # With PyOD support
-    pip install "nonconform[pyod]"
+    # Most common: PyOD detectors + benchmark datasets
+    pip install "nonconform[pyod,data]"
 
-    # With datasets support
-    pip install "nonconform[data]"
-
-    # With online FDR control
-    pip install "nonconform[fdr]"
-
-    # All optional dependencies
+    # Full installation with all extras
     pip install "nonconform[all]"
     ```
 
 === "uv"
     ```bash
-    # With PyOD support
-    uv add "nonconform[pyod]"
+    # Most common: PyOD detectors + benchmark datasets
+    uv add "nonconform[pyod,data]"
 
-    # With datasets support
-    uv add "nonconform[data]"
-
-    # With online FDR control
-    uv add "nonconform[fdr]"
-
-    # All optional dependencies
+    # Full installation with all extras
     uv add "nonconform[all]"
     ```
 
-!!! note "Dataset Caching"
-    Datasets download automatically on first use and cache both in memory and on disk (`~/.cache/nonconform/`) for faster subsequent access.
+### Which Extras Do You Need?
 
-## Get Started
+**For most users**, we recommend:
 
-You're ready to detect anomalies.
+```bash
+pip install "nonconform[pyod,data]"
+```
+
+This gives you:
+
+- **PyOD**: A large library of anomaly detection algorithms. Most examples in the documentation use PyOD detectors.
+- **Data**: Benchmark datasets for experimentation. Useful for learning and testing before applying to your own data.
+
+**Add `[fdr]`** if you need:
+
+- Real-time anomaly detection with streaming FDR control
+- Sequential testing over time
+
+## Verify Installation
 
 ```python
 import nonconform
+print(nonconform.__version__)
 ```
+
+## Next Steps
+
+Head to the [Quick Start](quickstart.md) to see nonconform in action.

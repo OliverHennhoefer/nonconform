@@ -7,7 +7,7 @@ from nonconform import ConformalDetector, Split, false_discovery_rate, statistic
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
 ce = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=1_000),
 )
 

@@ -1,10 +1,44 @@
 # False Discovery Rate Control
 
-Use FDR control in `nonconform` for multiple testing. For exchangeable data, use `scipy.stats.false_discovery_control`. For weighted conformal p-values under covariate shift, use `weighted_false_discovery_control` to maintain guarantees.
+## What is FDR and Why Does It Matter?
 
-## Overview
+When you test many observations for anomalies, some will look anomalous by chance—even if they're perfectly normal. If you test 1,000 observations at a 5% significance level, you'd expect about 50 false positives purely by chance.
 
-FDR control handles multiple hypothesis testing by adjusting thresholds to maintain a target false discovery proportion, rather than using a fixed α for all tests.
+**False Discovery Rate (FDR)** is the proportion of false positives among all the observations you flag as anomalies:
+
+$$\text{FDR} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
+
+**FDR control** adjusts your threshold so that this proportion stays below a target level (e.g., 5%). This is different from controlling the false positive *rate* per test—it controls the proportion of mistakes among your actual decisions.
+
+!!! example "Example"
+    You flag 100 observations as anomalies with FDR controlled at 5%. This means at most 5 of those 100 are expected to be false positives. Without FDR control, you might have flagged 200 observations with 50 being false positives (25% FDR).
+
+---
+
+## Quick Start
+
+For standard conformal p-values (exchangeable data), use `scipy.stats.false_discovery_control`:
+
+```python
+from scipy.stats import false_discovery_control
+
+decisions = false_discovery_control(p_values, method='bh') < 0.05
+```
+
+For weighted conformal p-values (covariate shift), use `weighted_false_discovery_control`:
+
+```python
+from nonconform import weighted_false_discovery_control, Pruning
+
+decisions = weighted_false_discovery_control(
+    result=detector.last_result,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42
+)
+```
+
+---
 
 ## Basic Usage
 
@@ -49,7 +83,7 @@ from nonconform import (
 from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(random_state=1),
     strategy=JackknifeBootstrap(n_bootstraps=50),
     weight_estimator=logistic_weight_estimator(),
     seed=1,
@@ -222,42 +256,33 @@ print(f"Weighted detections: {weighted_mask.sum()}")
 
 ## Performance Evaluation
 
-Evaluate the effectiveness of FDR control:
+Evaluate the effectiveness of FDR control using nonconform's built-in metrics:
 
 ```python
+from scipy.stats import false_discovery_control
+from nonconform import false_discovery_rate, statistical_power
+
 def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     """Evaluate FDR control performance."""
     # Apply FDR control
     adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
     discoveries = adjusted_p_vals < alpha
 
-    # Calculate metrics
-    true_positives = np.sum(discoveries & (true_labels == 1))
-    false_positives = np.sum(discoveries & (true_labels == 0))
-
-    if discoveries.sum() > 0:
-        empirical_fdr = false_positives / discoveries.sum()
-        precision = true_positives / discoveries.sum()
-    else:
-        empirical_fdr = 0
-        precision = 0
-
-    recall = true_positives / np.sum(true_labels == 1) if np.sum(true_labels == 1) > 0 else 0
+    # Calculate metrics using nonconform functions
+    empirical_fdr = false_discovery_rate(true_labels, discoveries)
+    power = statistical_power(true_labels, discoveries)
 
     return {
         'discoveries': discoveries.sum(),
-        'true_positives': true_positives,
-        'false_positives': false_positives,
         'empirical_fdr': empirical_fdr,
-        'precision': precision,
-        'recall': recall
+        'power': power
     }
 
 # Example usage
 results = evaluate_fdr_control(p_values, y_true, alpha=0.05)
+print(f"Discoveries: {results['discoveries']}")
 print(f"Empirical FDR: {results['empirical_fdr']:.3f}")
-print(f"Precision: {results['precision']:.3f}")
-print(f"Recall: {results['recall']:.3f}")
+print(f"Statistical Power: {results['power']:.3f}")
 ```
 
 ## Best Practices

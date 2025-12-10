@@ -1,6 +1,25 @@
 # Weighted Conformal P-values
 
-This guide explains how to use weighted conformal p-values in `nonconform` for handling distribution shift and covariate shift scenarios.
+Handle distribution shift between training and test data while maintaining statistical guarantees.
+
+!!! abstract "Executive Summary"
+    **When to use**: Your test data comes from a different distribution than your training data (e.g., different time period, different sensor, different domain).
+
+    **How it works**: Weighted conformal prediction estimates how much the distributions differ and reweights the calibration data accordingly.
+
+    **Quick start**:
+    ```python
+    from nonconform import ConformalDetector, Split, logistic_weight_estimator
+
+    detector = ConformalDetector(
+        detector=your_detector,
+        strategy=Split(n_calib=0.3),
+        weight_estimator=logistic_weight_estimator(),  # Add this
+        seed=42
+    )
+    ```
+
+    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same.
 
 ## Overview
 
@@ -418,7 +437,7 @@ weight_est = BootstrapBaggedWeightEstimator(
 )
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=1000),  # Large calibration set
     aggregation=Aggregation.MEDIAN,
     weight_estimator=weight_est,

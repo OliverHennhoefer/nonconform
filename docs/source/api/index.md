@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for all Nonconform modules and classes.
+Complete API documentation for all nonconform modules and classes.
 
 ## Detector
 

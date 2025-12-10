@@ -72,7 +72,7 @@ from pyod.models.iforest import IForest
 from nonconform import ConformalDetector, Split
 
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(random_state=42),
     strategy=Split(n_calib=0.3),
     seed=42
 )
@@ -82,7 +82,7 @@ p_values = detector.predict(X_test)
 
 ### Automatic Configuration
 
-Nonconform automatically adjusts PyOD detector parameters for one-class classification:
+nonconform automatically adjusts PyOD detector parameters for one-class classification:
 
 - `contamination` → set to minimal value
 - `n_jobs` → set to `-1` (use all cores)

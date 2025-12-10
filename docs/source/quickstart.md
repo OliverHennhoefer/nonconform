@@ -1,251 +1,322 @@
-# Quickstart Guide
+# Quick Start
 
 Get started with nonconform in minutes.
 
-## Benchmark Datasets (via oddball)
+## What You'll Learn
 
-For quick experimentation, use `oddball`, which provides benchmark anomaly detection datasets. Install it via `pip install oddball` or `pip install "nonconform[data]"` to pull it in as an optional extra.
+By the end of this guide, you'll know how to:
 
-```python
-from oddball import Dataset, load
+1. Wrap any anomaly detector to get statistically valid p-values
+2. Use FDR control to make principled anomaly detection decisions
+3. Choose between different calibration strategies
+4. Handle distribution shift with weighted conformal methods
 
-# Load a dataset - automatically downloads and caches through oddball
-x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
+**Prerequisites**: Familiarity with Python and basic anomaly detection concepts. No prior knowledge of conformal prediction required.
 
-print(f"Training data shape: {x_train.shape}")
-print(f"Test data shape: {x_test.shape}")
-print(f"Anomaly ratio in test set: {y_test.mean():.2%}")
-```
+---
 
-!!! info "Dataset Caching"
-    Datasets download on first use and cache both in memory and on disk for faster subsequent loads.
+## Your First Conformal Detector
 
-Available datasets: Use `load(Dataset.DATASET_NAME)` where DATASET_NAME can be `BREASTW`, `FRAUD`, `IONOSPHERE`, `MAMMOGRAPHY`, `MUSK`, `SHUTTLE`, `THYROID`, `WBC`, and more (see `oddball.list_available()`).
-
-## Basic Usage
-
-### 1. Classical Conformal Anomaly Detection
-
-Classical conformal anomaly detection:
+Let's start with a simple example that shows the core workflow:
 
 ```python
 import numpy as np
 from pyod.models.iforest import IForest
-from sklearn.datasets import make_blobs
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
 
-# Generate some example data
-X_normal, _ = make_blobs(n_samples=1000, centers=1, random_state=42)
-X_test, _ = make_blobs(n_samples=100, centers=1, random_state=123)
+from nonconform import ConformalDetector, Split
 
-# Add some anomalies to test set
-X_anomalies = np.random.uniform(-10, 10, (20, X_test.shape[1]))
-X_test = np.vstack([X_test, X_anomalies])
+# Step 1: Load benchmark data
+from oddball import Dataset, load
 
-# Initialize base detector
-base_detector = IForest(behaviour="new", random_state=42)
+# Training data contains only "normal" observations
+# Test data contains both normal and anomalous observations with ground truth labels
+X_train, X_test, y_true = load(Dataset.SHUTTLE, setup=True, seed=42)
 
-# Create conformal anomaly detector with split strategy
-strategy = Split(n_calib=0.3)
+# Step 2: Wrap your detector with nonconform
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    detector=IForest(random_state=42),  # Any anomaly detector
+    strategy=Split(n_calib=0.3),         # Use 30% of training data for calibration
     seed=42
 )
 
-# Fit on normal data
-detector.fit(X_normal)
+# Step 3: Fit on normal data
+detector.fit(X_train)
 
-# Get p-values for test instances
-p_values = detector.predict(X_test, raw=False)
+# Step 4: Get p-values for test observations
+# Low p-values indicate likely anomalies
+p_values = detector.predict(X_test)
 
-# Apply FDR control (Benjamini-Hochberg)
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# Step 5: Apply FDR control to make decisions
+# This ensures at most 5% of your "discoveries" are false positives
+decisions = false_discovery_control(p_values, method='bh') < 0.05
 
-print(f"P-values range: {p_values.min():.4f} - {p_values.max():.4f}")
-print(f"Discoveries with FDR control: {discoveries.sum()}")
-
-# Get indices of discovered anomalies
-anomaly_indices = np.where(discoveries)[0]
-print(f"Discovered anomaly indices: {anomaly_indices}")
+print(f"Flagged {decisions.sum()} anomalies out of {len(X_test)} observations")
 ```
 
-### 3. Resampling-based Strategies
+**What just happened?**
 
-For small datasets, use resampling-based strategies:
+1. We trained an Isolation Forest on normal data
+2. nonconform split some of that data for **calibration**—computing reference scores to compare against
+3. For each test observation, nonconform computed a **p-value**: the probability of seeing a score this extreme if the observation were normal
+4. FDR control adjusted these p-values to account for multiple testing, ensuring our false positive rate is controlled
+
+---
+
+## Loading Benchmark Datasets
+
+For experimentation, use the `oddball` package which provides standard anomaly detection benchmarks:
+
+```bash
+pip install "nonconform[data]"
+```
 
 ```python
-from nonconform import CrossValidation, JackknifeBootstrap
+from oddball import Dataset, load
 
-# Cross-Validation Conformal Anomaly Detection
-cv_strategy = CrossValidation(k=5)
-cv_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=cv_strategy,
-    aggregation=Aggregation.MEDIAN,
-    seed=42
-)
-cv_detector.fit(X_normal)
-cv_p_values = cv_detector.predict(X_test, raw=False)
+# Load a dataset - automatically downloads and caches
+x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
 
-# Jackknife+-after-Bootstrap (JaB+) Strategy
-jab_strategy = JackknifeBootstrap(n_bootstraps=50)
-jab_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
-    seed=42
-)
-jab_detector.fit(X_normal)
-jab_p_values = jab_detector.predict(X_test, raw=False)
-
-# Apply FDR control to all strategies for fair comparison
-split_discoveries = false_discovery_control(p_values, method='bh') < 0.05
-cv_discoveries = false_discovery_control(cv_p_values, method='bh') < 0.05
-jab_discoveries = false_discovery_control(jab_p_values, method='bh') < 0.05
-
-print("Comparison of strategies (with FDR control):")
-print(f"Split: {split_discoveries.sum()} discoveries")
-print(f"Cross-Validation: {cv_discoveries.sum()} discoveries")
-print(f"JaB+: {jab_discoveries.sum()} discoveries")
+print(f"Training samples: {len(x_train)}")
+print(f"Test samples: {len(x_test)}")
+print(f"Anomaly rate: {y_test.mean():.1%}")
 ```
 
-## Weighted Conformal p-values
+!!! info "Available Datasets"
+    Common benchmarks include `BREASTW`, `SHUTTLE`, `THYROID`, `IONOSPHERE`, `MAMMOGRAPHY`, and more. See `oddball.list_available()` for the full list.
 
-For covariate shift, use weighted conformal p-values:
+---
+
+## Evaluating Results
+
+nonconform provides metrics to evaluate your anomaly detection performance:
+
+```python
+from scipy.stats import false_discovery_control
+
+from nonconform import (
+    Aggregation,
+    ConformalDetector,
+    Split,
+    false_discovery_rate,
+    statistical_power,
+)
+from oddball import Dataset, load
+from pyod.models.iforest import IForest
+
+# Load data
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
+
+# Create and fit detector
+detector = ConformalDetector(
+    detector=IForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+detector.fit(x_train)
+
+# Get p-values and apply FDR control
+p_values = detector.predict(x_test)
+decisions = false_discovery_control(p_values, method='bh') < 0.05
+
+# Evaluate performance
+fdr = false_discovery_rate(y_test, decisions)   # Proportion of false positives among discoveries
+power = statistical_power(y_test, decisions)     # Proportion of true anomalies detected
+
+print(f"Discoveries: {decisions.sum()}")
+print(f"False Discovery Rate: {fdr:.3f}")  # Target: ≤ 0.05
+print(f"Statistical Power: {power:.3f}")   # Higher is better
+```
+
+**Key metrics explained:**
+
+- **False Discovery Rate (FDR)**: Among the observations you flagged as anomalies, what fraction are actually normal? With FDR control at 5%, this should be ≤ 0.05.
+- **Statistical Power**: Among all true anomalies, what fraction did you detect? Higher power means fewer missed anomalies.
+
+---
+
+## Choosing a Calibration Strategy
+
+nonconform offers several strategies for splitting data between training and calibration. The choice affects both accuracy and computational cost.
+
+```python
+from scipy.stats import false_discovery_control
+
+from nonconform import (
+    Aggregation,
+    ConformalDetector,
+    CrossValidation,
+    JackknifeBootstrap,
+    Split,
+    false_discovery_rate,
+    statistical_power,
+)
+from oddball import Dataset, load
+from pyod.models.iforest import IForest
+
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
+base_detector = IForest(random_state=42)
+
+# Strategy 1: Split (fastest, good for large datasets)
+# Reserves 30% of training data for calibration
+split_detector = ConformalDetector(
+    detector=base_detector,
+    strategy=Split(n_calib=0.3),
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+
+# Strategy 2: Cross-Validation (more data-efficient)
+# Uses k-fold CV to get calibration scores from all training data
+cv_detector = ConformalDetector(
+    detector=base_detector,
+    strategy=CrossValidation(k=5),
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+
+# Strategy 3: Jackknife+-after-Bootstrap (most robust)
+# Bootstrap resampling for uncertainty quantification
+jab_detector = ConformalDetector(
+    detector=base_detector,
+    strategy=JackknifeBootstrap(n_bootstraps=50),
+    aggregation=Aggregation.MEDIAN,
+    seed=42
+)
+
+# Compare strategies
+for name, det in [("Split", split_detector), ("CV", cv_detector), ("JaB+", jab_detector)]:
+    det.fit(x_train)
+    p_values = det.predict(x_test)
+    decisions = false_discovery_control(p_values, method='bh') < 0.05
+    fdr = false_discovery_rate(y_test, decisions)
+    power = statistical_power(y_test, decisions)
+    print(f"{name:6s}: FDR={fdr:.3f}, Power={power:.3f}, Discoveries={decisions.sum()}")
+```
+
+**Which strategy should you use?**
+
+| Scenario | Recommended Strategy |
+|----------|---------------------|
+| Large dataset (>5,000 samples) | `Split` — fast and sufficient |
+| Medium dataset (500–5,000 samples) | `CrossValidation` — more data-efficient |
+| Small dataset (<500 samples) | `JackknifeBootstrap` — most robust |
+| Need maximum accuracy | `CrossValidation` or `JackknifeBootstrap` |
+| Need fastest inference | `Split` |
+
+---
+
+## Handling Distribution Shift
+
+If your test data comes from a different distribution than your training data (called **covariate shift**), use weighted conformal prediction:
 
 ```python
 from nonconform import (
+    Aggregation,
     ConformalDetector,
     Pruning,
     Split,
+    false_discovery_rate,
     logistic_weight_estimator,
+    statistical_power,
     weighted_false_discovery_control,
 )
+from oddball import Dataset, load
+from pyod.models.iforest import IForest
 
-# Create weighted conformal anomaly detector
-weighted_strategy = Split(n_calib=0.3)
-weighted_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=weighted_strategy,
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
+
+# Add a weight estimator to handle distribution shift
+detector = ConformalDetector(
+    detector=IForest(random_state=42),
+    strategy=Split(n_calib=0.3),
     aggregation=Aggregation.MEDIAN,
-    weight_estimator=logistic_weight_estimator(),  # (1)
+    weight_estimator=logistic_weight_estimator(),  # Estimates distribution shift
     seed=42
 )
-weighted_detector.fit(X_normal)
+detector.fit(x_train)
 
 # Get weighted p-values
-# The detector automatically estimates importance weights internally
-weighted_p_values = weighted_detector.predict(X_test, raw=False)
+p_values = detector.predict(x_test)
 
-print(f"Weighted p-values range: {weighted_p_values.min():.4f} - {weighted_p_values.max():.4f}")
-
-# Apply Weighted Conformal Selection for FDR control
-selected = weighted_false_discovery_control(
-    result=weighted_detector.last_result,  # (2)
+# Use weighted FDR control (designed for weighted conformal)
+decisions = weighted_false_discovery_control(
+    result=detector.last_result,
     alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
 )
 
-print(f"Weighted FDR-controlled detections: {selected.sum()}")
+print(f"Discoveries: {decisions.sum()}")
+print(f"FDR: {false_discovery_rate(y_test, decisions):.3f}")
+print(f"Power: {statistical_power(y_test, decisions):.3f}")
 ```
 
-1. Factory function returns a configured weight estimator
-2. `last_result` bundles cached scores and weights for downstream analysis
+!!! warning "When to Use Weighted Conformal"
+    Use weighted conformal when:
 
-!!! warning "Covariate Shift Assumption"
-    Weighted conformal methods assume P(Y|X) remains stable while only P(X) changes. Ensure density ratios can be reliably estimated.
+    - Your test data is from a different time period than training data
+    - There's domain shift (e.g., training on one sensor, testing on another)
+    - The feature distributions differ between training and test
+
+    The method assumes the relationship between features and anomaly status (P(Y|X)) stays the same—only the feature distribution (P(X)) changes.
+
+---
 
 ## Using Different Detectors
 
-### PyOD Detectors
-
-nonconform works with any PyOD detector (install with `pip install "nonconform[pyod]"`):
+nonconform works with any detector from PyOD, scikit-learn, or your own custom implementation:
 
 ```python
+from scipy.stats import false_discovery_control
+
+from nonconform import (
+    Aggregation,
+    ConformalDetector,
+    Split,
+    false_discovery_rate,
+    statistical_power,
+)
+from oddball import Dataset, load
 from pyod.models.knn import KNN
 from pyod.models.lof import LOF
 from pyod.models.ocsvm import OCSVM
-from nonconform import Aggregation, ConformalDetector, Split
 
-# Try different PyOD detectors
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
+
+# Try different base detectors
 detectors = {
     'KNN': KNN(),
     'LOF': LOF(),
     'OCSVM': OCSVM()
 }
 
-strategy = Split(n_calib=0.3)
-results = {}
-
 for name, base_det in detectors.items():
     detector = ConformalDetector(
         detector=base_det,
-        strategy=strategy,
+        strategy=Split(n_calib=0.3),
         aggregation=Aggregation.MEDIAN,
         seed=42
     )
-    detector.fit(X_normal)
-    p_vals = detector.predict(X_test, raw=False)
-    # Apply FDR control before counting discoveries
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
-    results[name] = disc.sum()
-    print(f"{name}: {disc.sum()} discoveries")
+    detector.fit(x_train)
+    p_values = detector.predict(x_test)
+    decisions = false_discovery_control(p_values, method='bh') < 0.05
+    fdr = false_discovery_rate(y_test, decisions)
+    power = statistical_power(y_test, decisions)
+    print(f"{name:6s}: FDR={fdr:.3f}, Power={power:.3f}")
 ```
 
-### Custom Detectors
+See [Detector Compatibility](user_guide/detector_compatibility.md) for custom detector implementations.
 
-Any detector implementing `AnomalyDetector` works. See [Detector Compatibility](user_guide/detector_compatibility.md) for custom implementations.
-
-## Complete Example
-
-```python
-import numpy as np
-import matplotlib.pyplot as plt
-from pyod.models.iforest import IForest
-from sklearn.datasets import make_blobs
-from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
-
-# Generate data
-np.random.seed(42)
-X_normal, _ = make_blobs(n_samples=500, centers=1, cluster_std=1.0, random_state=42)
-X_test_normal, _ = make_blobs(n_samples=80, centers=1, cluster_std=1.0, random_state=123)
-X_test_anomalies = np.random.uniform(-6, 6, (20, 2))
-X_test = np.vstack([X_test_normal, X_test_anomalies])
-
-# True labels (0 = normal, 1 = anomaly)
-y_true = np.hstack([np.zeros(80), np.ones(20)])
-
-# Setup and fit detector
-base_detector = IForest(behaviour="new", random_state=42)
-strategy = Split(n_calib=0.3)
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
-    seed=42
-)
-detector.fit(X_normal)
-
-# Get p-values and apply FDR control
-p_values = detector.predict(X_test, raw=False)
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
-
-# Evaluate results using nonconform metrics
-print(f"Results with FDR control at 5%:")
-print(f"Discoveries: {discoveries.sum()}")
-print(f"Empirical FDR: {false_discovery_rate(y=y_true, y_hat=discoveries):.3f}")
-print(f"Statistical Power: {statistical_power(y=y_true, y_hat=discoveries):.3f}")
-```
+---
 
 ## Next Steps
 
-- Read the [User Guide](user_guide/conformal_inference.md) for detailed explanations
-- Check out the [Examples](examples/index.md) for more complex use cases
-- Explore the [API Reference](api/index.md) for detailed documentation
+You now know the basics of conformal anomaly detection. To go deeper:
+
+- **[Understanding Conformal Inference](user_guide/conformal_inference.md)** — Learn the theory behind p-values and statistical guarantees
+- **[Choosing Strategies](user_guide/choosing_strategies.md)** — Detailed guidance on strategy selection
+- **[FDR Control](user_guide/fdr_control.md)** — More on multiple testing and FDR control methods
+- **[Examples](examples/index.md)** — Complete worked examples for different scenarios
+- **[API Reference](api/index.md)** — Full documentation of all classes and functions

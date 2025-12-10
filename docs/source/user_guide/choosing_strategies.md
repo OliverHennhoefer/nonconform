@@ -4,7 +4,7 @@ This guide helps you select the optimal calibration strategy for your conformal 
 
 ## Strategy Overview
 
-Nonconform provides four calibration strategies, each with distinct trade-offs:
+nonconform provides four calibration strategies, each with distinct trade-offs:
 
 | Strategy | Speed | Accuracy | Data Efficiency | Best For |
 |----------|-------|----------|-----------------|----------|

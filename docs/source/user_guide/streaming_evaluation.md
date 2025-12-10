@@ -84,7 +84,7 @@ online_gen = OnlineGenerator(
 # Train detector
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
@@ -143,7 +143,7 @@ online_gen = OnlineGenerator(
 
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
@@ -218,7 +218,7 @@ online_gen = OnlineGenerator(
 
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
@@ -271,7 +271,7 @@ online_gen = OnlineGenerator(
 
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
@@ -352,7 +352,7 @@ online_gen = OnlineGenerator(
 
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)
@@ -497,7 +497,7 @@ online_gen = OnlineGenerator(
 
 x_train = online_gen.get_training_data()
 detector = ConformalDetector(
-    detector=IForest(behaviour="new"),
+    detector=IForest(),
     strategy=Split(n_calib=0.3)
 )
 detector.fit(x_train)

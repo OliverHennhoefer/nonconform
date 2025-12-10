@@ -2,6 +2,15 @@
 
 Learn the theoretical foundations of conformal inference for anomaly detection.
 
+!!! abstract "TL;DR"
+    **Conformal inference converts anomaly scores into p-values with statistical guarantees.**
+
+    - **The problem**: Traditional detectors output arbitrary scores with no principled threshold
+    - **The solution**: Compare each test point's score against a calibration set to compute a p-value
+    - **The guarantee**: If a point is truly normal, its p-value is uniformly distributed—so a threshold of 0.05 gives exactly 5% false positives
+    - **Key assumption**: Training and test data must be **exchangeable** (roughly: drawn from the same distribution)
+    - **For distribution shift**: Use weighted conformal prediction to adjust for differences between training and test distributions
+
 ## What is Conformal Inference?
 
 Conformal inference is a framework for creating prediction intervals or hypothesis tests with finite-sample validity guarantees [[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In the context of anomaly detection, it transforms raw anomaly scores into statistically valid p-values [[Bates et al., 2023](#references)].
@@ -61,6 +70,8 @@ $$p_{classical}(X_{test}) = \frac{1 + \sum_{i=1}^{n} \mathbf{1}\{s(X_i) \geq s(X
 
 where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
+**In plain English**: The p-value is the fraction of calibration points that have scores at least as extreme as the test point. If 5 out of 100 calibration points have higher scores than your test point, the p-value is (1+5)/(100+1) ≈ 0.06. The "+1" terms ensure the p-value is never exactly 0 and accounts for the test point itself.
+
 ### Statistical Validity
 
 !!! tip "Key Property"
@@ -90,6 +101,8 @@ The p-value answers: "If this instance were normal, what's the probability of a 
 Exchangeability is weaker than the i.i.d. assumption [[Vovk et al., 2005](#references)]. A sequence of random variables $(X_1, X_2, \ldots, X_n)$ is exchangeable if their joint distribution is invariant to permutations. Formally, for any permutation $\pi$ of $\{1, 2, \ldots, n\}$:
 
 $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(n)} \leq x_n)$$
+
+**In plain English**: Exchangeability means "the order doesn't matter." If you shuffled your data points randomly, the statistical properties would be the same. This is weaker than requiring the data to be independent—it just requires that no observation is systematically different from the others.
 
 **Key insight for conformal prediction**: Under exchangeability, if we add a new observation $X_{n+1}$ from the same distribution, then $(X_1, \ldots, X_n, X_{n+1})$ remains exchangeable [[Angelopoulos & Bates, 2023](#references)]. This means that $X_{n+1}$ is equally likely to have the $k$-th largest value among all $n+1$ observations for any $k \in \{1, \ldots, n+1\}$.
 
@@ -236,7 +249,13 @@ detector = ConformalDetector(
 ```
 
 !!! info "Leave-One-Out (Jackknife)"
-    For leave-one-out cross-validation, use `CrossValidation(k=n)` where `n` is your dataset size, or simply use a high `k` value like `CrossValidation(k=len(X_train))`.
+    For leave-one-out cross-validation, use the `CrossValidation.jackknife()` factory method which handles this automatically. Alternatively, use `CrossValidation(k=n)` where `n` is your dataset size.
+
+    ```python
+    # Recommended: use factory method
+    strategy = CrossValidation.jackknife(plus=True)  # Jackknife+
+    strategy = CrossValidation.jackknife(plus=False)  # Standard Jackknife
+    ```
 
 ## Common Pitfalls and Solutions
 
