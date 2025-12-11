@@ -1,48 +1,12 @@
 """Unit tests for strategy/calibration/split.py."""
 
-from copy import deepcopy
-from typing import Any, Self
-
 import numpy as np
 import pytest
 
 from nonconform import Split
 
-
-class MockDetector:
-    """Mock detector for testing strategies."""
-
-    def __init__(self):
-        self._fitted = False
-        self._params = {"random_state": None, "n_jobs": 1, "contamination": 0.1}
-
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> Self:
-        self._fitted = True
-        self._training_size = len(X)
-        return self
-
-    def decision_function(self, X: np.ndarray) -> np.ndarray:
-        rng = np.random.default_rng()
-        return rng.standard_normal(len(X))
-
-    def get_params(self, deep: bool = True) -> dict[str, Any]:
-        return self._params.copy()
-
-    def set_params(self, **params: Any) -> Self:
-        self._params.update(params)
-        return self
-
-    def __copy__(self):
-        """Create shallow copy."""
-        new = MockDetector()
-        new._params = self._params.copy()
-        return new
-
-    def __deepcopy__(self, memo):
-        """Create deep copy."""
-        new = MockDetector()
-        new._params = deepcopy(self._params, memo)
-        return new
+# MockDetector is imported from tests/conftest.py via pytest fixture discovery
+from tests.conftest import MockDetector
 
 
 class TestSplitInit:

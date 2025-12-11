@@ -1,56 +1,12 @@
 """Unit tests for detector.py."""
 
-from copy import deepcopy
-from typing import Any, Self
-
 import numpy as np
 import pytest
 
 from nonconform import Aggregation, AnomalyDetector, ConformalDetector, Split
 
-
-class MockDetector:
-    """Mock anomaly detector for testing."""
-
-    def __init__(self, scores=None):
-        self._fitted = False
-        self._scores = scores if scores is not None else np.array([0.5])
-        self._params = {"random_state": None, "n_jobs": 1, "contamination": 0.1}
-
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> Self:
-        self._fitted = True
-        return self
-
-    def decision_function(self, X: np.ndarray) -> np.ndarray:
-        if self._scores is not None:
-            return (
-                self._scores[: len(X)]
-                if len(self._scores) >= len(X)
-                else np.tile(self._scores, len(X))[: len(X)]
-            )
-        rng = np.random.default_rng()
-        return rng.standard_normal(len(X))
-
-    def get_params(self, deep: bool = True) -> dict[str, Any]:
-        return self._params.copy()
-
-    def set_params(self, **params: Any) -> Self:
-        self._params.update(params)
-        return self
-
-    def __copy__(self):
-        """Create shallow copy."""
-        new = MockDetector(self._scores.copy() if self._scores is not None else None)
-        new._params = self._params.copy()
-        return new
-
-    def __deepcopy__(self, memo):
-        """Create deep copy."""
-        new = MockDetector(
-            deepcopy(self._scores, memo) if self._scores is not None else None
-        )
-        new._params = deepcopy(self._params, memo)
-        return new
+# MockDetector is imported from tests/conftest.py via pytest fixture discovery
+from tests.conftest import MockDetector
 
 
 class TestConformalDetectorInit:
