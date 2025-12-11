@@ -1174,7 +1174,7 @@ dev = [
     { name = "mkdocs" },
     { name = "mkdocs-material", extras = ["imaging"] },
     { name = "mkdocstrings", extras = ["python"] },
-    { name = "oddball", specifier = ">=1.3.0" },
+    { name = "oddball", specifier = ">=1.4.0" },
     { name = "pre-commit" },
     { name = "pyod", specifier = "==2.0.5" },
     { name = "pytest" },
@@ -1258,16 +1258,16 @@ wheels = [
 
 [[package]]
 name = "oddball"
-version = "1.3.0"
+version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e2/1e/a48a42b61de0049d1214de5c7756483af039a2174581b1504b424c11cecd/oddball-1.3.0.tar.gz", hash = "sha256:a42be5d401e51bdbe4866575834bea5ca488b5ac1c3ce345d94c81ff6a7e7d1c", size = 33718, upload-time = "2025-12-03T14:33:21.469Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d8/1d/5e779ff6c3dc0a8fd62386cfe0de3c63a1d06b548b0835b6c1ec1946d2ee/oddball-1.4.0.tar.gz", hash = "sha256:5508aee0bcd46f94ff33eaecf388b69795a396244a183a1c20e126d4d349ad8f", size = 34894, upload-time = "2025-12-11T16:05:33.713Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e9/14/0b1472ab32885fcd256cc60538d8a9fc8185096d3b2cb3d7ecdb2e3270b4/oddball-1.3.0-py3-none-any.whl", hash = "sha256:db003fc5492f24ce0b4a455a2a90c62f8030f8958e91502a97528ba454763316", size = 14272, upload-time = "2025-12-03T14:33:20.165Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/35/b75a075209116906744dfe96b1220ddaab3a981933816f450899ac56f359/oddball-1.4.0-py3-none-any.whl", hash = "sha256:b9809574d9042e98ab87b61b5c144f53ef809e0ca83cd09f2e0e4e6c016d8c36", size = 14593, upload-time = "2025-12-11T16:05:32.448Z" },
 ]
 
 [[package]]
