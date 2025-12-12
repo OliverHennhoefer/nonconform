@@ -40,16 +40,23 @@ def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
     return 0 if len(below) == 0 else int(below[-1] + 1)
 
 
-def _calib_weight_mass_below(
+def _calib_weight_mass_at_or_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
-    """Compute weighted calibration mass strictly below each target score."""
+    """Compute weighted calibration mass at or above each target score.
+
+    This is consistent with main p-values which use >= comparison for anomaly
+    detection (high score = anomaly = small p-value).
+    """
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
+    total_weight = np.sum(sorted_weights)
     cum_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
+    # side="left" gives index where targets would be inserted
+    # Elements at positions >= this index have scores >= target
     positions = np.searchsorted(sorted_scores, targets, side="left")
-    return cum_weights[positions]
+    return total_weight - cum_weights[positions]
 
 
 def _compute_r_star(metrics: np.ndarray) -> int:
@@ -104,14 +111,19 @@ def _compute_rejection_set_size_for_instance(
     w_test: np.ndarray,
     sum_calib_weight: float,
     bh_thresholds: np.ndarray,
-    calib_mass_below: np.ndarray,
+    calib_mass_at_or_above: np.ndarray,
     scratch: np.ndarray,
     include_self_weight: bool,
 ) -> int:
-    """Compute rejection set size |R_j^{(0)}| for test instance j."""
-    np.copyto(scratch, calib_mass_below)
+    """Compute rejection set size |R_j^{(0)}| for test instance j.
+
+    Uses >= comparison for auxiliary p-values, consistent with main p-values
+    for anomaly detection (high score = anomaly = small p-value).
+    """
+    np.copyto(scratch, calib_mass_at_or_above)
     if include_self_weight:
-        scratch += w_test[j] * (test_scores[j] < test_scores)
+        # I{V_j >= V_l} - consistent with main p-values using >=
+        scratch += w_test[j] * (test_scores[j] >= test_scores)
         denominator = sum_calib_weight + w_test[j]
     else:
         denominator = sum_calib_weight
@@ -230,16 +242,20 @@ def weighted_false_discovery_control(
     if kde_support is not None:
         eval_grid, cdf_values, total_weight = kde_support
         sum_calib_weight = total_weight
-        calib_mass_below = sum_calib_weight * np.interp(
-            test_scores,
-            eval_grid,
-            cdf_values,
-            left=0.0,
-            right=1.0,
+        # KDE provides CDF (mass below), convert to survival (mass at or above)
+        calib_mass_at_or_above = sum_calib_weight * (
+            1.0
+            - np.interp(
+                test_scores,
+                eval_grid,
+                cdf_values,
+                left=0.0,
+                right=1.0,
+            )
         )
     else:
         sum_calib_weight = np.sum(calib_weights)
-        calib_mass_below = _calib_weight_mass_below(
+        calib_mass_at_or_above = _calib_weight_mass_at_or_above(
             calib_scores, calib_weights, test_scores
         )
 
@@ -260,7 +276,7 @@ def weighted_false_discovery_control(
             test_weights,
             sum_calib_weight,
             bh_thresholds,
-            calib_mass_below,
+            calib_mass_at_or_above,
             scratch,
             include_self_weight=use_self_weight,
         )

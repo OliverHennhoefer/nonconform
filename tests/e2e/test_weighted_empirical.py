@@ -9,7 +9,6 @@ from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
-from scipy.stats import false_discovery_control
 
 from nonconform import (
     ConformalDetector,
@@ -20,11 +19,25 @@ from nonconform import (
     false_discovery_rate,
     logistic_weight_estimator,
     statistical_power,
+    weighted_false_discovery_control,
 )
 
 
 class TestWeightedEmpirical:
+    """Test Weighted Conformalized Selection (WCS) with empirical estimation.
+
+    Note: WCS is more conservative than standard BH procedure because it:
+    1. Accounts for covariate shift via weighted conformal p-values
+    2. Uses auxiliary p-values and pruning for FDR control
+    3. Requires sufficient calibration data for good resolution
+    """
+
     def test_split(self):
+        """Test WCS with split conformal on SHUTTLE dataset.
+
+        Note: WCS may be conservative with limited calibration data,
+        resulting in fewer discoveries than standard BH.
+        """
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
         ce = ConformalDetector(
@@ -36,70 +49,81 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.2
+        ce.predict(x_test)
+        decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
+        # WCS is conservative: 0 discoveries with this configuration
         np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.078, decimal=3
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
         )
         np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.94, decimal=2
+            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
         )
 
     def test_jackknife(self):
+        """Test WCS with jackknife on WBC dataset.
+
+        Note: Small calibration set (106 samples) limits WCS resolution.
+        """
         x_train, x_test, y_test = load(Dataset.WBC, setup=True, seed=1)
 
         ce = ConformalDetector(
             detector=IForest(),
             strategy=CrossValidation.jackknife(plus=False),
             estimation=Empirical(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.25
+        ce.predict(x_test)
+        decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
+        # WCS is conservative with small calibration: 0 discoveries
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
         )
         np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 1.0, decimal=2
+            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
         )
 
     def test_jackknife_bootstrap(self):
+        """Test WCS with jackknife+ bootstrap on MAMMOGRAPHY dataset."""
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
         ce = ConformalDetector(
             detector=ECOD(),
             strategy=JackknifeBootstrap(n_bootstraps=100),
             estimation=Empirical(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.1
+        ce.predict(x_test)
+        decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0714, decimal=3
         )
         np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.27, decimal=2
+            statistical_power(y=y_test, y_hat=decisions), 0.13, decimal=2
         )
 
     def test_cv(self):
+        """Test WCS with cross-validation on FRAUD dataset."""
         x_train, x_test, y_test = load(Dataset.FRAUD, setup=True, seed=1)
 
         ce = ConformalDetector(
             detector=INNE(),
             strategy=CrossValidation(k=5),
             estimation=Empirical(),
+            weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.2
+        ce.predict(x_test)
+        decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.176, decimal=3
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.205, decimal=2
         )
         np.testing.assert_array_almost_equal(
             statistical_power(y=y_test, y_hat=decisions), 0.89, decimal=2

@@ -71,8 +71,8 @@ decisions = weighted_false_discovery_control(
     seed=1,
 )
 print("\nWeighted Empirical (Conformal Selection)")
-print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.00
-print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.00
+print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.10
+print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
 
 decisions = weighted_bh(wce.last_result, alpha=alpha)
 print("\nWeighted Empirical (Weighted BH)")
