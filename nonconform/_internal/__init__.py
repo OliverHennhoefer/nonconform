@@ -6,7 +6,7 @@ nonconform package.
 """
 
 from .config import set_params
-from .constants import Aggregation, Distribution, Kernel, Pruning
+from .constants import Adjustment, Aggregation, Distribution, Kernel, Pruning
 from .log_utils import ensure_numpy_array, get_logger
 from .math_utils import (
     aggregate,
@@ -16,6 +16,7 @@ from .math_utils import (
 from .tuning import tune_kde_hyperparameters
 
 __all__ = [
+    "Adjustment",
     "Aggregation",
     "Distribution",
     "Kernel",

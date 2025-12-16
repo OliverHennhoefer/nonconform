@@ -76,7 +76,27 @@ class Kernel(Enum):
     COSINE = "cosine"
 
 
+class Adjustment(Enum):
+    """Calibration-conditional adjustment methods for p-values.
+
+    Provides high-probability validity guarantees conditional on the calibration
+    data, rather than just marginal (average) validity. Based on Bates et al. (2023).
+
+    Attributes:
+        NONE: No adjustment (standard marginal p-values).
+        SIMES: Generalized Simes inequality (exact finite-sample guarantee).
+        ASYMPTOTIC: Asymptotic adjustment (efficient for large n).
+        MONTE_CARLO: Monte Carlo adjustment (exact + efficient, recommended).
+    """
+
+    NONE = auto()
+    SIMES = auto()
+    ASYMPTOTIC = auto()
+    MONTE_CARLO = auto()
+
+
 __all__ = [
+    "Adjustment",
     "Aggregation",
     "Distribution",
     "Kernel",

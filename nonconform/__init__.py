@@ -82,6 +82,7 @@ from nonconform.weighting import (
 )
 
 from ._internal import (
+    Adjustment,
     Aggregation,
     Distribution,
     Kernel,
@@ -93,6 +94,7 @@ from ._internal import (
 
 __all__ = [
     "PYOD_AVAILABLE",
+    "Adjustment",
     "Aggregation",
     "AnomalyDetector",
     "BaseConformalDetector",

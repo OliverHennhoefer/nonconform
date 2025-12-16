@@ -14,7 +14,9 @@ from typing import Any
 
 import numpy as np
 
-from ._internal import Kernel
+from ._internal import Adjustment, Kernel, get_logger
+
+logger = get_logger(__name__)
 
 
 class BaseEstimation(ABC):
@@ -53,19 +55,164 @@ class BaseEstimation(ABC):
             self._seed = seed
 
 
-class Empirical(BaseEstimation):
-    """Classical empirical p-value estimation using discrete CDF.
+class AdjustmentMixin:
+    """Mixin for calibration-conditional p-value adjustment.
+
+    Provides shared adjustment logic for Empirical and Probabilistic estimators.
+    """
+
+    _adjustment: Adjustment
+    _delta: float
+    _monte_carlo_samples: int
+    _seed: int | None
+    _adjustment_cache: dict[int, np.ndarray]
+
+    def _init_adjustment(
+        self,
+        adjustment: Adjustment = Adjustment.NONE,
+        delta: float = 0.1,
+        monte_carlo_samples: int = 10000,
+    ) -> None:
+        """Initialize adjustment parameters with validation."""
+        if not isinstance(adjustment, Adjustment):
+            valid = ", ".join([f"Adjustment.{a.name}" for a in Adjustment])
+            raise TypeError(
+                f"adjustment must be an Adjustment enum, "
+                f"got {type(adjustment).__name__}. Valid options: {valid}"
+            )
+        if not 0 < delta < 1:
+            raise ValueError(f"delta must be in (0, 1), got {delta}")
+        if monte_carlo_samples < 100:
+            raise ValueError(
+                f"monte_carlo_samples must be at least 100, got {monte_carlo_samples}"
+            )
+
+        self._adjustment = adjustment
+        self._delta = delta
+        self._monte_carlo_samples = monte_carlo_samples
+        self._adjustment_cache = {}
+
+    def _apply_conditional_adjustment(
+        self, p_marginal: np.ndarray, n_calib: int
+    ) -> np.ndarray:
+        """Apply calibration-conditional adjustment to marginal p-values."""
+        from ._internal.adjustment import apply_adjustment
+
+        if n_calib not in self._adjustment_cache:
+            self._adjustment_cache[n_calib] = self._compute_adjustment_sequence(n_calib)
+
+        adjustment_seq = self._adjustment_cache[n_calib]
+        return apply_adjustment(p_marginal, adjustment_seq, n_calib)
+
+    def _compute_adjustment_sequence(self, n_calib: int) -> np.ndarray:
+        """Compute adjustment sequence based on selected method."""
+        from ._internal.adjustment import (
+            compute_asymptotic_sequence,
+            compute_monte_carlo_sequence,
+            compute_simes_sequence,
+        )
+
+        match self._adjustment:
+            case Adjustment.SIMES:
+                return compute_simes_sequence(n_calib, self._delta)
+            case Adjustment.ASYMPTOTIC:
+                return compute_asymptotic_sequence(n_calib, self._delta)
+            case Adjustment.MONTE_CARLO:
+                return compute_monte_carlo_sequence(
+                    n_calib, self._delta, self._monte_carlo_samples, self._seed
+                )
+            case _:
+                raise ValueError(f"Unknown adjustment method: {self._adjustment}")
+
+    def _compute_effective_n(self, weights: np.ndarray) -> int:
+        """Compute Kish's effective sample size from weights.
+
+        Args:
+            weights: Array of calibration weights.
+
+        Returns:
+            Effective sample size (at least 1).
+        """
+        sum_w = np.sum(weights)
+        sum_w2 = np.sum(weights**2)
+        if sum_w2 == 0:
+            return 1
+        n_eff = (sum_w**2) / sum_w2
+        return max(1, int(np.floor(n_eff)))
+
+    def _finalize_p_values(
+        self,
+        p_marginal: np.ndarray,
+        n_calib: int,
+        weights: tuple[np.ndarray, np.ndarray] | None,
+    ) -> np.ndarray:
+        """Finalize p-values with optional calibration-conditional adjustment.
+
+        Handles both standard and weighted cases. For weighted conformal,
+        uses Kish's effective sample size.
+
+        Args:
+            p_marginal: Marginal p-values to adjust.
+            n_calib: Number of calibration samples.
+            weights: Optional (w_calib, w_test) tuple for weighted conformal.
+
+        Returns:
+            Adjusted p-values if adjustment enabled, otherwise marginal p-values.
+        """
+        if self._adjustment == Adjustment.NONE:
+            return p_marginal
+
+        if weights is not None:
+            w_calib, _ = weights
+            n_eff = self._compute_effective_n(w_calib)
+            logger.info(
+                "Using effective sample size n_eff=%d (from n=%d)",
+                n_eff,
+                n_calib,
+            )
+            return self._apply_conditional_adjustment(p_marginal, n_eff)
+
+        return self._apply_conditional_adjustment(p_marginal, n_calib)
+
+
+class Empirical(AdjustmentMixin, BaseEstimation):
+    """Classical empirical p-value estimation with optional conditional adjustment.
 
     Computes p-values using the standard empirical distribution:
     - Standard: p = (1 + #{calib >= score}) / (1 + n_calib)
     - Weighted: p = (w_calib[calib >= score] + w_score) / (sum(w_calib) + w_score)
 
+    Optionally applies calibration-conditional adjustment for high-probability
+    validity guarantees (Bates et al., 2023).
+
+    Args:
+        adjustment: Adjustment method for calibration-conditional validity.
+            Defaults to Adjustment.NONE (standard marginal p-values).
+        delta: Miscoverage probability for conditional adjustment (1-delta coverage).
+            Only used when adjustment != NONE. Defaults to 0.1.
+        monte_carlo_samples: Number of MC samples for MONTE_CARLO adjustment.
+            Defaults to 10000.
+
     Examples:
         ```python
+        # Standard marginal p-values
         estimation = Empirical()
+        p_values = estimation.compute_p_values(test_scores, calib_scores)
+
+        # Calibration-conditional p-values (recommended: MONTE_CARLO)
+        estimation = Empirical(adjustment=Adjustment.MONTE_CARLO, delta=0.1)
         p_values = estimation.compute_p_values(test_scores, calib_scores)
         ```
     """
+
+    def __init__(
+        self,
+        adjustment: Adjustment = Adjustment.NONE,
+        delta: float = 0.1,
+        monte_carlo_samples: int = 10000,
+    ) -> None:
+        self._seed: int | None = None
+        self._init_adjustment(adjustment, delta, monte_carlo_samples)
 
     def compute_p_values(
         self,
@@ -75,8 +222,11 @@ class Empirical(BaseEstimation):
     ) -> np.ndarray:
         """Compute empirical p-values from calibration set."""
         if weights is not None:
-            return self._compute_weighted(scores, calibration_set, weights)
-        return self._compute_standard(scores, calibration_set)
+            p_marginal = self._compute_weighted(scores, calibration_set, weights)
+        else:
+            p_marginal = self._compute_standard(scores, calibration_set)
+
+        return self._finalize_p_values(p_marginal, len(calibration_set), weights)
 
     def _compute_standard(
         self, scores: np.ndarray, calibration_set: np.ndarray
@@ -143,17 +293,27 @@ def calculate_weighted_p_val(
     )
 
 
-class Probabilistic(BaseEstimation):
+class Probabilistic(AdjustmentMixin, BaseEstimation):
     """KDE-based probabilistic p-value estimation with continuous values.
 
     Provides smooth p-values in [0,1] via kernel density estimation.
     Supports automatic hyperparameter tuning and weighted conformal prediction.
+
+    Optionally applies calibration-conditional adjustment for high-probability
+    validity guarantees. Note: ASYMPTOTIC adjustment is theoretically aligned
+    with KDE's asymptotic nature; other methods provide heuristic conservatism.
 
     Args:
         kernel: Kernel function or list (list triggers kernel tuning).
             Bandwidth is always auto-tuned. Defaults to Kernel.GAUSSIAN.
         n_trials: Number of Optuna trials for tuning. Defaults to 100.
         cv_folds: CV folds for tuning (-1 for leave-one-out). Defaults to -1.
+        adjustment: Adjustment method for calibration-conditional validity.
+            Defaults to Adjustment.NONE. ASYMPTOTIC is recommended for KDE.
+        delta: Miscoverage probability for conditional adjustment (1-delta coverage).
+            Only used when adjustment != NONE. Defaults to 0.1.
+        monte_carlo_samples: Number of MC samples for MONTE_CARLO adjustment.
+            Defaults to 10000.
 
     Examples:
         ```python
@@ -161,8 +321,9 @@ class Probabilistic(BaseEstimation):
         estimation = Probabilistic()
         p_values = estimation.compute_p_values(test_scores, calib_scores)
 
-        # With custom kernel
-        estimation = Probabilistic(kernel=Kernel.EPANECHNIKOV)
+        # With calibration-conditional adjustment (ASYMPTOTIC recommended for KDE)
+        estimation = Probabilistic(adjustment=Adjustment.ASYMPTOTIC, delta=0.1)
+        p_values = estimation.compute_p_values(test_scores, calib_scores)
         ```
     """
 
@@ -171,11 +332,15 @@ class Probabilistic(BaseEstimation):
         kernel: Kernel | Sequence[Kernel] = Kernel.GAUSSIAN,
         n_trials: int = 100,
         cv_folds: int = -1,
+        adjustment: Adjustment = Adjustment.NONE,
+        delta: float = 0.1,
+        monte_carlo_samples: int = 10000,
     ) -> None:
         self._kernel = kernel
         self._n_trials = n_trials
         self._cv_folds = cv_folds
-        self._seed = None
+        self._seed: int | None = None
+        self._init_adjustment(adjustment, delta, monte_carlo_samples)
 
         self._tuned_params: dict | None = None
         self._kde_model = None
@@ -183,6 +348,7 @@ class Probabilistic(BaseEstimation):
         self._kde_eval_grid: np.ndarray | None = None
         self._kde_cdf_values: np.ndarray | None = None
         self._kde_total_weight: float | None = None
+        self._last_n_calib: int | None = None
 
     def compute_p_values(
         self,
@@ -214,7 +380,10 @@ class Probabilistic(BaseEstimation):
             else float(len(calibration_set))
         )
 
-        return self._compute_p_values_from_kde(scores, w_test, sum_calib_weight)
+        self._last_n_calib = len(calibration_set)
+        p_marginal = self._compute_p_values_from_kde(scores, w_test, sum_calib_weight)
+
+        return self._finalize_p_values(p_marginal, len(calibration_set), weights)
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None) -> None:
         """Fit KDE with automatic hyperparameter tuning."""
@@ -319,6 +488,7 @@ class Probabilistic(BaseEstimation):
 
 
 __all__ = [
+    "Adjustment",
     "BaseEstimation",
     "Empirical",
     "Kernel",

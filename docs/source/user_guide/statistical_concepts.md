@@ -36,6 +36,16 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 ---
 
+## Calibration-Conditional Validity
+
+**What it is**: A stronger guarantee that p-values are valid for *your specific* calibration dataset, not just on average across datasets.
+
+**Why it matters**: Standard conformal p-values are "marginally" valid—correct on average over many calibration sets. But for any single calibration set, random fluctuations may cause them to be anti-conservative. Calibration-conditional validity ensures your p-values work with high probability (e.g., 90%) for the specific calibration data you have.
+
+**In nonconform**: Use `Empirical(adjustment=Adjustment.MONTE_CARLO, delta=0.1)` for 90% high-probability validity. See [Conformal Inference](conformal_inference.md#calibration-conditional-p-values) for details.
+
+---
+
 ## Calibration Set
 
 **What it is**: A held-out portion of training data used to compute reference anomaly scores.

@@ -3,6 +3,7 @@ from pyod.models.hbos import HBOS
 from scipy.stats import false_discovery_control
 
 from nonconform import (
+    Adjustment,
     BootstrapBaggedWeightEstimator,
     ConformalDetector,
     Empirical,
@@ -51,6 +52,36 @@ print("\nStandard Probabilistic (KDE)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.16
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
 
+# Calibration-Conditional Empirical (Monte Carlo)
+cce = ConformalDetector(
+    detector=HBOS(),
+    strategy=strategy,
+    estimation=Empirical(adjustment=Adjustment.MONTE_CARLO, delta=0.1),
+    seed=1,
+)
+cce.fit(x_train)
+p_values = cce.predict(x_test)
+decisions = false_discovery_control(p_values, method="bh") <= alpha
+
+print("\nCalibration-Conditional Empirical (Monte Carlo)")
+print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")
+print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")
+
+# Calibration-Conditional Probabilistic (Asymptotic)
+ccpce = ConformalDetector(
+    detector=HBOS(),
+    strategy=strategy,
+    estimation=Probabilistic(n_trials=10, adjustment=Adjustment.ASYMPTOTIC, delta=0.1),
+    seed=1,
+)
+ccpce.fit(x_train)
+p_values = ccpce.predict(x_test)
+decisions = false_discovery_control(p_values, method="bh") <= alpha
+
+print("\nCalibration-Conditional Probabilistic (Asymptotic)")
+print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")
+print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")
+
 # Weighted Empirical
 wce = ConformalDetector(
     detector=HBOS(),
@@ -78,6 +109,25 @@ decisions = weighted_bh(wce.last_result, alpha=alpha)
 print("\nWeighted Empirical (Weighted BH)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.10
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
+
+# Weighted Empirical + Calibration-Conditional (uses effective sample size)
+wce_adj = ConformalDetector(
+    detector=HBOS(),
+    strategy=strategy,
+    weight_estimator=BootstrapBaggedWeightEstimator(
+        base_estimator=logistic_weight_estimator(),
+        n_bootstrap=100,
+    ),
+    estimation=Empirical(adjustment=Adjustment.MONTE_CARLO, delta=0.1),
+    seed=1,
+)
+wce_adj.fit(x_train)
+p_values = wce_adj.predict(x_test)
+decisions = false_discovery_control(p_values, method="bh") <= alpha
+
+print("\nWeighted Empirical + Calibration-Conditional (Monte Carlo)")
+print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")
+print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")
 
 # Weighted Probabilistic (KDE)
 wpce = ConformalDetector(

@@ -86,6 +86,75 @@ where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
 This means that if we declare $X_{test}$ anomalous when $p_{classical}(X_{test}) \leq 0.05$, we'll have at most a 5% false positive rate **among normal instances**. The overall false positive rate in practice depends on the proportion of normal vs. anomalous instances in your test data.
 
+### Calibration-Conditional P-values
+
+The standard conformal p-values above are *marginally* valid—they're valid on average over different calibration datasets. However, for any specific calibration set, random fluctuations may cause the p-values to be anti-conservative.
+
+**Calibration-conditional validity** provides a stronger guarantee [[Bates et al., 2023](#references)]: with high probability over the calibration data, the p-values are valid for *your specific* calibration set:
+
+$$\mathbb{P}\left[ \mathbb{P}\left[ p_{cond}(X_{test}) \leq \alpha \mid \mathcal{D}_{cal} \right] \leq \alpha \text{ for all } \alpha \in (0,1) \right] \geq 1-\delta$$
+
+**In plain English**: With probability at least $1-\delta$ (e.g., 90%), your calibration set will produce p-values that are valid at all significance levels simultaneously.
+
+```python
+from nonconform import Adjustment, ConformalDetector, Empirical, Split
+
+# Use calibration-conditional p-values with Monte Carlo adjustment
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=Split(n_calib=1000),
+    estimation=Empirical(
+        adjustment=Adjustment.MONTE_CARLO,  # Recommended method
+        delta=0.1,  # 90% high-probability guarantee
+    ),
+    seed=42,
+)
+detector.fit(X_train)
+p_values = detector.predict(X_test)
+```
+
+**Available adjustment methods** (`Adjustment` enum):
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| `NONE` | Standard marginal p-values (default) | General use |
+| `SIMES` | Generalized Simes inequality | Exact finite-sample, conservative |
+| `ASYMPTOTIC` | Eicker's asymptotic bound | Large calibration sets |
+| `MONTE_CARLO` | Combined Simes + asymptotic with MC calibration | **Recommended**: exact + efficient |
+
+!!! tip "When to Use Calibration-Conditional P-values"
+    Use calibration-conditional adjustment when:
+
+    - You have a single, fixed calibration dataset that will be reused for many test points
+    - You need guarantees for *your specific* dataset, not just "on average"
+    - The stakes are high and you want explicit confidence bounds (e.g., 90% confidence via `delta=0.1`)
+
+!!! note "Adjustment with KDE (Probabilistic)"
+    `Probabilistic` estimation also supports calibration-conditional adjustment via the same parameters. Since KDE produces continuous p-values (not discrete ranks), the `ASYMPTOTIC` method is theoretically most aligned:
+
+    ```python
+    estimation = Probabilistic(adjustment=Adjustment.ASYMPTOTIC, delta=0.1)
+    ```
+
+    Other methods (`SIMES`, `MONTE_CARLO`) provide heuristic conservatism by treating continuous KDE p-values as if they came from an empirical distribution.
+
+!!! note "Adjustment with Weighted Conformal"
+    Weighted conformal prediction also supports calibration-conditional adjustment. Since weights change the effective information in the calibration set, adjustment uses **Kish's effective sample size**:
+
+    $$n_{eff} = \frac{(\sum w_i)^2}{\sum w_i^2}$$
+
+    ```python
+    # Weighted conformal with adjustment
+    detector = ConformalDetector(
+        detector=base_detector,
+        strategy=Split(n_calib=1000),
+        weight_estimator=BootstrapBaggedWeightEstimator(...),
+        estimation=Empirical(adjustment=Adjustment.MONTE_CARLO, delta=0.1),
+    )
+    ```
+
+    This approach is principled (Kish, 1965) and conservative—adjustment becomes stricter as weight variability increases—though not formally proven for calibration-conditional validity.
+
 ### Intuitive Understanding
 
 The p-value answers: "If this instance were normal, what's the probability of a score this extreme or higher?"
