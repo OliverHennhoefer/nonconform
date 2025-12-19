@@ -94,6 +94,32 @@ The p-value answers: "If this instance were normal, what's the probability of a 
 - **Medium p-value (e.g., 0.3)**: The test instance is somewhat unusual but not clearly anomalous
 - **Low p-value (e.g., 0.02)**: The test instance is very different from calibration data
 
+### Randomized/Smoothed P-values
+
+Building on the classical conformal framework, [[Jin & Candès, 2023](#references)] introduced randomized smoothing to handle ties in the calibration scores. The randomized conformal p-value is:
+
+$$p_{rand}(X_{test}) = \frac{|\{i: s(X_i) > s(X_{test})\}| + U \cdot (|\{i: s(X_i) = s(X_{test})\}| + 1)}{n+1}$$
+
+where $U \sim \text{Uniform}[0,1]$ is a random tie-breaker. The "+1" accounts for the test point itself (with weight 1 in the unweighted case).
+
+**Why randomize?** Classical p-values are limited to discrete values $k/(n+1)$, creating a resolution floor. With many tied scores, this can severely limit the granularity of p-values. Randomized smoothing eliminates this floor by spreading tied observations across the [0,1] interval.
+
+```python
+from nonconform import Empirical
+
+# Classical (default)
+estimation = Empirical()
+
+# Randomized smoothing
+estimation = Empirical(randomize=True)
+```
+
+!!! warning "Small Calibration Sets"
+    With small calibration sets, randomized smoothing can produce anti-conservative p-values that may work against the nominal FDR level. Consider using the classical formula or the `Probabilistic()` estimator in such cases.
+
+!!! tip "Alternative: Probabilistic Estimation"
+    The `Probabilistic()` estimator uses kernel density estimation (KDE) to produce continuous p-values. This addresses both the resolution collapse of classical discrete p-values and the potential variance increase from randomized smoothing. Note that this trades the finite-sample guarantee of conformal p-values for an asymptotic guarantee.
+
 ## Exchangeability Assumption
 
 ### What is Exchangeability?

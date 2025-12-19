@@ -12,6 +12,8 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **Example**: A p-value of 0.02 means only 2% of normal observations would have a score this extreme.
 
+**Classical vs. Randomized**: By default, `Empirical()` uses the classical discrete formula (p-values limited to multiples of $1/(n+1)$). For continuous p-values without this resolution floor, use `Empirical(randomize=True)`. Alternatively, `Probabilistic()` provides continuous p-values via KDE (trading finite-sample for asymptotic guarantees).
+
 ---
 
 ## False Discovery Rate (FDR)

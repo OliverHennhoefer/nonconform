@@ -72,31 +72,30 @@ During prediction, the detector:
 - Applies weights to both calibration and test instances
 
 ### 3. Weighted P-value Calculation
-The p-values are computed using weighted empirical distribution functions:
+The p-values are computed using weighted empirical distribution functions. By default, `nonconform` uses the classical (non-randomized) formula. The randomized variant [[Jin & Candès, 2023](#references)] handles ties more gracefully:
 
 ```python
-# Simplified version of the weighted p-value calculation
+# Randomized weighted p-value calculation (Jin & Candes 2023)
 def weighted_p_value(test_score, calibration_scores, calibration_weights, test_weight):
     """
-    Calculate weighted conformal p-value with proper tie handling.
-
-    The p-value represents the probability of observing a score
-    at least as extreme as the test score under the weighted
-    calibration distribution.
+    Calculate weighted conformal p-value with randomized tie handling.
     """
     # Count calibration scores strictly greater than test score
-    weighted_rank = np.sum(calibration_weights[calibration_scores > test_score])
+    weighted_greater = np.sum(calibration_weights[calibration_scores > test_score])
 
-    # Handle ties: add random fraction of tied weights (coin flip approach)
+    # Handle ties: add random fraction of tied weights
     tied_weights = np.sum(calibration_weights[calibration_scores == test_score])
-    weighted_rank += np.random.uniform(0, 1) * tied_weights
+    u = np.random.uniform(0, 1)
 
-    # Add test instance weight (always included for conformal guarantee)
-    weighted_rank += test_weight
-    total_weight = np.sum(calibration_weights) + test_weight
+    # Randomized formula: strictly greater + U * (tied + test weight)
+    numerator = weighted_greater + u * (tied_weights + test_weight)
+    denominator = np.sum(calibration_weights) + test_weight
 
-    return weighted_rank / total_weight
+    return numerator / denominator
 ```
+
+!!! info "Classical vs. Randomized"
+    By default, `Empirical()` uses the classical non-randomized formula. For randomized smoothing as shown above, use `Empirical(randomize=True)`. Note that with small calibration sets, randomized smoothing can produce anti-conservative p-values.
 
 ## When to Use Weighted Conformal
 

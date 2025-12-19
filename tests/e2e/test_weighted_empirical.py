@@ -33,7 +33,7 @@ class TestWeightedEmpirical:
     """
 
     def test_split(self):
-        """Test WCS with split conformal on SHUTTLE dataset.
+        """Test WCS with split conformal on SHUTTLE dataset (non-randomized).
 
         Note: WCS may be conservative with limited calibration data,
         resulting in fewer discoveries than standard BH.
@@ -43,7 +43,7 @@ class TestWeightedEmpirical:
         ce = ConformalDetector(
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
-            estimation=Empirical(),
+            estimation=Empirical(randomize=False),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
@@ -52,6 +52,32 @@ class TestWeightedEmpirical:
         ce.predict(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         # WCS is conservative: 0 discoveries with this configuration
+        np.testing.assert_array_almost_equal(
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+        )
+        np.testing.assert_array_almost_equal(
+            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
+        )
+
+    def test_split_randomized(self):
+        """Test WCS with split conformal on SHUTTLE dataset (randomized smoothing).
+
+        Uses randomized p-values (Jin & Candes 2023) for
+        better resolution with discrete ties.
+        """
+        x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
+
+        ce = ConformalDetector(
+            detector=HBOS(),
+            strategy=Split(n_calib=1_000),
+            estimation=Empirical(randomize=True),
+            weight_estimator=logistic_weight_estimator(),
+            seed=1,
+        )
+
+        ce.fit(x_train)
+        ce.predict(x_test)
+        decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.1132, decimal=3
         )

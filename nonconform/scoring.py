@@ -56,24 +56,25 @@ class BaseEstimation(ABC):
 class Empirical(BaseEstimation):
     """Classical empirical p-value estimation using discrete CDF.
 
-    Uses randomized smoothing by default to eliminate the resolution floor
-    caused by discrete ties (Equation 4 from Jin & Candes 2023).
+    Computes p-values using the standard empirical distribution by default.
+    Optionally supports randomized smoothing to eliminate the resolution floor
+    caused by discrete ties (Jin & Candes 2023).
 
     Args:
-        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
-            If False, use the old non-randomized formula.
+        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
+            If False (default), use the classical non-randomized formula.
 
     Examples:
         ```python
-        estimation = Empirical()  # randomize=True by default
+        estimation = Empirical()  # randomize=False by default
         p_values = estimation.compute_p_values(test_scores, calib_scores)
 
-        # For deterministic behavior:
-        estimation = Empirical(randomize=False)
+        # For randomized smoothing:
+        estimation = Empirical(randomize=True)
         ```
     """
 
-    def __init__(self, randomize: bool = True) -> None:
+    def __init__(self, randomize: bool = False) -> None:
         self._randomize = randomize
         self._seed: int | None = None
 
@@ -127,19 +128,20 @@ class Empirical(BaseEstimation):
 def calculate_p_val(
     scores: np.ndarray,
     calibration_set: np.ndarray,
-    randomize: bool = True,
+    randomize: bool = False,
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate empirical p-values (standalone function).
 
-    Uses randomized smoothing by default to eliminate the resolution floor
-    caused by discrete ties (Equation 4 from Jin & Candes 2023).
+    Uses the classical non-randomized formula by default. Optionally supports
+    randomized smoothing to eliminate the resolution floor caused by discrete
+    ties (Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
-        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
-            If False, use the old non-randomized formula.
+        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
+            If False (default), use the classical non-randomized formula.
         rng: Optional random number generator for reproducibility.
 
     Returns:
@@ -171,21 +173,22 @@ def calculate_weighted_p_val(
     calibration_set: np.ndarray,
     test_weights: np.ndarray,
     calib_weights: np.ndarray,
-    randomize: bool = True,
+    randomize: bool = False,
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
 
-    Uses randomized smoothing by default to eliminate the resolution floor
-    caused by discrete ties (Equation 4 from Jin & Candes 2023).
+    Uses the classical non-randomized formula by default. Optionally supports
+    randomized smoothing to eliminate the resolution floor caused by discrete
+    ties (Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
         test_weights: Test instance weights (1D array).
         calib_weights: Calibration weights (1D array).
-        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
-            If False, use the old non-randomized formula.
+        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
+            If False (default), use the classical non-randomized formula.
         rng: Optional random number generator for reproducibility.
 
     Returns:

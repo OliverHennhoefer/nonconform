@@ -28,6 +28,8 @@ $$
 \hat{u}(X_{n+1}) \;=\; \frac{1 + \lvert \{ i \in \mathcal{D}_{\text{calib}} : \hat{s}(X_i) \leq \hat{s}(X_{n+1}) \} \rvert}{n + 1}.
 $$
 
+The package also supports randomized smoothing [@Jin2023] to produce continuous $p$-values without the discrete resolution floor of $1/(n+1)$.
+
 By framing anomaly detection as a sequence of statistical hypothesis tests, these $p$-values enable systematic control of the *marginal* (average) false discovery rate (FDR) [@Benjamini1995]. For standard exchangeable data, conformal $p$-values satisfy the PRDS property, allowing the use of the Benjamini-Hochberg procedure [@Bates2023].
 The library integrates seamlessly with the widely used `pyod` library [@Zhao2019; @Zhao2024], extending conformal techniques to a broad range of anomaly detection models.
 

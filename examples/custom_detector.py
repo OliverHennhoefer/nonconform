@@ -1,5 +1,3 @@
-"""Example: Using a custom detector with nonconform."""
-
 import numpy as np
 from oddball import Dataset, load
 from scipy.stats import false_discovery_control
@@ -14,14 +12,14 @@ class CentroidDetector:
         self.random_state = random_state
         self._center = None
 
-    def fit(self, X, y=None):
-        self._center = X.mean(axis=0)
+    def fit(self, x):
+        self._center = x.mean(axis=0)
         return self
 
-    def decision_function(self, X):
-        return np.linalg.norm(X - self._center, axis=1)
+    def decision_function(self, x):
+        return np.linalg.norm(x - self._center, axis=1)
 
-    def get_params(self, deep=True):
+    def get_params(self):
         return {"random_state": self.random_state}
 
     def set_params(self, **params):

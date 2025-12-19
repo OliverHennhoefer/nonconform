@@ -124,7 +124,7 @@ class TestMathematicalCorrectness:
 
 
 class TestRandomizedPValues:
-    """Tests for randomized p-value computation (Equation 4 from Jin & Candes 2023)."""
+    """Tests for randomized p-value computation (Jin & Candes 2023)."""
 
     def test_randomized_p_values_in_valid_range(self, sample_scores):
         test_scores, calib_scores = sample_scores(n_test=20, n_calib=100)
@@ -217,9 +217,9 @@ class TestRandomizedPValues:
 class TestEmpiricalClassRandomization:
     """Tests for Empirical class with randomize parameter."""
 
-    def test_empirical_default_is_randomized(self):
+    def test_empirical_default_is_not_randomized(self):
         estimation = Empirical()
-        assert estimation._randomize is True
+        assert estimation._randomize is False
 
     def test_empirical_randomize_false(self):
         estimation = Empirical(randomize=False)
