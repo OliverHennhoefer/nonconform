@@ -222,7 +222,7 @@ def weighted_false_discovery_control(
 
     if p_values is None:
         p_vals = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights
+            test_scores, calib_scores, test_weights, calib_weights, randomize=True
         )
     else:
         p_vals = np.asarray(p_values)
@@ -345,6 +345,7 @@ def weighted_bh(
             np.asarray(required["calib_scores"]),
             np.asarray(required["test_weights"]),
             np.asarray(required["calib_weights"]),
+            randomize=True,
         )
 
     if p_values.ndim != 1:

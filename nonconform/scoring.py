@@ -56,16 +56,30 @@ class BaseEstimation(ABC):
 class Empirical(BaseEstimation):
     """Classical empirical p-value estimation using discrete CDF.
 
-    Computes p-values using the standard empirical distribution:
-    - Standard: p = (1 + #{calib >= score}) / (1 + n_calib)
-    - Weighted: p = (w_calib[calib >= score] + w_score) / (sum(w_calib) + w_score)
+    Uses randomized smoothing by default to eliminate the resolution floor
+    caused by discrete ties (Equation 4 from Jin & Candes 2023).
+
+    Args:
+        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
+            If False, use the old non-randomized formula.
 
     Examples:
         ```python
-        estimation = Empirical()
+        estimation = Empirical()  # randomize=True by default
         p_values = estimation.compute_p_values(test_scores, calib_scores)
+
+        # For deterministic behavior:
+        estimation = Empirical(randomize=False)
         ```
     """
+
+    def __init__(self, randomize: bool = True) -> None:
+        self._randomize = randomize
+        self._seed: int | None = None
+
+    def set_seed(self, seed: int | None) -> None:
+        """Set random seed for reproducibility."""
+        self._seed = seed
 
     def compute_p_values(
         self,
@@ -74,43 +88,82 @@ class Empirical(BaseEstimation):
         weights: tuple[np.ndarray, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Compute empirical p-values from calibration set."""
+        rng = np.random.default_rng(self._seed) if self._randomize else None
         if weights is not None:
-            return self._compute_weighted(scores, calibration_set, weights)
-        return self._compute_standard(scores, calibration_set)
+            return self._compute_weighted(scores, calibration_set, weights, rng)
+        return self._compute_standard(scores, calibration_set, rng)
 
     def _compute_standard(
-        self, scores: np.ndarray, calibration_set: np.ndarray
+        self,
+        scores: np.ndarray,
+        calibration_set: np.ndarray,
+        rng: np.random.Generator | None,
     ) -> np.ndarray:
         """Standard conformal p-value computation."""
-        return calculate_p_val(scores, calibration_set)
+        return calculate_p_val(
+            scores, calibration_set, randomize=self._randomize, rng=rng
+        )
 
     def _compute_weighted(
         self,
         scores: np.ndarray,
         calibration_set: np.ndarray,
         weights: tuple[np.ndarray, np.ndarray],
+        rng: np.random.Generator | None,
     ) -> np.ndarray:
         """Weighted conformal p-value computation."""
         w_calib, w_scores = weights
-        return calculate_weighted_p_val(scores, calibration_set, w_scores, w_calib)
+        return calculate_weighted_p_val(
+            scores,
+            calibration_set,
+            w_scores,
+            w_calib,
+            randomize=self._randomize,
+            rng=rng,
+        )
 
 
 # Standalone p-value functions (consolidated from utils/stat/statistical.py)
-def calculate_p_val(scores: np.ndarray, calibration_set: np.ndarray) -> np.ndarray:
+def calculate_p_val(
+    scores: np.ndarray,
+    calibration_set: np.ndarray,
+    randomize: bool = True,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """Calculate empirical p-values (standalone function).
+
+    Uses randomized smoothing by default to eliminate the resolution floor
+    caused by discrete ties (Equation 4 from Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
+        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
+            If False, use the old non-randomized formula.
+        rng: Optional random number generator for reproducibility.
 
     Returns:
         Array of p-values for each test instance.
     """
     sorted_cal = np.sort(calibration_set)
     n_cal = len(calibration_set)
-    # Count calibration scores >= test score using binary search
-    ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
-    return (1.0 + ranks) / (1.0 + n_cal)
+
+    if not randomize:
+        # Old formula: count >= (at or above)
+        ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
+        return (1.0 + ranks) / (1.0 + n_cal)
+
+    # Randomized (default): separate strictly greater and ties
+    pos_right = np.searchsorted(sorted_cal, scores, side="right")
+    pos_left = np.searchsorted(sorted_cal, scores, side="left")
+    n_greater = n_cal - pos_right  # strictly greater
+    n_equal = pos_right - pos_left  # ties
+
+    if rng is None:
+        rng = np.random.default_rng()
+    u = rng.uniform(size=len(scores))
+
+    return (n_greater + (n_equal + 1) * u) / (1.0 + n_cal)
 
 
 def calculate_weighted_p_val(
@@ -118,22 +171,47 @@ def calculate_weighted_p_val(
     calibration_set: np.ndarray,
     test_weights: np.ndarray,
     calib_weights: np.ndarray,
+    randomize: bool = True,
+    rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
+
+    Uses randomized smoothing by default to eliminate the resolution floor
+    caused by discrete ties (Equation 4 from Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
         test_weights: Test instance weights (1D array).
         calib_weights: Calibration weights (1D array).
+        randomize: If True (default), use randomized tie-breaking with U~Unif[0,1].
+            If False, use the old non-randomized formula.
+        rng: Optional random number generator for reproducibility.
 
     Returns:
         Array of weighted p-values for each test instance.
     """
     w_calib, w_scores = calib_weights, test_weights
-    comparison_matrix = calibration_set >= scores[:, np.newaxis]
-    weighted_sum_ge = np.sum(comparison_matrix * w_calib, axis=1)
-    numerator = weighted_sum_ge + w_scores
+
+    if not randomize:
+        # Old formula: count >= (at or above)
+        comparison_matrix = calibration_set >= scores[:, np.newaxis]
+        weighted_sum_ge = np.sum(comparison_matrix * w_calib, axis=1)
+        numerator = weighted_sum_ge + w_scores
+    else:
+        # Randomized formula (default): separate strictly greater and ties
+        strictly_greater = calibration_set > scores[:, np.newaxis]
+        equal = calibration_set == scores[:, np.newaxis]
+
+        weighted_greater = np.sum(strictly_greater * w_calib, axis=1)
+        weighted_equal = np.sum(equal * w_calib, axis=1)
+
+        if rng is None:
+            rng = np.random.default_rng()
+        u = rng.uniform(size=len(scores))
+
+        numerator = weighted_greater + (weighted_equal + w_scores) * u
+
     denominator = np.sum(w_calib) + w_scores
     return np.divide(
         numerator,

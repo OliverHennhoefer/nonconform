@@ -7,7 +7,7 @@ class TestEmptyInputs:
     def test_single_calibration_score(self):
         test_scores = np.array([3.0])
         calib_scores = np.array([2.0])
-        p_values = calculate_p_val(test_scores, calib_scores)
+        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
         expected = (1 + 0) / (1 + 1)
         assert p_values[0] == expected
 
@@ -22,14 +22,14 @@ class TestEqualScores:
     def test_all_scores_equal(self):
         test_scores = np.array([3.0, 3.0, 3.0])
         calib_scores = np.array([3.0, 3.0, 3.0, 3.0])
-        p_values = calculate_p_val(test_scores, calib_scores)
+        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
         expected = (1 + 4) / (1 + 4)
         assert np.all(p_values == expected)
 
     def test_test_equals_all_calib(self):
         test_scores = np.array([2.0])
         calib_scores = np.array([2.0, 2.0, 2.0])
-        p_values = calculate_p_val(test_scores, calib_scores)
+        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
         expected = (1 + 3) / (1 + 3)
         assert p_values[0] == expected
 

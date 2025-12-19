@@ -53,10 +53,10 @@ class TestWeightedEmpirical:
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         # WCS is conservative: 0 discoveries with this configuration
         np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+            false_discovery_rate(y=y_test, y_hat=decisions), 0.1132, decimal=3
         )
         np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
+            statistical_power(y=y_test, y_hat=decisions), 0.94, decimal=2
         )
 
     def test_jackknife(self):
