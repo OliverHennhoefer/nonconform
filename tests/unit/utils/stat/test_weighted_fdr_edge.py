@@ -115,6 +115,40 @@ class TestErrorHandling:
             )
 
 
+class TestInvalidWeights:
+    @pytest.mark.parametrize("bad_value", [-0.1, np.nan, np.inf, -np.inf])
+    def test_invalid_test_weights(self, sample_scores, bad_value):
+        test_scores, calib_scores = sample_scores(n_test=10, n_calib=50)
+        test_weights = np.ones(10)
+        test_weights[0] = bad_value
+        calib_weights = np.ones(50)
+
+        with pytest.raises(ValueError):
+            weighted_false_discovery_control(
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+            )
+
+    @pytest.mark.parametrize("bad_value", [-0.1, np.nan, np.inf, -np.inf])
+    def test_invalid_calib_weights(self, sample_scores, bad_value):
+        test_scores, calib_scores = sample_scores(n_test=10, n_calib=50)
+        test_weights = np.ones(10)
+        calib_weights = np.ones(50)
+        calib_weights[0] = bad_value
+
+        with pytest.raises(ValueError):
+            weighted_false_discovery_control(
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+            )
+
+
 class TestExtremeWeights:
     def test_zero_weights(self, sample_scores):
         test_scores, calib_scores = sample_scores(n_test=10, n_calib=50)
@@ -143,6 +177,34 @@ class TestExtremeWeights:
             alpha=0.1,
         )
         assert len(discoveries) == 10
+
+
+class TestInvalidPValues:
+    @pytest.mark.parametrize("bad_value", [-0.1, 1.1, np.nan, np.inf, -np.inf])
+    def test_invalid_p_values_wcs(self, bad_value):
+        p_values = np.array([bad_value, 0.5])
+        test_scores = np.array([1.0, 2.0])
+        calib_scores = np.array([0.0, 1.0, 2.0])
+        test_weights = np.ones(2)
+        calib_weights = np.ones(3)
+
+        with pytest.raises(ValueError):
+            weighted_false_discovery_control(
+                p_values=p_values,
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+            )
+
+    @pytest.mark.parametrize("bad_value", [-0.1, 1.1, np.nan, np.inf, -np.inf])
+    def test_invalid_p_values_bh(self, conformal_result, bad_value):
+        result = conformal_result(n_test=2, n_calib=10, seed=42)
+        result.p_values = np.array([bad_value, 0.5])
+
+        with pytest.raises(ValueError):
+            weighted_bh(result, alpha=0.1)
 
 
 class TestOutputValidation:

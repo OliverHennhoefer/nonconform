@@ -40,6 +40,27 @@ def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
     return 0 if len(below) == 0 else int(below[-1] + 1)
 
 
+def _validate_non_negative_finite(name: str, values: np.ndarray) -> None:
+    """Validate that an array is finite and non-negative."""
+    if values.size == 0:
+        return
+    if not np.all(np.isfinite(values)):
+        raise ValueError(f"{name} must be finite.")
+    if np.any(values < 0):
+        raise ValueError(f"{name} must be non-negative.")
+
+
+def _validate_p_values(p_values: np.ndarray) -> None:
+    """Validate that p-values are finite and within [0, 1]."""
+    if p_values.size == 0:
+        return
+    if not np.all(np.isfinite(p_values)):
+        raise ValueError("p_values must be finite.")
+    eps = 1e-10
+    if np.any((p_values < -eps) | (p_values > 1 + eps)):
+        raise ValueError("p_values must be within [0, 1].")
+
+
 def _calib_weight_mass_at_or_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
@@ -220,6 +241,9 @@ def weighted_false_discovery_control(
     test_weights = np.asarray(test_weights)
     calib_weights = np.asarray(calib_weights)
 
+    _validate_non_negative_finite("test_weights", test_weights)
+    _validate_non_negative_finite("calib_weights", calib_weights)
+
     rng = np.random.default_rng(seed)
 
     if p_values is None:
@@ -235,6 +259,8 @@ def weighted_false_discovery_control(
         p_vals = np.asarray(p_values)
         if p_vals.ndim != 1:
             raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
+
+    _validate_p_values(p_vals)
 
     m = len(test_scores)
     if len(test_weights) != m or len(p_vals) != m:
@@ -345,16 +371,24 @@ def weighted_bh(
             raise ValueError(
                 "Cannot recompute weighted p-values; missing: " + ", ".join(missing)
             )
+        test_scores_arr = np.asarray(required["test_scores"])
+        calib_scores_arr = np.asarray(required["calib_scores"])
+        test_weights_arr = np.asarray(required["test_weights"])
+        calib_weights_arr = np.asarray(required["calib_weights"])
+        _validate_non_negative_finite("test_weights", test_weights_arr)
+        _validate_non_negative_finite("calib_weights", calib_weights_arr)
         p_values = calculate_weighted_p_val(
-            np.asarray(required["test_scores"]),
-            np.asarray(required["calib_scores"]),
-            np.asarray(required["test_weights"]),
-            np.asarray(required["calib_weights"]),
+            test_scores_arr,
+            calib_scores_arr,
+            test_weights_arr,
+            calib_weights_arr,
             randomize=True,
         )
 
     if p_values.ndim != 1:
         raise ValueError(f"p_values must be a 1D array, got shape {p_values.shape!r}.")
+
+    _validate_p_values(p_values)
 
     m = len(p_values)
     if m == 0:
