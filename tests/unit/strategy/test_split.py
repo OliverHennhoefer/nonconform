@@ -162,17 +162,15 @@ class TestSplitEdgeCases:
         assert len(detector_set) == 1
         assert len(calib_scores) >= 1
 
-    def test_accepts_numpy_values_from_dataframe(self):
-        """Strategy works with numpy values extracted from DataFrame."""
+    def test_accepts_dataframe_input(self):
+        """Strategy accepts pandas DataFrame input."""
         import pandas as pd
 
         rng = np.random.default_rng(42)
         df = pd.DataFrame(rng.standard_normal((50, 3)))
-        # Convert to numpy for use with Split strategy
-        # (Split uses array indexing which doesn't work with DataFrames)
         strategy = Split(n_calib=0.2)
         detector_set, calib_scores = strategy.fit_calibrate(
-            x=df.values, detector=MockDetector(), seed=42
+            x=df, detector=MockDetector(), seed=42
         )
         assert len(detector_set) == 1
         assert len(calib_scores) > 0

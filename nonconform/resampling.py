@@ -23,7 +23,7 @@ import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
 from tqdm import tqdm
 
-from nonconform._internal import Aggregation
+from nonconform._internal import Aggregation, ensure_numpy_array
 
 if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
@@ -112,6 +112,7 @@ class Split(BaseStrategy):
         self._calib_size: float | int = n_calib
         self._calibration_ids: list[int] | None = None
 
+    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -221,6 +222,7 @@ class CrossValidation(BaseStrategy):
         """
         return cls(k=None, plus=plus, shuffle=False)
 
+    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -421,6 +423,7 @@ class JackknifeBootstrap(BaseStrategy):
         self._bootstrap_models: list[AnomalyDetector | None] = []
         self._oob_mask: np.ndarray = np.array([])
 
+    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
