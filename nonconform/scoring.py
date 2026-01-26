@@ -199,20 +199,27 @@ def calculate_weighted_p_val(
         lower bound of test_weights / (sum(calib_weights) + test_weights) when
         there is no calibration mass above the test score.
     """
-    w_calib, w_scores = calib_weights, test_weights
+    w_calib = np.asarray(calib_weights)
+    w_scores = np.asarray(test_weights)
+    scores = np.asarray(scores)
+    calibration_set = np.asarray(calibration_set)
+
+    sort_idx = np.argsort(calibration_set)
+    sorted_scores = calibration_set[sort_idx]
+    sorted_weights = w_calib[sort_idx]
+
+    cumulative_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
+    total_weight = cumulative_weights[-1]
+
+    left_idx = np.searchsorted(sorted_scores, scores, side="left")
+    right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
     if not randomize:
-        # Old formula: count >= (at or above)
-        comparison_matrix = calibration_set >= scores[:, np.newaxis]
-        weighted_sum_ge = np.sum(comparison_matrix * w_calib, axis=1)
+        weighted_sum_ge = total_weight - cumulative_weights[left_idx]
         numerator = weighted_sum_ge + w_scores
     else:
-        # Randomized formula (default): separate strictly greater and ties
-        strictly_greater = calibration_set > scores[:, np.newaxis]
-        equal = calibration_set == scores[:, np.newaxis]
-
-        weighted_greater = np.sum(strictly_greater * w_calib, axis=1)
-        weighted_equal = np.sum(equal * w_calib, axis=1)
+        weighted_greater = total_weight - cumulative_weights[right_idx]
+        weighted_equal = cumulative_weights[right_idx] - cumulative_weights[left_idx]
 
         if rng is None:
             rng = np.random.default_rng()
@@ -220,7 +227,7 @@ def calculate_weighted_p_val(
 
         numerator = weighted_greater + (weighted_equal + w_scores) * u
 
-    denominator = np.sum(w_calib) + w_scores
+    denominator = total_weight + w_scores
     return np.divide(
         numerator,
         denominator,
