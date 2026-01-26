@@ -94,6 +94,36 @@ def _run_fdr_simulation(
 class TestFDRControl:
     """Test that WCS maintains FDR control under various configurations."""
 
+    def test_seed_reproducible_selection(self):
+        """Test that seeded runs are deterministic."""
+        calib_scores = np.array([0.1, 0.4, 0.9, 1.3, 1.7])
+        test_scores = np.array([0.2, 0.6, 1.0, 1.5, 1.9])
+        calib_weights = np.ones_like(calib_scores)
+        test_weights = np.ones_like(test_scores)
+
+        first = weighted_false_discovery_control(
+            p_values=None,
+            test_scores=test_scores,
+            calib_scores=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            alpha=0.25,
+            pruning=Pruning.HETEROGENEOUS,
+            seed=123,
+        )
+        second = weighted_false_discovery_control(
+            p_values=None,
+            test_scores=test_scores,
+            calib_scores=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            alpha=0.25,
+            pruning=Pruning.HETEROGENEOUS,
+            seed=123,
+        )
+
+        assert np.array_equal(first, second)
+
     @pytest.mark.parametrize(
         "alpha,pruning",
         [

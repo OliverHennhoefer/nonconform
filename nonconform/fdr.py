@@ -220,9 +220,16 @@ def weighted_false_discovery_control(
     test_weights = np.asarray(test_weights)
     calib_weights = np.asarray(calib_weights)
 
+    rng = np.random.default_rng(seed)
+
     if p_values is None:
         p_vals = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights, randomize=True
+            test_scores,
+            calib_scores,
+            test_weights,
+            calib_weights,
+            randomize=True,
+            rng=rng,
         )
     else:
         p_vals = np.asarray(p_values)
@@ -236,8 +243,6 @@ def weighted_false_discovery_control(
         )
     if len(calib_scores) != len(calib_weights):
         raise ValueError("calib_scores and calib_weights must have the same length.")
-
-    rng = np.random.default_rng(seed)
 
     if kde_support is not None:
         eval_grid, cdf_values, total_weight = kde_support
