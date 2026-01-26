@@ -6,6 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from nonconform._internal.random_utils import derive_seed
 from nonconform.weighting import (
     DEFAULT_CLIP_BOUNDS,
     EPSILON,
@@ -391,7 +392,7 @@ class TestBootstrapBaggedWeightEstimator:
         bagged.fit(calib, test)
 
         w_calib, w_test = bagged.get_weights()
-        seeds = [hash((i, 7)) % (2**32) for i in range(3)]
+        seeds = [derive_seed(i, 7) for i in range(3)]
         log_c = np.zeros(n_calib)
         log_t = np.zeros(n_test)
         for seed in seeds:

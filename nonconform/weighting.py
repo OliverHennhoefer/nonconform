@@ -28,6 +28,8 @@ from sklearn.base import clone
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
+from nonconform._internal.random_utils import derive_seed
+
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator
 
@@ -526,10 +528,11 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             # Create base estimator with iteration-specific seed
             base_est = deepcopy(self.base_estimator)
             if self._seed is not None:
+                derived_seed = derive_seed(i, self._seed)
                 if hasattr(base_est, "seed"):
-                    base_est.seed = hash((i, self._seed)) % (2**32)
+                    base_est.seed = derived_seed
                 if hasattr(base_est, "_seed"):
-                    base_est._seed = hash((i, self._seed)) % (2**32)
+                    base_est._seed = derived_seed
 
             # Fit on bootstrap sample, then score ALL original instances
             base_est.fit(x_calib_boot, x_test_boot)

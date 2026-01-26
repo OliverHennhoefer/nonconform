@@ -10,6 +10,8 @@ import logging
 import sys
 from typing import TYPE_CHECKING, Any
 
+from .random_utils import derive_seed
+
 if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
 
@@ -53,7 +55,7 @@ def set_params(
 
     if seed is not None:
         if random_iteration and iteration is not None:
-            dynamic_seed = hash((iteration, seed)) % (2**32)
+            dynamic_seed = derive_seed(iteration, seed)
             _set_random_state(detector, params, dynamic_seed)
         else:
             _set_random_state(detector, params, seed)
