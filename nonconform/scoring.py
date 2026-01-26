@@ -193,6 +193,11 @@ def calculate_weighted_p_val(
 
     Returns:
         Array of weighted p-values for each test instance.
+
+    Note:
+        Including test_weights in the numerator/denominator implies a positive
+        lower bound of test_weights / (sum(calib_weights) + test_weights) when
+        there is no calibration mass above the test score.
     """
     w_calib, w_scores = calib_weights, test_weights
 
@@ -229,6 +234,11 @@ class Probabilistic(BaseEstimation):
 
     Provides smooth p-values in [0,1] via kernel density estimation.
     Supports automatic hyperparameter tuning and weighted conformal prediction.
+    In weighted mode, only calibration weights are applied to the KDE; test
+    weights are intentionally not injected into the survival calculation so
+    p-values can reach 0. This avoids the lower bound
+    w_test / (sum_calib_weight + w_test) that the discrete weighted formula
+    would impose.
 
     Args:
         kernel: Kernel function or list (list triggers kernel tuning).
@@ -274,6 +284,9 @@ class Probabilistic(BaseEstimation):
         """Compute continuous p-values using KDE.
 
         Lazy fitting: tunes and fits KDE on first call or when calibration changes.
+        Note: When weights are provided, this estimator uses only calibration
+        weights to shape the KDE. Test weights are accepted for API parity but
+        do not set a positive lower bound on p-values.
         """
         if weights is not None:
             w_calib, w_test = weights
@@ -345,7 +358,11 @@ class Probabilistic(BaseEstimation):
         w_test: np.ndarray | None,
         sum_calib_weight: float,
     ) -> np.ndarray:
-        """Compute P(X >= score) from fitted KDE via numerical integration."""
+        """Compute P(X >= score) from fitted KDE via numerical integration.
+
+        Note: The weighted path intentionally omits w_test from the formula so
+        p-values are not bounded below by w_test / (sum_calib_weight + w_test).
+        """
         from scipy import integrate
         from scipy.interpolate import interp1d
 
