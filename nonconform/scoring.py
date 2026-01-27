@@ -199,10 +199,30 @@ def calculate_weighted_p_val(
         lower bound of test_weights / (sum(calib_weights) + test_weights) when
         there is no calibration mass above the test score.
     """
-    w_calib = np.asarray(calib_weights)
-    w_scores = np.asarray(test_weights)
-    scores = np.asarray(scores)
-    calibration_set = np.asarray(calibration_set)
+
+    def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
+        arr = np.asarray(values)
+        if arr.ndim > 2 or (arr.ndim == 2 and 1 not in arr.shape):
+            raise ValueError(
+                f"{name} must be a 1D array (or shape (n, 1)/(1, n)), got {arr.shape}."
+            )
+        return arr.ravel()
+
+    scores = _as_1d("scores", scores)
+    calibration_set = _as_1d("calibration_set", calibration_set)
+    w_scores = _as_1d("test_weights", test_weights)
+    w_calib = _as_1d("calib_weights", calib_weights)
+
+    if len(scores) != len(w_scores):
+        raise ValueError(
+            "scores and test_weights must have the same length. "
+            f"Got {len(scores)} and {len(w_scores)}."
+        )
+    if len(calibration_set) != len(w_calib):
+        raise ValueError(
+            "calibration_set and calib_weights must have the same length. "
+            f"Got {len(calibration_set)} and {len(w_calib)}."
+        )
 
     sort_idx = np.argsort(calibration_set)
     sorted_scores = calibration_set[sort_idx]

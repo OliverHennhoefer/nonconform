@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from nonconform.scoring import calculate_p_val, calculate_weighted_p_val
 
@@ -82,6 +83,30 @@ class TestExtremeWeights:
         assert len(p_values) == 2
         assert np.all(p_values >= 0.0)
         assert np.all(p_values <= 1.0)
+
+
+class TestWeightedInputValidation:
+    def test_mismatched_test_weights_length_raises(self):
+        test_scores = np.array([1.0, 2.0, 3.0])
+        calib_scores = np.array([0.5, 1.5, 2.5])
+        test_weights = np.array([1.0, 1.0])
+        calib_weights = np.array([1.0, 1.0, 1.0])
+
+        with pytest.raises(ValueError, match="scores and test_weights"):
+            calculate_weighted_p_val(
+                test_scores, calib_scores, test_weights, calib_weights
+            )
+
+    def test_mismatched_calib_weights_length_raises(self):
+        test_scores = np.array([1.0, 2.0])
+        calib_scores = np.array([0.5, 1.5, 2.5])
+        test_weights = np.array([1.0, 1.0])
+        calib_weights = np.array([1.0, 1.0])
+
+        with pytest.raises(ValueError, match="calibration_set and calib_weights"):
+            calculate_weighted_p_val(
+                test_scores, calib_scores, test_weights, calib_weights
+            )
 
 
 class TestNumericalStability:
