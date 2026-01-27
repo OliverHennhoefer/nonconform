@@ -174,3 +174,36 @@ class TestSplitEdgeCases:
         )
         assert len(detector_set) == 1
         assert len(calib_scores) > 0
+
+    def test_invalid_proportional_n_calib_raises(self):
+        """Invalid proportional n_calib values raise ValueError."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((10, 2))
+        for n_calib in (0.0, 1.0, -0.1):
+            strategy = Split(n_calib=n_calib)
+            with pytest.raises(ValueError, match="Proportional n_calib"):
+                strategy.fit_calibrate(x=X, detector=MockDetector(), seed=42)
+
+    def test_invalid_absolute_n_calib_raises(self):
+        """Invalid absolute n_calib values raise ValueError."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((10, 2))
+        strategy = Split(n_calib=0)
+        with pytest.raises(ValueError, match="Absolute n_calib"):
+            strategy.fit_calibrate(x=X, detector=MockDetector(), seed=42)
+
+        strategy = Split(n_calib=10)
+        with pytest.raises(ValueError, match="No training data remaining"):
+            strategy.fit_calibrate(x=X, detector=MockDetector(), seed=42)
+
+        strategy = Split(n_calib=11)
+        with pytest.raises(ValueError, match="Calibration size"):
+            strategy.fit_calibrate(x=X, detector=MockDetector(), seed=42)
+
+    def test_non_numeric_n_calib_raises(self):
+        """Non-numeric n_calib values raise TypeError."""
+        rng = np.random.default_rng(42)
+        X = rng.standard_normal((10, 2))
+        strategy = Split(n_calib="bad")
+        with pytest.raises(TypeError, match="n_calib must be int or float"):
+            strategy.fit_calibrate(x=X, detector=MockDetector(), seed=42)

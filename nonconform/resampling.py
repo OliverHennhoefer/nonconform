@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import abc
 import logging
+import math
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import copy, deepcopy
 from typing import TYPE_CHECKING
@@ -112,6 +113,34 @@ class Split(BaseStrategy):
         self._calib_size: float | int = n_calib
         self._calibration_ids: list[int] | None = None
 
+    def _validate_n_calib(self, n_samples: int) -> None:
+        """Validate calibration size against dataset size."""
+        n_calib = self._calib_size
+        if isinstance(n_calib, float):
+            if not (0 < n_calib < 1):
+                raise ValueError(
+                    f"Proportional n_calib must be in (0, 1), got {n_calib}"
+                )
+            n_calib_abs = math.ceil(n_samples * n_calib)
+        elif isinstance(n_calib, int):
+            if n_calib < 1:
+                raise ValueError(
+                    f"Absolute n_calib must be in [1, {n_samples}), got {n_calib}"
+                )
+            n_calib_abs = n_calib
+        else:
+            raise TypeError(f"n_calib must be int or float, got {type(n_calib)}")
+
+        if n_calib_abs >= n_samples:
+            if n_calib_abs == n_samples:
+                raise ValueError(
+                    "No training data remaining after calibration split. "
+                    "Reduce n_calib to leave data for training the base detector."
+                )
+            raise ValueError(
+                f"Calibration size ({n_calib_abs}) exceeds training size ({n_samples})"
+            )
+
     @ensure_numpy_array
     def fit_calibrate(
         self,
@@ -131,6 +160,7 @@ class Split(BaseStrategy):
         Returns:
             Tuple of (list with trained detector, calibration scores array).
         """
+        self._validate_n_calib(len(x))
         x_id = np.arange(len(x))
         train_id, calib_id = train_test_split(
             x_id, test_size=self._calib_size, shuffle=True, random_state=seed
