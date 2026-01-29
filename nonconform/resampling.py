@@ -15,6 +15,7 @@ from __future__ import annotations
 import abc
 import logging
 import math
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import copy, deepcopy
 from typing import TYPE_CHECKING
@@ -469,7 +470,8 @@ class JackknifeBootstrap(BaseStrategy):
             detector: The base anomaly detector.
             seed: Random seed for reproducibility. Defaults to None.
             weighted: Not used in JaB+. Defaults to False.
-            n_jobs: Number of parallel jobs. Defaults to None (sequential).
+            n_jobs: Number of parallel jobs. Use -1 for all available cores.
+                Defaults to None (sequential).
 
         Returns:
             Tuple of (list of trained detectors, calibration scores array).
@@ -486,6 +488,13 @@ class JackknifeBootstrap(BaseStrategy):
         all_bootstrap_indices, self._oob_mask = self._generate_bootstrap_indices(
             generator, n_samples
         )
+
+        if n_jobs == -1:
+            n_jobs = os.cpu_count() or 1
+        elif n_jobs is not None and n_jobs < 1:
+            raise ValueError(
+                f"n_jobs must be None, -1, or a positive integer; got {n_jobs}."
+            )
 
         if n_jobs is None or n_jobs == 1:
             bootstrap_iterator = (

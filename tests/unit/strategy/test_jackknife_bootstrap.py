@@ -45,3 +45,18 @@ class TestJackknifeBootstrapFitCalibrate:
         strategy = JackknifeBootstrap(n_bootstraps=5, plus=True)
         strategy.fit_calibrate(x=sample_data, detector=detector, seed=123)
         assert strategy.calibration_ids == list(range(len(sample_data)))
+
+    def test_n_jobs_minus_one_runs_without_error(self, sample_data, detector):
+        """n_jobs=-1 runs without error and returns expected results."""
+        strategy = JackknifeBootstrap(n_bootstraps=3, plus=True)
+        detector_set, calib_scores = strategy.fit_calibrate(
+            x=sample_data, detector=detector, seed=123, n_jobs=-1
+        )
+        assert len(detector_set) == 3
+        assert len(calib_scores) == len(sample_data)
+
+    def test_n_jobs_zero_raises(self, sample_data, detector):
+        """n_jobs must be None, -1, or positive integer."""
+        strategy = JackknifeBootstrap(n_bootstraps=3, plus=True)
+        with pytest.raises(ValueError, match="n_jobs"):
+            strategy.fit_calibrate(x=sample_data, detector=detector, seed=123, n_jobs=0)
