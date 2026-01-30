@@ -167,6 +167,12 @@ class Split(BaseStrategy):
             x_id, test_size=self._calib_size, shuffle=True, random_state=seed
         )
 
+        if hasattr(detector, "set_params"):
+            try:
+                detector.set_params(random_state=seed)
+            except (TypeError, ValueError):
+                pass  # Detector may not support random_state parameter
+
         detector.fit(x[train_id])
         calibration_set = detector.decision_function(x[calib_id])
 

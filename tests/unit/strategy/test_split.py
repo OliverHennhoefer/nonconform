@@ -83,6 +83,14 @@ class TestSplitFitCalibrate:
         )
         assert detector_set[0]._fitted
 
+    def test_seed_propagates_to_detector(self, sample_data, detector):
+        """fit_calibrate applies seed to detector random_state when supported."""
+        strategy = Split(n_calib=0.2)
+        detector_set, _ = strategy.fit_calibrate(
+            x=sample_data, detector=detector, seed=123
+        )
+        assert detector_set[0].get_params()["random_state"] == 123
+
     def test_calibration_ids_stored_when_weighted(self, sample_data, detector):
         """Calibration IDs stored when weighted=True."""
         strategy = Split(n_calib=0.2)
