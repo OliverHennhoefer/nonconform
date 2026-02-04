@@ -235,7 +235,7 @@ detector = ConformalDetector(
 
 **Parameters**:
 - `regularization`: Regularization strength ('auto' or float C value)
-- `clip_quantile`: Quantile for weight clipping (default: 0.05)
+- `clip_quantile`: Quantile for weight clipping (default: 0.05). Set to None to disable clipping.
 - `class_weight`: Class weights for LogisticRegression (default: 'balanced')
 - `max_iter`: Maximum iterations (default: 1000)
 
@@ -265,7 +265,7 @@ detector = ConformalDetector(
 - `n_estimators`: Number of trees (default: 100)
 - `max_depth`: Maximum tree depth (default: 5)
 - `min_samples_leaf`: Minimum samples in leaf (default: 10)
-- `clip_quantile`: Quantile for weight clipping (default: 0.05)
+- `clip_quantile`: Quantile for weight clipping (default: 0.05). Set to None to disable clipping.
 
 ### Comparison
 
@@ -307,7 +307,7 @@ for name, weight_est in estimators.items():
 
 ### BootstrapBaggedWeightEstimator
 
-Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios:
+Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios. It is most relevant when the calibration set is much larger than the test batch, where standalone importance weights can become spiky and overly influential:
 
 ```python
 from nonconform import BootstrapBaggedWeightEstimator, forest_weight_estimator
@@ -316,7 +316,6 @@ from nonconform import BootstrapBaggedWeightEstimator, forest_weight_estimator
 weight_est = BootstrapBaggedWeightEstimator(
     base_estimator=forest_weight_estimator(n_estimators=50),
     n_bootstrap=50,
-    clip_bounds=(0.35, 45.0),
     clip_quantile=0.05,
 )
 
@@ -404,16 +403,11 @@ Empirical testing shows context-dependent value:
 - Higher = more stable, but slower
 - Recommended: 20-50 for small test batches, 50-100 for critical applications
 
-**clip_bounds** (default: (0.35, 45.0)):
-- Fixed clipping bounds for weights after aggregation
-- Prevents extreme values that could destabilize p-value computation
-- Use when you have domain knowledge about reasonable weight ranges
-
 **clip_quantile** (default: 0.05):
 - Adaptive quantile-based clipping
 - Clips to (quantile, 1-quantile) percentiles
 - Use when weight distribution is unknown
-- Set to None to use fixed clip_bounds instead
+- Set to None to disable clipping
 
 #### Advanced Example: Streaming Detection
 

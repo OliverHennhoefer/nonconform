@@ -33,7 +33,6 @@ from nonconform._internal.random_utils import derive_seed
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator
 
-DEFAULT_CLIP_BOUNDS = (0.35, 45.0)
 EPSILON = 1e-9
 _bagged_logger = logging.getLogger("nonconform.weighting.bagged")
 
@@ -186,30 +185,30 @@ class BaseWeightEstimator(ABC):
         w_calib: np.ndarray,
         w_test: np.ndarray,
         clip_quantile: float | None,
-    ) -> tuple[float, float]:
+    ) -> tuple[float, float] | None:
         """Compute clipping bounds for weight stabilization.
 
         Args:
             w_calib: Calibration weights.
             w_test: Test weights.
             clip_quantile: Quantile for adaptive clipping (e.g., 0.05 clips to
-                5th-95th percentile). If None, uses default fixed bounds.
+                5th-95th percentile). If None, no clipping is applied.
 
         Returns:
-            Tuple of (lower_bound, upper_bound) for clipping.
+            Tuple of (lower_bound, upper_bound) for clipping, or None to disable.
         """
-        if clip_quantile is not None:
-            all_weights = np.concatenate([w_calib, w_test])
-            lower_bound = np.percentile(all_weights, clip_quantile * 100)
-            upper_bound = np.percentile(all_weights, (1 - clip_quantile) * 100)
-            return (lower_bound, upper_bound)
-        return DEFAULT_CLIP_BOUNDS
+        if clip_quantile is None:
+            return None
+        all_weights = np.concatenate([w_calib, w_test])
+        lower_bound = np.percentile(all_weights, clip_quantile * 100)
+        upper_bound = np.percentile(all_weights, (1 - clip_quantile) * 100)
+        return (lower_bound, upper_bound)
 
     @staticmethod
     def _clip_weights(
         w_calib: np.ndarray,
         w_test: np.ndarray,
-        clip_bounds: tuple[float, float],
+        clip_bounds: tuple[float, float] | None,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Apply clipping to stabilize weights.
 
@@ -221,6 +220,8 @@ class BaseWeightEstimator(ABC):
         Returns:
             Tuple of clipped (w_calib, w_test) arrays.
         """
+        if clip_bounds is None:
+            return w_calib, w_test
         return np.clip(w_calib, *clip_bounds), np.clip(w_test, *clip_bounds)
 
 
@@ -276,7 +277,7 @@ class SklearnWeightEstimator(BaseWeightEstimator):
         base_estimator: Configured sklearn classifier instance with predict_proba
             support. Defaults to LogisticRegression.
         clip_quantile: Quantile for weight clipping (e.g., 0.05 clips to 5th-95th
-            percentile). Defaults to 0.05.
+            percentile). Use None to disable clipping. Defaults to 0.05.
 
     Raises:
         ValueError: If base_estimator does not implement predict_proba.
@@ -311,7 +312,7 @@ class SklearnWeightEstimator(BaseWeightEstimator):
     def __init__(
         self,
         base_estimator: ProbabilisticClassifier | BaseEstimator | None = None,
-        clip_quantile: float = 0.05,
+        clip_quantile: float | None = 0.05,
     ) -> None:
         # Default to a sane baseline if nothing is provided
         # Use explicit None check to avoid truthiness evaluation of sklearn estimators
@@ -321,6 +322,10 @@ class SklearnWeightEstimator(BaseWeightEstimator):
             if base_estimator is not None
             else LogisticRegression(solver="liblinear")
         )
+        if clip_quantile is not None and not (0 < clip_quantile < 0.5):
+            raise ValueError(
+                f"clip_quantile must be in (0, 0.5) or None, got {clip_quantile}."
+            )
         self.clip_quantile = clip_quantile
 
         if not hasattr(self.base_estimator, "predict_proba"):
@@ -426,8 +431,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     """Bootstrap-bagged wrapper for weight estimators with instance-wise aggregation.
 
     This estimator wraps any base weight estimator and applies bootstrap bagging
-    to create more stable, robust weight estimates. It's particularly useful when
-    the calibration set is much larger than the test batch (or vice versa).
+    to create more stable, robust weight estimates. It's most relevant when the
+    calibration set is much larger than the test batch (or vice versa), where
+    standalone weights can become spiky and unstable.
 
     The algorithm:
     1. For each bootstrap iteration:
@@ -446,8 +452,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     Args:
         base_estimator: Any BaseWeightEstimator instance.
         n_bootstrap: Number of bootstrap iterations. Defaults to 100.
-        clip_bounds: Fixed clipping bounds. Defaults to (0.35, 45.0).
-        clip_quantile: Quantile for adaptive clipping. Defaults to 0.05.
+        clip_quantile: Quantile for adaptive clipping. Use None to disable clipping.
+            Defaults to 0.05.
 
     References:
         Jin, Ying, and Emmanuel J. Candès. "Selection by Prediction with Conformal
@@ -458,8 +464,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         self,
         base_estimator: BaseWeightEstimator,
         n_bootstrap: int = 100,
-        clip_bounds: tuple[float, float] = (0.35, 45.0),
-        clip_quantile: float = 0.05,
+        clip_quantile: float | None = 0.05,
     ) -> None:
         if n_bootstrap < 1:
             raise ValueError(
@@ -474,7 +479,6 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 
         self.base_estimator = base_estimator
         self.n_bootstrap = n_bootstrap
-        self.clip_bounds = clip_bounds
         self.clip_quantile = clip_quantile
 
         # Seed inheritance attribute (set by ConformalDetector)
@@ -547,14 +551,16 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         w_test_final = np.exp(sum_log_weights_test / self.n_bootstrap)
 
         # Apply clipping after aggregation (use base class static method)
-        clip_min, clip_max = BaseWeightEstimator._compute_clip_bounds(
+        clip_bounds = BaseWeightEstimator._compute_clip_bounds(
             w_calib_final, w_test_final, self.clip_quantile
         )
-        if self.clip_quantile is None:
-            clip_min, clip_max = self.clip_bounds
-
-        self._w_calib = np.clip(w_calib_final, clip_min, clip_max)
-        self._w_test = np.clip(w_test_final, clip_min, clip_max)
+        if clip_bounds is None:
+            self._w_calib = w_calib_final
+            self._w_test = w_test_final
+        else:
+            clip_min, clip_max = clip_bounds
+            self._w_calib = np.clip(w_calib_final, clip_min, clip_max)
+            self._w_test = np.clip(w_test_final, clip_min, clip_max)
         self._is_fitted = True
 
     def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
@@ -691,7 +697,6 @@ def forest_weight_estimator(
 
 
 __all__ = [
-    "DEFAULT_CLIP_BOUNDS",
     "EPSILON",
     "BaseWeightEstimator",
     "BootstrapBaggedWeightEstimator",

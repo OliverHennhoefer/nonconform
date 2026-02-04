@@ -8,7 +8,6 @@ from sklearn.preprocessing import StandardScaler
 
 from nonconform._internal.random_utils import derive_seed
 from nonconform.weighting import (
-    DEFAULT_CLIP_BOUNDS,
     EPSILON,
     BaseWeightEstimator,
     BootstrapBaggedWeightEstimator,
@@ -195,7 +194,7 @@ class TestBaseWeightEstimatorHelpers:
         fallback = BaseWeightEstimator._compute_clip_bounds(
             w_calib, w_test, clip_quantile=None
         )
-        assert fallback == DEFAULT_CLIP_BOUNDS
+        assert fallback is None
 
         clipped_calib, clipped_test = BaseWeightEstimator._clip_weights(
             w_calib, w_test, (0.5, 2.5)
@@ -257,13 +256,15 @@ class TestSklearnWeightEstimator:
         calib, test = _simple_data(4, 4)
         estimator = SklearnWeightEstimator(
             base_estimator=FixedProbClassifier(proba0=0.01, proba1=0.99),
-            clip_quantile=None,
+            clip_quantile=0.1,
         )
         estimator.fit(calib, test)
 
         w_calib, w_test = estimator.get_weights(np.ones((3, 2)), np.ones((3, 2)))
-        assert np.all(w_calib <= DEFAULT_CLIP_BOUNDS[1] + 1e-12)
-        assert np.all(w_test <= DEFAULT_CLIP_BOUNDS[1] + 1e-12)
+        assert estimator._clip_bounds is not None
+        _, upper = estimator._clip_bounds
+        assert np.all(w_calib <= upper + 1e-12)
+        assert np.all(w_test <= upper + 1e-12)
 
     def test_init_without_predict_proba_raises(self):
         with pytest.raises(ValueError):
@@ -382,8 +383,7 @@ class TestBootstrapBaggedWeightEstimator:
         bagged = BootstrapBaggedWeightEstimator(
             base_estimator=base,
             n_bootstrap=3,
-            clip_bounds=(0.5, 2.0),
-            clip_quantile=None,
+            clip_quantile=0.2,
         )
         bagged.set_seed(7)
         n_calib, n_test = 4, 3
@@ -401,8 +401,15 @@ class TestBootstrapBaggedWeightEstimator:
             w_t_iter = rng.uniform(1.5, 2.5, size=n_test)
             log_c += np.log(w_c_iter)
             log_t += np.log(w_t_iter)
-        expected_c = np.clip(np.exp(log_c / 3), 0.5, 2.0)
-        expected_t = np.clip(np.exp(log_t / 3), 0.5, 2.0)
+        expected_c = np.exp(log_c / 3)
+        expected_t = np.exp(log_t / 3)
+        clip_bounds = BaseWeightEstimator._compute_clip_bounds(
+            expected_c, expected_t, clip_quantile=0.2
+        )
+        assert clip_bounds is not None
+        clip_min, clip_max = clip_bounds
+        expected_c = np.clip(expected_c, clip_min, clip_max)
+        expected_t = np.clip(expected_t, clip_min, clip_max)
         assert np.allclose(w_calib, expected_c)
         assert np.allclose(w_test, expected_t)
 
