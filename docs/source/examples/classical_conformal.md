@@ -37,10 +37,10 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Get p-values for test data
-p_values = detector.predict(x_test, raw=False)
+p_values = detector.compute_p_values(x_test)
 
 # Get raw anomaly scores (optional)
-scores = detector.predict(x_test, raw=True)
+scores = detector.score_samples(x_test)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -68,7 +68,7 @@ cv_detector = ConformalDetector(
 
 # Fit and predict with cross-validation
 cv_detector.fit(x_train)
-cv_p_values = cv_detector.predict(x_test, raw=False)
+cv_p_values = cv_detector.compute_p_values(x_test)
 
 # Compare with split strategy
 # Apply FDR control for fair comparison
@@ -97,7 +97,7 @@ for agg_method in aggregation_methods:
         seed=42
     )
     detector.fit(x_train)
-    p_vals = detector.predict(x_test, raw=False)
+    p_vals = detector.compute_p_values(x_test)
 
     # Apply FDR control
     fdr_controlled = false_discovery_control(p_vals, method='bh')

@@ -33,7 +33,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
+        estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.2
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.2, decimal=2
@@ -53,7 +53,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
+        estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.25
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
@@ -73,7 +73,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
+        estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.1
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.071, decimal=2
@@ -93,7 +93,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.predict(x_test)
+        estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.2
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.176, decimal=3

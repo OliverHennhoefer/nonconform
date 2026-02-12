@@ -42,7 +42,7 @@ detector.fit(X)
 
 # Get weighted p-values for test data
 # The detector automatically estimates importance weights internally
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply Weighted Conformal Selection (WCS) for FDR control
 discoveries = weighted_false_discovery_control(
@@ -76,7 +76,7 @@ detector_shifted = ConformalDetector(
 detector_shifted.fit(X)
 
 # Predict on shifted data
-p_values_shifted = detector_shifted.predict(X_shifted, raw=False)
+p_values_shifted = detector_shifted.compute_p_values(X_shifted)
 
 # Apply WCS for FDR control
 discoveries_shifted = weighted_false_discovery_control(
@@ -108,7 +108,7 @@ standard_detector = ConformalDetector(
 standard_detector.fit(X)
 
 # Compare on shifted data
-standard_p_values = standard_detector.predict(X_shifted, raw=False)
+standard_p_values = standard_detector.compute_p_values(X_shifted)
 
 # Apply FDR control to standard conformal (BH procedure)
 standard_disc = false_discovery_control(standard_p_values, method='bh') < 0.05
@@ -132,7 +132,7 @@ standard_detector = ConformalDetector(
     seed=42
 )
 standard_detector.fit(X)
-standard_p_values = standard_detector.predict(X_test, raw=False)
+standard_p_values = standard_detector.compute_p_values(X_test)
 
 # Weighted conformal detector
 weighted_detector = ConformalDetector(
@@ -143,7 +143,7 @@ weighted_detector = ConformalDetector(
     seed=42
 )
 weighted_detector.fit(X)
-weighted_p_values = weighted_detector.predict(X_test, raw=False)
+weighted_p_values = weighted_detector.compute_p_values(X_test)
 
 # Apply FDR control
 standard_disc_severe = false_discovery_control(standard_p_values, method='bh') < 0.05
@@ -169,7 +169,7 @@ print(f"Statistical Power (weighted): {statistical_power(y=y_test, y_hat=weighte
 
 # Re-run with proper FDR control
 detector.fit(X)
-_ = detector.predict(X_test, raw=False)
+_ = detector.compute_p_values(X_test)
 
 eval_discoveries = weighted_false_discovery_control(
     result=detector.last_result,
@@ -233,7 +233,7 @@ for agg_method in aggregation_methods:
         seed=42
     )
     det.fit(X)
-    _ = det.predict(X_test, raw=False)
+    _ = det.compute_p_values(X_test)
 
     disc = weighted_false_discovery_control(
         result=det.last_result,
@@ -261,7 +261,7 @@ weighted_jab_detector = ConformalDetector(
 )
 
 weighted_jab_detector.fit(X)
-_ = weighted_jab_detector.predict(X_test, raw=False)
+_ = weighted_jab_detector.compute_p_values(X_test)
 
 # Apply WCS for FDR control
 jab_discoveries = weighted_false_discovery_control(

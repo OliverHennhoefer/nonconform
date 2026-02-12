@@ -45,9 +45,7 @@ detector = ConformalDetector(
     strategy=Split(n_calib=1_000),
     seed=42,
 )
-detector.fit(x_train)
-
-p_values = detector.predict(x_test)
+p_values = detector.fit(x_train).compute_p_values(x_test)
 decisions = false_discovery_control(p_values, method="bh") <= 0.2
 
 print(f"Empirical FDR: {false_discovery_rate(y_test, decisions)}")
@@ -157,6 +155,18 @@ If you find this repository useful for your research, please cite the following 
     doi       = {10.1214/22-aos2244},
     issn      = {0090-5364},
     url       = {http://dx.doi.org/10.1214/22-AOS2244}
+}
+```
+
+##### Algorithmic Learning in a Random World
+```bibtex
+@book{Vovk2005,
+    title     = {Algorithmic Learning in a Random World},
+    author    = {Vladimir Vovk and Alex Gammerman and Glenn Shafer},
+    year      = {2005},
+    publisher = {Springer},
+    note      = {Springer, New York},
+    language  = {English}
 }
 ```
 

@@ -1,5 +1,4 @@
-# Logging and Progress Control
-
+# Logging and Progress Control| `"Aggregating N models"` | Model ensemble aggregation | During `compute_p_values()` with multiple models |
 nonconform uses Python's standard logging framework to control progress bars and informational output. The `verbose` flag on `ConformalDetector` controls aggregation progress bars, while logger levels drive strategy-level progress bars. This provides flexible, fine-grained control that integrates seamlessly with existing logging infrastructure.
 
 ## Overview
@@ -15,8 +14,7 @@ Progress is controlled via the `verbose` flag (aggregation) and logger levels (s
 
 nonconform uses a hierarchical logger structure:
 
-```
-nonconform                    # Root logger
+predictions = detector.compute_p_values(X_test)  # Shows "Aggregating N models" progress barnonconform                    # Root logger
 ├── estimation                # Detector logging
 │   ├── standard_conformal    # Standard detector
 │   └── weighted_conformal    # Weighted detector
@@ -49,7 +47,7 @@ detector = ConformalDetector(
     strategy=CrossValidation(k=5)
 )
 detector.fit(X_train)  # Shows "CV fold training (5 folds)" progress bar
-predictions = detector.predict(X_test)  # Shows "Aggregating 1 models" progress bar
+predictions = detector.compute_p_values(X_test)  # Shows "Aggregating 1 models" progress bar
 ```
 
 ### Hide Progress Bars (Production)
@@ -65,7 +63,7 @@ detector = ConformalDetector(
     strategy=CrossValidation(k=5)
 )
 detector.fit(X_train)  # No progress bars
-predictions = detector.predict(X_test)  # No progress bars
+predictions = detector.compute_p_values(X_test)  # No progress bars
 ```
 
 ### Debug Mode (Troubleshooting)
@@ -131,8 +129,7 @@ import logging
 # Configure different modules at different levels
 logging.getLogger('nonconform').setLevel(logging.INFO)  # General info
 logging.getLogger('nonconform.strategy.bootstrap').setLevel(logging.WARNING)  # Hide bootstrap details
-logging.getLogger('nonconform.detection').setLevel(logging.DEBUG)  # Debug detector issues
-
+logging.getLogger('nonconform.estimation').setLevel(logging.DEBUG)  # Debug detector issues
 # This configuration will:
 # - Show progress bars for CV and aggregation
 # - Hide detailed bootstrap configuration messages
@@ -276,7 +273,7 @@ logger.addHandler(handler)
 
 # Your detection code runs silently
 detector.fit(X_train)
-predictions = detector.predict(X_test)
+predictions = detector.compute_p_values(X_test)
 ```
 
 ### Docker/Containerized Environment

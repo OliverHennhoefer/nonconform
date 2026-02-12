@@ -290,7 +290,7 @@ for name, strategy in strategies.items():
         seed=42
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test)
+    p_values = detector.compute_p_values(X_test)
 
     # Apply FDR control and evaluate performance
     adjusted = false_discovery_control(p_values, method='bh')

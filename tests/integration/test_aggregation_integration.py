@@ -29,7 +29,7 @@ def test_aggregation_matches_manual_scores(simple_dataset, aggregation):
     detector = _build_detector(aggregation)
     detector.fit(x_train)
 
-    raw_scores = detector.predict(x_test, raw=True)
+    raw_scores = detector.score_samples(x_test)
     detectors = detector.detector_set
     assert len(detectors) >= 3  # ensemble created by CrossValidation
     stacked = np.vstack([model.decision_function(x_test) for model in detectors])
@@ -47,7 +47,7 @@ def test_aggregation_choice_changes_pvalues(simple_dataset):
     mean_detector.fit(x_train)
     max_detector.fit(x_train)
 
-    mean_p = mean_detector.predict(x_test)
-    max_p = max_detector.predict(x_test)
+    mean_p = mean_detector.compute_p_values(x_test)
+    max_p = max_detector.compute_p_values(x_test)
 
     assert not np.allclose(mean_p, max_p)

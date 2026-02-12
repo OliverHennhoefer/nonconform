@@ -48,12 +48,9 @@ detector = ConformalDetector(
     seed=42,
 )
 
-# Fit on training data
-detector.fit(X_train)
-
-# Get weighted p-values for test data
-# The detector automatically computes importance weights
-p_values = detector.predict(X_test, raw=False)
+# Fit on training data and get weighted p-values
+# By default, prediction refits the weight model for each batch
+p_values = detector.fit(X_train).compute_p_values(X_test)
 ```
 
 ## How It Works
@@ -71,6 +68,15 @@ During prediction, the detector:
 - Trains a logistic regression model to distinguish calibration from test samples
 - Uses the predicted probabilities to estimate importance weights
 - Applies weights to both calibration and test instances
+
+For explicit control of this state transition, you can precompute weights once and
+reuse them:
+
+```python
+detector.fit(X_train)
+detector.prepare_weights_for(X_test_shifted)
+p_values = detector.compute_p_values(X_test_shifted, refit_weights=False)
+```
 
 ### 3. Weighted P-value Calculation
 The p-values are computed using weighted empirical distribution functions. By default, `nonconform` uses the classical (non-randomized) formula. The randomized variant [[Jin & Candès, 2023](#references)] handles ties more gracefully:
@@ -116,17 +122,17 @@ Use weighted conformal detection when:
 # Example 1: Temporal shift
 # Training data from 2020, test data from 2024
 detector.fit(X_train_2020)
-p_values_2024 = detector.predict(X_test_2024, raw=False)
+p_values_2024 = detector.compute_p_values(X_test_2024)
 
 # Example 2: Geographic shift
 # Training on US data, testing on European data
 detector.fit(X_us)
-p_values_europe = detector.predict(X_europe, raw=False)
+p_values_europe = detector.compute_p_values(X_europe)
 
 # Example 3: Sensor drift
 # Calibration data before sensor drift, test data after
 detector.fit(X_before_drift)
-p_values_after_drift = detector.predict(X_after_drift, raw=False)
+p_values_after_drift = detector.compute_p_values(X_after_drift)
 ```
 
 ## Comparison with Standard Conformal
@@ -154,8 +160,8 @@ standard_detector.fit(X_train)
 weighted_detector.fit(X_train)
 
 # Compare on shifted test data
-standard_p_values = standard_detector.predict(X_test_shifted, raw=False)
-weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
+standard_p_values = standard_detector.compute_p_values(X_test_shifted)
+weighted_p_values = weighted_detector.compute_p_values(X_test_shifted)
 
 # Apply FDR control for proper comparison
 from scipy.stats import false_discovery_control
@@ -199,7 +205,7 @@ for agg_method in aggregation_methods:
         seed=42,
     )
     detector.fit(X_train)
-    _ = detector.predict(X_test_shifted, raw=False)
+    _ = detector.compute_p_values(X_test_shifted)
 
     wcs_mask = weighted_false_discovery_control(
         result=detector.last_result,
@@ -292,7 +298,7 @@ for name, weight_est in estimators.items():
         seed=42,
     )
     detector.fit(X_train)
-    _ = detector.predict(X_test_shifted, raw=False)
+    _ = detector.compute_p_values(X_test_shifted)
 
     wcs_mask = weighted_false_discovery_control(
         result=detector.last_result,
@@ -446,7 +452,7 @@ detector.fit(X_historical)
 
 # Process small incoming batches
 for X_batch in stream_data(batch_size=25):
-    p_values = detector.predict(X_batch, raw=False)
+    p_values = detector.compute_p_values(X_batch)
 
     # Apply weighted FDR control
     discoveries = weighted_false_discovery_control(
@@ -532,7 +538,7 @@ from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 
 # Collect weighted p-values and cached statistics
-weighted_detector.predict(X_test_shifted, raw=False)
+weighted_detector.compute_p_values(X_test_shifted)
 
 wcs_mask = weighted_false_discovery_control(
     result=weighted_detector.last_result,
@@ -622,7 +628,7 @@ pruning_methods = [
     Pruning.HETEROGENEOUS
 ]
 
-weighted_detector.predict(X_test_shifted, raw=False)
+weighted_detector.compute_p_values(X_test_shifted)
 
 for pruning_method in pruning_methods:
     wcs_mask = weighted_false_discovery_control(
@@ -655,7 +661,7 @@ def time_detector(detector, X_train, X_test):
     fit_time = time.time() - start_time
 
     start_time = time.time()
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
     predict_time = time.time() - start_time
 
     return fit_time, predict_time
@@ -709,7 +715,7 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 
-weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
+weighted_p_values = weighted_detector.compute_p_values(X_test_shifted)
 wcs_mask = weighted_false_discovery_control(
     result=weighted_detector.last_result,
     alpha=0.05,
@@ -765,7 +771,7 @@ from nonconform.fdr import weighted_false_discovery_control
 
 for domain in domains:
     X_test_domain = load_domain_data(domain)  # Load domain-specific test data
-    _ = domain_detectors[domain].predict(X_test_domain, raw=False)
+    _ = domain_detectors[domain].compute_p_values(X_test_domain)
     wcs_mask = weighted_false_discovery_control(
         result=domain_detectors[domain].last_result,
         alpha=0.05,
@@ -797,7 +803,7 @@ def online_weighted_detection(detector, data_stream, window_size=1000):
                 detector.fit(X_calib)
 
             # Predict on current batch with WCS
-            _ = detector.predict(X_batch, raw=False)
+            _ = detector.compute_p_values(X_batch)
             wcs_mask = weighted_false_discovery_control(
                 result=detector.last_result,
                 alpha=0.05,
@@ -847,7 +853,7 @@ def debug_weighted_conformal(detector, X_train, X_test):
         print("WARNING: Small calibration set may lead to unreliable weights")
 
     # Get predictions
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
 
     # Check p-value distribution
     print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")

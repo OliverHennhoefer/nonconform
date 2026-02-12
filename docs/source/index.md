@@ -24,7 +24,7 @@ detector = ConformalDetector(IForest(), Split())
 detector.fit(X_train)
 
 # Get p-values instead of arbitrary scores
-p_values = detector.predict(X_test)
+p_values = detector.compute_p_values(X_test)
 
 # Control false discovery rate at 5%
 decisions = false_discovery_control(p_values, method='bh') < 0.05

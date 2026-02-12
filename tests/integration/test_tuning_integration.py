@@ -33,7 +33,7 @@ def test_probabilistic_tuning_records_metadata(simple_dataset):
         seed=31,
     )
     detector.fit(x_train)
-    detector.predict(x_test)
+    detector.compute_p_values(x_test)
 
     assert estimator._tuned_params is not None
     result = detector.last_result
@@ -54,7 +54,7 @@ def test_weighted_tuning_matches_total_weight(shifted_dataset):
         seed=12,
     )
     detector.fit(x_train)
-    detector.predict(x_test)
+    detector.compute_p_values(x_test)
 
     result = detector.last_result
     assert result is not None and result.metadata
@@ -74,7 +74,7 @@ def test_tuning_with_cross_validation_strategy(simple_dataset):
         seed=33,
     )
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     assert p_values.shape == (len(x_test),)
     assert np.all((0 <= p_values) & (p_values <= 1))

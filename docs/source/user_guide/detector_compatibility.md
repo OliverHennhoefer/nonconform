@@ -77,7 +77,7 @@ detector = ConformalDetector(
     seed=42
 )
 detector.fit(X_train)
-p_values = detector.predict(X_test)
+p_values = detector.compute_p_values(X_test)
 ```
 
 ### Automatic Configuration

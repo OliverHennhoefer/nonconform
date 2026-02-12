@@ -74,7 +74,7 @@ def test_strategies_generate_expected_calibration(simple_dataset, case):
 
     detector = _build_detector(case.factory())
     detector.fit(x_train)
-    detector.predict(x_test[:6])
+    detector.compute_p_values(x_test[:6])
 
     calibration = detector.calibration_set
     assert len(calibration) == case.expected_calib(len(x_train))
@@ -109,11 +109,11 @@ def test_plus_variants_change_model_count(simple_dataset, case):
 
     det_plus = _build_detector(case.factory(True))
     det_plus.fit(x_train)
-    det_plus.predict(x_test[:4])
+    det_plus.compute_p_values(x_test[:4])
 
     det_std = _build_detector(case.factory(False))
     det_std.fit(x_train)
-    det_std.predict(x_test[:4])
+    det_std.compute_p_values(x_test[:4])
 
     assert len(det_plus.detector_set) == case.expected_models(True, len(x_train))
     assert len(det_std.detector_set) == case.expected_models(False, len(x_train))
@@ -139,7 +139,7 @@ def test_strategy_runs_are_reproducible(simple_dataset, case):
     det_one.fit(x_train)
     det_two.fit(x_train)
 
-    preds_one = det_one.predict(x_test)
-    preds_two = det_two.predict(x_test)
+    preds_one = det_one.compute_p_values(x_test)
+    preds_two = det_two.compute_p_values(x_test)
 
     np.testing.assert_allclose(preds_one, preds_two, atol=1e-8)

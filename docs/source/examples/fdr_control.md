@@ -37,7 +37,7 @@ detector = ConformalDetector(
 
 # Fit and get p-values
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control using scipy
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -87,7 +87,7 @@ weighted_detector = ConformalDetector(
 weighted_detector.fit(x_train)
 
 # Obtain weighted p-values, raw scores, and importance weights
-weighted_p_values = weighted_detector.predict(x_test, raw=False)
+weighted_p_values = weighted_detector.compute_p_values(x_test)
 
 # Weighted Conformal Selection controls the FDR under covariate shift
 wcs_mask = weighted_false_discovery_control(
@@ -128,7 +128,7 @@ for alpha in fdr_levels:
 
 # Fit detector and get p-values
 detector.fit(X)  # Fit only on normal data
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply different FDR control levels
 fdr_levels = [0.05, 0.1, 0.15, 0.2]
@@ -173,7 +173,7 @@ for name, base_det in detectors.items():
         seed=42
     )
     detector.fit(X)
-    p_vals = detector.predict(X_test, raw=False)
+    p_vals = detector.compute_p_values(X_test)
     all_p_values[name] = p_vals
 
 # Apply FDR control to each detector's p-values
@@ -296,7 +296,7 @@ detector = ConformalDetector(
     seed=42
 )
 detector.fit(X)
-p_vals = detector.predict(X_test, raw=False)
+p_vals = detector.compute_p_values(X_test)
 
 for alpha in alpha_levels:
     # Apply FDR control at different significance levels

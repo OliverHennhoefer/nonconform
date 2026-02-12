@@ -148,7 +148,7 @@ detector = ConformalDetector(detector=base_det, strategy=strategy, seed=42)
 strategy = Split(n_calib=10)
 detector = ConformalDetector(detector=IsolationForest(), strategy=strategy)
 detector.fit(X_train)
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # p_values will only take 11 distinct values: {1/11, 2/11, ..., 11/11}
 # Very coarse resolution!
@@ -383,7 +383,7 @@ def validate_p_values(p_values):
             "This may indicate issues with calibration or detector."
         )
 
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 validate_p_values(p_values)
 ```
 

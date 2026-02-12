@@ -116,7 +116,7 @@ class ConformalResult:
 
     Examples:
         ```python
-        result = detector.predict(X_test)
+        result = detector.compute_p_values(X_test)
         print(result.p_values)  # Access p-values
         print(result.metadata)  # Access optional metadata
         ```

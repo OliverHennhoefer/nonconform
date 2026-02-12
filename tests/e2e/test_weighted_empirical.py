@@ -48,7 +48,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         # WCS is conservative: 0 discoveries with this configuration
         np.testing.assert_array_almost_equal(
@@ -75,7 +75,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.1132, decimal=3
@@ -100,7 +100,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
         # WCS is conservative with small calibration: 0 discoveries
         np.testing.assert_array_almost_equal(
@@ -123,7 +123,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0714, decimal=3
@@ -145,7 +145,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.205, decimal=2

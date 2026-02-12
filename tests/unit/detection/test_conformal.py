@@ -6,9 +6,69 @@ import pytest
 from nonconform import ConformalDetector, Split
 from nonconform.enums import Aggregation
 from nonconform.structures import AnomalyDetector
+from nonconform.weighting import BaseWeightEstimator
 
 # MockDetector is imported from tests/conftest.py via pytest fixture discovery
 from tests.conftest import MockDetector
+
+
+class CountingWeightEstimator(BaseWeightEstimator):
+    """Minimal estimator that records fit calls for detector API testing."""
+
+    def __init__(self) -> None:
+        self.fit_calls = 0
+        self._is_fitted = False
+        self._w_calib = np.array([])
+        self._w_test = np.array([])
+
+    def fit(self, calibration_samples: np.ndarray, test_samples: np.ndarray) -> None:
+        self.fit_calls += 1
+        self._w_calib = np.ones(len(calibration_samples), dtype=float)
+        self._w_test = np.ones(len(test_samples), dtype=float)
+        self._is_fitted = True
+
+    def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
+        return self._w_calib.copy(), self._w_test.copy()
+
+    def _score_new_data(
+        self, calibration_samples: np.ndarray, test_samples: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
+        return (
+            np.ones(len(calibration_samples), dtype=float),
+            np.ones(len(test_samples), dtype=float),
+        )
+
+
+class SeedAwareDetector:
+    """Deterministic detector whose scores depend on random_state."""
+
+    def __init__(self) -> None:
+        self._params = {"random_state": None}
+
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> "SeedAwareDetector":
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        rng = np.random.default_rng(self._params["random_state"])
+        return rng.standard_normal(len(X))
+
+    def get_params(self, deep: bool = True) -> dict[str, int | None]:
+        return self._params.copy()
+
+    def set_params(self, **params: int | None) -> "SeedAwareDetector":
+        self._params.update(params)
+        return self
+
+    def __copy__(self) -> "SeedAwareDetector":
+        new = type(self)()
+        new._params = self._params.copy()
+        return new
+
+    def __deepcopy__(self, memo: dict) -> "SeedAwareDetector":
+        new = type(self)()
+        memo[id(self)] = new
+        new._params = self._params.copy()
+        return new
 
 
 @pytest.fixture
@@ -132,41 +192,60 @@ class TestConformalDetectorFit:
         detector.fit(df)
         assert detector.is_fitted
 
+    def test_fit_returns_self(self, sample_data):
+        """fit() returns self to support method chaining."""
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            seed=42,
+        )
+        result = detector.fit(sample_data)
+        assert result is detector
+
 
 class TestConformalDetectorPredict:
-    """Tests for ConformalDetector.predict()."""
+    """Tests for ConformalDetector prediction interfaces."""
 
     def test_predict_before_fit_raises(self):
-        """predict() before fit() raises RuntimeError."""
+        """compute_p_values() before fit() raises RuntimeError."""
         detector = ConformalDetector(
             detector=MockDetector(), strategy=Split(n_calib=0.2)
         )
         with pytest.raises(RuntimeError, match="fit"):
-            detector.predict(np.array([[1, 2, 3, 4, 5]]))
+            detector.compute_p_values(np.array([[1, 2, 3, 4, 5]]))
 
     def test_predict_returns_p_values(self, fitted_detector):
-        """predict() returns p-values by default."""
+        """compute_p_values() returns p-values."""
         rng = np.random.default_rng(42)
         X_test = rng.standard_normal((10, 5))
-        p_values = fitted_detector.predict(X_test)
+        p_values = fitted_detector.compute_p_values(X_test)
         assert len(p_values) == 10
         assert all(0 <= p <= 1 for p in p_values)
 
-    def test_predict_raw_returns_scores(self, fitted_detector):
-        """predict(raw=True) returns raw scores."""
+    def test_compute_p_values_repeated_calls_consistent(self, fitted_detector):
+        """Repeated compute_p_values() calls produce consistent results."""
         rng = np.random.default_rng(42)
         X_test = rng.standard_normal((10, 5))
-        scores = fitted_detector.predict(X_test, raw=True)
+        p_values_1 = fitted_detector.compute_p_values(X_test)
+        p_values_2 = fitted_detector.compute_p_values(X_test)
+        assert len(p_values_2) == 10
+        np.testing.assert_array_equal(p_values_1, p_values_2)
+
+    def test_score_samples_returns_scores(self, fitted_detector):
+        """score_samples() returns raw scores."""
+        rng = np.random.default_rng(42)
+        X_test = rng.standard_normal((10, 5))
+        scores = fitted_detector.score_samples(X_test)
         assert len(scores) == 10
-        # Raw scores can be any value, not necessarily in [0, 1]
 
     def test_predict_accepts_dataframe(self, fitted_detector):
-        """predict() accepts pandas DataFrame."""
+        """compute_p_values() accepts pandas DataFrame."""
         import pandas as pd
 
         rng = np.random.default_rng(42)
         X_test = pd.DataFrame(rng.standard_normal((10, 5)))
-        p_values = fitted_detector.predict(X_test)
+        p_values = fitted_detector.compute_p_values(X_test)
         assert len(p_values) == 10
 
 
@@ -214,7 +293,7 @@ class TestConformalDetectorProperties:
         """last_result is populated after predict()."""
         rng = np.random.default_rng(42)
         X_test = rng.standard_normal((10, 5))
-        fitted_detector.predict(X_test)
+        fitted_detector.compute_p_values(X_test)
         result = fitted_detector.last_result
         assert result is not None
         assert result.p_values is not None
@@ -239,7 +318,7 @@ class TestConformalDetectorReproducibility:
             seed=42,
         )
         detector1.fit(X_train.copy())
-        p1 = detector1.predict(X_test.copy())
+        p1 = detector1.compute_p_values(X_test.copy())
 
         detector2 = ConformalDetector(
             detector=MockDetector(fixed_scores.copy()),
@@ -247,7 +326,7 @@ class TestConformalDetectorReproducibility:
             seed=42,
         )
         detector2.fit(X_train.copy())
-        p2 = detector2.predict(X_test.copy())
+        p2 = detector2.compute_p_values(X_test.copy())
 
         np.testing.assert_array_almost_equal(p1, p2)
 
@@ -258,20 +337,109 @@ class TestConformalDetectorReproducibility:
         X_test = rng.standard_normal((20, 5))
 
         detector1 = ConformalDetector(
-            detector=MockDetector(rng.standard_normal(100)),
+            detector=SeedAwareDetector(),
             strategy=Split(n_calib=0.2),
             seed=42,
         )
         detector1.fit(X_train.copy())
-        p1 = detector1.predict(X_test.copy())
+        p1 = detector1.compute_p_values(X_test.copy())
 
         detector2 = ConformalDetector(
-            detector=MockDetector(rng.standard_normal(100)),
+            detector=SeedAwareDetector(),
             strategy=Split(n_calib=0.2),
             seed=123,
         )
         detector2.fit(X_train.copy())
-        p2 = detector2.predict(X_test.copy())
+        p2 = detector2.compute_p_values(X_test.copy())
 
         # Results should differ (with high probability)
         assert not np.allclose(p1, p2)
+
+
+class TestConformalDetectorWeightedPreparation:
+    """Tests for explicit weighted preparation APIs."""
+
+    @pytest.fixture
+    def sample_data(self):
+        rng = np.random.default_rng(123)
+        return rng.standard_normal((120, 4)), rng.standard_normal((30, 4))
+
+    def test_prepare_weights_requires_weighted_mode(self, sample_data):
+        """prepare_weights_for() raises when weighted mode is disabled."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            seed=42,
+        )
+        detector.fit(x_train)
+        with pytest.raises(RuntimeError, match="requires weighted mode"):
+            detector.prepare_weights_for(x_test)
+
+    def test_predict_without_refit_requires_prepared_weights(self, sample_data):
+        """refit_weights=False requires prepared weights in weighted mode."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+        )
+        detector.fit(x_train)
+
+        with pytest.raises(RuntimeError, match="Weights are not prepared"):
+            detector.compute_p_values(x_test, refit_weights=False)
+
+    def test_prepare_then_predict_without_refit(self, sample_data):
+        """Prepared weights are reused when refit_weights=False."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        weight_estimator = CountingWeightEstimator()
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=weight_estimator,
+            seed=42,
+        )
+        detector.fit(x_train)
+        detector.prepare_weights_for(x_test)
+
+        assert weight_estimator.fit_calls == 1
+        _ = detector.compute_p_values(x_test, refit_weights=False)
+        assert weight_estimator.fit_calls == 1
+
+    def test_refit_true_then_reuse_without_refit(self, sample_data):
+        """A refit prediction prepares weights for later reuse."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        weight_estimator = CountingWeightEstimator()
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=weight_estimator,
+            seed=42,
+        )
+        detector.fit(x_train)
+
+        _ = detector.compute_p_values(x_test, refit_weights=True)
+        assert weight_estimator.fit_calls == 1
+        _ = detector.compute_p_values(x_test, refit_weights=False)
+        assert weight_estimator.fit_calls == 1
+
+    def test_reuse_with_different_batch_size_raises(self, sample_data):
+        """Prepared weights cannot be reused for a different batch size."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+        )
+        detector.fit(x_train)
+        detector.prepare_weights_for(x_test)
+
+        with pytest.raises(ValueError, match="batch size"):
+            detector.compute_p_values(x_test[:10], refit_weights=False)

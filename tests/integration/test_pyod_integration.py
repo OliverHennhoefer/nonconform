@@ -144,7 +144,7 @@ def test_pyod_detectors_end_to_end(simple_dataset, case):
     detector = _split_detector(base_detector)
 
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     assert p_values.shape == (len(x_test),)
     assert np.all(np.isfinite(p_values))
@@ -168,7 +168,7 @@ def test_contamination_parameter_overridden(simple_dataset):
     detector = _split_detector(base)
 
     detector.fit(x_train)
-    detector.predict(x_test)
+    detector.compute_p_values(x_test)
 
     fitted = detector.detector_set[0]
     assert hasattr(fitted, "contamination")
@@ -190,7 +190,7 @@ def test_auto_encoder_detector(simple_dataset):
     )
     detector = _split_detector(base)
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
     assert np.all((0 <= p_values) & (p_values <= 1))
 
 
@@ -270,7 +270,7 @@ def test_custom_sklearn_detector(simple_dataset):
     detector = _split_detector(base)
 
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     assert p_values.shape == (len(x_test),)
     assert np.all((0.0 <= p_values) & (p_values <= 1.0))
@@ -288,7 +288,7 @@ def test_custom_detector_with_aliases(simple_dataset):
     detector = _split_detector(base)
 
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     assert p_values.shape == (len(x_test),)
     assert np.all((0.0 <= p_values) & (p_values <= 1.0))

@@ -40,8 +40,8 @@ p_values = detector.predict(X, output="p-value")
 scores = detector.predict(X, output="score")
 
 # New API
-p_values = detector.predict(X, raw=False)  # Get p-values
-scores = detector.predict(X, raw=True)     # Get raw scores
+p_values = detector.compute_p_values(X)  # Get p-values
+scores = detector.score_samples(X)     # Get raw scores
 ```
 
 ### 3. Memory Issues
@@ -61,7 +61,7 @@ def process_in_batches(detector, X, batch_size=1000):
     """Process large datasets in batches."""
     results = []
     for batch in itertools.batched(X, batch_size):
-        batch_results = detector.predict(batch, raw=False)
+        batch_results = detector.compute_p_values(batch)
         results.extend(batch_results)
     return np.array(results)
 ```
@@ -86,7 +86,7 @@ detector.fit(X_train)
 fit_time = time.time() - start_time
 
 start_time = time.time()
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 predict_time = time.time() - start_time
 
 print(f"Fit time: {fit_time:.2f}s, Predict time: {predict_time:.2f}s")
@@ -173,7 +173,7 @@ for name, strategy in strategies.items():
         seed=42
     )
     detector.fit(X_train)
-    p_vals = detector.predict(X_test, raw=False)
+    p_vals = detector.compute_p_values(X_test)
     adjusted = false_discovery_control(p_vals, method='bh')
     detections = (adjusted < 0.05).sum()
     print(f"{name}: {detections} discoveries")
@@ -258,8 +258,8 @@ logging.getLogger('nonconform').setLevel(logging.DEBUG)
 
 ```python
 # Get raw scores before p-value conversion
-raw_scores = detector.predict(X_test, raw=True)
-p_values = detector.predict(X_test, raw=False)
+raw_scores = detector.score_samples(X_test)
+p_values = detector.compute_p_values(X_test)
 
 print(f"Raw scores range: [{raw_scores.min():.4f}, {raw_scores.max():.4f}]")
 print(f"P-values range: [{p_values.min():.4f}, {p_values.max():.4f}]")
@@ -320,7 +320,7 @@ def print_memory_usage(label=""):
 print_memory_usage("before fitting")
 detector.fit(X_train)
 print_memory_usage("after fitting")
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 print_memory_usage("after prediction")
 ```
 
@@ -377,7 +377,7 @@ def optimized_batch_processing(detector, X, batch_size=1000):
 
     start_idx = 0
     for i, batch in enumerate(itertools.batched(X, batch_size)):
-        batch_results = detector.predict(batch, raw=False)
+        batch_results = detector.compute_p_values(batch)
         end_idx = start_idx + len(batch)
         results[start_idx:end_idx] = batch_results
         start_idx = end_idx
@@ -441,8 +441,8 @@ When migrating from older versions of nonconform:
 
 - [ ] Remove `DetectorConfig` imports and usage
 - [ ] Update detector initialization to use direct parameters
-- [ ] Change `output="p-value"` to `raw=False`
-- [ ] Change `output="score"` to `raw=True`
+- [ ] Replace `predict(..., output="p-value")` with `compute_p_values(...)`
+- [ ] Replace `predict(..., output="score")` with `score_samples(...)`
 - [ ] Update strategy imports to use new module structure
 - [ ] Replace old parameter names with new ones
 - [ ] Add FDR control using `scipy.stats.false_discovery_control`

@@ -45,7 +45,7 @@ detector.fit(X_train)
 
 # Step 4: Get p-values for test observations
 # Low p-values indicate likely anomalies
-p_values = detector.predict(X_test)
+p_values = detector.compute_p_values(X_test)
 
 # Step 5: Apply FDR control to make decisions
 # This ensures at most 5% of your "discoveries" are false positives
@@ -113,7 +113,7 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Get p-values and apply FDR control
-p_values = detector.predict(x_test)
+p_values = detector.compute_p_values(x_test)
 decisions = false_discovery_control(p_values, method='bh') < 0.05
 
 # Evaluate performance
@@ -178,7 +178,7 @@ jab_detector = ConformalDetector(
 # Compare strategies
 for name, det in [("Split", split_detector), ("CV", cv_detector), ("JaB+", jab_detector)]:
     det.fit(x_train)
-    p_values = det.predict(x_test)
+    p_values = det.compute_p_values(x_test)
     decisions = false_discovery_control(p_values, method='bh') < 0.05
     fdr = false_discovery_rate(y_test, decisions)
     power = statistical_power(y_test, decisions)
@@ -222,7 +222,7 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Get weighted p-values
-p_values = detector.predict(x_test)
+p_values = detector.compute_p_values(x_test)
 
 # Use weighted FDR control (designed for weighted conformal)
 decisions = weighted_false_discovery_control(
@@ -280,7 +280,7 @@ for name, base_det in detectors.items():
         seed=42
     )
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
     decisions = false_discovery_control(p_values, method='bh') < 0.05
     fdr = false_discovery_rate(y_test, decisions)
     power = statistical_power(y_test, decisions)

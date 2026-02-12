@@ -38,7 +38,7 @@ detector = ConformalDetector(
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -61,7 +61,7 @@ detector_plus = ConformalDetector(
 
 # Fit and predict with ensemble
 detector_plus.fit(X)
-p_values_plus = detector_plus.predict(X, raw=False)
+p_values_plus = detector_plus.compute_p_values(X)
 
 # Compare with FDR control
 cv_disc = false_discovery_control(p_values, method='bh') < 0.05
@@ -86,7 +86,7 @@ for n_folds in fold_options:
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     results[f"{n_folds}-fold"] = disc.sum()
@@ -144,7 +144,7 @@ for seed in seeds:
         seed=seed,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     cv_results.append(disc.sum())
 
@@ -192,7 +192,7 @@ for name, strategy in strategies.items():
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
 
     # Apply FDR control
     disc = false_discovery_control(p_vals, method='bh') < 0.05

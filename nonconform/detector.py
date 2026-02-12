@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pandas as pd
@@ -47,7 +47,8 @@ class BaseConformalDetector(ABC):
     must provide. All conformal detectors follow a two-phase workflow:
 
     1. **Calibration Phase**: `fit()` trains detector, computes calibration scores
-    2. **Inference Phase**: `predict()` converts new data scores to valid p-values
+    2. **Inference Phase**: `compute_p_values()` converts new data scores to valid
+       p-values
 
     Subclasses must implement both abstract methods.
 
@@ -58,32 +59,57 @@ class BaseConformalDetector(ABC):
 
     @ensure_numpy_array
     @abstractmethod
-    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
         """Fit the detector model(s) and compute calibration scores.
 
         Args:
             x: The dataset used for fitting the model(s) and determining
                 calibration scores.
+
+        Returns:
+            The fitted detector instance.
         """
         raise NotImplementedError("Subclasses must implement fit()")
 
     @ensure_numpy_array
     @abstractmethod
-    def predict(
+    def compute_p_values(
         self,
         x: pd.DataFrame | np.ndarray,
-        raw: bool = False,
+        *,
+        refit_weights: bool = True,
     ) -> np.ndarray:
-        """Generate anomaly estimates or p-values for new data.
+        """Return conformal p-values for new data.
 
         Args:
-            x: The new data instances for which to make anomaly estimates.
-            raw: Whether to return raw anomaly scores or p-values. Defaults to False.
+            x: New data instances for anomaly estimation.
+            refit_weights: Whether to refit the weight estimator for this batch
+                in weighted mode. Ignored in standard mode.
 
         Returns:
-            Array containing the anomaly estimates (p-values or raw scores).
+            Array of p-values.
         """
-        raise NotImplementedError("Subclasses must implement predict()")
+        raise NotImplementedError("Subclasses must implement compute_p_values()")
+
+    @ensure_numpy_array
+    @abstractmethod
+    def score_samples(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        *,
+        refit_weights: bool = True,
+    ) -> np.ndarray:
+        """Return aggregated raw anomaly scores for new data.
+
+        Args:
+            x: New data instances for anomaly estimation.
+            refit_weights: Whether to refit the weight estimator for this batch
+                in weighted mode. Ignored in standard mode.
+
+        Returns:
+            Array of aggregated raw anomaly scores.
+        """
+        raise NotImplementedError("Subclasses must implement score_samples()")
 
 
 class ConformalDetector(BaseConformalDetector):
@@ -135,7 +161,7 @@ class ConformalDetector(BaseConformalDetector):
             detector=IForest(), strategy=Split(n_calib=0.2), seed=42
         )
         detector.fit(X_train)
-        p_values = detector.predict(X_test)
+        p_values = detector.compute_p_values(X_test)
         ```
 
         Weighted conformal prediction:
@@ -150,7 +176,7 @@ class ConformalDetector(BaseConformalDetector):
             seed=42,
         )
         detector.fit(X_train)
-        p_values = detector.predict(X_test)
+        p_values = detector.compute_p_values(X_test)
         ```
 
     Note:
@@ -203,10 +229,11 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
+        self._prepared_weight_batch_size: int | None = None
         self._last_result: ConformalResult | None = None
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray) -> None:
+    def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
         """Fit detector model(s) and compute calibration scores.
 
         Uses the specified strategy to train the base detector(s) and calculate
@@ -214,6 +241,9 @@ class ConformalDetector(BaseConformalDetector):
 
         Args:
             x: The dataset used for fitting and calibration.
+
+        Returns:
+            The fitted detector instance (for method chaining).
         """
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             x=x,
@@ -231,35 +261,14 @@ class ConformalDetector(BaseConformalDetector):
         else:
             self._calibration_samples = np.array([])
 
+        self._prepared_weight_batch_size = None
         self._last_result = None
+        return self
 
-    @ensure_numpy_array
-    def predict(
-        self,
-        x: pd.DataFrame | np.ndarray,
-        raw: bool = False,
-    ) -> np.ndarray:
-        """Generate anomaly estimates (p-values or raw scores) for new data.
-
-        Args:
-            x: New data instances for anomaly estimation.
-            raw: If True, returns raw anomaly scores. If False, returns p-values.
-                Defaults to False.
-
-        Returns:
-            Array of anomaly estimates.
-
-        Raises:
-            RuntimeError: If fit() has not been called.
-
-        Note:
-            In weighted mode, the weight estimator is re-fitted on each call to
-            compute density ratios relative to the test batch. This is by design
-            for valid coverage guarantees, but adds computational overhead. For
-            repeated predictions on small batches, consider batching test data.
-        """
+    def _aggregate_scores(self, x: np.ndarray) -> np.ndarray:
+        """Compute aggregated anomaly scores across fitted detector replicas."""
         if not self.is_fitted:
-            raise RuntimeError("Call fit() before predict().")
+            raise RuntimeError("Call fit() before prediction.")
 
         iterable = (
             tqdm(self._detector_set, total=len(self._detector_set), desc="Aggregation")
@@ -270,26 +279,114 @@ class ConformalDetector(BaseConformalDetector):
         scores = np.vstack(
             [np.asarray(model.decision_function(x)) for model in iterable]
         )
+        return aggregate(method=self.aggregation, scores=scores)
 
-        estimates = aggregate(method=self.aggregation, scores=scores)
+    def _resolve_weights(
+        self,
+        x: np.ndarray,
+        *,
+        refit_weights: bool,
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        """Resolve calibration/test weights for the current batch."""
+        if not self._is_weighted_mode or self.weight_estimator is None:
+            return None
 
-        weights: tuple[np.ndarray, np.ndarray] | None = None
-        if self._is_weighted_mode and self.weight_estimator is not None:
+        if refit_weights:
             self.weight_estimator.fit(self._calibration_samples, x)
-            weights = self.weight_estimator.get_weights()
+            self._prepared_weight_batch_size = len(x)
+            return self.weight_estimator.get_weights()
 
+        if self._prepared_weight_batch_size is None:
+            raise RuntimeError(
+                "Weights are not prepared. Call prepare_weights_for(batch) "
+                "or use refit_weights=True."
+            )
+        if self._prepared_weight_batch_size != len(x):
+            raise ValueError(
+                "Prepared weights do not match current batch size. "
+                "Call prepare_weights_for(batch) again or use refit_weights=True."
+            )
+        return self.weight_estimator.get_weights()
+
+    @ensure_numpy_array
+    def prepare_weights_for(self, x: pd.DataFrame | np.ndarray) -> Self:
+        """Prepare weighted conformal state for a specific test batch.
+
+        In weighted mode, this fits the weight estimator for the supplied batch
+        without producing predictions. Use this for explicit state transitions in
+        exploratory workflows.
+
+        Args:
+            x: Test batch for which weights should be prepared.
+
+        Returns:
+            The fitted detector instance (for method chaining).
+
+        Raises:
+            RuntimeError: If fit() has not been called or weighted mode is disabled.
+        """
+        if not self.is_fitted:
+            raise RuntimeError("Call fit() before prepare_weights_for().")
+        if not self._is_weighted_mode or self.weight_estimator is None:
+            raise RuntimeError(
+                "prepare_weights_for() requires weighted mode with a weight_estimator."
+            )
+
+        self.weight_estimator.fit(self._calibration_samples, x)
+        self._prepared_weight_batch_size = len(x)
+        return self
+
+    @ensure_numpy_array
+    def score_samples(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        *,
+        refit_weights: bool = True,
+    ) -> np.ndarray:
+        """Return aggregated raw anomaly scores for new data.
+
+        Args:
+            x: New data instances for anomaly estimation.
+            refit_weights: Whether to refit the weight estimator for this batch
+                in weighted mode. Defaults to True.
+
+        Returns:
+            Array of aggregated raw anomaly scores.
+        """
+        estimates = self._aggregate_scores(x)
+        weights = self._resolve_weights(x, refit_weights=refit_weights)
         calib_weights, test_weights = weights if weights else (None, None)
 
-        if raw:
-            self._last_result = ConformalResult(
-                p_values=None,
-                test_scores=estimates.copy(),
-                calib_scores=self._calibration_set.copy(),
-                test_weights=_safe_copy(test_weights),
-                calib_weights=_safe_copy(calib_weights),
-                metadata={},
-            )
-            return estimates
+        self._last_result = ConformalResult(
+            p_values=None,
+            test_scores=estimates.copy(),
+            calib_scores=self._calibration_set.copy(),
+            test_weights=_safe_copy(test_weights),
+            calib_weights=_safe_copy(calib_weights),
+            metadata={},
+        )
+        return estimates
+
+    @ensure_numpy_array
+    def compute_p_values(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        *,
+        refit_weights: bool = True,
+    ) -> np.ndarray:
+        """Return conformal p-values for new data.
+
+        Args:
+            x: New data instances for anomaly estimation.
+            refit_weights: Whether to refit the weight estimator for this batch
+                in weighted mode. Defaults to True.
+
+        Returns:
+            Array of p-values.
+        """
+        estimates = self._aggregate_scores(x)
+        weights = self._resolve_weights(x, refit_weights=refit_weights)
+        calib_weights, test_weights = weights if weights else (None, None)
 
         p_values = self.estimation.compute_p_values(
             estimates, self._calibration_set, weights
@@ -309,7 +406,6 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata=metadata,
         )
-
         return p_values
 
     @property

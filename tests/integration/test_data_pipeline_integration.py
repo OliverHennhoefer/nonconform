@@ -64,7 +64,7 @@ def test_batch_generator_pipeline():
     detector.fit(generator.get_training_data().to_numpy())
 
     batch_x, batch_y = next(generator.generate())
-    p_values = detector.predict(batch_x.to_numpy())
+    p_values = detector.compute_p_values(batch_x.to_numpy())
 
     assert p_values.shape[0] == len(batch_x)
     assert batch_y.sum() == int(generator.batch_size * generator.anomaly_proportion)
@@ -87,5 +87,5 @@ def test_online_generator_stream(monkeypatch):
     y_stream = np.array([label for _, label in stream])
 
     assert y_stream.sum() == int(0.1 * 20)
-    preds = detector.predict(x_stream)
+    preds = detector.compute_p_values(x_stream)
     assert preds.shape[0] == 20

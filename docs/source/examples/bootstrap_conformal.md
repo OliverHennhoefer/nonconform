@@ -38,7 +38,7 @@ detector = ConformalDetector(
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -65,7 +65,7 @@ detector_plus = ConformalDetector(
 
 # Fit and predict with ensemble
 detector_plus.fit(X)
-p_values_plus = detector_plus.predict(X, raw=False)
+p_values_plus = detector_plus.compute_p_values(X)
 
 # Compare with FDR control
 jab_disc = false_discovery_control(p_values, method='bh') < 0.05
@@ -90,7 +90,7 @@ for n_bootstraps in bootstrap_counts:
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     key = f"B={n_bootstraps}"
@@ -115,7 +115,7 @@ print(f"Statistical Power: {statistical_power(y=y_anomaly, y_hat=discoveries):.3
 
 ```python
 # Get raw scores for uncertainty analysis
-raw_scores = detector.predict(X, raw=True)
+raw_scores = detector.score_samples(X)
 
 # Analyze score distribution
 plt.figure(figsize=(12, 4))
@@ -128,7 +128,7 @@ plt.ylabel('Frequency')
 plt.title('Bootstrap Anomaly Score Distribution')
 
 # P-value calculation using final calibration set
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # P-value vs Score relationship
 plt.subplot(1, 3, 2)
@@ -149,7 +149,7 @@ for _ in range(10):
         seed=np.random.randint(1000)
     )
     det.fit(X)
-    p_vals = det.predict(X, raw=False)
+    p_vals = det.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     stability_results.append(disc.sum())
 
@@ -182,7 +182,7 @@ for name, strategy in strategies.items():
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     comparison_results[name] = {
         'discoveries': disc.sum(),

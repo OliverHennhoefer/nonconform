@@ -136,7 +136,7 @@ for name, base_detector in detectors.items():
         seed=42
     )
     conf_detector.fit(X_train)
-    p_values = conf_detector.predict(X_test, raw=False)
+    p_values = conf_detector.compute_p_values(X_test)
     all_p_values[name] = p_values
 
 # Combine results (simple approach: use minimum p-value)
@@ -329,7 +329,7 @@ class PerformanceMonitor:
         start_time = time.time()
         start_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
 
-        p_values = detector.predict(X_test, raw=False)
+        p_values = detector.compute_p_values(X_test)
 
         end_time = time.time()
         end_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
@@ -426,7 +426,7 @@ class ScalableAnomalyDetector:
         all_p_values = []
 
         for batch in itertools.batched(X_test, self.batch_size):
-            batch_p_values = self.detector.predict(batch, raw=False)
+            batch_p_values = self.detector.compute_p_values(batch)
             all_p_values.extend(batch_p_values)
 
         return np.array(all_p_values)
@@ -537,7 +537,7 @@ class AnomalyDetectionPipeline:
             # Use batch processing for large datasets
             p_values = self._predict_batch(X_test)
         else:
-            p_values = self.detector.predict(X_test, raw=False)
+            p_values = self.detector.compute_p_values(X_test)
 
         # Apply FDR control
         discoveries, adjusted_p_values = apply_fdr_control(
@@ -631,7 +631,7 @@ detector.fit(X_historical)
 
 # Process small incoming batches (e.g., 10-50 samples)
 for X_batch in stream:
-    p_values = detector.predict(X_batch, raw=False)
+    p_values = detector.compute_p_values(X_batch)
 
     discoveries = weighted_false_discovery_control(
         result=detector.last_result,

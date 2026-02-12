@@ -50,11 +50,8 @@ detector = ConformalDetector(
     seed=42
 )
 
-# Fit on training data (includes automatic calibration)
-detector.fit(X_train)
-
-# Get valid p-values
-p_values = detector.predict(X_test, raw=False)
+# Fit on training data (includes automatic calibration) and get p-values
+p_values = detector.fit(X_train).compute_p_values(X_test)
 
 # Apply Benjamini-Hochberg FDR control
 fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
@@ -191,11 +188,8 @@ detector = ConformalDetector(
     seed=42
 )
 
-# 4. Fit detector (automatically handles train/calibration split)
-detector.fit(X_train)
-
-# 5. Get p-values for test data
-p_values = detector.predict(X_test, raw=False)
+# 4. Fit detector and get p-values
+p_values = detector.fit(X_train).compute_p_values(X_test)
 ```
 
 ### Understanding the Output
@@ -322,10 +316,10 @@ You can get both raw anomaly scores and p-values:
 
 ```python
 # Get raw aggregated anomaly scores
-raw_scores = detector.predict(X_test, raw=True)
+raw_scores = detector.score_samples(X_test)
 
 # Get p-values
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Understand the relationship
 import matplotlib.pyplot as plt
@@ -359,7 +353,7 @@ for agg_method in aggregation_methods:
         seed=42
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
 
     # Apply FDR control before counting discoveries
     adjusted = false_discovery_control(p_values, method='bh')
@@ -439,7 +433,7 @@ for name, strategy in strategies.items():
         seed=42,
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
 
     # Apply FDR control
     adjusted = false_discovery_control(p_values, method='bh')
@@ -462,7 +456,7 @@ def predict_in_batches(detector, X_test, batch_size=1000):
     all_p_values = []
 
     for batch in itertools.batched(X_test, batch_size):
-        batch_p_values = detector.predict(batch, raw=False)
+        batch_p_values = detector.compute_p_values(batch)
         all_p_values.extend(batch_p_values)
 
     return np.array(all_p_values)

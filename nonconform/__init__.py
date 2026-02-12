@@ -25,7 +25,7 @@ Examples:
     >>> from nonconform import ConformalDetector, Split
     >>> detector = ConformalDetector(detector=IForest(), strategy=Split(n_calib=0.2))
     >>> detector.fit(X_train)
-    >>> p_values = detector.predict(X_test)
+    >>> p_values = detector.compute_p_values(X_test)
 
     Weighted conformal prediction:
 

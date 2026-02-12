@@ -27,7 +27,16 @@ decisions = false_discovery_control(p_values, method='bh') < 0.05
 
 For weighted conformal p-values (covariate shift), use `weighted_false_discovery_control`:
 
+!!! note
+    `detector.last_result` is populated by the most recent `detector.compute_p_values(...)` call.
+    See [Weighted Conformal Selection](#weighted-conformal-selection) below for a complete runnable example.
+
 ```python
+# After creating and fitting a weighted detector:
+# detector = ConformalDetector(...)
+# detector.fit(X_train)
+# detector.compute_p_values(X_test)
+
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.enums import Pruning
 
@@ -59,7 +68,7 @@ detector = ConformalDetector(
 )
 
 detector.fit(X_train)
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply Benjamini–Hochberg control at 5%
 adjusted_p_values = false_discovery_control(p_values, method="bh", alpha=0.05)
@@ -90,7 +99,7 @@ detector = ConformalDetector(
 detector.fit(X_train)
 
 # Weighted conformal selection reads all cached quantities from detector.last_result
-detector.predict(X_test, raw=False)
+detector.compute_p_values(X_test)
 
 selected = weighted_false_discovery_control(
     result=detector.last_result,
@@ -168,33 +177,39 @@ Use FDR control when:
 #### High-dimensional Anomaly Detection
 ```python
 # When analyzing many features independently
-n_features = X.shape[1]
+# Use disjoint train/test samples for valid conformal p-values
+X_train, X_test = ...  # same feature space, different samples
+n_features = X_train.shape[1]
 feature_p_values = []
 
 for i in range(n_features):
     # Analyze each feature separately
-    X_feature = X[:, [i]]
-    detector.fit(X_feature)
-    p_vals = detector.predict(X_feature, raw=False)
+    X_train_feature = X_train[:, [i]]
+    X_test_feature = X_test[:, [i]]
+    detector.fit(X_train_feature)
+    p_vals = detector.compute_p_values(X_test_feature)
     feature_p_values.extend(p_vals)
 
 # Apply FDR control across all features
-all_adjusted = false_discovery_control(feature_p_values, method='bh', alpha=0.05)
+all_adjusted = false_discovery_control(feature_p_values, method='bh')
+discoveries = all_adjusted < 0.05
 ```
 
 #### Multiple Time Series
 ```python
 # When analyzing multiple time series
-time_series_data = [ts1, ts2, ts3, ...]  # Multiple time series
+train_series = [ts1_train, ts2_train, ts3_train, ...]
+test_series = [ts1_test, ts2_test, ts3_test, ...]
 all_p_values = []
 
-for ts in time_series_data:
-    detector.fit(ts)
-    p_vals = detector.predict(ts, raw=False)
+for ts_train, ts_test in zip(train_series, test_series):
+    detector.fit(ts_train)
+    p_vals = detector.compute_p_values(ts_test)
     all_p_values.extend(p_vals)
 
 # Control FDR across all time series
-adjusted_p_vals = false_discovery_control(all_p_values, method='bh', alpha=0.05)
+adjusted_p_vals = false_discovery_control(all_p_values, method='bh')
+discoveries = adjusted_p_vals < 0.05
 ```
 
 ## Integration with Conformal Prediction
@@ -220,7 +235,7 @@ standard_detector = ConformalDetector(
 )
 standard_detector.fit(X_train)
 standard_mask = false_discovery_control(
-    standard_detector.predict(X_test, raw=False),
+    standard_detector.compute_p_values(X_test),
     method="bh",
     alpha=0.05,
 ) < 0.05
@@ -235,7 +250,7 @@ weighted_detector = ConformalDetector(
 )
 weighted_detector.fit(X_train)
 
-weighted_detector.predict(X_test, raw=False)
+weighted_detector.compute_p_values(X_test)
 weighted_mask = weighted_false_discovery_control(
     result=weighted_detector.last_result,
     alpha=0.05,
@@ -303,7 +318,7 @@ adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=adjusted_
 # Track FDR control performance over time
 fdr_history = []
 for batch in data_batches:
-    p_vals = detector.predict(batch, raw=False)
+    p_vals = detector.compute_p_values(batch)
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     discoveries = adj_p_vals < 0.05
 
@@ -350,7 +365,7 @@ for base_detector in detectors:
         seed=42
     )
     conf_detector.fit(X_train)
-    p_vals = conf_detector.predict(X_test, raw=False)
+    p_vals = conf_detector.compute_p_values(X_test)
     p_values_list.append(p_vals)
 
 # Combine p-values using Fisher's method
@@ -388,7 +403,7 @@ def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
 
     for batch in data_stream:
         # Get p-values for current batch
-        p_values = detector.predict(batch, raw=False)
+        p_values = detector.compute_p_values(batch)
 
         # Apply online FDR control
         for p_val in p_values:
