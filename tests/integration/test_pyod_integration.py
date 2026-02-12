@@ -78,7 +78,8 @@ except Exception:  # pragma: no cover - optional dependency missing
             return self
 
 
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 
 DetectorCase = namedtuple(
     "DetectorCase", "name factory expects_random_state expects_n_jobs"

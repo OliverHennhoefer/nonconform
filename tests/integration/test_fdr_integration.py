@@ -8,14 +8,12 @@ from pyod.models.iforest import IForest
 
 from nonconform import (
     ConformalDetector,
-    Kernel,
     Probabilistic,
-    Pruning,
     Split,
     logistic_weight_estimator,
-    weighted_bh,
-    weighted_false_discovery_control,
 )
+from nonconform.enums import Kernel, Pruning
+from nonconform.fdr import weighted_bh, weighted_false_discovery_control
 
 
 def _fit_weighted_detector(x_train):

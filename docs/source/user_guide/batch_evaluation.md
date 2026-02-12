@@ -103,7 +103,8 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 ```python
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Create batch generator
 batch_gen = BatchGenerator(

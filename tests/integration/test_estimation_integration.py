@@ -9,11 +9,11 @@ from pyod.models.iforest import IForest
 from nonconform import (
     ConformalDetector,
     Empirical,
-    Kernel,
     Probabilistic,
     Split,
     logistic_weight_estimator,
 )
+from nonconform.enums import Kernel
 
 
 def _build_detector(estimation):

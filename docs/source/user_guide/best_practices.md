@@ -109,7 +109,8 @@ accurate_detectors = {
 Use multiple detectors for robustness:
 
 ```python
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 from scipy.stats import false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.iforest import IForest
@@ -437,7 +438,7 @@ class ScalableAnomalyDetector:
 
 ```python
 from dataclasses import dataclass
-from nonconform import Aggregation
+from nonconform.enums import Aggregation
 
 
 @dataclass
@@ -604,15 +605,10 @@ This comprehensive approach ensures robust, scalable, and maintainable anomaly d
 For streaming anomaly detection where you process small batches against a large historical calibration set:
 
 ```python
-from nonconform import (
-    Aggregation,
-    BootstrapBaggedWeightEstimator,
-    ConformalDetector,
-    Pruning,
-    Split,
-    forest_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, Split, forest_weight_estimator
+from nonconform.enums import Aggregation, Pruning
+from nonconform.weighting import BootstrapBaggedWeightEstimator
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 # Premium configuration for small-batch streaming

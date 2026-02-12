@@ -1,5 +1,5 @@
-from nonconform import Kernel
 from nonconform._internal.tuning import tune_kde_hyperparameters
+from nonconform.enums import Kernel
 
 
 class TestBasicOptimization:
@@ -131,12 +131,17 @@ class TestSeedReproducibility:
         assert result1["bandwidth"] == result2["bandwidth"]
         assert result1["kernel"] == result2["kernel"]
 
-    def test_different_seeds_may_differ(self, sample_calibration_data, kernel_options):
+    def test_different_seeds_are_reproducible_per_seed(
+        self, sample_calibration_data, kernel_options
+    ):
         data = sample_calibration_data(n_samples=100, seed=42)
         kernels = kernel_options(kernel_type="multiple")
+        result_a1 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=42)
+        result_a2 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=42)
+        result_b1 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=123)
+        result_b2 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=123)
 
-        result1 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=42)
-        result2 = tune_kde_hyperparameters(data, kernels, n_trials=10, seed=123)
-
-        assert isinstance(result1["bandwidth"], float)
-        assert isinstance(result2["bandwidth"], float)
+        assert result_a1["bandwidth"] == result_a2["bandwidth"]
+        assert result_a1["kernel"] == result_a2["kernel"]
+        assert result_b1["bandwidth"] == result_b2["bandwidth"]
+        assert result_b1["kernel"] == result_b2["kernel"]

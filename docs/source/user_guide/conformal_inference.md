@@ -37,7 +37,8 @@ Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
 # Conformal approach - statistically valid p-values
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 from scipy.stats import false_discovery_control
 
 # Create conformal detector
@@ -171,7 +172,8 @@ The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success d
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 
 # 1. Prepare your data
 X_train = load_normal_training_data()  # Normal data for training and calibration
@@ -244,6 +246,7 @@ Uses all samples for both training and calibration:
 
 ```python
 from nonconform import CrossValidation
+from nonconform.enums import Aggregation
 
 # 5-fold cross-validation
 strategy = CrossValidation(k=5)
@@ -262,6 +265,7 @@ Provides robust estimates through resampling:
 
 ```python
 from nonconform import JackknifeBootstrap
+from nonconform.enums import Aggregation
 
 # 50 bootstrap samples
 strategy = JackknifeBootstrap(n_bootstraps=50)
@@ -339,6 +343,7 @@ When using ensemble strategies, you can control how multiple model outputs are c
 ```python
 # Different aggregation methods
 from scipy.stats import false_discovery_control
+from nonconform.enums import Aggregation
 
 aggregation_methods = [
     Aggregation.MEAN,
@@ -371,6 +376,7 @@ Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 ```python
 from typing import Any, Self
 import numpy as np
+from nonconform.enums import Aggregation
 
 class CustomDetector:
     """Custom anomaly detector implementing AnomalyDetector protocol."""
@@ -415,6 +421,7 @@ Different strategies have different computational costs:
 ```python
 import time
 from nonconform import CrossValidation, JackknifeBootstrap, Split
+from nonconform.enums import Aggregation
 
 strategies = {
     'Split': Split(n_calib=0.2),
@@ -449,6 +456,7 @@ For large datasets, consider:
 ```python
 # Use batch processing for very large test sets
 import itertools
+import numpy as np
 
 def predict_in_batches(detector, X_test, batch_size=1000):
     all_p_values = []

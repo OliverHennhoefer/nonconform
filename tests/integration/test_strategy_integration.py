@@ -11,12 +11,12 @@ pytest.importorskip("pyod", reason="pyod not installed")
 from pyod.models.iforest import IForest
 
 from nonconform import (
-    Aggregation,
     ConformalDetector,
     CrossValidation,
     JackknifeBootstrap,
     Split,
 )
+from nonconform.enums import Aggregation
 
 StrategyCase = namedtuple("StrategyCase", "name factory expected_calib")
 

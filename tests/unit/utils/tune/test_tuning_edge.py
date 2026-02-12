@@ -1,7 +1,7 @@
 import numpy as np
 
-from nonconform import Kernel
 from nonconform._internal.tuning import tune_kde_hyperparameters
+from nonconform.enums import Kernel
 
 
 class TestEmptyKernelList:

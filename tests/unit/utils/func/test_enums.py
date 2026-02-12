@@ -1,6 +1,6 @@
 import pytest
 
-from nonconform import Aggregation, Distribution, Kernel, Pruning
+from nonconform.enums import Aggregation, Distribution, Kernel, Pruning
 
 
 class TestDistribution:

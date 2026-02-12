@@ -9,7 +9,9 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, JackknifeBootstrap
+from nonconform.enums import Aggregation
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()

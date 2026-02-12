@@ -16,11 +16,10 @@ from nonconform import (
     Empirical,
     JackknifeBootstrap,
     Split,
-    false_discovery_rate,
     logistic_weight_estimator,
-    statistical_power,
-    weighted_false_discovery_control,
 )
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class TestWeightedEmpirical:

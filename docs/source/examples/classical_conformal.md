@@ -8,7 +8,9 @@ This example demonstrates how to use classical conformal prediction for anomaly 
 import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 
 # Load example data - downloads automatically and caches in memory

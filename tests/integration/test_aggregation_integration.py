@@ -8,7 +8,9 @@ import pytest
 pytest.importorskip("pyod", reason="pyod not installed")
 from pyod.models.iforest import IForest
 
-from nonconform import Aggregation, ConformalDetector, CrossValidation, aggregate
+from nonconform import ConformalDetector, CrossValidation
+from nonconform.enums import Aggregation
+from nonconform.metrics import aggregate
 
 
 def _build_detector(aggregation: Aggregation):

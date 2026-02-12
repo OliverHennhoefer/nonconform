@@ -94,13 +94,9 @@ nonconform provides metrics to evaluate your anomaly detection performance:
 ```python
 from scipy.stats import false_discovery_control
 
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    Split,
-    false_discovery_rate,
-    statistical_power,
-)
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
@@ -143,15 +139,9 @@ nonconform offers several strategies for splitting data between training and cal
 ```python
 from scipy.stats import false_discovery_control
 
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    CrossValidation,
-    JackknifeBootstrap,
-    Split,
-    false_discovery_rate,
-    statistical_power,
-)
+from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, Split
+from nonconform.enums import Aggregation
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
@@ -212,16 +202,10 @@ for name, det in [("Split", split_detector), ("CV", cv_detector), ("JaB+", jab_d
 If your test data comes from a different distribution than your training data (called **covariate shift**), use weighted conformal prediction:
 
 ```python
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    Pruning,
-    Split,
-    false_discovery_rate,
-    logistic_weight_estimator,
-    statistical_power,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.enums import Aggregation, Pruning
+from nonconform.metrics import false_discovery_rate, statistical_power
+from nonconform.fdr import weighted_false_discovery_control
 from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
@@ -271,13 +255,9 @@ nonconform works with any detector from PyOD, scikit-learn, or your own custom i
 ```python
 from scipy.stats import false_discovery_control
 
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    Split,
-    false_discovery_rate,
-    statistical_power,
-)
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 from pyod.models.knn import KNN
 from pyod.models.lof import LOF

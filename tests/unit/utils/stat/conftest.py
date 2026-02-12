@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from nonconform import ConformalResult
+from nonconform.structures import ConformalResult
 
 
 @pytest.fixture

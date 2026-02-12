@@ -9,10 +9,13 @@ import numpy as np
 from pyod.models.lof import LOF
 from oddball import Dataset, load
 from nonconform import (
-    Aggregation, ConformalDetector, Split, Pruning,
-    logistic_weight_estimator, weighted_false_discovery_control,
-    false_discovery_rate, statistical_power,
+    ConformalDetector,
+    Split,
+    logistic_weight_estimator,
 )
+from nonconform.enums import Aggregation, Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
 X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)

@@ -285,7 +285,8 @@ if np.any(weights > 1000) or np.any(weights < 0.001):
 ## Aggregation Method Constraints
 
 ```python
-from nonconform import Aggregation, ConformalDetector
+from nonconform import ConformalDetector
+from nonconform.enums import Aggregation
 
 detector = ConformalDetector(
     detector=base_det,

@@ -3,10 +3,26 @@
 import numpy as np
 import pytest
 
-from nonconform import Aggregation, AnomalyDetector, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
+from nonconform.structures import AnomalyDetector
 
 # MockDetector is imported from tests/conftest.py via pytest fixture discovery
 from tests.conftest import MockDetector
+
+
+@pytest.fixture
+def fitted_detector():
+    """Pre-fitted conformal detector."""
+    rng = np.random.default_rng(42)
+    x_train = rng.standard_normal((100, 5))
+    detector = ConformalDetector(
+        detector=MockDetector(rng.standard_normal(100)),
+        strategy=Split(n_calib=0.2),
+        seed=42,
+    )
+    detector.fit(x_train)
+    return detector
 
 
 class TestConformalDetectorInit:
@@ -120,19 +136,6 @@ class TestConformalDetectorFit:
 class TestConformalDetectorPredict:
     """Tests for ConformalDetector.predict()."""
 
-    @pytest.fixture
-    def fitted_detector(self):
-        """Pre-fitted conformal detector."""
-        rng = np.random.default_rng(42)
-        X_train = rng.standard_normal((100, 5))
-        detector = ConformalDetector(
-            detector=MockDetector(rng.standard_normal(100)),
-            strategy=Split(n_calib=0.2),
-            seed=42,
-        )
-        detector.fit(X_train)
-        return detector
-
     def test_predict_before_fit_raises(self):
         """predict() before fit() raises RuntimeError."""
         detector = ConformalDetector(
@@ -169,19 +172,6 @@ class TestConformalDetectorPredict:
 
 class TestConformalDetectorProperties:
     """Tests for ConformalDetector properties."""
-
-    @pytest.fixture
-    def fitted_detector(self):
-        """Pre-fitted conformal detector."""
-        rng = np.random.default_rng(42)
-        X_train = rng.standard_normal((100, 5))
-        detector = ConformalDetector(
-            detector=MockDetector(rng.standard_normal(100)),
-            strategy=Split(n_calib=0.2),
-            seed=42,
-        )
-        detector.fit(X_train)
-        return detector
 
     def test_detector_set_returns_copy(self, fitted_detector):
         """detector_set returns defensive copy."""

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from nonconform import AnomalyDetector
 from nonconform.adapters import PyODAdapter, _looks_like_pyod, adapt
+from nonconform.structures import AnomalyDetector
 
 
 class MockProtocolCompliantDetector:

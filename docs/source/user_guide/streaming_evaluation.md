@@ -70,7 +70,8 @@ for prop in proportions:
 ```python
 from pyod.models.iforest import IForest
 from onlinefdr import Alpha_investing
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Create online generator
 online_gen = OnlineGenerator(

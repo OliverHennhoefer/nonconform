@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from nonconform import Kernel
+from nonconform.enums import Kernel
 
 
 @pytest.fixture

@@ -273,10 +273,8 @@ Always validate your strategy choice with performance metrics:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform import (
-    ConformalDetector, Split, CrossValidation,
-    false_discovery_rate, statistical_power,
-)
+from nonconform import ConformalDetector, Split, CrossValidation
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Compare strategies on your data
 strategies = {

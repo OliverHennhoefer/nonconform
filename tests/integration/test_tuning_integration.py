@@ -11,11 +11,11 @@ pytest.importorskip("pyod", reason="pyod not installed")
 from nonconform import (
     ConformalDetector,
     CrossValidation,
-    Kernel,
     Probabilistic,
     Split,
     logistic_weight_estimator,
 )
+from nonconform.enums import Kernel
 
 
 def test_probabilistic_tuning_records_metadata(simple_dataset):

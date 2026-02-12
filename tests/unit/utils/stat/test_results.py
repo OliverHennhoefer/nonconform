@@ -1,6 +1,6 @@
 import numpy as np
 
-from nonconform import ConformalResult
+from nonconform.structures import ConformalResult
 
 
 class TestInstantiation:

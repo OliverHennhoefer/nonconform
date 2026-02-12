@@ -16,9 +16,8 @@ from nonconform import (
     JackknifeBootstrap,
     Probabilistic,
     Split,
-    false_discovery_rate,
-    statistical_power,
 )
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class TestStandardProbabilistic:

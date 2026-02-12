@@ -16,7 +16,8 @@ Common issues and solutions for nonconform.
 # config=DetectorConfig(alpha=0.1)
 
 # New API
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 from pyod.models.lof import LOF
 
 detector = ConformalDetector(
@@ -221,7 +222,7 @@ JackknifeBootstrap(...)         # → JackknifeBootstrap(n_bootstraps=50)
 - Use the correct aggregation enum values
 
 ```python
-from nonconform import Aggregation
+from nonconform.enums import Aggregation
 
 # Correct usage of aggregation enums
 detector = ConformalDetector(

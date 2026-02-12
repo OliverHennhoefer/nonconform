@@ -31,7 +31,8 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 
 ```python
 import numpy as np
-from nonconform import Aggregation, ConformalDetector, Split, logistic_weight_estimator
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.enums import Aggregation
 from pyod.models.lof import LOF
 
 # Initialize base detector
@@ -76,6 +77,8 @@ The p-values are computed using weighted empirical distribution functions. By de
 
 ```python
 # Randomized weighted p-value calculation (Jin & Candes 2023)
+import numpy as np
+
 def weighted_p_value(test_score, calibration_scores, calibration_weights, test_weight):
     """
     Calculate weighted conformal p-value with randomized tie handling.
@@ -156,7 +159,8 @@ weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 
 # Apply FDR control for proper comparison
 from scipy.stats import false_discovery_control
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 standard_mask = false_discovery_control(standard_p_values, method="bh") < 0.05
 
@@ -177,7 +181,8 @@ The choice of aggregation method can affect performance under distribution shift
 
 ```python
 # Compare different aggregation methods
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Aggregation, Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 aggregation_methods = [
     Aggregation.MEAN,
@@ -310,7 +315,8 @@ for name, weight_est in estimators.items():
 Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios. It is most relevant when the calibration set is much larger than the test batch, where standalone importance weights can become spiky and overly influential:
 
 ```python
-from nonconform import BootstrapBaggedWeightEstimator, forest_weight_estimator
+from nonconform import forest_weight_estimator
+from nonconform.weighting import BootstrapBaggedWeightEstimator
 
 # Bootstrap bagging with forest base (best for extreme imbalance)
 weight_est = BootstrapBaggedWeightEstimator(
@@ -414,13 +420,11 @@ Empirical testing shows context-dependent value:
 For online/streaming anomaly detection with small batches:
 
 ```python
-from nonconform import (
-    Aggregation,
-    BootstrapBaggedWeightEstimator,
-    ConformalDetector,
-    Split,
-    forest_weight_estimator,
-)
+from nonconform import ConformalDetector, Split, forest_weight_estimator
+from nonconform.enums import Aggregation, Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.weighting import BootstrapBaggedWeightEstimator
+from pyod.models.iforest import IForest
 
 # Configuration for small batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
@@ -445,8 +449,6 @@ for X_batch in stream_data(batch_size=25):
     p_values = detector.predict(X_batch, raw=False)
 
     # Apply weighted FDR control
-    from nonconform import Pruning, weighted_false_discovery_control
-
     discoveries = weighted_false_discovery_control(
         result=detector.last_result,
         alpha=0.1,
@@ -526,7 +528,8 @@ cv_detector = ConformalDetector(
 Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS) [[Jin & Candès, 2023](#references)]:
 
 ```python
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 # Collect weighted p-values and cached statistics
 weighted_detector.predict(X_test_shifted, raw=False)
@@ -610,7 +613,8 @@ wcs_mask = weighted_false_discovery_control(
 ### Comparison of Pruning Methods
 
 ```python
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 pruning_methods = [
     Pruning.DETERMINISTIC,
@@ -702,7 +706,8 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 ### 2. Combine with Weighted Conformal Selection
 
 ```python
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 weighted_p_values = weighted_detector.predict(X_test_shifted, raw=False)
 wcs_mask = weighted_false_discovery_control(
@@ -755,7 +760,8 @@ for domain in domains:
     domain_detectors[domain] = detector
 
 # Predict on domain-specific test sets with WCS
-from nonconform import Pruning, weighted_false_discovery_control
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 
 for domain in domains:
     X_test_domain = load_domain_data(domain)  # Load domain-specific test data
@@ -771,6 +777,9 @@ for domain in domains:
 
 ### Online Adaptation
 ```python
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
+
 # Adapt to gradual distribution shift over time
 def online_weighted_detection(detector, data_stream, window_size=1000):
     """Online weighted conformal detection with sliding window."""
@@ -789,7 +798,6 @@ def online_weighted_detection(detector, data_stream, window_size=1000):
 
             # Predict on current batch with WCS
             _ = detector.predict(X_batch, raw=False)
-            from nonconform import Pruning, weighted_false_discovery_control
             wcs_mask = weighted_false_discovery_control(
                 result=detector.last_result,
                 alpha=0.05,

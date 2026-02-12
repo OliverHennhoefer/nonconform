@@ -28,7 +28,8 @@ decisions = false_discovery_control(p_values, method='bh') < 0.05
 For weighted conformal p-values (covariate shift), use `weighted_false_discovery_control`:
 
 ```python
-from nonconform import weighted_false_discovery_control, Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.enums import Pruning
 
 decisions = weighted_false_discovery_control(
     result=detector.last_result,
@@ -45,7 +46,8 @@ decisions = weighted_false_discovery_control(
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 from pyod.models.lof import LOF
 
 # Prepare detector and data
@@ -73,13 +75,9 @@ When calibration and test distributions differ, use Weighted Conformal Selection
 
 ```python
 import numpy as np
-from nonconform import (
-    ConformalDetector,
-    JackknifeBootstrap,
-    Pruning,
-    logistic_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, JackknifeBootstrap, logistic_weight_estimator
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
@@ -205,14 +203,9 @@ FDR control works naturally with conformal prediction p-values:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    Pruning,
-    Split,
-    logistic_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.enums import Aggregation, Pruning
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.lof import LOF
 
 # Standard conformal detector: use scipy for FDR control
@@ -260,7 +253,7 @@ Evaluate the effectiveness of FDR control using nonconform's built-in metrics:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform import false_discovery_rate, statistical_power
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     """Evaluate FDR control performance."""
@@ -341,7 +334,8 @@ from scipy.stats import combine_pvalues, false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.knn import KNN
 from pyod.models.ocsvm import OCSVM
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation
 
 # Get p-values from multiple detectors
 detectors = [LOF(), KNN(), OCSVM()]

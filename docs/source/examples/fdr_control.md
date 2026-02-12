@@ -9,7 +9,10 @@ import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
 from oddball import Dataset, load
-from nonconform import Aggregation, ConformalDetector, Split, Pruning, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Aggregation, Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
 X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
@@ -68,8 +71,6 @@ print(f"No adjustment: {no_adjustment} detections")
 
 ```python
 from nonconform import JackknifeBootstrap, logistic_weight_estimator
-from nonconform import weighted_false_discovery_control
-from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
 # Load a dataset that exhibits covariate shift between calibration and test sets

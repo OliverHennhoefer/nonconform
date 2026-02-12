@@ -17,9 +17,8 @@ from nonconform import (
     Empirical,
     JackknifeBootstrap,
     Split,
-    false_discovery_rate,
-    statistical_power,
 )
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class TestStandardEmpirical:

@@ -34,7 +34,8 @@ pip install nonconform
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
@@ -95,7 +96,7 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Weighted procedures require weighted FDR control for statistical validity (see ``weighted_false_discovery_control()``). Note that ``weighted_bh()`` often offers greater statistical power but has no strict statistical guarantees.
+> **Note:** Weighted procedures require weighted FDR control for statistical validity (see `nonconform.fdr.weighted_false_discovery_control()`). Note that `nonconform.fdr.weighted_bh()` often offers greater statistical power but has no strict statistical guarantees.
 
 
 # Beyond Static Data
@@ -108,6 +109,10 @@ While primarily designed for static (single-batch) applications, the optional `o
 Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 
 ```python
+from typing import Self
+
+import numpy as np
+
 class MyDetector:
     def fit(self, X, y=None) -> Self: ...
     def decision_function(self, X) -> np.ndarray: ...  # higher = more anomalous
