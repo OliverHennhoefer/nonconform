@@ -327,7 +327,7 @@ from nonconform.weighting import BootstrapBaggedWeightEstimator
 # Bootstrap bagging with forest base (best for extreme imbalance)
 weight_est = BootstrapBaggedWeightEstimator(
     base_estimator=forest_weight_estimator(n_estimators=50),
-    n_bootstrap=50,
+    n_bootstraps=50,
     clip_quantile=0.05,
 )
 
@@ -344,7 +344,7 @@ detector = ConformalDetector(
 
 Bootstrap bagging creates an ensemble of weight estimators:
 
-1. **For each bootstrap iteration** (n_bootstrap times):
+1. **For each bootstrap iteration** (n_bootstraps times):
    - Resample both calibration and test sets to balanced size
    - Fit the base estimator on the bootstrap sample
    - Score ALL original instances (perfect coverage)
@@ -354,7 +354,7 @@ Bootstrap bagging creates an ensemble of weight estimators:
    - Aggregate using geometric mean (exp of mean log-weights)
    - Apply clipping to maintain bounded weights
 
-Every instance receives exactly n_bootstrap weight estimates, ensuring symmetric coverage regardless of set size ratios.
+Every instance receives exactly n_bootstraps weight estimates, ensuring symmetric coverage regardless of set size ratios.
 
 #### When to Use
 
@@ -410,7 +410,7 @@ Empirical testing shows context-dependent value:
 
 #### Configuration Parameters
 
-**n_bootstrap** (default: 100):
+**n_bootstraps** (default: 100):
 - Number of bootstrap iterations
 - Higher = more stable, but slower
 - Recommended: 20-50 for small test batches, 50-100 for critical applications
@@ -435,7 +435,7 @@ from pyod.models.iforest import IForest
 # Configuration for small batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
     base_estimator=forest_weight_estimator(n_estimators=50, max_depth=10),
-    n_bootstrap=50,
+    n_bootstraps=50,
     clip_quantile=0.05,  # Adaptive clipping
 )
 
@@ -488,7 +488,7 @@ for X_batch in stream_data(batch_size=25):
 ┌─ Is your test batch very small (<50) AND calibration large (>1000)?
 │
 ├─ YES → BootstrapBaggedWeightEstimator(
-│         forest_weight_estimator(50), n_bootstrap=50
+│         forest_weight_estimator(50), n_bootstraps=50
 │       )
 │       Cost: High (6-7s), Quality: Best (perfect detection)
 │

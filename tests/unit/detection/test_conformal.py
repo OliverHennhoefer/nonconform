@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from sklearn.exceptions import NotFittedError
 
 from nonconform import ConformalDetector, Split
 from nonconform.enums import Aggregation
@@ -208,11 +209,11 @@ class TestConformalDetectorPredict:
     """Tests for ConformalDetector prediction interfaces."""
 
     def test_predict_before_fit_raises(self):
-        """compute_p_values() before fit() raises RuntimeError."""
+        """compute_p_values() before fit() raises NotFittedError."""
         detector = ConformalDetector(
             detector=MockDetector(), strategy=Split(n_calib=0.2)
         )
-        with pytest.raises(RuntimeError, match="fit"):
+        with pytest.raises(NotFittedError, match="not fitted"):
             detector.compute_p_values(np.array([[1, 2, 3, 4, 5]]))
 
     def test_predict_returns_p_values(self, fitted_detector):
@@ -375,6 +376,15 @@ class TestConformalDetectorWeightedPreparation:
         )
         detector.fit(x_train)
         with pytest.raises(RuntimeError, match="requires weighted mode"):
+            detector.prepare_weights_for(x_test)
+
+    def test_prepare_weights_before_fit_raises(self, sample_data):
+        """prepare_weights_for() before fit() raises NotFittedError."""
+        _, x_test = sample_data
+        detector = ConformalDetector(
+            detector=MockDetector(), strategy=Split(n_calib=0.2), seed=42
+        )
+        with pytest.raises(NotFittedError, match="not fitted"):
             detector.prepare_weights_for(x_test)
 
     def test_predict_without_refit_requires_prepared_weights(self, sample_data):

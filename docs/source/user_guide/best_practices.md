@@ -614,7 +614,7 @@ from pyod.models.iforest import IForest
 # Premium configuration for small-batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
     base_estimator=forest_weight_estimator(n_estimators=50),
-    n_bootstrap=50,
+    n_bootstraps=50,
     clip_quantile=0.05,
 )
 

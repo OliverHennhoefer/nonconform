@@ -61,7 +61,7 @@ def test_weighted_bh_respects_pvalue_ordering(simple_dataset):
     result = detector.last_result
     assert result is not None and result.p_values is not None
 
-    mask = weighted_bh(result, alpha=0.2)
+    mask = weighted_bh(result=result, alpha=0.2)
     assert mask.shape == (len(x_test),)
 
     if np.any(mask):

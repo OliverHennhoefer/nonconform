@@ -8,7 +8,7 @@ class TestNoDiscoveries:
     def test_all_high_p_values(self, conformal_result):
         result = conformal_result(n_test=4, n_calib=50, seed=42)
         result.p_values = np.array([0.9, 0.95, 0.99, 0.999])
-        discoveries = weighted_bh(result, alpha=0.05)
+        discoveries = weighted_bh(result=result, alpha=0.05)
         assert np.sum(discoveries) == 0
 
     def test_no_significant_results(self, conformal_result):
@@ -21,14 +21,14 @@ class TestNoDiscoveries:
 class TestAllDiscoveries:
     def test_all_low_p_values(self, conformal_result):
         result = conformal_result(n_test=10, n_calib=100, seed=42)
-        discoveries = weighted_bh(result, alpha=0.5)
+        discoveries = weighted_bh(result=result, alpha=0.5)
         assert isinstance(discoveries, np.ndarray)
         assert len(discoveries) == 10
 
     def test_very_permissive_alpha(self, conformal_result):
         result = conformal_result(n_test=4, n_calib=50, seed=42)
         result.p_values = np.array([0.1, 0.2, 0.3, 0.4])
-        discoveries = weighted_bh(result, alpha=0.5)
+        discoveries = weighted_bh(result=result, alpha=0.5)
         assert np.sum(discoveries) > 0
 
 
@@ -52,7 +52,7 @@ class TestSingleTestPoint:
 
     def test_single_test_point_high_p_value(self, conformal_result):
         result = conformal_result(n_test=1, n_calib=50, seed=42)
-        discoveries = weighted_bh(result, alpha=0.01)
+        discoveries = weighted_bh(result=result, alpha=0.01)
         assert len(discoveries) == 1
         assert isinstance(discoveries[0], bool | np.bool_)
 
@@ -93,6 +93,10 @@ class TestErrorHandling:
     def test_missing_required_inputs(self):
         with pytest.raises(ValueError):
             weighted_false_discovery_control(alpha=0.1)
+
+    def test_bh_missing_required_inputs(self):
+        with pytest.raises(ValueError):
+            weighted_bh(alpha=0.1)
 
     def test_missing_test_scores(self, sample_scores, sample_weights):
         _, calib_scores = sample_scores(n_test=10, n_calib=50)
@@ -204,7 +208,11 @@ class TestInvalidPValues:
         result.p_values = np.array([bad_value, 0.5])
 
         with pytest.raises(ValueError):
-            weighted_bh(result, alpha=0.1)
+            weighted_bh(result=result, alpha=0.1)
+
+    def test_invalid_p_values_shape_bh(self):
+        with pytest.raises(ValueError):
+            weighted_bh(p_values=np.array([[0.1], [0.2]]), alpha=0.1)
 
 
 class TestOutputValidation:

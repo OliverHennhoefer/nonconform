@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
@@ -106,11 +107,11 @@ class BaseWeightEstimator(ABC):
             Tuple of (calibration_weights, test_weights) as numpy arrays.
 
         Raises:
-            RuntimeError: If fit() has not been called.
+            NotFittedError: If fit() has not been called.
             ValueError: If only one of calibration_samples/test_samples is provided.
         """
         if not hasattr(self, "_is_fitted") or not self._is_fitted:
-            raise RuntimeError("Must call fit() before get_weights()")
+            raise NotFittedError("This weight estimator instance is not fitted yet.")
 
         if (calibration_samples is None) != (test_samples is None):
             raise ValueError(
@@ -451,7 +452,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 
     Args:
         base_estimator: Any BaseWeightEstimator instance.
-        n_bootstrap: Number of bootstrap iterations. Defaults to 100.
+        n_bootstraps: Number of bootstrap iterations. Defaults to 100.
         clip_quantile: Quantile for adaptive clipping. Use None to disable clipping.
             Defaults to 0.05.
 
@@ -463,12 +464,12 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     def __init__(
         self,
         base_estimator: BaseWeightEstimator,
-        n_bootstrap: int = 100,
+        n_bootstraps: int = 100,
         clip_quantile: float | None = 0.05,
     ) -> None:
-        if n_bootstrap < 1:
+        if n_bootstraps < 1:
             raise ValueError(
-                f"n_bootstrap must be at least 1, got {n_bootstrap}. "
+                f"n_bootstraps must be at least 1, got {n_bootstraps}. "
                 f"Typical values are 50-200 for stable weight estimation."
             )
         if clip_quantile is not None and not (0 < clip_quantile < 0.5):
@@ -478,7 +479,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             )
 
         self.base_estimator = base_estimator
-        self.n_bootstrap = n_bootstrap
+        self.n_bootstraps = n_bootstraps
         self.clip_quantile = clip_quantile
 
         # Seed inheritance attribute (set by ConformalDetector)
@@ -508,7 +509,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         if _bagged_logger.isEnabledFor(logging.INFO):
             _bagged_logger.info(
                 f"Bootstrap: n_calib={n_calib}, n_test={n_test}, "
-                f"sample_size={sample_size}, n_bootstrap={self.n_bootstrap}. "
+                f"sample_size={sample_size}, n_bootstraps={self.n_bootstraps}. "
                 f"Perfect coverage: all instances weighted in all iterations."
             )
 
@@ -517,9 +518,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         sum_log_weights_test = np.zeros(n_test)
 
         bootstrap_iterator = (
-            tqdm(range(self.n_bootstrap), desc="Weighting")
+            tqdm(range(self.n_bootstraps), desc="Weighting")
             if _bagged_logger.isEnabledFor(logging.INFO)
-            else range(self.n_bootstrap)
+            else range(self.n_bootstraps)
         )
 
         for i in bootstrap_iterator:
@@ -547,8 +548,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             sum_log_weights_test += np.log(w_t_all)
 
         # Geometric mean aggregation: exp(mean(log-weights))
-        w_calib_final = np.exp(sum_log_weights_calib / self.n_bootstrap)
-        w_test_final = np.exp(sum_log_weights_test / self.n_bootstrap)
+        w_calib_final = np.exp(sum_log_weights_calib / self.n_bootstraps)
+        w_test_final = np.exp(sum_log_weights_test / self.n_bootstraps)
 
         # Apply clipping after aggregation (use base class static method)
         clip_bounds = BaseWeightEstimator._compute_clip_bounds(
@@ -591,7 +592,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         if not self._is_fitted:
             return "Not fitted yet"
         return (
-            f"Bootstrap iterations: {self.n_bootstrap}\n"
+            f"Bootstrap iterations: {self.n_bootstraps}\n"
             f"Calibration instances: {len(self._w_calib)}\n"
             f"Test instances: {len(self._w_test)}"
         )

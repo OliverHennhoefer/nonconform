@@ -335,67 +335,92 @@ def weighted_false_discovery_control(
 
 
 def weighted_bh(
-    result: ConformalResult,
+    result: ConformalResult | None = None,
+    *,
+    p_values: np.ndarray | None = None,
     alpha: float = 0.05,
+    test_scores: np.ndarray | None = None,
+    calib_scores: np.ndarray | None = None,
+    test_weights: np.ndarray | None = None,
+    calib_weights: np.ndarray | None = None,
+    seed: int | None = None,
 ) -> np.ndarray:
     """Apply weighted Benjamini-Hochberg procedure.
 
-    Uses estimator-supplied weighted p-values when available and falls back on
-    recomputing them with the standard weighted conformal formula otherwise.
+    Uses provided p-values when available and falls back on recomputing weighted
+    p-values with the standard weighted conformal formula otherwise.
 
     Args:
-        result: Conformal result bundle with test/calib scores and weights.
+        result: Optional conformal result bundle (from ConformalDetector.last_result).
+            When provided, remaining parameters default to the contents of this object.
+        p_values: Weighted conformal p-values. If None, computed internally.
         alpha: Target false discovery rate (0 < alpha < 1). Defaults to 0.05.
+        test_scores: Non-conformity scores for test data.
+        calib_scores: Non-conformity scores for calibration data.
+        test_weights: Importance weights for test data.
+        calib_weights: Importance weights for calibration data.
+        seed: Random seed for reproducibility when p-values are computed
+            internally. Ignored when p_values is provided.
 
     Returns:
         Boolean array indicating discoveries for each test point.
+
+    Raises:
+        ValueError: If alpha is outside (0, 1) or required inputs are missing.
     """
     if not (0.0 < alpha < 1.0):
         raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
-    if result is None:
-        raise ValueError("weighted_bh requires a ConformalResult instance.")
+    if result is not None:
+        if result.p_values is not None and p_values is None:
+            p_values = result.p_values
+        if result.test_scores is not None and test_scores is None:
+            test_scores = result.test_scores
+        if result.calib_scores is not None and calib_scores is None:
+            calib_scores = result.calib_scores
+        if result.test_weights is not None and test_weights is None:
+            test_weights = result.test_weights
+        if result.calib_weights is not None and calib_weights is None:
+            calib_weights = result.calib_weights
 
-    p_values = result.p_values
     if p_values is not None:
-        p_values = np.asarray(p_values, dtype=float)
+        p_values_arr = np.asarray(p_values, dtype=float)
     else:
-        required = {
-            "test_scores": result.test_scores,
-            "calib_scores": result.calib_scores,
-            "test_weights": result.test_weights,
-            "calib_weights": result.calib_weights,
-        }
-        missing = [name for name, arr in required.items() if arr is None]
-        if missing:
+        required_arrays = (test_scores, calib_scores, test_weights, calib_weights)
+        if any(arr is None for arr in required_arrays):
             raise ValueError(
-                "Cannot recompute weighted p-values; missing: " + ", ".join(missing)
+                "test_scores, calib_scores, test_weights, and calib_weights "
+                "must all be provided when p_values is None."
             )
-        test_scores_arr = np.asarray(required["test_scores"])
-        calib_scores_arr = np.asarray(required["calib_scores"])
-        test_weights_arr = np.asarray(required["test_weights"])
-        calib_weights_arr = np.asarray(required["calib_weights"])
+        test_scores_arr = np.asarray(test_scores)
+        calib_scores_arr = np.asarray(calib_scores)
+        test_weights_arr = np.asarray(test_weights)
+        calib_weights_arr = np.asarray(calib_weights)
         _validate_non_negative_finite("test_weights", test_weights_arr)
         _validate_non_negative_finite("calib_weights", calib_weights_arr)
-        p_values = calculate_weighted_p_val(
+        rng = np.random.default_rng(seed)
+        p_values_arr = calculate_weighted_p_val(
             test_scores_arr,
             calib_scores_arr,
             test_weights_arr,
             calib_weights_arr,
             randomize=True,
+            rng=rng,
         )
 
-    if p_values.ndim != 1:
-        raise ValueError(f"p_values must be a 1D array, got shape {p_values.shape!r}.")
+    if p_values_arr.ndim != 1:
+        raise ValueError(
+            f"p_values must be a 1D array, got shape {p_values_arr.shape!r}."
+        )
 
-    _validate_p_values(p_values)
+    _validate_p_values(p_values_arr)
 
-    m = len(p_values)
+    m = len(p_values_arr)
     if m == 0:
         return np.zeros(0, dtype=bool)
 
-    sorted_idx = np.argsort(p_values)
-    sorted_p = p_values[sorted_idx]
+    sorted_idx = np.argsort(p_values_arr)
+    sorted_p = p_values_arr[sorted_idx]
     adjusted_sorted = np.minimum.accumulate((sorted_p * m / np.arange(1, m + 1))[::-1])[
         ::-1
     ]

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
 from nonconform.adapters import adapt
@@ -268,7 +269,7 @@ class ConformalDetector(BaseConformalDetector):
     def _aggregate_scores(self, x: np.ndarray) -> np.ndarray:
         """Compute aggregated anomaly scores across fitted detector replicas."""
         if not self.is_fitted:
-            raise RuntimeError("Call fit() before prediction.")
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
 
         iterable = (
             tqdm(self._detector_set, total=len(self._detector_set), desc="Aggregation")
@@ -323,10 +324,11 @@ class ConformalDetector(BaseConformalDetector):
             The fitted detector instance (for method chaining).
 
         Raises:
-            RuntimeError: If fit() has not been called or weighted mode is disabled.
+            NotFittedError: If fit() has not been called.
+            RuntimeError: If weighted mode is disabled.
         """
         if not self.is_fitted:
-            raise RuntimeError("Call fit() before prepare_weights_for().")
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
         if not self._is_weighted_mode or self.weight_estimator is None:
             raise RuntimeError(
                 "prepare_weights_for() requires weighted mode with a weight_estimator."
