@@ -606,7 +606,7 @@ print(f"Discoveries: {results['discoveries'].sum()}")
 print(f"Performance metrics: {results['metrics']}")
 ```
 
-This comprehensive approach ensures robust, scalable, and maintainable anomaly detection systems using the new nonconform API.
+This comprehensive approach ensures robust, scalable, and maintainable anomaly detection systems using nonconform.
 
 ## Special Case: Online/Streaming Detection with Small Batches
 

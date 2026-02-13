@@ -13,7 +13,7 @@ from nonconform import (
     logistic_weight_estimator,
 )
 from nonconform.enums import Kernel, Pruning
-from nonconform.fdr import weighted_bh, weighted_false_discovery_control
+from nonconform.fdr import weighted_bh_from_result, weighted_false_discovery_control
 
 
 def _fit_weighted_detector(x_train):
@@ -61,7 +61,7 @@ def test_weighted_bh_respects_pvalue_ordering(simple_dataset):
     result = detector.last_result
     assert result is not None and result.p_values is not None
 
-    mask = weighted_bh(result=result, alpha=0.2)
+    mask = weighted_bh_from_result(result=result, alpha=0.2)
     assert mask.shape == (len(x_test),)
 
     if np.any(mask):

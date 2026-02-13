@@ -69,10 +69,10 @@ strategy = Split(n_calib=2000)  # Use exactly 2000 samples
 from nonconform import CrossValidation
 
 # Standard Jackknife+ (recommended) - use factory method
-strategy = CrossValidation.jackknife(plus=True)
+strategy = CrossValidation.jackknife(mode="plus")
 
 # Regular Jackknife (less conservative)
-strategy = CrossValidation.jackknife(plus=False)
+strategy = CrossValidation.jackknife(mode="single_model")
 ```
 
 ### Cross-Validation Conformal
@@ -100,13 +100,13 @@ strategy = CrossValidation.jackknife(plus=False)
 from nonconform import CrossValidation
 
 # Standard 5-fold CV+ (recommended)
-strategy = CrossValidation(k=5, plus=True)
+strategy = CrossValidation(k=5, mode="plus")
 
 # More folds for smaller datasets
-strategy = CrossValidation(k=10, plus=True)
+strategy = CrossValidation(k=10, mode="plus")
 
 # Faster alternative without plus correction
-strategy = CrossValidation(k=3, plus=False)
+strategy = CrossValidation(k=3, mode="single_model")
 ```
 
 ### Bootstrap Conformal
@@ -186,13 +186,13 @@ strategy = Split(n_calib=1000)  # Fixed size for predictable performance
 **Balanced (general applications):**
 ```python
 # Good accuracy with reasonable speed
-strategy = CrossValidation.jackknife(plus=True)
+strategy = CrossValidation.jackknife(mode="plus")
 ```
 
 **Maximum accuracy (research/critical applications):**
 ```python
 # Most robust but slower
-strategy = CrossValidation(k=10, plus=True)
+strategy = CrossValidation(k=10, mode="plus")
 ```
 
 ## Advanced Considerations
@@ -227,7 +227,7 @@ strategy = CrossValidation(k=10, plus=True)
 - Cross-Validation: n_folds model trainings
 - Bootstrap: n_bootstraps model trainings
 
-## Strategy Migration Guide
+## Strategy Transition Guide
 
 ### From Research to Production
 
@@ -279,8 +279,8 @@ from nonconform.metrics import false_discovery_rate, statistical_power
 # Compare strategies on your data
 strategies = {
     'Split': Split(n_calib=0.2),
-    'Jackknife+': CrossValidation.jackknife(plus=True),
-    'CrossVal': CrossValidation(k=5, plus=True)
+    'Jackknife+': CrossValidation.jackknife(mode="plus"),
+    'CrossVal': CrossValidation(k=5, mode="plus")
 }
 
 for name, strategy in strategies.items():

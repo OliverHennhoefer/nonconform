@@ -168,6 +168,15 @@ class TestConformalDetectorInit:
                 aggregation="avg",
             )
 
+    def test_init_non_boolean_verbose_raises(self):
+        """Verbose must be boolean."""
+        with pytest.raises(TypeError, match="verbose must be a boolean value"):
+            ConformalDetector(
+                detector=MockDetector(),
+                strategy=Split(n_calib=0.2),
+                verbose=1,  # type: ignore[arg-type]
+            )
+
     def test_init_adapts_detector(self):
         """Detector is adapted to AnomalyDetector protocol."""
         mock = MockDetector()

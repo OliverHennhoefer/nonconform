@@ -307,6 +307,10 @@ class ConformalDetector(BaseConformalDetector):
 
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
+        if not isinstance(verbose, bool):
+            raise TypeError(
+                f"verbose must be a boolean value, got {type(verbose).__name__}."
+            )
         if not isinstance(verify_prepared_batch_content, bool):
             raise TypeError("verify_prepared_batch_content must be a boolean value.")
         normalized_aggregation = normalize_aggregation_method(aggregation)

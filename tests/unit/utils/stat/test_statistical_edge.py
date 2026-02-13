@@ -8,7 +8,7 @@ class TestEmptyInputs:
     def test_single_calibration_score(self):
         test_scores = np.array([3.0])
         calib_scores = np.array([2.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 0) / (1 + 1)
         assert p_values[0] == expected
 
@@ -23,14 +23,14 @@ class TestEqualScores:
     def test_all_scores_equal(self):
         test_scores = np.array([3.0, 3.0, 3.0])
         calib_scores = np.array([3.0, 3.0, 3.0, 3.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 4) / (1 + 4)
         assert np.all(p_values == expected)
 
     def test_test_equals_all_calib(self):
         test_scores = np.array([2.0])
         calib_scores = np.array([2.0, 2.0, 2.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 3) / (1 + 3)
         assert p_values[0] == expected
 
@@ -106,6 +106,24 @@ class TestWeightedInputValidation:
         with pytest.raises(ValueError, match="calibration_set and calib_weights"):
             calculate_weighted_p_val(
                 test_scores, calib_scores, test_weights, calib_weights
+            )
+
+    def test_invalid_tie_break_raises(self):
+        with pytest.raises(ValueError, match="tie_break must be one of"):
+            calculate_p_val(
+                np.array([1.0]),
+                np.array([0.0, 2.0]),
+                tie_break="invalid",  # type: ignore[arg-type]
+            )
+
+    def test_invalid_weighted_tie_break_raises(self):
+        with pytest.raises(ValueError, match="tie_break must be one of"):
+            calculate_weighted_p_val(
+                np.array([1.0]),
+                np.array([0.0, 2.0]),
+                np.array([1.0]),
+                np.array([1.0, 1.0]),
+                tie_break="invalid",  # type: ignore[arg-type]
             )
 
 

@@ -1,12 +1,8 @@
-"""False Discovery Rate control for conformal prediction.
+"""False Discovery Rate control for weighted conformal prediction.
 
-This module implements Weighted Conformalized Selection (WCS) for FDR control
-under covariate shift. For standard BH/BY procedures, use
-scipy.stats.false_discovery_control.
-
-Functions:
-    weighted_false_discovery_control: Perform Weighted Conformalized Selection.
-    weighted_bh: Apply weighted Benjamini-Hochberg procedure.
+This module exposes explicit, non-polymorphic entrypoints for:
+- Weighted Conformalized Selection (WCS)
+- weighted Benjamini-Hochberg (BH)
 """
 
 import logging
@@ -17,20 +13,13 @@ from tqdm import tqdm
 from nonconform.scoring import calculate_weighted_p_val
 from nonconform.structures import ConformalResult
 
-from ._internal import Pruning, get_logger
+from ._internal import Pruning, TieBreakMode, get_logger
 
 
-def _bh_rejection_indices(p_values: np.ndarray, q: float) -> np.ndarray:
-    """Return indices of BH rejection set for given p-values."""
-    m = len(p_values)
-    sorted_idx = np.argsort(p_values)
-    sorted_p = p_values[sorted_idx]
-    thresholds = q * (np.arange(1, m + 1) / m)
-    below = np.nonzero(sorted_p <= thresholds)[0]
-    if len(below) == 0:
-        return np.array([], dtype=int)
-    k = below[-1]
-    return sorted_idx[: k + 1]
+def _validate_alpha(alpha: float) -> None:
+    """Validate FDR target level."""
+    if not (0.0 < alpha < 1.0):
+        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
 
 def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
@@ -61,21 +50,23 @@ def _validate_p_values(p_values: np.ndarray) -> None:
         raise ValueError("p_values must be within [0, 1].")
 
 
+def _validate_pruning(pruning: Pruning) -> None:
+    """Validate pruning mode type."""
+    if not isinstance(pruning, Pruning):
+        raise TypeError(
+            f"pruning must be an instance of Pruning. Got {type(pruning).__name__}."
+        )
+
+
 def _calib_weight_mass_at_or_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
-    """Compute weighted calibration mass at or above each target score.
-
-    This is consistent with main p-values which use >= comparison for anomaly
-    detection (high score = anomaly = small p-value).
-    """
+    """Compute weighted calibration mass at or above each target score."""
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
     total_weight = np.sum(sorted_weights)
     cum_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
-    # side="left" gives index where targets would be inserted
-    # Elements at positions >= this index have scores >= target
     positions = np.searchsorted(sorted_scores, targets, side="left")
     return total_weight - cum_weights[positions]
 
@@ -136,14 +127,9 @@ def _compute_rejection_set_size_for_instance(
     scratch: np.ndarray,
     include_self_weight: bool,
 ) -> int:
-    """Compute rejection set size |R_j^{(0)}| for test instance j.
-
-    Uses >= comparison for auxiliary p-values, consistent with main p-values
-    for anomaly detection (high score = anomaly = small p-value).
-    """
+    """Compute rejection set size |R_j^{(0)}| for test instance j."""
     np.copyto(scratch, calib_mass_at_or_above)
     if include_self_weight:
-        # I{V_j >= V_l} - consistent with main p-values using >=
         scratch += w_test[j] * (test_scores[j] >= test_scores)
         denominator = sum_calib_weight + w_test[j]
     else:
@@ -154,130 +140,118 @@ def _compute_rejection_set_size_for_instance(
     return _bh_rejection_count(scratch, bh_thresholds)
 
 
-def weighted_false_discovery_control(
-    result: ConformalResult | None = None,
-    *,
-    p_values: np.ndarray | None = None,
-    alpha: float = 0.05,
-    test_scores: np.ndarray | None = None,
-    calib_scores: np.ndarray | None = None,
-    test_weights: np.ndarray | None = None,
-    calib_weights: np.ndarray | None = None,
-    pruning: Pruning = Pruning.DETERMINISTIC,
-    seed: int | None = None,
-) -> np.ndarray:
-    """Perform Weighted Conformalized Selection (WCS).
-
-    Args:
-        result: Optional conformal result bundle (from ConformalDetector.last_result).
-            When provided, remaining parameters default to the contents of this object.
-        p_values: Weighted conformal p-values. If None, computed internally.
-        alpha: Target false discovery rate (0 < alpha < 1). Defaults to 0.05.
-        test_scores: Non-conformity scores for test data.
-        calib_scores: Non-conformity scores for calibration data.
-        test_weights: Importance weights for test data.
-        calib_weights: Importance weights for calibration data.
-        pruning: Pruning method. Defaults to Pruning.DETERMINISTIC.
-        seed: Random seed for reproducibility. Defaults to None.
-
-    Returns:
-        Boolean mask of test points retained after pruning.
-
-    Raises:
-        ValueError: If alpha is outside (0, 1) or required inputs are missing.
-
-    Note:
-        The procedure follows Algorithm 1 in Jin & Candes (2023).
-        Computational cost is O(m^2) in the number of test points.
-
-    References:
-        Jin, Y., & Candes, E. (2023). Model-free selective inference under
-        covariate shift via weighted conformal p-values. arXiv preprint
-        arXiv:2307.09291.
-    """
-    if not (0.0 < alpha < 1.0):
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
-
-    if result is not None:
-        if result.p_values is not None and p_values is None:
-            p_values = result.p_values
-        if result.test_scores is not None and test_scores is None:
-            test_scores = result.test_scores
-        if result.calib_scores is not None and calib_scores is None:
-            calib_scores = result.calib_scores
-        if result.test_weights is not None and test_weights is None:
-            test_weights = result.test_weights
-        if result.calib_weights is not None and calib_weights is None:
-            calib_weights = result.calib_weights
-
-    kde_support: tuple[np.ndarray, np.ndarray, float] | None = None
-    use_self_weight = True
-    if result is not None and result.metadata:
-        kde_meta = result.metadata.get("kde")
-        if kde_meta is not None:
-            try:
-                eval_grid = np.asarray(kde_meta["eval_grid"])
-                cdf_values = np.asarray(kde_meta["cdf_values"])
-                total_weight = float(kde_meta["total_weight"])
-                if (
-                    eval_grid.ndim == 1
-                    and cdf_values.ndim == 1
-                    and eval_grid.size == cdf_values.size
-                    and eval_grid.size > 1
-                ):
-                    kde_support = (eval_grid, cdf_values, total_weight)
-                    use_self_weight = False
-            except KeyError:
-                kde_support = None
-
-    required_arrays = (test_scores, calib_scores, test_weights, calib_weights)
-    if any(arr is None for arr in required_arrays):
+def _extract_required_wcs_fields(
+    result: ConformalResult,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract required WCS arrays from a result bundle."""
+    required = {
+        "p_values": result.p_values,
+        "test_scores": result.test_scores,
+        "calib_scores": result.calib_scores,
+        "test_weights": result.test_weights,
+        "calib_weights": result.calib_weights,
+    }
+    missing = [name for name, value in required.items() if value is None]
+    if missing:
+        missing_list = ", ".join(missing)
         raise ValueError(
-            "test_scores, calib_scores, test_weights, and calib_weights "
-            "must all be provided."
+            "result is missing required WCS fields: "
+            f"{missing_list}. Run weighted compute_p_values(...) first."
         )
-    test_scores = np.asarray(test_scores)
-    calib_scores = np.asarray(calib_scores)
-    test_weights = np.asarray(test_weights)
-    calib_weights = np.asarray(calib_weights)
 
-    _validate_non_negative_finite("test_weights", test_weights)
-    _validate_non_negative_finite("calib_weights", calib_weights)
+    p_values = np.asarray(required["p_values"])
+    test_scores = np.asarray(required["test_scores"])
+    calib_scores = np.asarray(required["calib_scores"])
+    test_weights = np.asarray(required["test_weights"])
+    calib_weights = np.asarray(required["calib_weights"])
+    return p_values, test_scores, calib_scores, test_weights, calib_weights
 
-    rng = np.random.default_rng(seed)
 
-    if p_values is None:
-        p_vals = calculate_weighted_p_val(
-            test_scores,
-            calib_scores,
-            test_weights,
-            calib_weights,
-            randomize=True,
-            rng=rng,
+def _extract_required_bh_p_values(result: ConformalResult) -> np.ndarray:
+    """Extract required p-values from a result bundle for weighted BH."""
+    if result.p_values is None:
+        raise ValueError(
+            "result.p_values is required for weighted_bh_from_result(...). "
+            "Run compute_p_values(...) first."
         )
-    else:
-        p_vals = np.asarray(p_values)
-        if p_vals.ndim != 1:
-            raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
+    return np.asarray(result.p_values, dtype=float)
 
+
+def _extract_kde_support(
+    result: ConformalResult,
+) -> tuple[tuple[np.ndarray, np.ndarray, float] | None, bool]:
+    """Extract optional KDE support metadata for probabilistic estimation."""
+    if not result.metadata:
+        return None, True
+
+    kde_meta = result.metadata.get("kde")
+    if kde_meta is None:
+        return None, True
+    try:
+        eval_grid = np.asarray(kde_meta["eval_grid"])
+        cdf_values = np.asarray(kde_meta["cdf_values"])
+        total_weight = float(kde_meta["total_weight"])
+    except KeyError:
+        return None, True
+
+    if (
+        eval_grid.ndim == 1
+        and cdf_values.ndim == 1
+        and eval_grid.size == cdf_values.size
+        and eval_grid.size > 1
+    ):
+        return (eval_grid, cdf_values, total_weight), False
+    return None, True
+
+
+def _run_wcs(
+    *,
+    p_values: np.ndarray,
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    test_weights: np.ndarray,
+    calib_weights: np.ndarray,
+    alpha: float,
+    pruning: Pruning,
+    seed: int | None,
+    kde_support: tuple[np.ndarray, np.ndarray, float] | None = None,
+    include_self_weight: bool = True,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
+    """Run Weighted Conformalized Selection from explicit arrays."""
+    _validate_alpha(alpha)
+    _validate_pruning(pruning)
+
+    p_vals = np.asarray(p_values)
+    test_scores_arr = np.asarray(test_scores)
+    calib_scores_arr = np.asarray(calib_scores)
+    test_weights_arr = np.asarray(test_weights)
+    calib_weights_arr = np.asarray(calib_weights)
+
+    if p_vals.ndim != 1:
+        raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
     _validate_p_values(p_vals)
+    _validate_non_negative_finite("test_weights", test_weights_arr)
+    _validate_non_negative_finite("calib_weights", calib_weights_arr)
 
-    m = len(test_scores)
-    if len(test_weights) != m or len(p_vals) != m:
+    m = len(test_scores_arr)
+    if len(test_weights_arr) != m or len(p_vals) != m:
         raise ValueError(
             "test_scores, test_weights, and p_values must have the same length."
         )
-    if len(calib_scores) != len(calib_weights):
+    if len(calib_scores_arr) != len(calib_weights_arr):
         raise ValueError("calib_scores and calib_weights must have the same length.")
+
+    if rng is None:
+        rng = np.random.default_rng(seed)
 
     if kde_support is not None:
         eval_grid, cdf_values, total_weight = kde_support
         sum_calib_weight = total_weight
-        # KDE provides CDF (mass below), convert to survival (mass at or above)
         calib_mass_at_or_above = sum_calib_weight * (
             1.0
             - np.interp(
-                test_scores,
+                test_scores_arr,
                 eval_grid,
                 cdf_values,
                 left=0.0,
@@ -285,12 +259,11 @@ def weighted_false_discovery_control(
             )
         )
     else:
-        sum_calib_weight = np.sum(calib_weights)
+        sum_calib_weight = np.sum(calib_weights_arr)
         calib_mass_at_or_above = _calib_weight_mass_at_or_above(
-            calib_scores, calib_weights, test_scores
+            calib_scores_arr, calib_weights_arr, test_scores_arr
         )
 
-    # Compute R_j^{(0)} sizes and thresholds
     r_sizes = np.zeros(m, dtype=float)
     bh_thresholds = alpha * (np.arange(1, m + 1) / m)
     scratch = np.empty(m, dtype=float)
@@ -303,116 +276,125 @@ def weighted_false_discovery_control(
     for j in j_iterator:
         r_sizes[j] = _compute_rejection_set_size_for_instance(
             j,
-            test_scores,
-            test_weights,
+            test_scores_arr,
+            test_weights_arr,
             sum_calib_weight,
             bh_thresholds,
             calib_mass_at_or_above,
             scratch,
-            include_self_weight=use_self_weight,
+            include_self_weight=include_self_weight,
         )
 
     thresholds = alpha * r_sizes / m
     first_sel_idx = np.flatnonzero(p_vals <= thresholds)
-
     if len(first_sel_idx) == 0:
         return np.zeros(m, dtype=bool)
 
     sizes_sel = r_sizes[first_sel_idx]
-    if pruning == Pruning.HETEROGENEOUS:
+    if pruning is Pruning.HETEROGENEOUS:
         final_sel_idx = _prune_heterogeneous(first_sel_idx, sizes_sel, rng)
-    elif pruning == Pruning.HOMOGENEOUS:
+    elif pruning is Pruning.HOMOGENEOUS:
         final_sel_idx = _prune_homogeneous(first_sel_idx, sizes_sel, rng)
-    elif pruning == Pruning.DETERMINISTIC:
-        final_sel_idx = _prune_deterministic(first_sel_idx, sizes_sel)
     else:
-        raise ValueError(f"Unknown pruning method '{pruning}'.")
+        final_sel_idx = _prune_deterministic(first_sel_idx, sizes_sel)
 
     final_sel_mask = np.zeros(m, dtype=bool)
     final_sel_mask[final_sel_idx] = True
-
     return final_sel_mask
 
 
-def weighted_bh(
-    result: ConformalResult | None = None,
+def weighted_false_discovery_control(
+    result: ConformalResult,
     *,
-    p_values: np.ndarray | None = None,
     alpha: float = 0.05,
-    test_scores: np.ndarray | None = None,
-    calib_scores: np.ndarray | None = None,
-    test_weights: np.ndarray | None = None,
-    calib_weights: np.ndarray | None = None,
+    pruning: Pruning = Pruning.DETERMINISTIC,
     seed: int | None = None,
 ) -> np.ndarray:
-    """Apply weighted Benjamini-Hochberg procedure.
+    """Perform WCS from a strict ConformalResult bundle."""
+    p_values, test_scores, calib_scores, test_weights, calib_weights = (
+        _extract_required_wcs_fields(result)
+    )
+    kde_support, use_self_weight = _extract_kde_support(result)
+    return _run_wcs(
+        p_values=p_values,
+        test_scores=test_scores,
+        calib_scores=calib_scores,
+        test_weights=test_weights,
+        calib_weights=calib_weights,
+        alpha=alpha,
+        pruning=pruning,
+        seed=seed,
+        kde_support=kde_support,
+        include_self_weight=use_self_weight,
+    )
 
-    Uses provided p-values when available and falls back on recomputing weighted
-    p-values with the standard weighted conformal formula otherwise.
 
-    Args:
-        result: Optional conformal result bundle (from ConformalDetector.last_result).
-            When provided, remaining parameters default to the contents of this object.
-        p_values: Weighted conformal p-values. If None, computed internally.
-        alpha: Target false discovery rate (0 < alpha < 1). Defaults to 0.05.
-        test_scores: Non-conformity scores for test data.
-        calib_scores: Non-conformity scores for calibration data.
-        test_weights: Importance weights for test data.
-        calib_weights: Importance weights for calibration data.
-        seed: Random seed for reproducibility when p-values are computed
-            internally. Ignored when p_values is provided.
+def weighted_false_discovery_control_from_arrays(
+    *,
+    p_values: np.ndarray,
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    test_weights: np.ndarray,
+    calib_weights: np.ndarray,
+    alpha: float = 0.05,
+    pruning: Pruning = Pruning.DETERMINISTIC,
+    seed: int | None = None,
+) -> np.ndarray:
+    """Perform WCS from explicit weighted arrays and precomputed p-values."""
+    return _run_wcs(
+        p_values=p_values,
+        test_scores=test_scores,
+        calib_scores=calib_scores,
+        test_weights=test_weights,
+        calib_weights=calib_weights,
+        alpha=alpha,
+        pruning=pruning,
+        seed=seed,
+    )
 
-    Returns:
-        Boolean array indicating discoveries for each test point.
 
-    Raises:
-        ValueError: If alpha is outside (0, 1) or required inputs are missing.
-    """
-    if not (0.0 < alpha < 1.0):
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+def weighted_false_discovery_control_empirical(
+    *,
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    test_weights: np.ndarray,
+    calib_weights: np.ndarray,
+    alpha: float = 0.05,
+    pruning: Pruning = Pruning.DETERMINISTIC,
+    seed: int | None = None,
+) -> np.ndarray:
+    """Perform WCS from explicit arrays with empirical randomized p-values."""
+    rng = np.random.default_rng(seed)
+    p_values = calculate_weighted_p_val(
+        scores=np.asarray(test_scores),
+        calibration_set=np.asarray(calib_scores),
+        test_weights=np.asarray(test_weights),
+        calib_weights=np.asarray(calib_weights),
+        tie_break=TieBreakMode.RANDOMIZED,
+        rng=rng,
+    )
+    return _run_wcs(
+        p_values=p_values,
+        test_scores=test_scores,
+        calib_scores=calib_scores,
+        test_weights=test_weights,
+        calib_weights=calib_weights,
+        alpha=alpha,
+        pruning=pruning,
+        seed=seed,
+        rng=rng,
+    )
 
-    if result is not None:
-        if result.p_values is not None and p_values is None:
-            p_values = result.p_values
-        if result.test_scores is not None and test_scores is None:
-            test_scores = result.test_scores
-        if result.calib_scores is not None and calib_scores is None:
-            calib_scores = result.calib_scores
-        if result.test_weights is not None and test_weights is None:
-            test_weights = result.test_weights
-        if result.calib_weights is not None and calib_weights is None:
-            calib_weights = result.calib_weights
 
-    if p_values is not None:
-        p_values_arr = np.asarray(p_values, dtype=float)
-    else:
-        required_arrays = (test_scores, calib_scores, test_weights, calib_weights)
-        if any(arr is None for arr in required_arrays):
-            raise ValueError(
-                "test_scores, calib_scores, test_weights, and calib_weights "
-                "must all be provided when p_values is None."
-            )
-        test_scores_arr = np.asarray(test_scores)
-        calib_scores_arr = np.asarray(calib_scores)
-        test_weights_arr = np.asarray(test_weights)
-        calib_weights_arr = np.asarray(calib_weights)
-        _validate_non_negative_finite("test_weights", test_weights_arr)
-        _validate_non_negative_finite("calib_weights", calib_weights_arr)
-        rng = np.random.default_rng(seed)
-        p_values_arr = calculate_weighted_p_val(
-            test_scores_arr,
-            calib_scores_arr,
-            test_weights_arr,
-            calib_weights_arr,
-            randomize=True,
-            rng=rng,
-        )
+def weighted_bh(p_values: np.ndarray, *, alpha: float = 0.05) -> np.ndarray:
+    """Apply weighted Benjamini-Hochberg to precomputed p-values."""
+    _validate_alpha(alpha)
 
+    p_values_arr = np.asarray(p_values, dtype=float)
     if p_values_arr.ndim != 1:
         raise ValueError(
             f"p_values must be a 1D array, got shape {p_values_arr.shape!r}."
         )
-
     _validate_p_values(p_values_arr)
 
     m = len(p_values_arr)
@@ -427,12 +409,44 @@ def weighted_bh(
 
     adjusted_p_values = np.empty(m)
     adjusted_p_values[sorted_idx] = adjusted_sorted
-
     return adjusted_p_values <= alpha
+
+
+def weighted_bh_from_result(
+    result: ConformalResult, *, alpha: float = 0.05
+) -> np.ndarray:
+    """Apply weighted BH from a strict ConformalResult bundle."""
+    p_values = _extract_required_bh_p_values(result)
+    return weighted_bh(p_values, alpha=alpha)
+
+
+def weighted_bh_empirical(
+    *,
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    test_weights: np.ndarray,
+    calib_weights: np.ndarray,
+    alpha: float = 0.05,
+    seed: int | None = None,
+) -> np.ndarray:
+    """Apply weighted BH after empirical randomized p-value computation."""
+    p_values = calculate_weighted_p_val(
+        scores=np.asarray(test_scores),
+        calibration_set=np.asarray(calib_scores),
+        test_weights=np.asarray(test_weights),
+        calib_weights=np.asarray(calib_weights),
+        tie_break=TieBreakMode.RANDOMIZED,
+        rng=np.random.default_rng(seed),
+    )
+    return weighted_bh(p_values, alpha=alpha)
 
 
 __all__ = [
     "Pruning",
     "weighted_bh",
+    "weighted_bh_empirical",
+    "weighted_bh_from_result",
     "weighted_false_discovery_control",
+    "weighted_false_discovery_control_empirical",
+    "weighted_false_discovery_control_from_arrays",
 ]

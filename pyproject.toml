@@ -81,7 +81,6 @@ dev = [
 "Homepage" = "https://github.com/OliverHennhoefer/nonconform"
 "Documentation" = "https://oliverhennhoefer.github.io/nonconform/"
 "Bugs" = "https://github.com/OliverHennhoefer/nonconform/issues"
-"Changelog" = "https://github.com/OliverHennhoefer/nonconform/blob/main/CHANGELOG.md"
 
 [tool.ruff]
 line-length = 88

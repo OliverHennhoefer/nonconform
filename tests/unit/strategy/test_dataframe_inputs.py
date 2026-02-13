@@ -10,7 +10,7 @@ from tests.conftest import MockDetector
 def test_crossvalidation_accepts_dataframe():
     rng = np.random.default_rng(42)
     df = pd.DataFrame(rng.standard_normal((12, 3)))
-    strategy = CrossValidation(k=3, plus=True, shuffle=True)
+    strategy = CrossValidation(k=3, mode="plus", shuffle=True)
     detector_set, calib_scores = strategy.fit_calibrate(
         x=df, detector=MockDetector(), seed=42
     )
@@ -21,7 +21,7 @@ def test_crossvalidation_accepts_dataframe():
 def test_jackknife_bootstrap_accepts_dataframe():
     rng = np.random.default_rng(7)
     df = pd.DataFrame(rng.standard_normal((12, 2)))
-    strategy = JackknifeBootstrap(n_bootstraps=3, plus=True)
+    strategy = JackknifeBootstrap(n_bootstraps=3, mode="plus")
     detector_set, calib_scores = strategy.fit_calibrate(
         x=df, detector=MockDetector(), seed=7
     )

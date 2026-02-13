@@ -15,7 +15,7 @@ from nonconform.metrics import aggregate
 def _build_detector(aggregation: str):
     return ConformalDetector(
         detector=IForest(n_estimators=20, max_samples=0.8, random_state=0),
-        strategy=CrossValidation(k=3, plus=True),
+        strategy=CrossValidation(k=3, mode="plus"),
         aggregation=aggregation,
         seed=23,
     )

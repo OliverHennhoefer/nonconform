@@ -50,7 +50,7 @@ print(f"Discoveries with FDR control: {discoveries.sum()}")
 
 ```python
 # Use plus mode to retain all fold models
-cv_plus_strategy = CrossValidation(k=5, plus=True)
+cv_plus_strategy = CrossValidation(k=5, mode="plus")
 
 detector_plus = ConformalDetector(
     detector=base_detector,

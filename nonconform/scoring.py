@@ -10,11 +10,27 @@ Classes:
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
-from ._internal import Kernel
+from ._internal import Kernel, TieBreakMode
+
+TieBreakModeInput = TieBreakMode | Literal["classical", "randomized"]
+
+
+def _normalize_tie_break_mode(tie_break: TieBreakModeInput) -> TieBreakMode:
+    """Normalize user-facing tie-break inputs into TieBreakMode enums."""
+    if isinstance(tie_break, TieBreakMode):
+        return tie_break
+    if tie_break == "classical":
+        return TieBreakMode.CLASSICAL
+    if tie_break == "randomized":
+        return TieBreakMode.RANDOMIZED
+    raise ValueError(
+        "tie_break must be one of {'classical', 'randomized'} or TieBreakMode. "
+        f"Got {tie_break!r}."
+    )
 
 
 class BaseEstimation(ABC):
@@ -56,26 +72,26 @@ class BaseEstimation(ABC):
 class Empirical(BaseEstimation):
     """Classical empirical p-value estimation using discrete CDF.
 
-    Computes p-values using the standard empirical distribution by default.
-    Optionally supports randomized smoothing to eliminate the resolution floor
-    caused by discrete ties (Jin & Candes 2023).
+    Computes p-values using deterministic tie handling by default. Optionally
+    supports randomized smoothing to eliminate the resolution floor caused by
+    discrete ties (Jin & Candes 2023).
 
     Args:
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy (`"classical"` or `"randomized"`).
+            Equivalent `TieBreakMode` enum values are also accepted.
 
     Examples:
         ```python
-        estimation = Empirical()  # randomize=False by default
+        estimation = Empirical()  # tie_break="classical" by default
         p_values = estimation.compute_p_values(test_scores, calib_scores)
 
         # For randomized smoothing:
-        estimation = Empirical(randomize=True)
+        estimation = Empirical(tie_break="randomized")
         ```
     """
 
-    def __init__(self, randomize: bool = False) -> None:
-        self._randomize = randomize
+    def __init__(self, tie_break: TieBreakModeInput = "classical") -> None:
+        self._tie_break = _normalize_tie_break_mode(tie_break)
         self._seed: int | None = None
 
     def set_seed(self, seed: int | None) -> None:
@@ -89,7 +105,8 @@ class Empirical(BaseEstimation):
         weights: tuple[np.ndarray, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Compute empirical p-values from calibration set."""
-        rng = np.random.default_rng(self._seed) if self._randomize else None
+        randomized = self._tie_break is TieBreakMode.RANDOMIZED
+        rng = np.random.default_rng(self._seed) if randomized else None
         if weights is not None:
             return self._compute_weighted(scores, calibration_set, weights, rng)
         return self._compute_standard(scores, calibration_set, rng)
@@ -102,7 +119,7 @@ class Empirical(BaseEstimation):
     ) -> np.ndarray:
         """Standard conformal p-value computation."""
         return calculate_p_val(
-            scores, calibration_set, randomize=self._randomize, rng=rng
+            scores, calibration_set, tie_break=self._tie_break, rng=rng
         )
 
     def _compute_weighted(
@@ -119,7 +136,7 @@ class Empirical(BaseEstimation):
             calibration_set,
             w_scores,
             w_calib,
-            randomize=self._randomize,
+            tie_break=self._tie_break,
             rng=rng,
         )
 
@@ -128,34 +145,36 @@ class Empirical(BaseEstimation):
 def calculate_p_val(
     scores: np.ndarray,
     calibration_set: np.ndarray,
-    randomize: bool = False,
+    tie_break: TieBreakModeInput = "classical",
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate empirical p-values (standalone function).
 
-    Uses the classical non-randomized formula by default. Optionally supports
+    Uses classical deterministic tie handling by default. Optionally supports
     randomized smoothing to eliminate the resolution floor caused by discrete
     ties (Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy for equal scores (`"classical"` or
+            `"randomized"`). Equivalent `TieBreakMode` values are accepted.
         rng: Optional random number generator for reproducibility.
 
     Returns:
         Array of p-values for each test instance.
     """
+    mode = _normalize_tie_break_mode(tie_break)
+
     sorted_cal = np.sort(calibration_set)
     n_cal = len(calibration_set)
 
-    if not randomize:
+    if mode is TieBreakMode.CLASSICAL:
         # Old formula: count >= (at or above)
         ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
         return (1.0 + ranks) / (1.0 + n_cal)
 
-    # Randomized (default): separate strictly greater and ties
+    # Randomized tie handling: separate strictly greater and ties
     pos_right = np.searchsorted(sorted_cal, scores, side="right")
     pos_left = np.searchsorted(sorted_cal, scores, side="left")
     n_greater = n_cal - pos_right  # strictly greater
@@ -173,12 +192,12 @@ def calculate_weighted_p_val(
     calibration_set: np.ndarray,
     test_weights: np.ndarray,
     calib_weights: np.ndarray,
-    randomize: bool = False,
+    tie_break: TieBreakModeInput = "classical",
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
 
-    Uses the classical non-randomized formula by default. Optionally supports
+    Uses classical deterministic tie handling by default. Optionally supports
     randomized smoothing to eliminate the resolution floor caused by discrete
     ties (Jin & Candes 2023).
 
@@ -187,8 +206,8 @@ def calculate_weighted_p_val(
         calibration_set: Calibration anomaly scores (1D array).
         test_weights: Test instance weights (1D array).
         calib_weights: Calibration weights (1D array).
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy for equal scores (`"classical"` or
+            `"randomized"`). Equivalent `TieBreakMode` values are accepted.
         rng: Optional random number generator for reproducibility.
 
     Returns:
@@ -199,6 +218,7 @@ def calculate_weighted_p_val(
         lower bound of test_weights / (sum(calib_weights) + test_weights) when
         there is no calibration mass above the test score.
     """
+    mode = _normalize_tie_break_mode(tie_break)
 
     def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
         arr = np.asarray(values)
@@ -234,7 +254,7 @@ def calculate_weighted_p_val(
     left_idx = np.searchsorted(sorted_scores, scores, side="left")
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
-    if not randomize:
+    if mode is TieBreakMode.CLASSICAL:
         weighted_sum_ge = total_weight - cumulative_weights[left_idx]
         numerator = weighted_sum_ge + w_scores
     else:

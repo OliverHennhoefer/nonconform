@@ -53,7 +53,7 @@ print(f"Discoveries with FDR control: {discoveries.sum()}")
 jab_plus_strategy = JackknifeBootstrap(
     n_bootstraps=100,
     aggregation_method=Aggregation.MEDIAN,
-    plus=True
+    mode="plus"
 )
 
 detector_plus = ConformalDetector(

@@ -48,6 +48,30 @@ class Pruning(Enum):
     DETERMINISTIC = auto()
 
 
+class ConformalMode(Enum):
+    """Model retention modes for conformal resampling strategies.
+
+    Attributes:
+        PLUS: Keep all calibration-time models for inference (Jackknife+/CV+ style).
+        SINGLE_MODEL: Fit and retain one final model after calibration.
+    """
+
+    PLUS = "plus"
+    SINGLE_MODEL = "single_model"
+
+
+class TieBreakMode(Enum):
+    """Tie-breaking modes for empirical p-value estimation.
+
+    Attributes:
+        CLASSICAL: Deterministic empirical conformal formula.
+        RANDOMIZED: Randomized smoothing with uniform tie-breaking.
+    """
+
+    CLASSICAL = "classical"
+    RANDOMIZED = "randomized"
+
+
 class Kernel(Enum):
     """Kernel functions for KDE-based p-value computation.
 
@@ -75,8 +99,10 @@ class Kernel(Enum):
 
 
 __all__ = [
+    "ConformalMode",
     "Distribution",
     "Kernel",
     "Pruning",
     "ScorePolarity",
+    "TieBreakMode",
 ]

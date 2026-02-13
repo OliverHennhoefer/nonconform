@@ -118,14 +118,14 @@ strategy = JackknifeBootstrap(n_bootstraps=100)
 **Valid values**:
 - `n_bootstraps`: Integer ≥ 2 (typical: 20-200)
 - `aggregation_method`: `"mean"` or `"median"`
-- `plus`: Whether to keep all bootstrap models for aggregation (recommended)
+- `mode`: `"plus"` (recommended) or `"single_model"`
 
 For `ConformalDetector(aggregation=...)`, valid methods are:
 `"mean"`, `"median"`, `"minimum"`, and `"maximum"`.
 
 **Constraints**:
 - More bootstraps improve stability but increase computation
-- Using `plus=False` trades validity for speed; `plus=True` is recommended
+- Using `mode="single_model"` trades validity for speed; `mode="plus"` is recommended
 
 ### Random Seed (`seed`)
 

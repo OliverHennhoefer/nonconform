@@ -6,7 +6,14 @@ nonconform package.
 """
 
 from .config import set_params
-from .constants import Distribution, Kernel, Pruning, ScorePolarity
+from .constants import (
+    ConformalMode,
+    Distribution,
+    Kernel,
+    Pruning,
+    ScorePolarity,
+    TieBreakMode,
+)
 from .log_utils import ensure_numpy_array, get_logger
 from .math_utils import (
     AggregationMethod,
@@ -22,10 +29,12 @@ from .tuning import tune_kde_hyperparameters
 __all__ = [
     "AggregationMethod",
     "BootstrapAggregationMethod",
+    "ConformalMode",
     "Distribution",
     "Kernel",
     "Pruning",
     "ScorePolarity",
+    "TieBreakMode",
     "aggregate",
     "ensure_numpy_array",
     "false_discovery_rate",

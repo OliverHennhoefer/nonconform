@@ -17,6 +17,7 @@ from nonconform import (
     Split,
     logistic_weight_estimator,
 )
+from nonconform.enums import ConformalMode
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -57,7 +58,7 @@ class TestWeightedProbabilistic:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Probabilistic(n_trials=10),
             weight_estimator=logistic_weight_estimator(),
             seed=1,

@@ -18,6 +18,7 @@ from nonconform import (
     JackknifeBootstrap,
     Split,
 )
+from nonconform.enums import ConformalMode
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 
@@ -47,7 +48,7 @@ class TestStandardEmpirical:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Empirical(),
             seed=1,
         )

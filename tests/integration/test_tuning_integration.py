@@ -67,7 +67,7 @@ def test_tuning_with_cross_validation_strategy(simple_dataset):
     x_train, x_test, _ = simple_dataset(n_train=66, n_test=24, n_features=4)
     detector = ConformalDetector(
         detector=IForest(n_estimators=20, max_samples=0.8, random_state=0),
-        strategy=CrossValidation(k=3, plus=True),
+        strategy=CrossValidation(k=3, mode="plus"),
         estimation=Probabilistic(
             kernel=[Kernel.GAUSSIAN, Kernel.BOX], n_trials=2, cv_folds=2
         ),

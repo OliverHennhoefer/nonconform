@@ -44,12 +44,20 @@ K-fold cross-validation for robust calibration using all data.
 ```python
 from nonconform import CrossValidation
 
-# 5-fold cross-validation
-strategy = CrossValidation(k=5, plus=False)
+# 5-fold cross-validation with one final model kept for inference
+strategy = CrossValidation(k=5, mode="single_model")
 
-# Enable plus mode for tighter prediction intervals
-strategy = CrossValidation(k=5, plus=True)
+# Plus mode keeps fold models for plus-style inference (recommended)
+strategy = CrossValidation(k=5, mode="plus")
 ```
+
+!!! info "`mode` semantics"
+    For `CrossValidation` (including `CrossValidation.jackknife(...)`) and `JackknifeBootstrap`:
+    - Default when omitted: `mode="plus"`
+    - Valid values: `"plus"` and `"single_model"` (or `ConformalMode.PLUS` / `ConformalMode.SINGLE_MODEL`)
+    - `mode="plus"`: keeps per-fold/per-bootstrap models for plus-style inference
+    - `mode="single_model"`: still calibrates via folds/bootstraps, then fits one final model on all training data for inference
+    - `mode="single_model"` can weaken conformal validity; use `mode="plus"` when validity is the priority
 
 **Characteristics:**
 - **Most robust** calibration
@@ -84,11 +92,11 @@ Leave-one-out cross-validation for maximum data utilization [[Barber et al., 202
 ```python
 from nonconform import CrossValidation
 
-# Standard jackknife (LOO-CV)
-strategy = CrossValidation.jackknife(plus=False)
+# Standard jackknife with one final inference model
+strategy = CrossValidation.jackknife(mode="single_model")
 
-# Jackknife+ for tighter intervals
-strategy = CrossValidation.jackknife(plus=True)
+# Jackknife+ keeps leave-one-out models for plus-style inference
+strategy = CrossValidation.jackknife(mode="plus")
 ```
 
 **Characteristics:**
@@ -106,22 +114,27 @@ strategy = CrossValidation.jackknife(plus=True)
 | Medium (100-1000) | Any | CrossValidation |
 | Small (<100) | Any | Jackknife |
 
-## Plus Mode
+## Mode Semantics
 
-CrossValidation strategies support "plus" mode for tighter prediction intervals [[Barber et al., 2021](#references)]:
+CrossValidation strategies support `"plus"` mode for tighter prediction intervals [[Barber et al., 2021](#references)]:
 
 ```python
 # Enable plus mode for CV strategies
-strategy = CrossValidation(k=5, plus=True)
-strategy = CrossValidation.jackknife(plus=True)
+strategy = CrossValidation(k=5, mode="plus")
+strategy = CrossValidation.jackknife(mode="plus")
 ```
 
-**Plus mode provides:**
+**`mode="plus"` provides:**
 - Higher statistical efficiency in theory [[Barber et al., 2021](#references)]
 - Better finite-sample properties
 - Slightly higher computational cost
 
 The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined version that often produces shorter prediction intervals while maintaining coverage guarantees.
+
+**`mode="single_model"` provides:**
+- Lower inference-time memory footprint
+- One final detector trained on full data for inference
+- Potentially weaker conformal validity than `mode="plus"`
 
 ## Performance Comparison
 

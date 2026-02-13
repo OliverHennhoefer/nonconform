@@ -1,5 +1,6 @@
 import numpy as np
 
+from nonconform.enums import TieBreakMode
 from nonconform.scoring import Empirical, calculate_p_val, calculate_weighted_p_val
 
 
@@ -18,14 +19,14 @@ class TestBasicPValueCalculation:
     def test_known_scores(self):
         test_scores = np.array([5.0])
         calib_scores = np.array([1.0, 2.0, 3.0, 4.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 0) / (1 + 4)
         np.testing.assert_almost_equal(p_values[0], expected)
 
     def test_score_at_median(self):
         test_scores = np.array([3.0])
         calib_scores = np.array([1.0, 2.0, 4.0, 5.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 2) / (1 + 4)
         np.testing.assert_almost_equal(p_values[0], expected)
 
@@ -61,9 +62,15 @@ class TestWeightedPValueCalculation:
         calib_weights = np.ones(4)
 
         p_vals_weighted = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights, randomize=False
+            test_scores,
+            calib_scores,
+            test_weights,
+            calib_weights,
+            tie_break="classical",
         )
-        p_vals_standard = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_vals_standard = calculate_p_val(
+            test_scores, calib_scores, tie_break="classical"
+        )
 
         np.testing.assert_array_almost_equal(p_vals_weighted, p_vals_standard)
 
@@ -74,7 +81,11 @@ class TestWeightedPValueCalculation:
         calib_weights = np.array([0.5, 0.5, 2.0])
 
         p_values = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights, randomize=False
+            test_scores,
+            calib_scores,
+            test_weights,
+            calib_weights,
+            tie_break="classical",
         )
         weighted_sum = 2.0 + 1.0
         total_weight = 3.0 + 1.0
@@ -91,7 +102,7 @@ class TestPValueRange:
     def test_maximum_p_value_is_one(self):
         test_scores = np.array([-10.0])
         calib_scores = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         assert p_values[0] == 1.0
 
     def test_p_value_shape_matches_test_scores(self, sample_scores):
@@ -104,21 +115,21 @@ class TestMathematicalCorrectness:
     def test_conservative_adjustment(self):
         test_scores = np.array([10.0])
         calib_scores = np.array([1.0, 2.0, 3.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 0) / (1 + 3)
         np.testing.assert_almost_equal(p_values[0], expected)
 
     def test_all_calib_greater_than_test(self):
         test_scores = np.array([0.5])
         calib_scores = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 5) / (1 + 5)
         assert p_values[0] == expected
 
     def test_no_calib_greater_than_test(self):
         test_scores = np.array([10.0])
         calib_scores = np.array([1.0, 2.0, 3.0])
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="classical")
         expected = (1 + 0) / (1 + 3)
         np.testing.assert_almost_equal(p_values[0], expected)
 
@@ -128,7 +139,7 @@ class TestRandomizedPValues:
 
     def test_randomized_p_values_in_valid_range(self, sample_scores):
         test_scores, calib_scores = sample_scores(n_test=20, n_calib=100)
-        p_values = calculate_p_val(test_scores, calib_scores, randomize=True)
+        p_values = calculate_p_val(test_scores, calib_scores, tie_break="randomized")
         assert np.all(p_values >= 0.0)
         assert np.all(p_values <= 1.0)
 
@@ -138,7 +149,11 @@ class TestRandomizedPValues:
         test_scores, calib_scores = sample_scores(n_test=20, n_calib=100)
         test_weights, calib_weights = sample_weights(n_test=20, n_calib=100)
         p_values = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights, randomize=True
+            test_scores,
+            calib_scores,
+            test_weights,
+            calib_weights,
+            tie_break="randomized",
         )
         assert np.all(p_values >= 0.0)
         assert np.all(p_values <= 1.0)
@@ -150,8 +165,12 @@ class TestRandomizedPValues:
         rng1 = np.random.default_rng(42)
         rng2 = np.random.default_rng(42)
 
-        p_values1 = calculate_p_val(test_scores, calib_scores, randomize=True, rng=rng1)
-        p_values2 = calculate_p_val(test_scores, calib_scores, randomize=True, rng=rng2)
+        p_values1 = calculate_p_val(
+            test_scores, calib_scores, tie_break="randomized", rng=rng1
+        )
+        p_values2 = calculate_p_val(
+            test_scores, calib_scores, tie_break="randomized", rng=rng2
+        )
 
         np.testing.assert_array_equal(p_values1, p_values2)
 
@@ -169,7 +188,7 @@ class TestRandomizedPValues:
             calib_scores,
             test_weights,
             calib_weights,
-            randomize=True,
+            tie_break="randomized",
             rng=rng1,
         )
         p_values2 = calculate_weighted_p_val(
@@ -177,7 +196,7 @@ class TestRandomizedPValues:
             calib_scores,
             test_weights,
             calib_weights,
-            randomize=True,
+            tie_break="randomized",
             rng=rng2,
         )
 
@@ -189,8 +208,12 @@ class TestRandomizedPValues:
         calib_scores = np.array([3.0, 3.0, 3.0, 3.0])  # all ties
 
         rng = np.random.default_rng(42)
-        p_random = calculate_p_val(test_scores, calib_scores, randomize=True, rng=rng)
-        p_deterministic = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_random = calculate_p_val(
+            test_scores, calib_scores, tie_break="randomized", rng=rng
+        )
+        p_deterministic = calculate_p_val(
+            test_scores, calib_scores, tie_break="classical"
+        )
 
         # With all ties, randomized p-value should differ (unless U=1 exactly)
         assert p_random[0] != p_deterministic[0]
@@ -204,8 +227,12 @@ class TestRandomizedPValues:
         calib_scores = np.array([1.0, 2.0, 3.0, 4.0])  # no ties with test
 
         rng = np.random.default_rng(42)
-        p_random = calculate_p_val(test_scores, calib_scores, randomize=True, rng=rng)
-        p_deterministic = calculate_p_val(test_scores, calib_scores, randomize=False)
+        p_random = calculate_p_val(
+            test_scores, calib_scores, tie_break="randomized", rng=rng
+        )
+        p_deterministic = calculate_p_val(
+            test_scores, calib_scores, tie_break="classical"
+        )
 
         # With no ties, the only difference is the test point's own weight randomization
         # p_deterministic = (1 + n_greater) / (1 + n_cal)
@@ -215,24 +242,24 @@ class TestRandomizedPValues:
 
 
 class TestEmpiricalClassRandomization:
-    """Tests for Empirical class with randomize parameter."""
+    """Tests for Empirical class tie-break configuration."""
 
     def test_empirical_default_is_not_randomized(self):
         estimation = Empirical()
-        assert estimation._randomize is False
+        assert estimation._tie_break.value == "classical"
 
     def test_empirical_randomize_false(self):
-        estimation = Empirical(randomize=False)
-        assert estimation._randomize is False
+        estimation = Empirical(tie_break="classical")
+        assert estimation._tie_break.value == "classical"
 
     def test_empirical_reproducibility_with_seed(self):
         test_scores = np.array([3.0, 5.0])
         calib_scores = np.array([1.0, 3.0, 5.0, 7.0])
 
-        estimation1 = Empirical(randomize=True)
+        estimation1 = Empirical(tie_break="randomized")
         estimation1.set_seed(42)
 
-        estimation2 = Empirical(randomize=True)
+        estimation2 = Empirical(tie_break="randomized")
         estimation2.set_seed(42)
 
         p_values1 = estimation1.compute_p_values(test_scores, calib_scores)
@@ -245,10 +272,10 @@ class TestEmpiricalClassRandomization:
         calib_scores = np.array([1.0, 3.0, 5.0, 7.0])
         weights = (np.array([1.0, 1.0, 1.0, 1.0]), np.array([1.0, 2.0]))
 
-        estimation1 = Empirical(randomize=True)
+        estimation1 = Empirical(tie_break="randomized")
         estimation1.set_seed(42)
 
-        estimation2 = Empirical(randomize=True)
+        estimation2 = Empirical(tie_break="randomized")
         estimation2.set_seed(42)
 
         p_values1 = estimation1.compute_p_values(test_scores, calib_scores, weights)
@@ -260,8 +287,12 @@ class TestEmpiricalClassRandomization:
         test_scores = np.array([5.0])
         calib_scores = np.array([1.0, 2.0, 3.0, 4.0])
 
-        estimation = Empirical(randomize=False)
+        estimation = Empirical(tie_break="classical")
         p_values = estimation.compute_p_values(test_scores, calib_scores)
 
         expected = (1 + 0) / (1 + 4)
         np.testing.assert_almost_equal(p_values[0], expected)
+
+    def test_empirical_accepts_enum_tie_break(self):
+        estimation = Empirical(tie_break=TieBreakMode.RANDOMIZED)
+        assert estimation._tie_break is TieBreakMode.RANDOMIZED

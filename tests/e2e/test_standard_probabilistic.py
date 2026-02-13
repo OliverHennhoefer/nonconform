@@ -17,6 +17,7 @@ from nonconform import (
     Probabilistic,
     Split,
 )
+from nonconform.enums import ConformalMode
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 
@@ -46,7 +47,7 @@ class TestStandardProbabilistic:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Probabilistic(n_trials=10),
             seed=1,
         )

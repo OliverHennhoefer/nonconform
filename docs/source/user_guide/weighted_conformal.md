@@ -109,7 +109,7 @@ def weighted_p_value(test_score, calibration_scores, calibration_weights, test_w
 ```
 
 !!! info "Classical vs. Randomized"
-    By default, `Empirical()` uses the classical non-randomized formula. For randomized smoothing as shown above, use `Empirical(randomize=True)`. Note that with small calibration sets, randomized smoothing can produce anti-conservative p-values.
+    By default, `Empirical()` uses `tie_break="classical"` (non-randomized formula). Valid values are `"classical"` and `"randomized"` (or `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`). `None` is not valid. For randomized smoothing as shown above, use `Empirical(tie_break="randomized")`. Note that with small calibration sets, randomized smoothing can produce anti-conservative p-values.
 
 ## When to Use Weighted Conformal
 
@@ -218,7 +218,7 @@ for agg_method in aggregation_methods:
         pruning=Pruning.DETERMINISTIC,
         seed=42,
     )
-    print(f"{agg_method.value}: {wcs_mask.sum()} discoveries")
+    print(f"{agg_method}: {wcs_mask.sum()} discoveries")
 ```
 
 **Note**: Aggregation is applied to the raw anomaly scores from each model before conformal p-values are computed. P-values are not averaged; the aggregated score is turned into a single p-value per point.
@@ -561,6 +561,54 @@ After any call to `compute_p_values()` or `score_samples()`, the detector caches
 the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`.
 Passing this object to `weighted_false_discovery_control` avoids plumbing the raw
 arrays manually.
+
+For explicit array-first workflows, use:
+
+```python
+from nonconform.enums import Pruning
+from nonconform.fdr import (
+    weighted_false_discovery_control_from_arrays,
+    weighted_false_discovery_control_empirical,
+    weighted_bh,
+    weighted_bh_from_result,
+    weighted_bh_empirical,
+)
+
+# WCS from precomputed p-values + arrays
+wcs_from_arrays = weighted_false_discovery_control_from_arrays(
+    p_values=weighted_detector.last_result.p_values,
+    test_scores=weighted_detector.last_result.test_scores,
+    calib_scores=weighted_detector.last_result.calib_scores,
+    test_weights=weighted_detector.last_result.test_weights,
+    calib_weights=weighted_detector.last_result.calib_weights,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
+
+# WCS with internal empirical p-value computation
+wcs_empirical = weighted_false_discovery_control_empirical(
+    test_scores=weighted_detector.last_result.test_scores,
+    calib_scores=weighted_detector.last_result.calib_scores,
+    test_weights=weighted_detector.last_result.test_weights,
+    calib_weights=weighted_detector.last_result.calib_weights,
+    alpha=0.05,
+    pruning=Pruning.DETERMINISTIC,
+    seed=42,
+)
+
+# Weighted BH variants
+bh_from_result = weighted_bh_from_result(weighted_detector.last_result, alpha=0.05)
+bh_from_pvalues = weighted_bh(weighted_detector.last_result.p_values, alpha=0.05)
+bh_empirical = weighted_bh_empirical(
+    test_scores=weighted_detector.last_result.test_scores,
+    calib_scores=weighted_detector.last_result.calib_scores,
+    test_weights=weighted_detector.last_result.test_weights,
+    calib_weights=weighted_detector.last_result.calib_weights,
+    alpha=0.05,
+    seed=42,
+)
+```
 
 ### Pruning Modes
 

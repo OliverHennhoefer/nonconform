@@ -18,6 +18,7 @@ from nonconform import (
     Split,
     logistic_weight_estimator,
 )
+from nonconform.enums import ConformalMode
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -42,7 +43,7 @@ class TestWeightedEmpirical:
         ce = ConformalDetector(
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
-            estimation=Empirical(randomize=False),
+            estimation=Empirical(tie_break="classical"),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
@@ -69,7 +70,7 @@ class TestWeightedEmpirical:
         ce = ConformalDetector(
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
-            estimation=Empirical(randomize=True),
+            estimation=Empirical(tie_break="randomized"),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
@@ -93,7 +94,7 @@ class TestWeightedEmpirical:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Empirical(),
             weight_estimator=logistic_weight_estimator(),
             seed=1,

@@ -109,8 +109,14 @@ from nonconform import Empirical
 estimation = Empirical()
 
 # Randomized smoothing
-estimation = Empirical(randomize=True)
+estimation = Empirical(tie_break="randomized")
 ```
+
+!!! info "`Empirical` `tie_break` parameter"
+    - Default when omitted: `tie_break="classical"`
+    - Valid string values: `"classical"` and `"randomized"` (only)
+    - Enum equivalents: `TieBreakMode.CLASSICAL` and `TieBreakMode.RANDOMIZED`
+    - `None` is not a valid value
 
 !!! warning "Small Calibration Sets"
     With small calibration sets, randomized smoothing can produce anti-conservative p-values that may work against the nominal FDR level. Consider using the classical formula or the `Probabilistic()` estimator in such cases.
@@ -253,6 +259,14 @@ detector = ConformalDetector(
 )
 ```
 
+!!! info "CrossValidation `mode` parameter"
+    `mode` controls model retention behavior (how many fitted models are kept for inference), not which statistical strategy is used.
+
+    - Default when omitted: `mode="plus"`
+    - Valid string values: `"plus"` and `"single_model"` (only)
+    - Enum equivalents: `ConformalMode.PLUS` and `ConformalMode.SINGLE_MODEL`
+    - `single_model` means "fit one final model after calibration" (it is not a separate Jackknife/CV method)
+
 ### 3. Jackknife+-after-Bootstrap (JaB+) Strategy
 
 Provides robust estimates through resampling:
@@ -272,13 +286,21 @@ detector = ConformalDetector(
 )
 ```
 
+!!! info "JaB+ `mode` parameter"
+    `JackknifeBootstrap` uses the same `mode` options and defaults as `CrossValidation`:
+    - Default when omitted: `mode="plus"`
+    - Valid values: `"plus"` and `"single_model"` (or `ConformalMode.PLUS` / `ConformalMode.SINGLE_MODEL`)
+
 !!! info "Leave-One-Out (Jackknife)"
     For leave-one-out cross-validation, use the `CrossValidation.jackknife()` factory method which handles this automatically. Alternatively, use `CrossValidation(k=n)` where `n` is your dataset size.
 
     ```python
-    # Recommended: use factory method
-    strategy = CrossValidation.jackknife(plus=True)  # Jackknife+
-    strategy = CrossValidation.jackknife(plus=False)  # Standard Jackknife
+    # Default is mode="plus" (Jackknife+)
+    strategy = CrossValidation.jackknife()
+
+    # Explicit options (the only valid mode strings):
+    strategy = CrossValidation.jackknife(mode="plus")          # Jackknife+
+    strategy = CrossValidation.jackknife(mode="single_model")  # Standard Jackknife
     ```
 
 ## Common Pitfalls and Solutions
