@@ -342,6 +342,12 @@ class TestBootstrapBaggedWeightEstimator:
             )
         with pytest.raises(TypeError):
             BootstrapBaggedWeightEstimator(IdentityWeightEstimator(), n_bootstrap=2)
+        with pytest.raises(ValueError, match="scoring_mode"):
+            BootstrapBaggedWeightEstimator(
+                IdentityWeightEstimator(),
+                n_bootstraps=2,
+                scoring_mode="rescore",  # type: ignore[arg-type]
+            )
 
     def test_fit_requires_nonempty_calibration(self):
         bagged = BootstrapBaggedWeightEstimator(
@@ -367,6 +373,17 @@ class TestBootstrapBaggedWeightEstimator:
         with pytest.raises(NotImplementedError):
             bagged.get_weights(np.ones((5, 1)), np.ones((2, 1)))
 
+    def test_score_new_data_value_mismatch_raises(self):
+        """Frozen scoring mode rejects new samples even when shapes match."""
+        bagged = BootstrapBaggedWeightEstimator(
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
+        )
+        calib = np.ones((4, 1))
+        test = np.ones((2, 1))
+        bagged.fit(calib, test)
+        with pytest.raises(NotImplementedError, match="scoring_mode='frozen'"):
+            bagged.get_weights(calib * 2.0, test * 3.0)
+
     def test_weight_counts_and_copy(self):
         bagged = BootstrapBaggedWeightEstimator(
             base_estimator=IdentityWeightEstimator(), n_bootstraps=2
@@ -380,6 +397,13 @@ class TestBootstrapBaggedWeightEstimator:
         assert "Bootstrap iterations: 2" in info
         assert "Calibration instances: 3" in info
         assert "Test instances: 3" in info
+
+    def test_scoring_mode_api_surface(self):
+        bagged = BootstrapBaggedWeightEstimator(
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
+        )
+        assert bagged.scoring_mode == "frozen"
+        assert bagged.supports_rescoring is False
 
     def test_geometric_mean_aggregation_and_clipping(self):
         base = DeterministicWeightEstimator()

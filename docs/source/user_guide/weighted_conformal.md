@@ -78,6 +78,11 @@ detector.prepare_weights_for(X_test_shifted)
 p_values = detector.compute_p_values(X_test_shifted, refit_weights=False)
 ```
 
+By default, this reuse path verifies exact batch content identity. If you need
+maximum throughput on very large batches and can guarantee your own batch identity
+discipline, set `verify_prepared_batch_content=False` when constructing
+`ConformalDetector` to validate only batch size.
+
 ### 3. Weighted P-value Calculation
 The p-values are computed using weighted empirical distribution functions. By default, `nonconform` uses the classical (non-randomized) formula. The randomized variant [[Jin & Candès, 2023](#references)] handles ties more gracefully:
 
@@ -319,6 +324,8 @@ for name, weight_est in estimators.items():
 ### BootstrapBaggedWeightEstimator
 
 Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios. It is most relevant when the calibration set is much larger than the test batch, where standalone importance weights can become spiky and overly influential:
+
+`BootstrapBaggedWeightEstimator` currently uses `scoring_mode="frozen"` (default and only supported mode). After `fit(calibration_samples, test_samples)`, it can return stored weights only for that exact calibration/test batch pair; scoring arbitrary new batches requires refitting.
 
 ```python
 from nonconform import forest_weight_estimator

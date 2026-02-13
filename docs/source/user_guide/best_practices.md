@@ -188,10 +188,14 @@ Best for:
 - When you want to balance efficiency and power
 
 ```python
-from nonconform import JackknifeBootstrap
+from nonconform import ConformalDetector, JackknifeBootstrap
 
 # Balanced approach for medium datasets
 strategy = JackknifeBootstrap(n_bootstraps=50)
+
+# Optional: pass n_jobs through the main detector API
+detector = ConformalDetector(detector=base_detector, strategy=strategy, seed=42)
+detector.fit(X_train, n_jobs=-1)  # uses all available CPU cores
 ```
 
 ## Calibration Best Practices
@@ -438,17 +442,13 @@ class ScalableAnomalyDetector:
 
 ```python
 from dataclasses import dataclass
-from typing import Literal
-
-
-
 @dataclass
 class AnomalyDetectionConfig:
     """Configuration for anomaly detection pipeline."""
     alpha: float = 0.05
     calibration_size: float = 0.2  # Can be float (ratio) or int (absolute)
     detector_type: str = "iforest"
-    aggregation: Literal["mean", "median", "minimum", "maximum"] = "median"
+    aggregation: str = "median"
     seed: int = 42
     verbose: bool = False
     batch_size: int = 1000

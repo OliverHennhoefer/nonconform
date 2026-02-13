@@ -10,6 +10,8 @@ Classes:
 
 from __future__ import annotations
 
+import hashlib
+import inspect
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Literal, Self
@@ -29,7 +31,6 @@ from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
 
 from ._internal import (
-    AggregationMethod,
     ScorePolarity,
     aggregate,
     ensure_numpy_array,
@@ -45,6 +46,20 @@ if TYPE_CHECKING:
 def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
     """Return a copy of array or None if None."""
     return None if arr is None else arr.copy()
+
+
+def _batch_signature(x: np.ndarray) -> tuple[tuple[int, ...], str, str]:
+    """Return stable signature for a concrete batch.
+
+    This helper computes a full digest over batch bytes, which is O(n) in both
+    time and memory. Use only when strict batch-content verification is desired.
+    """
+    contiguous = np.ascontiguousarray(x)
+    digest = hashlib.blake2b(
+        contiguous.tobytes(),
+        digest_size=16,
+    ).hexdigest()
+    return contiguous.shape, str(contiguous.dtype), digest
 
 
 def _as_numpy_with_index(
@@ -81,12 +96,22 @@ class BaseConformalDetector(ABC):
 
     @ensure_numpy_array
     @abstractmethod
-    def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
+    def fit(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        y: np.ndarray | None = None,
+        *,
+        n_jobs: int | None = None,
+    ) -> Self:
         """Fit the detector model(s) and compute calibration scores.
 
         Args:
             x: The dataset used for fitting the model(s) and determining
                 calibration scores.
+            y: Ignored. Present for sklearn API compatibility.
+            n_jobs: Optional strategy-specific parallelism hint.
+                Currently used by strategies that expose an ``n_jobs`` parameter
+                (for example, ``JackknifeBootstrap``).
 
         Returns:
             The fitted detector instance.
@@ -164,6 +189,10 @@ class ConformalDetector(BaseConformalDetector):
             unknown detectors. Defaults to ScorePolarity.AUTO.
         seed: Random seed for reproducibility. Defaults to None.
         verbose: If True, displays progress bars during prediction. Defaults to False.
+        verify_prepared_batch_content: If True (default), weighted reuse mode
+            (``refit_weights=False``) verifies exact batch content identity via
+            hashing. This adds O(n) overhead per checked batch. Set to False to
+            skip content hashing and validate only batch size.
 
     Attributes:
         detector: The underlying anomaly detection model.
@@ -211,6 +240,8 @@ class ConformalDetector(BaseConformalDetector):
         CBLOF, COF, RGraph, Sampling, SOS.
     """
 
+    _NESTED_COMPONENTS = ("detector", "strategy", "estimation", "weight_estimator")
+
     def __init__(
         self,
         detector: Any,
@@ -224,41 +255,168 @@ class ConformalDetector(BaseConformalDetector):
         ),
         seed: int | None = None,
         verbose: bool = False,
+        verify_prepared_batch_content: bool = True,
     ) -> None:
+        self._configure(
+            detector=detector,
+            strategy=strategy,
+            estimation=estimation,
+            weight_estimator=weight_estimator,
+            aggregation=aggregation,
+            score_polarity=score_polarity,
+            seed=seed,
+            verbose=verbose,
+            verify_prepared_batch_content=verify_prepared_batch_content,
+        )
+
+    def _reset_fit_state(self) -> None:
+        """Clear all learned state derived from fit()."""
+        self._detector_set: list[AnomalyDetector] = []
+        self._calibration_set: np.ndarray = np.array([])
+        self._calibration_samples: np.ndarray = np.array([])
+        self._prepared_weight_batch_size: int | None = None
+        self._prepared_weight_batch_signature: (
+            tuple[tuple[int, ...], str, str] | None
+        ) = None
+        self._last_result: ConformalResult | None = None
+
+    def _configure(
+        self,
+        *,
+        detector: Any,
+        strategy: BaseStrategy,
+        estimation: BaseEstimation | None,
+        weight_estimator: BaseWeightEstimator | None,
+        aggregation: str,
+        score_polarity: ScorePolarity
+        | Literal["auto", "higher_is_anomalous", "higher_is_normal"],
+        seed: int | None,
+        verbose: bool,
+        verify_prepared_batch_content: bool,
+    ) -> None:
+        """Apply constructor parameters and reset learned state."""
+        self._init_detector = detector
+        self._init_strategy = strategy
+        self._init_estimation = estimation
+        self._init_weight_estimator = weight_estimator
+        self._init_aggregation = aggregation
+        self._init_score_polarity = score_polarity
+        self._init_seed = seed
+        self._init_verbose = verbose
+        self._init_verify_prepared_batch_content = verify_prepared_batch_content
+
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
+        if not isinstance(verify_prepared_batch_content, bool):
+            raise TypeError("verify_prepared_batch_content must be a boolean value.")
         normalized_aggregation = normalize_aggregation_method(aggregation)
 
         adapted_detector = adapt(detector)
         resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
         normalized_detector = apply_score_polarity(adapted_detector, resolved_polarity)
 
-        self.detector: AnomalyDetector = set_params(deepcopy(normalized_detector), seed)
-        self.strategy: BaseStrategy = strategy
-        self.weight_estimator: BaseWeightEstimator | None = weight_estimator
+        self.detector = set_params(deepcopy(normalized_detector), seed)
+        # Keep an internal strategy copy so external mutations after construction
+        # do not alter detector behavior.
+        self.strategy = deepcopy(strategy)
+        self.weight_estimator = weight_estimator
         self.estimation = estimation if estimation is not None else Empirical()
 
         # Propagate seed to estimation and weight_estimator
         if seed is not None and hasattr(self.estimation, "set_seed"):
             self.estimation.set_seed(seed)
-        if seed is not None and self.weight_estimator is not None:
-            if hasattr(self.weight_estimator, "set_seed"):
-                self.weight_estimator.set_seed(seed)
+        if (
+            seed is not None
+            and self.weight_estimator is not None
+            and hasattr(self.weight_estimator, "set_seed")
+        ):
+            self.weight_estimator.set_seed(seed)
 
-        self.aggregation: AggregationMethod = normalized_aggregation
-        self._score_polarity: ScorePolarity = resolved_polarity
-        self.seed: int | None = seed
-        self.verbose: bool = verbose
-
+        self.aggregation = normalized_aggregation
+        self._score_polarity = resolved_polarity
+        self.seed = seed
+        self.verbose = verbose
+        self.verify_prepared_batch_content = verify_prepared_batch_content
         self._is_weighted_mode = weight_estimator is not None and not isinstance(
             weight_estimator, IdentityWeightEstimator
         )
+        self._reset_fit_state()
 
-        self._detector_set: list[AnomalyDetector] = []
-        self._calibration_set: np.ndarray = np.array([])
-        self._calibration_samples: np.ndarray = np.array([])
-        self._prepared_weight_batch_size: int | None = None
-        self._last_result: ConformalResult | None = None
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Return estimator parameters following sklearn conventions.
+
+        Notes:
+            - ``deep=False`` returns constructor-facing parameters used for
+              sklearn clone compatibility.
+            - ``deep=True`` also includes nested ``component__param`` entries
+              read from the current runtime components (effective/internal state),
+              which may differ from originally passed constructor objects after
+              adaptation/normalization.
+        """
+        params: dict[str, Any] = {
+            "detector": self._init_detector,
+            "strategy": self._init_strategy,
+            "estimation": self._init_estimation,
+            "weight_estimator": self._init_weight_estimator,
+            "aggregation": self._init_aggregation,
+            "score_polarity": self._init_score_polarity,
+            "seed": self._init_seed,
+            "verbose": self._init_verbose,
+            "verify_prepared_batch_content": self._init_verify_prepared_batch_content,
+        }
+        if not deep:
+            return params
+
+        for component_name in self._NESTED_COMPONENTS:
+            component = getattr(self, component_name)
+            if component is None or not hasattr(component, "get_params"):
+                continue
+            try:
+                component_params = component.get_params(deep=True)
+            except TypeError:
+                component_params = component.get_params()
+            for key, value in component_params.items():
+                params[f"{component_name}__{key}"] = value
+        return params
+
+    def set_params(self, **params: Any) -> Self:
+        """Set estimator parameters following sklearn conventions."""
+        if not params:
+            return self
+
+        updated_params = self.get_params(deep=False)
+        nested_updates: dict[str, dict[str, Any]] = {}
+
+        for key, value in params.items():
+            if "__" in key:
+                component_name, nested_key = key.split("__", 1)
+                if component_name not in self._NESTED_COMPONENTS:
+                    raise ValueError(f"Invalid parameter {component_name!r}.")
+                nested_updates.setdefault(component_name, {})[nested_key] = value
+                continue
+
+            if key not in updated_params:
+                raise ValueError(
+                    f"Invalid parameter {key!r} for estimator {type(self).__name__}."
+                )
+            updated_params[key] = value
+
+        for component_name, component_params in nested_updates.items():
+            component = updated_params[component_name]
+            if component is None:
+                raise ValueError(
+                    f"Cannot set nested parameters for {component_name!r}: "
+                    "component is None."
+                )
+            if not hasattr(component, "set_params"):
+                raise ValueError(
+                    f"Cannot set nested parameters for {component_name!r}: "
+                    "component does not implement set_params()."
+                )
+            component.set_params(**component_params)
+
+        self._configure(**updated_params)
+        return self
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly detector summary."""
@@ -278,7 +436,13 @@ class ConformalDetector(BaseConformalDetector):
         )
 
     @ensure_numpy_array
-    def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
+    def fit(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        y: np.ndarray | None = None,
+        *,
+        n_jobs: int | None = None,
+    ) -> Self:
         """Fit detector model(s) and compute calibration scores.
 
         Uses the specified strategy to train the base detector(s) and calculate
@@ -286,15 +450,33 @@ class ConformalDetector(BaseConformalDetector):
 
         Args:
             x: The dataset used for fitting and calibration.
+            y: Ignored. Present for sklearn API compatibility.
+            n_jobs: Optional strategy-specific parallelism hint. Supported by
+                strategies whose ``fit_calibrate`` signature includes ``n_jobs``
+                (for example, ``JackknifeBootstrap``).
 
         Returns:
             The fitted detector instance (for method chaining).
         """
+        _ = y
+        fit_kwargs: dict[str, Any] = {
+            "x": x,
+            "detector": self.detector,
+            "weighted": self._is_weighted_mode,
+            "seed": self.seed,
+        }
+        if n_jobs is not None:
+            strategy_params = inspect.signature(self.strategy.fit_calibrate).parameters
+            if "n_jobs" not in strategy_params:
+                raise ValueError(
+                    f"Strategy {type(self.strategy).__name__} does not support n_jobs. "
+                    "Pass n_jobs only when using a strategy that exposes it, "
+                    "such as JackknifeBootstrap."
+                )
+            fit_kwargs["n_jobs"] = n_jobs
+
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
-            x=x,
-            detector=self.detector,
-            weighted=self._is_weighted_mode,
-            seed=self.seed,
+            **fit_kwargs
         )
 
         if (
@@ -307,6 +489,7 @@ class ConformalDetector(BaseConformalDetector):
             self._calibration_samples = np.array([])
 
         self._prepared_weight_batch_size = None
+        self._prepared_weight_batch_signature = None
         self._last_result = None
         return self
 
@@ -339,6 +522,10 @@ class ConformalDetector(BaseConformalDetector):
         if refit_weights:
             self.weight_estimator.fit(self._calibration_samples, x)
             self._prepared_weight_batch_size = len(x)
+            if self.verify_prepared_batch_content:
+                self._prepared_weight_batch_signature = _batch_signature(x)
+            else:
+                self._prepared_weight_batch_signature = None
             return self.weight_estimator.get_weights()
 
         if self._prepared_weight_batch_size is None:
@@ -349,6 +536,13 @@ class ConformalDetector(BaseConformalDetector):
         if self._prepared_weight_batch_size != len(x):
             raise ValueError(
                 "Prepared weights do not match current batch size. "
+                "Call prepare_weights_for(batch) again or use refit_weights=True."
+            )
+        if self.verify_prepared_batch_content and (
+            self._prepared_weight_batch_signature != _batch_signature(x)
+        ):
+            raise ValueError(
+                "Prepared weights do not match current batch content. "
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
         return self.weight_estimator.get_weights()
@@ -380,6 +574,10 @@ class ConformalDetector(BaseConformalDetector):
 
         self.weight_estimator.fit(self._calibration_samples, x)
         self._prepared_weight_batch_size = len(x)
+        if self.verify_prepared_batch_content:
+            self._prepared_weight_batch_signature = _batch_signature(x)
+        else:
+            self._prepared_weight_batch_signature = None
         return self
 
     def score_samples(

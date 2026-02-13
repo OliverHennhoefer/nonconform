@@ -3,10 +3,12 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.base import clone
 from sklearn.exceptions import NotFittedError
+from sklearn.svm import OneClassSVM
 
 from nonconform import ConformalDetector as _ConformalDetector
-from nonconform import Split
+from nonconform import JackknifeBootstrap, Split
 from nonconform.enums import ScorePolarity
 from nonconform.structures import AnomalyDetector
 from nonconform.weighting import BaseWeightEstimator
@@ -113,6 +115,15 @@ class TestConformalDetectorInit:
             detector=MockDetector(), strategy=Split(n_calib=0.2), seed=42
         )
         assert detector.seed == 42
+
+    def test_init_copies_strategy_to_isolate_external_mutation(self):
+        """External strategy mutations after init do not affect detector."""
+        strategy = Split(n_calib=0.2)
+        detector = ConformalDetector(
+            detector=MockDetector(), strategy=strategy, seed=42
+        )
+        strategy._calib_size = 0.5
+        assert detector.strategy.calib_size == 0.2
 
     def test_init_negative_seed_raises(self):
         """Negative seed raises ValueError."""
@@ -265,6 +276,40 @@ class TestConformalDetectorFit:
         )
         result = detector.fit(sample_data)
         assert result is detector
+
+    def test_fit_accepts_unused_y_for_sklearn_compatibility(self, sample_data):
+        """fit() accepts y argument and ignores it."""
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            seed=42,
+        )
+        y = np.zeros(len(sample_data))
+        detector.fit(sample_data, y=y)
+        assert detector.is_fitted
+
+    def test_fit_passes_n_jobs_to_supported_strategy(self, sample_data):
+        """fit(n_jobs=...) works when strategy exposes n_jobs."""
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=JackknifeBootstrap(n_bootstraps=3),
+            seed=42,
+        )
+        detector.fit(sample_data, n_jobs=1)
+        assert detector.is_fitted
+
+    def test_fit_n_jobs_with_unsupported_strategy_raises(self, sample_data):
+        """fit(n_jobs=...) raises for strategies without n_jobs support."""
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            seed=42,
+        )
+        with pytest.raises(ValueError, match="does not support n_jobs"):
+            detector.fit(sample_data, n_jobs=2)
 
 
 class TestConformalDetectorPredict:
@@ -539,3 +584,73 @@ class TestConformalDetectorWeightedPreparation:
 
         with pytest.raises(ValueError, match="batch size"):
             detector.compute_p_values(x_test[:10], refit_weights=False)
+
+    def test_reuse_with_different_batch_content_raises(self, sample_data):
+        """Prepared weights cannot be reused for same-size different batches."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+        )
+        detector.fit(x_train)
+        detector.prepare_weights_for(x_test)
+
+        with pytest.raises(ValueError, match="batch content"):
+            detector.compute_p_values(x_test + 1.0, refit_weights=False)
+
+    def test_reuse_with_different_content_allowed_when_verification_disabled(
+        self, sample_data
+    ):
+        """Same-size reuse can skip content check when explicitly disabled."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+            verify_prepared_batch_content=False,
+        )
+        detector.fit(x_train)
+        detector.prepare_weights_for(x_test)
+
+        p_values = detector.compute_p_values(x_test + 1.0, refit_weights=False)
+        assert len(p_values) == len(x_test)
+
+
+class TestConformalDetectorSklearnParams:
+    """Tests for sklearn-style parameter protocol integration."""
+
+    def test_get_params_exposes_nested_detector_params(self):
+        """get_params(deep=True) includes detector__* nested keys."""
+        detector = _ConformalDetector(
+            detector=OneClassSVM(gamma=0.1),
+            strategy=Split(n_calib=0.2),
+            score_polarity="auto",
+        )
+        params = detector.get_params(deep=True)
+        assert "detector__gamma" in params
+        assert "strategy" in params
+
+    def test_set_params_updates_nested_detector_params(self):
+        """set_params(detector__...) delegates to wrapped detector."""
+        detector = _ConformalDetector(
+            detector=OneClassSVM(gamma=0.1),
+            strategy=Split(n_calib=0.2),
+            score_polarity="auto",
+        )
+        detector.set_params(detector__gamma=0.5)
+        assert detector.get_params(deep=True)["detector__gamma"] == 0.5
+
+    def test_clone_compatibility(self):
+        """Estimator can be cloned via sklearn.base.clone."""
+        detector = _ConformalDetector(
+            detector=OneClassSVM(gamma=0.1),
+            strategy=Split(n_calib=0.2),
+            score_polarity="auto",
+        )
+        cloned = clone(detector)
+        assert isinstance(cloned, _ConformalDetector)
