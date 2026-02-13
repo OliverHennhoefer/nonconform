@@ -6,7 +6,7 @@ nonconform package.
 """
 
 from .config import set_params
-from .constants import Aggregation, Distribution, Kernel, Pruning
+from .constants import Aggregation, Distribution, Kernel, Pruning, ScorePolarity
 from .log_utils import ensure_numpy_array, get_logger
 from .math_utils import (
     aggregate,
@@ -20,6 +20,7 @@ __all__ = [
     "Distribution",
     "Kernel",
     "Pruning",
+    "ScorePolarity",
     "aggregate",
     "ensure_numpy_array",
     "false_discovery_rate",

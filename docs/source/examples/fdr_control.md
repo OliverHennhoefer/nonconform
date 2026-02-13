@@ -96,7 +96,7 @@ wcs_mask = weighted_false_discovery_control(
     pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
-# detector.last_result bundles the scores/weights produced by predict()
+# detector.last_result bundles the scores/weights produced by compute_p_values()
 
 print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")

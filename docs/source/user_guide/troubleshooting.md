@@ -32,7 +32,8 @@ detector = ConformalDetector(
 
 **Problem**: Using the old output parameter in predict() method.
 
-**Solution**: Replace `output` with `raw` parameter:
+**Solution**: Replace legacy `predict(..., output=...)` calls with the current
+separate methods:
 
 ```python
 # Old API (deprecated)
@@ -41,7 +42,7 @@ scores = detector.predict(X, output="score")
 
 # New API
 p_values = detector.compute_p_values(X)  # Get p-values
-scores = detector.score_samples(X)     # Get raw scores
+scores = detector.score_samples(X)       # Get raw scores
 ```
 
 ### 3. Memory Issues

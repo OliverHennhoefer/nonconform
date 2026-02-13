@@ -4,13 +4,22 @@ import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
 
-from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+from nonconform import ConformalDetector as _ConformalDetector
+from nonconform import Split
+from nonconform.enums import Aggregation, ScorePolarity
 from nonconform.structures import AnomalyDetector
 from nonconform.weighting import BaseWeightEstimator
 
 # MockDetector is imported from tests/conftest.py via pytest fixture discovery
 from tests.conftest import MockDetector
+
+
+class ConformalDetector(_ConformalDetector):
+    """Test helper that defaults custom detectors to anomalous-higher scores."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("score_polarity", "higher_is_anomalous")
+        super().__init__(*args, **kwargs)
 
 
 class CountingWeightEstimator(BaseWeightEstimator):
@@ -134,6 +143,42 @@ class TestConformalDetectorInit:
         mock = MockDetector()
         detector = ConformalDetector(detector=mock, strategy=Split(n_calib=0.2))
         assert isinstance(detector.detector, AnomalyDetector)
+
+    def test_init_with_score_polarity_literal(self):
+        """Initialization accepts score_polarity literal values."""
+        detector = ConformalDetector(
+            detector=MockDetector(),
+            strategy=Split(n_calib=0.2),
+            score_polarity="higher_is_anomalous",
+        )
+        assert detector.score_polarity is ScorePolarity.HIGHER_IS_ANOMALOUS
+
+    def test_init_with_score_polarity_enum(self):
+        """Initialization accepts score_polarity enum values."""
+        detector = ConformalDetector(
+            detector=MockDetector(),
+            strategy=Split(n_calib=0.2),
+            score_polarity=ScorePolarity.HIGHER_IS_ANOMALOUS,
+        )
+        assert detector.score_polarity is ScorePolarity.HIGHER_IS_ANOMALOUS
+
+    def test_init_invalid_score_polarity_raises(self):
+        """Invalid score_polarity string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid score_polarity value"):
+            ConformalDetector(
+                detector=MockDetector(),
+                strategy=Split(n_calib=0.2),
+                score_polarity="invalid",  # type: ignore[arg-type]
+            )
+
+    def test_init_auto_unknown_detector_raises(self):
+        """AUTO mode fails fast for unknown detector classes."""
+        with pytest.raises(ValueError, match="Unable to infer score polarity"):
+            _ConformalDetector(
+                detector=MockDetector(),
+                strategy=Split(n_calib=0.2),
+                score_polarity="auto",
+            )
 
 
 class TestConformalDetectorFit:

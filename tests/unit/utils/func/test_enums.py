@@ -1,6 +1,12 @@
 import pytest
 
-from nonconform.enums import Aggregation, Distribution, Kernel, Pruning
+from nonconform.enums import (
+    Aggregation,
+    Distribution,
+    Kernel,
+    Pruning,
+    ScorePolarity,
+)
 
 
 class TestDistribution:
@@ -112,6 +118,29 @@ class TestKernel:
         assert len(kernels) == 9
 
 
+class TestScorePolarity:
+    def test_has_auto_member(self):
+        assert hasattr(ScorePolarity, "AUTO")
+
+    def test_has_higher_is_anomalous_member(self):
+        assert hasattr(ScorePolarity, "HIGHER_IS_ANOMALOUS")
+
+    def test_has_higher_is_normal_member(self):
+        assert hasattr(ScorePolarity, "HIGHER_IS_NORMAL")
+
+    def test_all_members_accessible(self):
+        members = [
+            ScorePolarity.AUTO,
+            ScorePolarity.HIGHER_IS_ANOMALOUS,
+            ScorePolarity.HIGHER_IS_NORMAL,
+        ]
+        assert len(members) == 3
+
+    def test_member_values_unique(self):
+        values = [m.value for m in ScorePolarity]
+        assert len(values) == len(set(values))
+
+
 class TestEnumProperties:
     def test_distribution_iteration(self):
         members = list(Distribution)
@@ -123,6 +152,10 @@ class TestEnumProperties:
 
     def test_pruning_iteration(self):
         members = list(Pruning)
+        assert len(members) == 3
+
+    def test_score_polarity_iteration(self):
+        members = list(ScorePolarity)
         assert len(members) == 3
 
     def test_enum_member_equality(self):

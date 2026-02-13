@@ -550,7 +550,10 @@ wcs_mask = weighted_false_discovery_control(
 print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
 ```
 
-After any call to `predict()`, the detector caches the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`. Passing this object to `weighted_false_discovery_control` avoids plumbing the raw arrays manually.
+After any call to `compute_p_values()` or `score_samples()`, the detector caches
+the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`.
+Passing this object to `weighted_false_discovery_control` avoids plumbing the raw
+arrays manually.
 
 ### Pruning Modes
 

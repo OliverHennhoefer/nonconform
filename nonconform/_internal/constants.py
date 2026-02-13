@@ -36,6 +36,20 @@ class Aggregation(Enum):
     MAXIMUM = auto()
 
 
+class ScorePolarity(Enum):
+    """Score direction conventions for anomaly detectors.
+
+    Attributes:
+        AUTO: Infer polarity from known detector families.
+        HIGHER_IS_ANOMALOUS: Higher scores indicate more anomalous samples.
+        HIGHER_IS_NORMAL: Higher scores indicate more normal samples.
+    """
+
+    AUTO = auto()
+    HIGHER_IS_ANOMALOUS = auto()
+    HIGHER_IS_NORMAL = auto()
+
+
 class Pruning(Enum):
     """Pruning strategies for weighted FDR control.
 
@@ -81,4 +95,5 @@ __all__ = [
     "Distribution",
     "Kernel",
     "Pruning",
+    "ScorePolarity",
 ]

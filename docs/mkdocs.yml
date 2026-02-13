@@ -79,13 +79,7 @@ nav:
     - FDR Control: examples/fdr_control.md
   - API Reference:
     - Overview: api/index.md
-    - Detector: api/index.md#detector
-    - Resampling Strategies: api/index.md#resampling-strategies
-    - P-Value Estimation: api/index.md#p-value-estimation
-    - Weight Estimation: api/index.md#weight-estimation
-    - FDR Control: api/index.md#fdr-control
-    - Data Structures: api/index.md#data-structures
-    - Adapters: api/index.md#adapters
+    - Common Workflows: api/common_workflows.md
   - Contributing: contributing.md
 
 plugins:

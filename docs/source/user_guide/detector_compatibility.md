@@ -148,11 +148,13 @@ from nonconform import ConformalDetector, Split
 detector = ConformalDetector(
     detector=OneClassSVM(kernel="rbf", nu=0.05),
     strategy=Split(n_calib=0.3),
+    score_polarity="auto",
     seed=42
 )
 ```
 
-> **Note:** `decision_function` must return higher scores for more anomalous samples. Some sklearn detectors use the opposite convention.
+`score_polarity="auto"` handles known sklearn score direction conventions.
+For unknown custom estimators, set `score_polarity` explicitly.
 
 ## Troubleshooting
 
@@ -174,7 +176,13 @@ Install PyOD: `pip install nonconform[pyod]`
 
 ### Score Direction
 
-Ensure your `decision_function` returns scores where **higher values = more anomalous**. This is the convention nonconform expects for computing p-values.
+nonconform computes p-values using **higher scores = more anomalous** internally.
+
+- Use `score_polarity="higher_is_anomalous"` when your detector already follows
+  that convention.
+- Use `score_polarity="higher_is_normal"` when larger scores mean more normal.
+- Use `score_polarity="auto"` for known detector families (PyOD and supported
+  sklearn estimators).
 
 ### Copyability
 

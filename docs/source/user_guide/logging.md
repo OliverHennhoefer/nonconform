@@ -1,377 +1,113 @@
-# Logging and Progress Control| `"Aggregating N models"` | Model ensemble aggregation | During `compute_p_values()` with multiple models |
-nonconform uses Python's standard logging framework to control progress bars and informational output. The `verbose` flag on `ConformalDetector` controls aggregation progress bars, while logger levels drive strategy-level progress bars. This provides flexible, fine-grained control that integrates seamlessly with existing logging infrastructure.
+# Logging and Progress Control
 
-## Overview
+`nonconform` uses Python logging for strategy-level progress and warnings.
+Aggregation progress bars are controlled by `ConformalDetector(verbose=...)`.
 
-Progress is controlled via the `verbose` flag (aggregation) and logger levels (strategy):
-
-- **Standard Integration**: Uses Python's built-in logging framework
-- **Granular Control**: Configure different loggers independently
-- **Hierarchical Configuration**: Control output at package, module, or class level
-- **Production Ready**: Easy to integrate with application logging
-
-## Logger Hierarchy
-
-nonconform uses a hierarchical logger structure:
-
-predictions = detector.compute_p_values(X_test)  # Shows "Aggregating N models" progress barnonconform                    # Root logger
-├── estimation                # Detector logging
-│   ├── standard_conformal    # Standard detector
-│   └── weighted_conformal    # Weighted detector
-├── strategy                  # Strategy logging
-│   ├── bootstrap             # Bootstrap strategy
-│   ├── cross_val             # Cross-validation strategy
-│   ├── jackknife             # Jackknife strategy
-│   └── split                 # Split strategy
-└── utils                     # Utility logging
-    ├── data                  # Data loading
-    ├── func                  # Function utilities
-    └── stat                  # Statistical functions
-```
-
-## Basic Configuration
-
-### Show Progress Bars (Development)
+## Quick Setup
 
 ```python
 import logging
 
-# Enable progress bars and informational messages
-logging.getLogger('nonconform').setLevel(logging.INFO)
+# Development: show progress/info
+logging.getLogger("nonconform").setLevel(logging.INFO)
+
+# Production: warnings and errors only
+logging.getLogger("nonconform").setLevel(logging.WARNING)
+```
+
+## `verbose` vs Logging Level
+
+- `verbose=True` shows aggregation progress during `compute_p_values()` and
+  `score_samples()`.
+- Logging level controls strategy-level progress output and warnings.
+
+```python
+import logging
+from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, CrossValidation
-from pyod.models.iforest import IForest
+
+logging.getLogger("nonconform").setLevel(logging.INFO)
 
 detector = ConformalDetector(
-    detector=IForest(),
-    strategy=CrossValidation(k=5)
+    detector=IsolationForest(random_state=42),
+    strategy=CrossValidation(k=5),
+    score_polarity="auto",
+    verbose=True,
+    seed=42,
 )
-detector.fit(X_train)  # Shows "CV fold training (5 folds)" progress bar
-predictions = detector.compute_p_values(X_test)  # Shows "Aggregating 1 models" progress bar
+detector.fit(X_train)
+_ = detector.compute_p_values(X_test)
 ```
 
-### Hide Progress Bars (Production)
+## Common Patterns
+
+### Quiet Production Output
 
 ```python
 import logging
 
-# Hide progress bars, show only warnings and errors
-logging.getLogger('nonconform').setLevel(logging.WARNING)
+logging.getLogger("nonconform").setLevel(logging.WARNING)
 
 detector = ConformalDetector(
-    detector=IForest(),
-    strategy=CrossValidation(k=5)
+    detector=base_detector,
+    strategy=strategy,
+    verbose=False,
 )
-detector.fit(X_train)  # No progress bars
-predictions = detector.compute_p_values(X_test)  # No progress bars
 ```
 
-### Debug Mode (Troubleshooting)
+### Keep Aggregation Bars, Hide Strategy Details
 
 ```python
 import logging
 
-# Maximum verbosity for debugging
+logging.getLogger("nonconform").setLevel(logging.WARNING)
+
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=strategy,
+    verbose=True,
+)
+```
+
+### Full Debugging
+
+```python
+import logging
+
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-
-from nonconform import ConformalDetector, JackknifeBootstrap
-from pyod.models.iforest import IForest
-
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=JackknifeBootstrap(n_bootstraps=50)
-)
-detector.fit(X_train)  # Shows detailed debug information and warnings
 ```
 
-## Logging Levels
+## Typical Progress Messages
 
-nonconform uses standard Python logging levels:
+| Message | Component | Trigger |
+|---|---|---|
+| `CV fold training (N folds)` | Cross-validation strategy | `fit()` |
+| `Bootstrap training (N folds)` | Bootstrap strategy | `fit()` |
+| `Aggregating N models` | Ensemble aggregation | `compute_p_values()` / `score_samples()` with `verbose=True` |
 
-| Level | Purpose | What's Shown |
-|-------|---------|--------------|
-| `DEBUG` | Detailed debugging | All internal operations, parameter details |
-| `INFO` | Progress monitoring | Progress bars, general information |
-| `WARNING` | Important notices | Fallback behaviors, configuration warnings |
-| `ERROR` | Error conditions | Failures, exceptions |
-| `CRITICAL` | Critical failures | System-level errors |
+## Logger Names
 
-### Level Examples
+Useful logger namespaces:
+
+- `nonconform`
+- `nonconform.resampling.*`
+- `nonconform.weighting.*`
+- `nonconform.fdr`
+- `nonconform.adapters`
+- `nonconform._internal.*`
+
+Configure specific namespaces if you want different levels per subsystem.
 
 ```python
 import logging
 
-# Show everything (very verbose)
-logging.getLogger('nonconform').setLevel(logging.DEBUG)
+# Base level for package logs
+logging.getLogger("nonconform").setLevel(logging.INFO)
 
-# Show progress and warnings (recommended for development)
-logging.getLogger('nonconform').setLevel(logging.INFO)
-
-# Show only warnings and errors (recommended for production)
-logging.getLogger('nonconform').setLevel(logging.WARNING)
-
-# Show only critical errors
-logging.getLogger('nonconform').setLevel(logging.ERROR)
+# More detail for resampling strategies only
+logging.getLogger("nonconform.resampling").setLevel(logging.DEBUG)
 ```
-
-## Advanced Configuration
-
-### Selective Module Logging
-
-Control specific modules independently:
-
-```python
-import logging
-
-# Configure different modules at different levels
-logging.getLogger('nonconform').setLevel(logging.INFO)  # General info
-logging.getLogger('nonconform.strategy.bootstrap').setLevel(logging.WARNING)  # Hide bootstrap details
-logging.getLogger('nonconform.estimation').setLevel(logging.DEBUG)  # Debug detector issues
-# This configuration will:
-# - Show progress bars for CV and aggregation
-# - Hide detailed bootstrap configuration messages
-# - Show debug information for all detectors
-```
-
-### Custom Formatters
-
-Create custom log formatting for better readability:
-
-```python
-import logging
-import sys
-
-class CustomFormatter(logging.Formatter):
-    """Custom formatter with emojis and colors."""
-
-    def format(self, record):
-        if record.levelno >= logging.ERROR:
-            prefix = "❌"
-        elif record.levelno >= logging.WARNING:
-            prefix = "⚠️ "
-        elif record.levelno >= logging.INFO:
-            prefix = "ℹ️ "
-        else:
-            prefix = "🔍"
-
-        return f"{prefix} {record.getMessage()}"
-
-# Apply custom formatter
-logger = logging.getLogger('nonconform')
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(CustomFormatter())
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
-```
-
-### Integration with Application Logging
-
-Integrate with existing application logging:
-
-```python
-import logging.config
-
-LOGGING_CONFIG = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'standard': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        },
-    },
-    'handlers': {
-        'default': {
-            'level': 'INFO',
-            'formatter': 'standard',
-            'class': 'logging.StreamHandler',
-            'stream': 'ext://sys.stdout',
-        },
-        'file': {
-            'level': 'DEBUG',
-            'formatter': 'standard',
-            'class': 'logging.FileHandler',
-            'filename': 'anomaly_detection.log',
-        },
-    },
-    'loggers': {
-        'nonconform': {
-            'handlers': ['default', 'file'],
-            'level': 'INFO',
-            'propagate': False
-        },
-        'myapp': {
-            'handlers': ['default', 'file'],
-            'level': 'INFO',
-            'propagate': False
-        },
-    }
-}
-
-logging.config.dictConfig(LOGGING_CONFIG)
-
-# Now both your app and nonconform logs go to console and file
-```
-
-## Progress Bar Descriptions
-
-nonconform provides descriptive progress bars that indicate the specific operation being performed:
-
-| Operation | Description | When It Appears |
-|-----------|-------------|-----------------|
-| `"CV fold training (N folds)"` | Cross-validation training | During `CrossValidation.fit_calibrate()` |
-| `"Bootstrap training (N folds)"` | Bootstrap resampling | During `Bootstrap.fit_calibrate()` |
-| `"Aggregating N models"` | Model ensemble aggregation | During `predict()` with multiple models |
-
-Example output:
-```
-CV fold training (5 folds): 100%|██████████| 5/5 [00:02<00:00,  2.31it/s]
-Aggregating 3 models: 100%|██████████| 3/3 [00:00<00:00, 156.78it/s]
-```
-
-## Common Scenarios
-
-### Jupyter Notebook Development
-
-```python
-import logging
-
-# Configure for interactive development
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(name)s: %(message)s'  # Simplified format for notebooks
-)
-
-# Your nonconform code here
-detector = ConformalDetector(...)
-detector.fit(X)  # Shows progress bars
-```
-
-### Server/Production Environment
-
-```python
-import logging
-import logging.handlers
-
-# Production logging setup
-logger = logging.getLogger('nonconform')
-logger.setLevel(logging.WARNING)  # Hide progress bars
-
-# Log to rotating file
-handler = logging.handlers.RotatingFileHandler(
-    'anomaly_detection.log',
-    maxBytes=10*1024*1024,  # 10MB
-    backupCount=5
-)
-formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-# Your detection code runs silently
-detector.fit(X_train)
-predictions = detector.compute_p_values(X_test)
-```
-
-### Docker/Containerized Environment
-
-```python
-import logging
-import sys
-
-# Container-friendly logging (JSON format)
-import json
-
-class JSONFormatter(logging.Formatter):
-    def format(self, record):
-        log_entry = {
-            'timestamp': self.formatTime(record),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage()
-        }
-        return json.dumps(log_entry)
-
-# Configure JSON logging for containers
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(JSONFormatter())
-logging.getLogger('nonconform').addHandler(handler)
-logging.getLogger('nonconform').setLevel(logging.INFO)
-```
-
-### Testing Environment
-
-```python
-import logging
-
-# Disable all nonconform logging during tests
-logging.getLogger('nonconform').setLevel(logging.CRITICAL)
-
-# Or capture logs for testing
-import io
-log_stream = io.StringIO()
-handler = logging.StreamHandler(log_stream)
-logging.getLogger('nonconform').addHandler(handler)
-logging.getLogger('nonconform').setLevel(logging.DEBUG)
-
-# Run your test
-detector.fit(X)
-
-# Check logged output
-log_output = log_stream.getvalue()
-assert "Bootstrap Configuration" in log_output
-```
-
-## Progress Control Recipes
-
-Use these patterns to tune output:
-
-- **Fully quiet (production)**:
-    ```python
-    import logging
-    logging.getLogger("nonconform").setLevel(logging.WARNING)
-    detector = ConformalDetector(
-        detector=IForest(),
-        strategy=Split(n_calib=0.2),
-        verbose=False,  # hide aggregation bars
-    )
-    ```
-- **Show aggregation only**:
-    ```python
-    import logging
-    logging.getLogger("nonconform").setLevel(logging.WARNING)  # hide strategy bars
-    detector = ConformalDetector(
-        detector=IForest(),
-        strategy=Split(n_calib=0.2),
-        verbose=True,  # show aggregation bars
-    )
-    ```
-- **Show everything (development)**:
-    ```python
-    import logging
-    logging.getLogger("nonconform").setLevel(logging.INFO)
-    detector = ConformalDetector(
-        detector=IForest(),
-        strategy=Split(n_calib=0.2),
-        verbose=True,
-    )
-    ```
-
-## Performance Considerations
-
-Logging configuration has minimal performance impact:
-
-- **Progress bars**: Small overhead only when displayed (INFO level)
-- **Log level checks**: Very fast, optimized by Python
-- **File logging**: Asynchronous handlers available for high-throughput applications
-
-For maximum performance in production, use `logging.WARNING` level to disable all progress output.
-
-## See Also
-
-- [Troubleshooting Guide](troubleshooting.md) - Logging configuration for debugging
-- [Best Practices](best_practices.md) - Production logging recommendations
-- [Python Logging Documentation](https://docs.python.org/3/library/logging.html) - Complete logging reference

@@ -86,11 +86,16 @@ DetectorCase = namedtuple(
 )
 
 
-def _split_detector(detector):
+def _split_detector(detector, *, score_polarity="auto"):
+    # Coverage intent:
+    # - default "auto" validates polarity inference for real PyOD detectors
+    # - explicit polarity is used in custom/fallback detector tests where inference
+    #   is intentionally not expected to work
     return ConformalDetector(
         detector=detector,
         strategy=Split(n_calib=0.2),
         aggregation=Aggregation.MEAN,
+        score_polarity=score_polarity,
         seed=5,
     )
 
@@ -188,7 +193,7 @@ def test_auto_encoder_detector(simple_dataset):
         verbose=0,
         contamination=0.05,
     )
-    detector = _split_detector(base)
+    detector = _split_detector(base, score_polarity="higher_is_anomalous")
     detector.fit(x_train)
     p_values = detector.compute_p_values(x_test)
     assert np.all((0 <= p_values) & (p_values <= 1))
@@ -267,7 +272,7 @@ def test_custom_sklearn_detector(simple_dataset):
     """Custom detector with sklearn-style parameters should work."""
     x_train, x_test, _ = simple_dataset(n_train=64, n_test=30, n_features=4)
     base = CustomSklearnDetector(contamination=0.05, random_state=42, n_jobs=1)
-    detector = _split_detector(base)
+    detector = _split_detector(base, score_polarity="higher_is_anomalous")
 
     detector.fit(x_train)
     p_values = detector.compute_p_values(x_test)
@@ -285,7 +290,7 @@ def test_custom_detector_with_aliases(simple_dataset):
     """Custom detector with parameter aliases should work."""
     x_train, x_test, _ = simple_dataset(n_train=64, n_test=30, n_features=4)
     base = CustomDetectorWithAliases(seed=42, n_threads=1)
-    detector = _split_detector(base)
+    detector = _split_detector(base, score_polarity="higher_is_anomalous")
 
     detector.fit(x_train)
     p_values = detector.compute_p_values(x_test)
@@ -325,7 +330,12 @@ def test_detector_missing_random_state(caplog, capfd):
     try:
         detector = DeterministicDetector()
         with caplog.at_level(logging.WARNING, logger="nonconform"):
-            ConformalDetector(detector=detector, strategy=Split(n_calib=0.2), seed=42)
+            ConformalDetector(
+                detector=detector,
+                strategy=Split(n_calib=0.2),
+                score_polarity="higher_is_anomalous",
+                seed=42,
+            )
 
         # Check caplog records, stderr, and caplog.text for warning
         captured = capfd.readouterr()
