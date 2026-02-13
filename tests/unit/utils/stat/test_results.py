@@ -99,3 +99,24 @@ class TestEdgeCases:
         large_array = rng.standard_normal(10000)
         result = ConformalResult(test_scores=large_array)
         assert len(result.test_scores) == 10000
+
+
+class TestRepresentation:
+    def test_repr_with_none_fields_is_compact(self):
+        result = ConformalResult()
+        repr_str = repr(result)
+        assert "ConformalResult(" in repr_str
+        assert "p_values=None" in repr_str
+        assert "metadata_keys=[]" in repr_str
+
+    def test_repr_summarizes_arrays(self):
+        result = ConformalResult(
+            p_values=np.array([0.1, 0.2]),
+            test_scores=np.array([1.0, 2.0]),
+            calib_scores=np.array([0.5, 1.5, 2.5]),
+            metadata={"a": 1},
+        )
+        repr_str = repr(result)
+        assert "array(shape=(2,), dtype=float64)" in repr_str
+        assert "array(shape=(3,), dtype=float64)" in repr_str
+        assert "metadata_keys=['a']" in repr_str

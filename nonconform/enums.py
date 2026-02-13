@@ -1,7 +1,6 @@
 """Public enumeration constants for nonconform."""
 
 from nonconform._internal.constants import (
-    Aggregation,
     Distribution,
     Kernel,
     Pruning,
@@ -9,7 +8,6 @@ from nonconform._internal.constants import (
 )
 
 __all__ = [
-    "Aggregation",
     "Distribution",
     "Kernel",
     "Pruning",

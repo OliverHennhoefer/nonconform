@@ -16,7 +16,6 @@ from nonconform import (
     JackknifeBootstrap,
     Split,
 )
-from nonconform.enums import Aggregation
 
 StrategyCase = namedtuple("StrategyCase", "name factory expected_calib")
 
@@ -62,7 +61,7 @@ def _build_detector(strategy):
             random_state=0,
         ),
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=11,
     )
 

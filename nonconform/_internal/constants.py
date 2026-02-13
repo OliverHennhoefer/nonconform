@@ -20,22 +20,6 @@ class Distribution(Enum):
     GRID = auto()
 
 
-class Aggregation(Enum):
-    """Aggregation functions for combining multiple model outputs or scores.
-
-    Attributes:
-        MEAN: Aggregate by calculating the arithmetic mean.
-        MEDIAN: Aggregate by calculating the median.
-        MINIMUM: Aggregate by selecting the minimum value.
-        MAXIMUM: Aggregate by selecting the maximum value.
-    """
-
-    MEAN = auto()
-    MEDIAN = auto()
-    MINIMUM = auto()
-    MAXIMUM = auto()
-
-
 class ScorePolarity(Enum):
     """Score direction conventions for anomaly detectors.
 
@@ -91,7 +75,6 @@ class Kernel(Enum):
 
 
 __all__ = [
-    "Aggregation",
     "Distribution",
     "Kernel",
     "Pruning",

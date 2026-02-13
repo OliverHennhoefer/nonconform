@@ -29,10 +29,11 @@ from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
 
 from ._internal import (
-    Aggregation,
+    AggregationMethod,
     ScorePolarity,
     aggregate,
     ensure_numpy_array,
+    normalize_aggregation_method,
     set_params,
 )
 
@@ -44,6 +45,21 @@ if TYPE_CHECKING:
 def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
     """Return a copy of array or None if None."""
     return None if arr is None else arr.copy()
+
+
+def _as_numpy_with_index(
+    x: pd.DataFrame | pd.Series | np.ndarray,
+) -> tuple[np.ndarray, pd.Index | None]:
+    """Return numpy view of input and optional pandas index.
+
+    Pandas Series are interpreted as a single-feature batch with shape
+    ``(n_samples, 1)``.
+    """
+    if isinstance(x, pd.Series):
+        return x.to_numpy(copy=False).reshape(-1, 1), x.index
+    if isinstance(x, pd.DataFrame):
+        return x.to_numpy(copy=False), x.index
+    return x, None
 
 
 class BaseConformalDetector(ABC):
@@ -77,14 +93,13 @@ class BaseConformalDetector(ABC):
         """
         raise NotImplementedError("Subclasses must implement fit()")
 
-    @ensure_numpy_array
     @abstractmethod
     def compute_p_values(
         self,
-        x: pd.DataFrame | np.ndarray,
+        x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         refit_weights: bool = True,
-    ) -> np.ndarray:
+    ) -> np.ndarray | pd.Series:
         """Return conformal p-values for new data.
 
         Args:
@@ -93,18 +108,17 @@ class BaseConformalDetector(ABC):
                 in weighted mode. Ignored in standard mode.
 
         Returns:
-            Array of p-values.
+            P-values as ndarray for numpy input, or pandas Series for pandas input.
         """
         raise NotImplementedError("Subclasses must implement compute_p_values()")
 
-    @ensure_numpy_array
     @abstractmethod
     def score_samples(
         self,
-        x: pd.DataFrame | np.ndarray,
+        x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         refit_weights: bool = True,
-    ) -> np.ndarray:
+    ) -> np.ndarray | pd.Series:
         """Return aggregated raw anomaly scores for new data.
 
         Args:
@@ -113,7 +127,7 @@ class BaseConformalDetector(ABC):
                 in weighted mode. Ignored in standard mode.
 
         Returns:
-            Array of aggregated raw anomaly scores.
+            Raw scores as ndarray for numpy input, or pandas Series for pandas input.
         """
         raise NotImplementedError("Subclasses must implement score_samples()")
 
@@ -142,7 +156,7 @@ class ConformalDetector(BaseConformalDetector):
         estimation: P-value estimation strategy. Defaults to Empirical().
         weight_estimator: Weight estimator for covariate shift. Defaults to None.
         aggregation: Method for aggregating scores from multiple models.
-            Defaults to Aggregation.MEDIAN.
+            Defaults to "median".
         score_polarity: Score direction convention. Use `"higher_is_anomalous"`
             when higher raw scores indicate more anomalous samples, and
             `"higher_is_normal"` when higher scores indicate more normal samples.
@@ -203,7 +217,7 @@ class ConformalDetector(BaseConformalDetector):
         strategy: BaseStrategy,
         estimation: BaseEstimation | None = None,
         weight_estimator: BaseWeightEstimator | None = None,
-        aggregation: Aggregation = Aggregation.MEDIAN,
+        aggregation: str = "median",
         score_polarity: ScorePolarity
         | Literal["auto", "higher_is_anomalous", "higher_is_normal"] = (
             ScorePolarity.AUTO
@@ -213,13 +227,7 @@ class ConformalDetector(BaseConformalDetector):
     ) -> None:
         if seed is not None and seed < 0:
             raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
-        if not isinstance(aggregation, Aggregation):
-            valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
-            raise TypeError(
-                f"aggregation must be an Aggregation enum, "
-                f"got {type(aggregation).__name__}. "
-                f"Valid options: {valid_methods}."
-            )
+        normalized_aggregation = normalize_aggregation_method(aggregation)
 
         adapted_detector = adapt(detector)
         resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
@@ -237,7 +245,7 @@ class ConformalDetector(BaseConformalDetector):
             if hasattr(self.weight_estimator, "set_seed"):
                 self.weight_estimator.set_seed(seed)
 
-        self.aggregation: Aggregation = aggregation
+        self.aggregation: AggregationMethod = normalized_aggregation
         self._score_polarity: ScorePolarity = resolved_polarity
         self.seed: int | None = seed
         self.verbose: bool = verbose
@@ -251,6 +259,23 @@ class ConformalDetector(BaseConformalDetector):
         self._calibration_samples: np.ndarray = np.array([])
         self._prepared_weight_batch_size: int | None = None
         self._last_result: ConformalResult | None = None
+
+    def __repr__(self) -> str:
+        """Return concise notebook-friendly detector summary."""
+        return (
+            "ConformalDetector("
+            f"detector={type(self.detector).__name__}, "
+            f"strategy={type(self.strategy).__name__}, "
+            f"estimation={type(self.estimation).__name__}, "
+            f"aggregation={self.aggregation!r}, "
+            f"score_polarity={self._score_polarity.name}, "
+            f"weighted_mode={self._is_weighted_mode}, "
+            f"seed={self.seed}, "
+            f"verbose={self.verbose}, "
+            f"fitted={self.is_fitted}, "
+            f"n_models={len(self._detector_set)}, "
+            f"n_calibration={len(self._calibration_set)})"
+        )
 
     @ensure_numpy_array
     def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
@@ -357,13 +382,12 @@ class ConformalDetector(BaseConformalDetector):
         self._prepared_weight_batch_size = len(x)
         return self
 
-    @ensure_numpy_array
     def score_samples(
         self,
-        x: pd.DataFrame | np.ndarray,
+        x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         refit_weights: bool = True,
-    ) -> np.ndarray:
+    ) -> np.ndarray | pd.Series:
         """Return aggregated raw anomaly scores for new data.
 
         Args:
@@ -372,10 +396,11 @@ class ConformalDetector(BaseConformalDetector):
                 in weighted mode. Defaults to True.
 
         Returns:
-            Array of aggregated raw anomaly scores.
+            Aggregated raw anomaly scores.
         """
-        estimates = self._aggregate_scores(x)
-        weights = self._resolve_weights(x, refit_weights=refit_weights)
+        x_array, index = _as_numpy_with_index(x)
+        estimates = self._aggregate_scores(x_array)
+        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
         calib_weights, test_weights = weights if weights else (None, None)
 
         self._last_result = ConformalResult(
@@ -386,15 +411,16 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata={},
         )
+        if index is not None:
+            return pd.Series(estimates, index=index, name="score")
         return estimates
 
-    @ensure_numpy_array
     def compute_p_values(
         self,
-        x: pd.DataFrame | np.ndarray,
+        x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         refit_weights: bool = True,
-    ) -> np.ndarray:
+    ) -> np.ndarray | pd.Series:
         """Return conformal p-values for new data.
 
         Args:
@@ -403,10 +429,11 @@ class ConformalDetector(BaseConformalDetector):
                 in weighted mode. Defaults to True.
 
         Returns:
-            Array of p-values.
+            Conformal p-values.
         """
-        estimates = self._aggregate_scores(x)
-        weights = self._resolve_weights(x, refit_weights=refit_weights)
+        x_array, index = _as_numpy_with_index(x)
+        estimates = self._aggregate_scores(x_array)
+        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
         calib_weights, test_weights = weights if weights else (None, None)
 
         p_values = self.estimation.compute_p_values(
@@ -427,6 +454,8 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata=metadata,
         )
+        if index is not None:
+            return pd.Series(p_values, index=index, name="p_value")
         return p_values
 
     @property

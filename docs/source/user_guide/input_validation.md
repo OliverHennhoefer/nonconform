@@ -117,8 +117,11 @@ strategy = JackknifeBootstrap(n_bootstraps=100)
 
 **Valid values**:
 - `n_bootstraps`: Integer ≥ 2 (typical: 20-200)
-- `aggregation_method`: `Aggregation.MEAN` or `Aggregation.MEDIAN`
+- `aggregation_method`: `"mean"` or `"median"`
 - `plus`: Whether to keep all bootstrap models for aggregation (recommended)
+
+For `ConformalDetector(aggregation=...)`, valid methods are:
+`"mean"`, `"median"`, `"minimum"`, and `"maximum"`.
 
 **Constraints**:
 - More bootstraps improve stability but increase computation
@@ -286,19 +289,20 @@ if np.any(weights > 1000) or np.any(weights < 0.001):
 
 ```python
 from nonconform import ConformalDetector
-from nonconform.enums import Aggregation
+
 
 detector = ConformalDetector(
     detector=base_det,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN  # or MEAN, MAX
+    aggregation="median"  # or "mean", "minimum", "maximum"
 )
 ```
 
 **Valid values**:
-- `Aggregation.MEAN`: Average p-values across splits (default for many strategies)
-- `Aggregation.MEDIAN`: Median p-value (more robust to outliers)
-- `Aggregation.MAXIMUM`: Most conservative (maximum p-value)
+- `"mean"`: Arithmetic mean of raw anomaly scores across models
+- `"median"`: Median of raw anomaly scores across models (robust to outliers)
+- `"minimum"`: Minimum raw anomaly score across models
+- `"maximum"`: Maximum raw anomaly score across models
 
 **When it matters**:
 - Only relevant for strategies that produce multiple p-values (CrossValidation, Jackknife, Bootstrap)

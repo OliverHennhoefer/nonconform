@@ -110,7 +110,7 @@ Use multiple detectors for robustness:
 
 ```python
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 from scipy.stats import false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.iforest import IForest
@@ -132,7 +132,7 @@ for name, base_detector in detectors.items():
     conf_detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     conf_detector.fit(X_train)
@@ -438,7 +438,8 @@ class ScalableAnomalyDetector:
 
 ```python
 from dataclasses import dataclass
-from nonconform.enums import Aggregation
+from typing import Literal
+
 
 
 @dataclass
@@ -447,7 +448,7 @@ class AnomalyDetectionConfig:
     alpha: float = 0.05
     calibration_size: float = 0.2  # Can be float (ratio) or int (absolute)
     detector_type: str = "iforest"
-    aggregation: Aggregation = Aggregation.MEDIAN
+    aggregation: Literal["mean", "median", "minimum", "maximum"] = "median"
     seed: int = 42
     verbose: bool = False
     batch_size: int = 1000
@@ -460,6 +461,13 @@ class AnomalyDetectionConfig:
 
         if isinstance(self.calibration_size, float) and not 0 < self.calibration_size < 1:
             raise ValueError("Calibration size ratio must be between 0 and 1")
+
+        self.aggregation = self.aggregation.strip().lower()
+        valid_aggregations = {"mean", "median", "minimum", "maximum"}
+        if self.aggregation not in valid_aggregations:
+            raise ValueError(
+                f"aggregation must be one of {sorted(valid_aggregations)}"
+            )
 ```
 
 ### 2. Complete Pipeline Implementation
@@ -583,7 +591,7 @@ config = AnomalyDetectionConfig(
     alpha=0.05,
     calibration_size=0.2,
     detector_type="iforest",
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     fdr_method='bh'
 )
 
@@ -606,7 +614,7 @@ For streaming anomaly detection where you process small batches against a large 
 
 ```python
 from nonconform import ConformalDetector, Split, forest_weight_estimator
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.weighting import BootstrapBaggedWeightEstimator
 from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
@@ -621,7 +629,7 @@ weight_est = BootstrapBaggedWeightEstimator(
 detector = ConformalDetector(
     detector=IForest(),
     strategy=Split(n_calib=1000),  # Large historical calibration
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=weight_est,
     seed=42,
 )

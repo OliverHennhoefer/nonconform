@@ -1,12 +1,13 @@
 """Unit tests for detector.py."""
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.exceptions import NotFittedError
 
 from nonconform import ConformalDetector as _ConformalDetector
 from nonconform import Split
-from nonconform.enums import Aggregation, ScorePolarity
+from nonconform.enums import ScorePolarity
 from nonconform.structures import AnomalyDetector
 from nonconform.weighting import BaseWeightEstimator
 
@@ -122,11 +123,11 @@ class TestConformalDetectorInit:
 
     def test_init_invalid_aggregation_raises(self):
         """Invalid aggregation type raises TypeError."""
-        with pytest.raises(TypeError, match="Aggregation enum"):
+        with pytest.raises(TypeError, match="aggregation method must be a string"):
             ConformalDetector(
                 detector=MockDetector(),
                 strategy=Split(n_calib=0.2),
-                aggregation="median",  # type: ignore  # Should be enum
+                aggregation=1,  # type: ignore[arg-type]
             )
 
     def test_init_with_aggregation(self):
@@ -134,9 +135,27 @@ class TestConformalDetectorInit:
         detector = ConformalDetector(
             detector=MockDetector(),
             strategy=Split(n_calib=0.2),
-            aggregation=Aggregation.MEAN,
+            aggregation="mean",
         )
-        assert detector.aggregation == Aggregation.MEAN
+        assert detector.aggregation == "mean"
+
+    def test_init_normalizes_aggregation(self):
+        """Aggregation strings are normalized."""
+        detector = ConformalDetector(
+            detector=MockDetector(),
+            strategy=Split(n_calib=0.2),
+            aggregation="  MEDIAN ",
+        )
+        assert detector.aggregation == "median"
+
+    def test_init_invalid_aggregation_string_raises(self):
+        """Unsupported aggregation strings raise ValueError."""
+        with pytest.raises(ValueError, match="Unsupported aggregation method"):
+            ConformalDetector(
+                detector=MockDetector(),
+                strategy=Split(n_calib=0.2),
+                aggregation="avg",
+            )
 
     def test_init_adapts_detector(self):
         """Detector is adapted to AnomalyDetector protocol."""
@@ -226,8 +245,6 @@ class TestConformalDetectorFit:
 
     def test_fit_accepts_dataframe(self, sample_data):
         """fit() accepts pandas DataFrame."""
-        import pandas as pd
-
         rng = np.random.default_rng(42)
         df = pd.DataFrame(sample_data)
         detector = ConformalDetector(
@@ -286,13 +303,24 @@ class TestConformalDetectorPredict:
         assert len(scores) == 10
 
     def test_predict_accepts_dataframe(self, fitted_detector):
-        """compute_p_values() accepts pandas DataFrame."""
-        import pandas as pd
-
+        """compute_p_values() with DataFrame returns indexed Series."""
         rng = np.random.default_rng(42)
-        X_test = pd.DataFrame(rng.standard_normal((10, 5)))
+        index = pd.RangeIndex(start=100, stop=110, step=1)
+        X_test = pd.DataFrame(rng.standard_normal((10, 5)), index=index)
         p_values = fitted_detector.compute_p_values(X_test)
+        assert isinstance(p_values, pd.Series)
+        assert p_values.index.equals(index)
         assert len(p_values) == 10
+
+    def test_score_samples_dataframe_returns_series(self, fitted_detector):
+        """score_samples() with DataFrame returns indexed Series."""
+        rng = np.random.default_rng(42)
+        index = pd.RangeIndex(start=0, stop=10, step=1)
+        X_test = pd.DataFrame(rng.standard_normal((10, 5)), index=index)
+        scores = fitted_detector.score_samples(X_test)
+        assert isinstance(scores, pd.Series)
+        assert scores.index.equals(index)
+        assert len(scores) == 10
 
 
 class TestConformalDetectorProperties:
@@ -344,6 +372,19 @@ class TestConformalDetectorProperties:
         assert result is not None
         assert result.p_values is not None
         assert len(result.p_values) == 10
+
+    def test_repr_summarizes_state(self, fitted_detector):
+        """repr() exposes concise high-level detector state."""
+        repr_before = repr(
+            ConformalDetector(detector=MockDetector(), strategy=Split(n_calib=0.2))
+        )
+        assert "fitted=False" in repr_before
+        assert "aggregation='median'" in repr_before
+
+        repr_after = repr(fitted_detector)
+        assert "fitted=True" in repr_after
+        assert "n_models=" in repr_after
+        assert "n_calibration=" in repr_after
 
 
 class TestConformalDetectorReproducibility:

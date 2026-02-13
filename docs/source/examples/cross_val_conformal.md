@@ -10,7 +10,7 @@ from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, CrossValidation
-from nonconform.enums import Aggregation
+
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
@@ -32,7 +32,7 @@ cv_strategy = CrossValidation(k=5)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",  # options: "mean", "median", "minimum", "maximum"
     seed=42,
 )
 
@@ -55,7 +55,7 @@ cv_plus_strategy = CrossValidation(k=5, plus=True)
 detector_plus = ConformalDetector(
     detector=base_detector,
     strategy=cv_plus_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -82,7 +82,7 @@ for n_folds in fold_options:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
@@ -140,7 +140,7 @@ for seed in seeds:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=CrossValidation(k=5),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=seed,
     )
     detector.fit(X)
@@ -188,7 +188,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)

@@ -32,7 +32,7 @@ The `ConformalDetector` with a `weight_estimator` parameter automatically estima
 ```python
 import numpy as np
 from nonconform import ConformalDetector, Split, logistic_weight_estimator
-from nonconform.enums import Aggregation
+
 from pyod.models.lof import LOF
 
 # Initialize base detector
@@ -43,7 +43,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -142,7 +142,7 @@ p_values_after_drift = detector.compute_p_values(X_after_drift)
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -150,7 +150,7 @@ standard_detector = ConformalDetector(
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -187,13 +187,13 @@ The choice of aggregation method can affect performance under distribution shift
 
 ```python
 # Compare different aggregation methods
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -232,7 +232,7 @@ from nonconform import logistic_weight_estimator
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -260,7 +260,7 @@ from nonconform import forest_weight_estimator
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=forest_weight_estimator(n_estimators=100, max_depth=10),
     seed=42,
 )
@@ -293,7 +293,7 @@ for name, weight_est in estimators.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=Split(n_calib=0.2),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         weight_estimator=weight_est,
         seed=42,
     )
@@ -334,7 +334,7 @@ weight_est = BootstrapBaggedWeightEstimator(
 detector = ConformalDetector(
     detector=base_detector,
     strategy=Split(n_calib=1000),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=weight_est,
     seed=42,
 )
@@ -427,7 +427,7 @@ For online/streaming anomaly detection with small batches:
 
 ```python
 from nonconform import ConformalDetector, Split, forest_weight_estimator
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.weighting import BootstrapBaggedWeightEstimator
 from pyod.models.iforest import IForest
@@ -442,7 +442,7 @@ weight_est = BootstrapBaggedWeightEstimator(
 detector = ConformalDetector(
     detector=IForest(),
     strategy=Split(n_calib=1000),  # Large calibration set
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=weight_est,
     seed=42,
 )
@@ -513,7 +513,7 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 jab_detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
@@ -523,7 +523,7 @@ cv_strategy = CrossValidation(k=5)
 cv_detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
@@ -761,7 +761,7 @@ for domain in domains:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         weight_estimator=logistic_weight_estimator(),
         seed=42
     )

@@ -9,11 +9,10 @@ pytest.importorskip("pyod", reason="pyod not installed")
 from pyod.models.iforest import IForest
 
 from nonconform import ConformalDetector, CrossValidation
-from nonconform.enums import Aggregation
 from nonconform.metrics import aggregate
 
 
-def _build_detector(aggregation: Aggregation):
+def _build_detector(aggregation: str):
     return ConformalDetector(
         detector=IForest(n_estimators=20, max_samples=0.8, random_state=0),
         strategy=CrossValidation(k=3, plus=True),
@@ -22,7 +21,7 @@ def _build_detector(aggregation: Aggregation):
     )
 
 
-@pytest.mark.parametrize("aggregation", list(Aggregation))
+@pytest.mark.parametrize("aggregation", ["mean", "median", "minimum", "maximum"])
 def test_aggregation_matches_manual_scores(simple_dataset, aggregation):
     """Aggregated raw scores should match manual aggregation for ensembles."""
     x_train, x_test, _ = simple_dataset(n_train=54, n_test=18, n_features=4)
@@ -41,8 +40,8 @@ def test_aggregation_matches_manual_scores(simple_dataset, aggregation):
 def test_aggregation_choice_changes_pvalues(simple_dataset):
     """Different aggregation methods should impact downstream p-values."""
     x_train, x_test, _ = simple_dataset(n_train=60, n_test=20, n_features=4)
-    mean_detector = _build_detector(Aggregation.MEAN)
-    max_detector = _build_detector(Aggregation.MAXIMUM)
+    mean_detector = _build_detector("mean")
+    max_detector = _build_detector("maximum")
 
     mean_detector.fit(x_train)
     max_detector.fit(x_train)

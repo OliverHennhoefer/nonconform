@@ -17,13 +17,13 @@ Common issues and solutions for nonconform.
 
 # New API
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 from pyod.models.lof import LOF
 
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
@@ -170,7 +170,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     detector.fit(X_train)
@@ -220,16 +220,15 @@ JackknifeBootstrap(...)         # → JackknifeBootstrap(n_bootstraps=50)
 - Ensure your detector implements the AnomalyDetector protocol (fit, decision_function, get_params, set_params)
 - Check for version compatibility
 - Verify that the detector's output format matches expectations
-- Use the correct aggregation enum values
+- Use a valid aggregation string (`"mean"`, `"median"`, `"minimum"`, `"maximum"`)
 
 ```python
-from nonconform.enums import Aggregation
 
-# Correct usage of aggregation enums
+# Correct usage of aggregation strings
 detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,  # Not "median"
+    aggregation="median",
     seed=42
 )
 ```
@@ -247,7 +246,7 @@ logging.getLogger('nonconform').setLevel(logging.INFO)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 

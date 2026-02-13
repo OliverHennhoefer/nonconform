@@ -56,14 +56,14 @@ decisions = weighted_false_discovery_control(
 import numpy as np
 from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 from pyod.models.lof import LOF
 
 # Prepare detector and data
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 
@@ -219,7 +219,7 @@ FDR control works naturally with conformal prediction p-values:
 ```python
 from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split, logistic_weight_estimator
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.lof import LOF
 
@@ -230,7 +230,7 @@ strategy = Split(n_calib=0.2)
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 standard_detector.fit(X_train)
@@ -244,7 +244,7 @@ standard_mask = false_discovery_control(
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -350,7 +350,7 @@ from pyod.models.lof import LOF
 from pyod.models.knn import KNN
 from pyod.models.ocsvm import OCSVM
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 
 # Get p-values from multiple detectors
 detectors = [LOF(), KNN(), OCSVM()]
@@ -361,7 +361,7 @@ for base_detector in detectors:
     conf_detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     conf_detector.fit(X_train)

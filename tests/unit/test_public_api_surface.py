@@ -64,18 +64,21 @@ def test_removed_root_import_raises_import_error(symbol: str):
 
 def test_enums_module_exports_expected_symbols():
     from nonconform.enums import (
-        Aggregation,
         Distribution,
         Kernel,
         Pruning,
         ScorePolarity,
     )
 
-    assert issubclass(Aggregation, Enum)
     assert issubclass(Distribution, Enum)
     assert issubclass(Kernel, Enum)
     assert issubclass(Pruning, Enum)
     assert issubclass(ScorePolarity, Enum)
+
+
+def test_aggregation_removed_from_enums_module():
+    with pytest.raises(ImportError, match="Aggregation"):
+        exec("from nonconform.enums import Aggregation", {})
 
 
 def test_metrics_module_exports_expected_symbols():

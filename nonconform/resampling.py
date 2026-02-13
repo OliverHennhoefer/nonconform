@@ -25,7 +25,11 @@ import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
 from tqdm import tqdm
 
-from nonconform._internal import Aggregation, ensure_numpy_array
+from nonconform._internal import (
+    BootstrapAggregationMethod,
+    ensure_numpy_array,
+    normalize_bootstrap_aggregation_method,
+)
 
 if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
@@ -411,8 +415,8 @@ class JackknifeBootstrap(BaseStrategy):
 
     Args:
         n_bootstraps: Number of bootstrap iterations. Defaults to 100.
-        aggregation_method: How to aggregate OOB predictions (MEAN or MEDIAN).
-            Defaults to Aggregation.MEAN.
+        aggregation_method: How to aggregate OOB predictions ("mean" or "median").
+            Defaults to "mean".
         plus: Whether to use ensemble mode. Defaults to True.
 
     References:
@@ -423,7 +427,7 @@ class JackknifeBootstrap(BaseStrategy):
     def __init__(
         self,
         n_bootstraps: int = 100,
-        aggregation_method: Aggregation = Aggregation.MEAN,
+        aggregation_method: BootstrapAggregationMethod = "mean",
         plus: bool = True,
     ) -> None:
         super().__init__(plus=plus)
@@ -436,12 +440,9 @@ class JackknifeBootstrap(BaseStrategy):
             exc.add_note(f"Received n_bootstraps={n_bootstraps}, which is invalid.")
             raise exc
 
-        if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
-            exc = ValueError(
-                f"aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN, "
-                f"got {aggregation_method}."
-            )
-            raise exc
+        normalized_aggregation_method = normalize_bootstrap_aggregation_method(
+            aggregation_method
+        )
 
         if not plus:
             _bootstrap_logger.warning(
@@ -450,7 +451,9 @@ class JackknifeBootstrap(BaseStrategy):
             )
 
         self._n_bootstraps: int = n_bootstraps
-        self._aggregation_method: Aggregation = aggregation_method
+        self._aggregation_method: BootstrapAggregationMethod = (
+            normalized_aggregation_method
+        )
 
         self._detector_list: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
@@ -619,9 +622,9 @@ class JackknifeBootstrap(BaseStrategy):
             return np.nan
 
         match self._aggregation_method:
-            case Aggregation.MEAN:
+            case "mean":
                 return np.mean(predictions)
-            case Aggregation.MEDIAN:
+            case "median":
                 return np.median(predictions)
             case _:
                 raise ValueError(f"Unsupported aggregation: {self._aggregation_method}")
@@ -664,13 +667,12 @@ class JackknifeBootstrap(BaseStrategy):
         return self._n_bootstraps
 
     @property
-    def aggregation_method(self) -> Aggregation:
+    def aggregation_method(self) -> BootstrapAggregationMethod:
         """Aggregation method for OOB predictions."""
         return self._aggregation_method
 
 
 __all__ = [
-    "Aggregation",
     "BaseStrategy",
     "CrossValidation",
     "JackknifeBootstrap",

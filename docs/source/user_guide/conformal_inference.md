@@ -38,7 +38,7 @@ Conformal inference provides a principled way to convert scores to p-values:
 ```python
 # Conformal approach - statistically valid p-values
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 from scipy.stats import false_discovery_control
 
 # Create conformal detector
@@ -46,7 +46,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -170,7 +170,7 @@ The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success d
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
+
 
 # 1. Prepare your data
 X_train = load_normal_training_data()  # Normal data for training and calibration
@@ -184,7 +184,7 @@ strategy = Split(n_calib=0.2)  # 20% for calibration
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -240,7 +240,7 @@ Uses all samples for both training and calibration:
 
 ```python
 from nonconform import CrossValidation
-from nonconform.enums import Aggregation
+
 
 # 5-fold cross-validation
 strategy = CrossValidation(k=5)
@@ -248,7 +248,7 @@ strategy = CrossValidation(k=5)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
@@ -259,7 +259,7 @@ Provides robust estimates through resampling:
 
 ```python
 from nonconform import JackknifeBootstrap
-from nonconform.enums import Aggregation
+
 
 # 50 bootstrap samples
 strategy = JackknifeBootstrap(n_bootstraps=50)
@@ -267,7 +267,7 @@ strategy = JackknifeBootstrap(n_bootstraps=50)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
@@ -330,6 +330,14 @@ plt.title('Score vs P-value Relationship')
 plt.show()
 ```
 
+For pandas-native workflows, outputs preserve the input index automatically:
+
+```python
+X_test_df = pd.DataFrame(X_test, index=my_index)
+p_values = detector.compute_p_values(X_test_df)   # pd.Series indexed like X_test_df
+raw_scores = detector.score_samples(X_test_df)    # pd.Series indexed like X_test_df
+```
+
 ### Aggregation Methods
 
 When using ensemble strategies, you can control how multiple model outputs are combined:
@@ -337,12 +345,12 @@ When using ensemble strategies, you can control how multiple model outputs are c
 ```python
 # Different aggregation methods
 from scipy.stats import false_discovery_control
-from nonconform.enums import Aggregation
+
 
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -370,7 +378,7 @@ Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 ```python
 from typing import Any, Self
 import numpy as np
-from nonconform.enums import Aggregation
+
 
 class CustomDetector:
     """Custom anomaly detector implementing AnomalyDetector protocol."""
@@ -399,7 +407,7 @@ custom_detector = CustomDetector(random_state=42)
 detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
@@ -415,7 +423,7 @@ Different strategies have different computational costs:
 ```python
 import time
 from nonconform import CrossValidation, JackknifeBootstrap, Split
-from nonconform.enums import Aggregation
+
 
 strategies = {
     'Split': Split(n_calib=0.2),
@@ -429,7 +437,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X_train)

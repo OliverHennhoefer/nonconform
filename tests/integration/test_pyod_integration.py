@@ -79,7 +79,6 @@ except Exception:  # pragma: no cover - optional dependency missing
 
 
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
 
 DetectorCase = namedtuple(
     "DetectorCase", "name factory expects_random_state expects_n_jobs"
@@ -94,7 +93,7 @@ def _split_detector(detector, *, score_polarity="auto"):
     return ConformalDetector(
         detector=detector,
         strategy=Split(n_calib=0.2),
-        aggregation=Aggregation.MEAN,
+        aggregation="mean",
         score_polarity=score_polarity,
         seed=5,
     )
