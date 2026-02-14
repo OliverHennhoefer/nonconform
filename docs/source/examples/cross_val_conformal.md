@@ -9,7 +9,9 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, CrossValidation, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, CrossValidation
+
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()
@@ -30,13 +32,13 @@ cv_strategy = CrossValidation(k=5)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",  # options: "mean", "median", "minimum", "maximum"
     seed=42,
 )
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -48,18 +50,18 @@ print(f"Discoveries with FDR control: {discoveries.sum()}")
 
 ```python
 # Use plus mode to retain all fold models
-cv_plus_strategy = CrossValidation(k=5, plus=True)
+cv_plus_strategy = CrossValidation(k=5, mode="plus")
 
 detector_plus = ConformalDetector(
     detector=base_detector,
     strategy=cv_plus_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
 # Fit and predict with ensemble
 detector_plus.fit(X)
-p_values_plus = detector_plus.predict(X, raw=False)
+p_values_plus = detector_plus.compute_p_values(X)
 
 # Compare with FDR control
 cv_disc = false_discovery_control(p_values, method='bh') < 0.05
@@ -80,11 +82,11 @@ for n_folds in fold_options:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     results[f"{n_folds}-fold"] = disc.sum()
@@ -138,11 +140,11 @@ for seed in seeds:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=CrossValidation(k=5),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=seed,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     cv_results.append(disc.sum())
 
@@ -186,11 +188,11 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
 
     # Apply FDR control
     disc = false_discovery_control(p_vals, method='bh') < 0.05

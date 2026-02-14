@@ -12,7 +12,7 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **Example**: A p-value of 0.02 means only 2% of normal observations would have a score this extreme.
 
-**Classical vs. Randomized**: By default, `Empirical()` uses the classical discrete formula (p-values limited to multiples of $1/(n+1)$). For continuous p-values without this resolution floor, use `Empirical(randomize=True)`. Alternatively, `Probabilistic()` provides continuous p-values via KDE (trading finite-sample for asymptotic guarantees).
+**Classical vs. Randomized**: `Empirical()` defaults to `tie_break="classical"` (discrete p-values limited to multiples of $1/(n+1)$). Valid `tie_break` values are `"classical"` and `"randomized"` (or `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid. For continuous p-values without this resolution floor, use `Empirical(tie_break="randomized")`. Alternatively, `Probabilistic()` provides continuous p-values via KDE (trading finite-sample for asymptotic guarantees).
 
 ---
 

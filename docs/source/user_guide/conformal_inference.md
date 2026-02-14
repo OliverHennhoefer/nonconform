@@ -37,7 +37,8 @@ Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
 # Conformal approach - statistically valid p-values
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+
 from scipy.stats import false_discovery_control
 
 # Create conformal detector
@@ -45,15 +46,12 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
-# Fit on training data (includes automatic calibration)
-detector.fit(X_train)
-
-# Get valid p-values
-p_values = detector.predict(X_test, raw=False)
+# Fit on training data (includes automatic calibration) and get p-values
+p_values = detector.fit(X_train).compute_p_values(X_test)
 
 # Apply Benjamini-Hochberg FDR control
 fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
@@ -111,8 +109,14 @@ from nonconform import Empirical
 estimation = Empirical()
 
 # Randomized smoothing
-estimation = Empirical(randomize=True)
+estimation = Empirical(tie_break="randomized")
 ```
+
+!!! info "`Empirical` `tie_break` parameter"
+    - Default when omitted: `tie_break="classical"`
+    - Valid string values: `"classical"` and `"randomized"` (only)
+    - Enum equivalents: `TieBreakMode.CLASSICAL` and `TieBreakMode.RANDOMIZED`
+    - `None` is not a valid value
 
 !!! warning "Small Calibration Sets"
     With small calibration sets, randomized smoothing can produce anti-conservative p-values that may work against the nominal FDR level. Consider using the classical formula or the `Probabilistic()` estimator in such cases.
@@ -171,7 +175,8 @@ The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success d
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+
 
 # 1. Prepare your data
 X_train = load_normal_training_data()  # Normal data for training and calibration
@@ -185,15 +190,12 @@ strategy = Split(n_calib=0.2)  # 20% for calibration
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
-# 4. Fit detector (automatically handles train/calibration split)
-detector.fit(X_train)
-
-# 5. Get p-values for test data
-p_values = detector.predict(X_test, raw=False)
+# 4. Fit detector and get p-values
+p_values = detector.fit(X_train).compute_p_values(X_test)
 ```
 
 ### Understanding the Output
@@ -245,16 +247,25 @@ Uses all samples for both training and calibration:
 ```python
 from nonconform import CrossValidation
 
+
 # 5-fold cross-validation
 strategy = CrossValidation(k=5)
 
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
+
+!!! info "CrossValidation `mode` parameter"
+    `mode` controls model retention behavior (how many fitted models are kept for inference), not which statistical strategy is used.
+
+    - Default when omitted: `mode="plus"`
+    - Valid string values: `"plus"` and `"single_model"` (only)
+    - Enum equivalents: `ConformalMode.PLUS` and `ConformalMode.SINGLE_MODEL`
+    - `single_model` means "fit one final model after calibration" (it is not a separate Jackknife/CV method)
 
 ### 3. Jackknife+-after-Bootstrap (JaB+) Strategy
 
@@ -263,24 +274,33 @@ Provides robust estimates through resampling:
 ```python
 from nonconform import JackknifeBootstrap
 
+
 # 50 bootstrap samples
 strategy = JackknifeBootstrap(n_bootstraps=50)
 
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
+
+!!! info "JaB+ `mode` parameter"
+    `JackknifeBootstrap` uses the same `mode` options and defaults as `CrossValidation`:
+    - Default when omitted: `mode="plus"`
+    - Valid values: `"plus"` and `"single_model"` (or `ConformalMode.PLUS` / `ConformalMode.SINGLE_MODEL`)
 
 !!! info "Leave-One-Out (Jackknife)"
     For leave-one-out cross-validation, use the `CrossValidation.jackknife()` factory method which handles this automatically. Alternatively, use `CrossValidation(k=n)` where `n` is your dataset size.
 
     ```python
-    # Recommended: use factory method
-    strategy = CrossValidation.jackknife(plus=True)  # Jackknife+
-    strategy = CrossValidation.jackknife(plus=False)  # Standard Jackknife
+    # Default is mode="plus" (Jackknife+)
+    strategy = CrossValidation.jackknife()
+
+    # Explicit options (the only valid mode strings):
+    strategy = CrossValidation.jackknife(mode="plus")          # Jackknife+
+    strategy = CrossValidation.jackknife(mode="single_model")  # Standard Jackknife
     ```
 
 ## Common Pitfalls and Solutions
@@ -318,10 +338,10 @@ You can get both raw anomaly scores and p-values:
 
 ```python
 # Get raw aggregated anomaly scores
-raw_scores = detector.predict(X_test, raw=True)
+raw_scores = detector.score_samples(X_test)
 
 # Get p-values
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Understand the relationship
 import matplotlib.pyplot as plt
@@ -332,6 +352,14 @@ plt.title('Score vs P-value Relationship')
 plt.show()
 ```
 
+For pandas-native workflows, outputs preserve the input index automatically:
+
+```python
+X_test_df = pd.DataFrame(X_test, index=my_index)
+p_values = detector.compute_p_values(X_test_df)   # pd.Series indexed like X_test_df
+raw_scores = detector.score_samples(X_test_df)    # pd.Series indexed like X_test_df
+```
+
 ### Aggregation Methods
 
 When using ensemble strategies, you can control how multiple model outputs are combined:
@@ -340,10 +368,11 @@ When using ensemble strategies, you can control how multiple model outputs are c
 # Different aggregation methods
 from scipy.stats import false_discovery_control
 
+
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -354,7 +383,7 @@ for agg_method in aggregation_methods:
         seed=42
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
 
     # Apply FDR control before counting discoveries
     adjusted = false_discovery_control(p_values, method='bh')
@@ -371,6 +400,7 @@ Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 ```python
 from typing import Any, Self
 import numpy as np
+
 
 class CustomDetector:
     """Custom anomaly detector implementing AnomalyDetector protocol."""
@@ -399,10 +429,22 @@ custom_detector = CustomDetector(random_state=42)
 detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
+    score_polarity="higher_is_anomalous",
     seed=42
 )
 ```
+
+`score_polarity` controls how detector scores are interpreted before
+conformalization. Valid values are `"higher_is_anomalous"`,
+`"higher_is_normal"`, and `"auto"` (or omit it).
+
+If omitted, known sklearn normality detector families default to
+`"higher_is_normal"`, while PyOD and custom detectors outside recognized
+families default to `"higher_is_anomalous"`.
+
+Use `"auto"` for strict detector-family validation (raises for custom
+detectors outside recognized families).
 
 See [Detector Compatibility](detector_compatibility.md) for more details on implementing custom detectors.
 
@@ -416,6 +458,7 @@ Different strategies have different computational costs:
 import time
 from nonconform import CrossValidation, JackknifeBootstrap, Split
 
+
 strategies = {
     'Split': Split(n_calib=0.2),
     'Cross-Val (5-fold)': CrossValidation(k=5),
@@ -428,11 +471,11 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X_train)
-    p_values = detector.predict(X_test, raw=False)
+    p_values = detector.compute_p_values(X_test)
 
     # Apply FDR control
     adjusted = false_discovery_control(p_values, method='bh')
@@ -449,12 +492,13 @@ For large datasets, consider:
 ```python
 # Use batch processing for very large test sets
 import itertools
+import numpy as np
 
 def predict_in_batches(detector, X_test, batch_size=1000):
     all_p_values = []
 
     for batch in itertools.batched(X_test, batch_size):
-        batch_p_values = detector.predict(batch, raw=False)
+        batch_p_values = detector.compute_p_values(batch)
         all_p_values.extend(batch_p_values)
 
     return np.array(all_p_values)

@@ -18,13 +18,15 @@ Factory functions:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import numpy as np
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
@@ -106,11 +108,11 @@ class BaseWeightEstimator(ABC):
             Tuple of (calibration_weights, test_weights) as numpy arrays.
 
         Raises:
-            RuntimeError: If fit() has not been called.
+            NotFittedError: If fit() has not been called.
             ValueError: If only one of calibration_samples/test_samples is provided.
         """
         if not hasattr(self, "_is_fitted") or not self._is_fitted:
-            raise RuntimeError("Must call fit() before get_weights()")
+            raise NotFittedError("This weight estimator instance is not fitted yet.")
 
         if (calibration_samples is None) != (test_samples is None):
             raise ValueError(
@@ -451,9 +453,12 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 
     Args:
         base_estimator: Any BaseWeightEstimator instance.
-        n_bootstrap: Number of bootstrap iterations. Defaults to 100.
+        n_bootstraps: Number of bootstrap iterations. Defaults to 100.
         clip_quantile: Quantile for adaptive clipping. Use None to disable clipping.
             Defaults to 0.05.
+        scoring_mode: Weight scoring behavior after fit. Currently only
+            ``"frozen"`` is supported, meaning the estimator can only serve the
+            exact calibration/test batches used during fit(). Defaults to "frozen".
 
     References:
         Jin, Ying, and Emmanuel J. Candès. "Selection by Prediction with Conformal
@@ -463,12 +468,13 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     def __init__(
         self,
         base_estimator: BaseWeightEstimator,
-        n_bootstrap: int = 100,
+        n_bootstraps: int = 100,
         clip_quantile: float | None = 0.05,
+        scoring_mode: Literal["frozen"] = "frozen",
     ) -> None:
-        if n_bootstrap < 1:
+        if n_bootstraps < 1:
             raise ValueError(
-                f"n_bootstrap must be at least 1, got {n_bootstrap}. "
+                f"n_bootstraps must be at least 1, got {n_bootstraps}. "
                 f"Typical values are 50-200 for stable weight estimation."
             )
         if clip_quantile is not None and not (0 < clip_quantile < 0.5):
@@ -476,17 +482,42 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
                 f"clip_quantile must be in (0, 0.5), got {clip_quantile}. "
                 f"Common values are 0.05 (5th-95th percentiles) or 0.01."
             )
+        if scoring_mode != "frozen":
+            raise ValueError(
+                f"Unsupported scoring_mode {scoring_mode!r}. "
+                "BootstrapBaggedWeightEstimator currently supports only "
+                "scoring_mode='frozen'."
+            )
 
         self.base_estimator = base_estimator
-        self.n_bootstrap = n_bootstrap
+        self.n_bootstraps = n_bootstraps
         self.clip_quantile = clip_quantile
+        self.scoring_mode: Literal["frozen"] = scoring_mode
 
         # Seed inheritance attribute (set by ConformalDetector)
         self._seed: int | None = None
 
         self._w_calib: np.ndarray | None = None
         self._w_test: np.ndarray | None = None
+        self._calibration_signature: tuple[tuple[int, ...], str, str] | None = None
+        self._test_signature: tuple[tuple[int, ...], str, str] | None = None
         self._is_fitted = False
+
+    @staticmethod
+    def _sample_signature(samples: np.ndarray) -> tuple[tuple[int, ...], str, str]:
+        """Return a signature for exact in-process batch identity checks.
+
+        This is intentionally used for ``scoring_mode="frozen"`` comparisons
+        within the same runtime. It is not intended as a persisted/cross-platform
+        fingerprint because raw-byte digests can vary across different dtype
+        representations or byte orders.
+        """
+        contiguous = np.ascontiguousarray(samples)
+        digest = hashlib.blake2b(
+            contiguous.tobytes(),
+            digest_size=16,
+        ).hexdigest()
+        return contiguous.shape, str(contiguous.dtype), digest
 
     def fit(self, calibration_samples: np.ndarray, test_samples: np.ndarray) -> None:
         """Fit the bagged weight estimator with perfect instance coverage.
@@ -508,7 +539,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         if _bagged_logger.isEnabledFor(logging.INFO):
             _bagged_logger.info(
                 f"Bootstrap: n_calib={n_calib}, n_test={n_test}, "
-                f"sample_size={sample_size}, n_bootstrap={self.n_bootstrap}. "
+                f"sample_size={sample_size}, n_bootstraps={self.n_bootstraps}. "
                 f"Perfect coverage: all instances weighted in all iterations."
             )
 
@@ -517,9 +548,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         sum_log_weights_test = np.zeros(n_test)
 
         bootstrap_iterator = (
-            tqdm(range(self.n_bootstrap), desc="Weighting")
+            tqdm(range(self.n_bootstraps), desc="Weighting")
             if _bagged_logger.isEnabledFor(logging.INFO)
-            else range(self.n_bootstrap)
+            else range(self.n_bootstraps)
         )
 
         for i in bootstrap_iterator:
@@ -547,8 +578,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             sum_log_weights_test += np.log(w_t_all)
 
         # Geometric mean aggregation: exp(mean(log-weights))
-        w_calib_final = np.exp(sum_log_weights_calib / self.n_bootstrap)
-        w_test_final = np.exp(sum_log_weights_test / self.n_bootstrap)
+        w_calib_final = np.exp(sum_log_weights_calib / self.n_bootstraps)
+        w_test_final = np.exp(sum_log_weights_test / self.n_bootstraps)
 
         # Apply clipping after aggregation (use base class static method)
         clip_bounds = BaseWeightEstimator._compute_clip_bounds(
@@ -561,6 +592,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             clip_min, clip_max = clip_bounds
             self._w_calib = np.clip(w_calib_final, clip_min, clip_max)
             self._w_test = np.clip(w_test_final, clip_min, clip_max)
+
+        self._calibration_signature = self._sample_signature(calibration_samples)
+        self._test_signature = self._sample_signature(test_samples)
         self._is_fitted = True
 
     def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
@@ -570,20 +604,30 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     def _score_new_data(
         self, calibration_samples: np.ndarray, test_samples: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Bagged weights are tied to samples seen during fit().
+        """Score weights according to configured scoring_mode.
 
         Raises:
-            NotImplementedError: Bagged estimator cannot rescore new data.
+            NotImplementedError: ``scoring_mode='frozen'`` cannot rescore new data.
         """
+        requested_calibration_signature = self._sample_signature(calibration_samples)
+        requested_test_signature = self._sample_signature(test_samples)
         if (
-            calibration_samples.shape[0] != self._w_calib.shape[0]
-            or test_samples.shape[0] != self._w_test.shape[0]
+            requested_calibration_signature != self._calibration_signature
+            or requested_test_signature != self._test_signature
         ):
             raise NotImplementedError(
-                "BootstrapBaggedWeightEstimator cannot rescore new data. "
-                "Refit the estimator with the desired calibration/test samples."
+                "BootstrapBaggedWeightEstimator with scoring_mode='frozen' "
+                "cannot rescore new data. Refit the estimator with the desired "
+                "calibration/test samples."
             )
         return self._get_stored_weights()
+
+    @property
+    def supports_rescoring(self) -> bool:
+        """Whether this estimator can score arbitrary new batches after fit()."""
+        return {
+            "frozen": False,
+        }[self.scoring_mode]
 
     @property
     def weight_counts(self) -> str:
@@ -591,7 +635,7 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         if not self._is_fitted:
             return "Not fitted yet"
         return (
-            f"Bootstrap iterations: {self.n_bootstrap}\n"
+            f"Bootstrap iterations: {self.n_bootstraps}\n"
             f"Calibration instances: {len(self._w_calib)}\n"
             f"Test instances: {len(self._w_test)}"
         )

@@ -4,17 +4,21 @@ This module provides hyperparameter tuning for kernel density estimation
 and rule-of-thumb bandwidth selectors.
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import sys
 from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import optuna
-from KDEpy import FFTKDE
 from sklearn.model_selection import KFold, LeaveOneOut
 
 from .constants import Kernel
+
+if TYPE_CHECKING:
+    from KDEpy import FFTKDE
 
 # Statistical constants for bandwidth estimation
 # Scott (1992): h = 1.06 * sigma * n^(-1/5)
@@ -29,6 +33,30 @@ IQR_TO_STD_FACTOR = 1.349
 
 # Maximum ratio between bandwidth bounds to prevent extreme search ranges
 MAX_BANDWIDTH_RATIO = 1000
+
+
+def _require_optuna() -> Any:
+    """Import Optuna when tuning is requested."""
+    try:
+        import optuna
+    except ImportError as exc:
+        raise ImportError(
+            "KDE hyperparameter tuning requires Optuna. Install with: "
+            'pip install "nonconform[probabilistic]" or pip install optuna.'
+        ) from exc
+    return optuna
+
+
+def _require_kdepy_fftkde() -> type[FFTKDE]:
+    """Import FFTKDE only when KDE fitting is needed."""
+    try:
+        from KDEpy import FFTKDE
+    except ImportError as exc:
+        raise ImportError(
+            "Probabilistic estimation requires KDEpy. Install with: "
+            'pip install "nonconform[probabilistic]" or pip install KDEpy.'
+        ) from exc
+    return FFTKDE
 
 
 def _scott_bandwidth(data: np.ndarray) -> float:
@@ -145,6 +173,7 @@ def tune_kde_hyperparameters(
         }
 
     # Suppress Optuna's default output - route through project logger
+    optuna = _require_optuna()
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     logger = logging.getLogger("nonconform")
 
@@ -159,7 +188,7 @@ def tune_kde_hyperparameters(
                 params["kernel"] = kernel.value
             study.enqueue_trial(params)
 
-    def objective(trial: optuna.Trial) -> float:
+    def objective(trial: Any) -> float:
         if len(kernels) > 1:
             kernel_value = trial.suggest_categorical(
                 "kernel", [k.value for k in kernels]
@@ -179,7 +208,7 @@ def tune_kde_hyperparameters(
             calibration_set, kernel_enum, bandwidth, cv_folds, weights, seed
         )
 
-    def trial_callback(study: optuna.Study, trial: optuna.trial.FrozenTrial) -> None:
+    def trial_callback(study: Any, trial: Any) -> None:
         if logger.isEnabledFor(logging.INFO):
             kernel_val = trial.params.get("kernel", kernels[0].value)
             logger.info(
@@ -300,6 +329,7 @@ def _fit_kde(
     weights: np.ndarray | None = None,
 ) -> FFTKDE:
     """Fit FFTKDE model."""
+    fft_kde_cls = _require_kdepy_fftkde()
     data = data.ravel()
 
     # Sort data and weights together to maintain correspondence
@@ -310,7 +340,7 @@ def _fit_kde(
     else:
         data = np.sort(data)
 
-    kde = FFTKDE(kernel=kernel.value, bw=bandwidth)
+    kde = fft_kde_cls(kernel=kernel.value, bw=bandwidth)
     if weights is not None:
         kde.fit(data, weights=weights)
     else:

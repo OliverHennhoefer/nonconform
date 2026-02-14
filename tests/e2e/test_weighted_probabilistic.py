@@ -15,11 +15,11 @@ from nonconform import (
     JackknifeBootstrap,
     Probabilistic,
     Split,
-    false_discovery_rate,
     logistic_weight_estimator,
-    statistical_power,
-    weighted_false_discovery_control,
 )
+from nonconform.enums import ConformalMode
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class TestWeightedProbabilistic:
@@ -43,7 +43,7 @@ class TestWeightedProbabilistic:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.105, decimal=2
@@ -58,14 +58,14 @@ class TestWeightedProbabilistic:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Probabilistic(n_trials=10),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
@@ -87,7 +87,7 @@ class TestWeightedProbabilistic:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.059, decimal=2

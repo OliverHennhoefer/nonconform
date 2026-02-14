@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from nonconform._internal import Pruning
-from nonconform.fdr import weighted_false_discovery_control
+from nonconform.fdr import weighted_false_discovery_control_empirical
 
 
 def _run_fdr_simulation(
@@ -57,8 +57,7 @@ def _run_fdr_simulation(
             test_weights = np.ones(n_test)
 
         # Apply WCS
-        discoveries_mask = weighted_false_discovery_control(
-            p_values=None,
+        discoveries_mask = weighted_false_discovery_control_empirical(
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,
@@ -101,8 +100,7 @@ class TestFDRControl:
         calib_weights = np.ones_like(calib_scores)
         test_weights = np.ones_like(test_scores)
 
-        first = weighted_false_discovery_control(
-            p_values=None,
+        first = weighted_false_discovery_control_empirical(
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,
@@ -111,8 +109,7 @@ class TestFDRControl:
             pruning=Pruning.HETEROGENEOUS,
             seed=123,
         )
-        second = weighted_false_discovery_control(
-            p_values=None,
+        second = weighted_false_discovery_control_empirical(
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,

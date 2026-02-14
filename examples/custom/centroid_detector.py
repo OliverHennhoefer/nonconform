@@ -2,7 +2,8 @@ import numpy as np
 from oddball import Dataset, load
 from scipy.stats import false_discovery_control
 
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class CentroidDetector:
@@ -12,14 +13,14 @@ class CentroidDetector:
         self.random_state = random_state
         self._center = None
 
-    def fit(self, x):
+    def fit(self, x, y=None):
         self._center = x.mean(axis=0)
         return self
 
     def decision_function(self, x):
         return np.linalg.norm(x - self._center, axis=1)
 
-    def get_params(self):
+    def get_params(self, deep=True):
         return {"random_state": self.random_state}
 
     def set_params(self, **params):
@@ -33,11 +34,12 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 ce = ConformalDetector(
     detector=CentroidDetector(),
     strategy=Split(n_calib=1_000),
+    score_polarity="higher_is_anomalous",
     seed=1,
 )
 
 ce.fit(x_train)
-estimates = ce.predict(x_test)
+estimates = ce.compute_p_values(x_test)
 
 decisions = false_discovery_control(estimates, method="bh") <= 0.2
 

@@ -18,14 +18,19 @@ import math
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import copy, deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
 from tqdm import tqdm
 
-from nonconform._internal import Aggregation, ensure_numpy_array
+from nonconform._internal import (
+    BootstrapAggregationMethod,
+    ConformalMode,
+    ensure_numpy_array,
+    normalize_bootstrap_aggregation_method,
+)
 
 if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
@@ -33,6 +38,22 @@ if TYPE_CHECKING:
 # Module-level loggers for performance
 _crossval_logger = logging.getLogger("nonconform.resampling.crossval")
 _bootstrap_logger = logging.getLogger("nonconform.resampling.bootstrap")
+
+ConformalModeInput = ConformalMode | Literal["plus", "single_model"]
+
+
+def _normalize_mode(mode: ConformalModeInput) -> ConformalMode:
+    """Normalize user-facing mode inputs into ConformalMode enums."""
+    if isinstance(mode, ConformalMode):
+        return mode
+    if mode == "plus":
+        return ConformalMode.PLUS
+    if mode == "single_model":
+        return ConformalMode.SINGLE_MODEL
+    raise ValueError(
+        "mode must be one of {'plus', 'single_model'} or ConformalMode. "
+        f"Got {mode!r}."
+    )
 
 
 class BaseStrategy(abc.ABC):
@@ -43,19 +64,17 @@ class BaseStrategy(abc.ABC):
     calibration logic and define how calibration data is identified and used.
 
     Attributes:
-        _plus: A flag that may influence calibration behavior in subclasses.
+        _mode: Model retention mode controlling calibration/inference behavior.
     """
 
-    def __init__(self, plus: bool = True) -> None:
+    def __init__(self, mode: ConformalModeInput = "plus") -> None:
         """Initialize the base calibration strategy.
 
         Args:
-            plus: A flag that enables the "plus" variant which maintains
-                statistical validity by retaining calibration models for
-                inference. Strongly recommended for proper conformal guarantees.
-                Defaults to True.
+            mode: Model retention mode (`"plus"` or `"single_model"`).
+                Equivalent ``ConformalMode`` enum values are also accepted.
         """
-        self._plus: bool = plus
+        self._mode: ConformalMode = _normalize_mode(mode)
         self._calibration_ids: list[int] = []
 
     @abc.abstractmethod
@@ -203,7 +222,8 @@ class CrossValidation(BaseStrategy):
 
     Args:
         k: Number of folds. If None, uses leave-one-out (k=n at fit time).
-        plus: Whether to use ensemble mode. Strongly recommended. Defaults to True.
+        mode: Model retention mode (`"plus"` or `"single_model"`). Equivalent
+            ``ConformalMode`` values are accepted. Defaults to `"plus"`.
         shuffle: Whether to shuffle data before splitting. Defaults to True.
             Set to False for deterministic leave-one-out (Jackknife).
 
@@ -218,19 +238,25 @@ class CrossValidation(BaseStrategy):
     """
 
     def __init__(
-        self, k: int | None = 5, plus: bool = True, shuffle: bool = True
+        self,
+        k: int | None = 5,
+        mode: ConformalModeInput = "plus",
+        shuffle: bool = True,
     ) -> None:
-        super().__init__(plus)
+        super().__init__(mode)
+        if not isinstance(shuffle, bool):
+            raise TypeError(
+                f"shuffle must be a boolean value, got {type(shuffle).__name__}."
+            )
         self._k: int | None = k
-        self._plus: bool = plus
         self._shuffle: bool = shuffle
         self._is_jackknife = k is None
 
-        # Warn if plus=False
-        if not plus:
+        # Warn if using single-model mode
+        if self._mode is ConformalMode.SINGLE_MODEL:
             _crossval_logger.warning(
-                "Setting plus=False may compromise conformal validity. "
-                "The plus variant (plus=True) is recommended."
+                "Setting mode=ConformalMode.SINGLE_MODEL may compromise conformal "
+                "validity. mode=ConformalMode.PLUS is recommended."
             )
 
         self._detector_list: list[AnomalyDetector] = []
@@ -238,7 +264,7 @@ class CrossValidation(BaseStrategy):
         self._calibration_ids: list[int] = []
 
     @classmethod
-    def jackknife(cls, plus: bool = True) -> CrossValidation:
+    def jackknife(cls, mode: ConformalModeInput = "plus") -> CrossValidation:
         """Create Leave-One-Out cross-validation (deterministic, no shuffle).
 
         This factory method creates a Jackknife strategy, which is a special
@@ -246,7 +272,7 @@ class CrossValidation(BaseStrategy):
         left out exactly once for calibration.
 
         Args:
-            plus: Whether to use ensemble mode. Defaults to True.
+            mode: Model retention mode (`"plus"` or `"single_model"`).
 
         Returns:
             CrossValidation configured for leave-one-out.
@@ -257,7 +283,7 @@ class CrossValidation(BaseStrategy):
             detector_list, calib_scores = strategy.fit_calibrate(X, detector)
             ```
         """
-        return cls(k=None, plus=plus, shuffle=False)
+        return cls(k=None, mode=mode, shuffle=False)
 
     @ensure_numpy_array
     def fit_calibrate(
@@ -335,7 +361,7 @@ class CrossValidation(BaseStrategy):
                     pass  # Detector may not support random_state parameter
             model.fit(x[train_idx])
 
-            if self._plus:
+            if self._mode is ConformalMode.PLUS:
                 self._detector_list.append(deepcopy(model))
 
             fold_scores = model.decision_function(x[calib_idx])
@@ -344,7 +370,7 @@ class CrossValidation(BaseStrategy):
             self._calibration_set[calibration_offset:end_idx] = fold_scores
             calibration_offset += n_fold_samples
 
-        if not self._plus:
+        if self._mode is ConformalMode.SINGLE_MODEL:
             model = copy(detector_)
             if hasattr(model, "set_params"):
                 try:
@@ -367,9 +393,9 @@ class CrossValidation(BaseStrategy):
         return self._k
 
     @property
-    def plus(self) -> bool:
-        """Whether ensemble mode is enabled."""
-        return self._plus
+    def mode(self) -> Literal["plus", "single_model"]:
+        """User-facing model retention mode."""
+        return "plus" if self._mode is ConformalMode.PLUS else "single_model"
 
 
 def _train_bootstrap_model(
@@ -411,9 +437,10 @@ class JackknifeBootstrap(BaseStrategy):
 
     Args:
         n_bootstraps: Number of bootstrap iterations. Defaults to 100.
-        aggregation_method: How to aggregate OOB predictions (MEAN or MEDIAN).
-            Defaults to Aggregation.MEAN.
-        plus: Whether to use ensemble mode. Defaults to True.
+        aggregation_method: How to aggregate OOB predictions ("mean" or "median").
+            Defaults to "mean".
+        mode: Model retention mode (`"plus"` or `"single_model"`). Equivalent
+            ``ConformalMode`` values are accepted. Defaults to `"plus"`.
 
     References:
         Jin, Ying, and Emmanuel J. Candès. "Selection by Prediction with Conformal
@@ -423,10 +450,10 @@ class JackknifeBootstrap(BaseStrategy):
     def __init__(
         self,
         n_bootstraps: int = 100,
-        aggregation_method: Aggregation = Aggregation.MEAN,
-        plus: bool = True,
+        aggregation_method: BootstrapAggregationMethod = "mean",
+        mode: ConformalModeInput = "plus",
     ) -> None:
-        super().__init__(plus=plus)
+        super().__init__(mode=mode)
 
         if n_bootstraps < 2:
             exc = ValueError(
@@ -436,21 +463,20 @@ class JackknifeBootstrap(BaseStrategy):
             exc.add_note(f"Received n_bootstraps={n_bootstraps}, which is invalid.")
             raise exc
 
-        if aggregation_method not in [Aggregation.MEAN, Aggregation.MEDIAN]:
-            exc = ValueError(
-                f"aggregation_method must be Aggregation.MEAN or Aggregation.MEDIAN, "
-                f"got {aggregation_method}."
-            )
-            raise exc
+        normalized_aggregation_method = normalize_bootstrap_aggregation_method(
+            aggregation_method
+        )
 
-        if not plus:
+        if self._mode is ConformalMode.SINGLE_MODEL:
             _bootstrap_logger.warning(
-                "Setting plus=False may compromise conformal validity. "
-                "The plus variant (plus=True) is recommended."
+                "Setting mode=ConformalMode.SINGLE_MODEL may compromise conformal "
+                "validity. mode=ConformalMode.PLUS is recommended."
             )
 
         self._n_bootstraps: int = n_bootstraps
-        self._aggregation_method: Aggregation = aggregation_method
+        self._aggregation_method: BootstrapAggregationMethod = (
+            normalized_aggregation_method
+        )
 
         self._detector_list: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
@@ -522,7 +548,7 @@ class JackknifeBootstrap(BaseStrategy):
         self._calibration_set = oob_scores
         self._calibration_ids = list(range(n_samples))
 
-        if self._plus:
+        if self._mode is ConformalMode.PLUS:
             self._detector_list = self._bootstrap_models.copy()
         else:
             final_model = deepcopy(detector)
@@ -619,9 +645,9 @@ class JackknifeBootstrap(BaseStrategy):
             return np.nan
 
         match self._aggregation_method:
-            case Aggregation.MEAN:
+            case "mean":
                 return np.mean(predictions)
-            case Aggregation.MEDIAN:
+            case "median":
                 return np.median(predictions)
             case _:
                 raise ValueError(f"Unsupported aggregation: {self._aggregation_method}")
@@ -664,13 +690,12 @@ class JackknifeBootstrap(BaseStrategy):
         return self._n_bootstraps
 
     @property
-    def aggregation_method(self) -> Aggregation:
+    def aggregation_method(self) -> BootstrapAggregationMethod:
         """Aggregation method for OOB predictions."""
         return self._aggregation_method
 
 
 __all__ = [
-    "Aggregation",
     "BaseStrategy",
     "CrossValidation",
     "JackknifeBootstrap",

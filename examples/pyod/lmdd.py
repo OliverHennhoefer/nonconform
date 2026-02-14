@@ -4,7 +4,7 @@ from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
+x_train, x_test, y_test = load(Dataset.WBC, setup=True)
 
 ce = ConformalDetector(detector=LMDD(), strategy=Split(n_calib=0.1))
 

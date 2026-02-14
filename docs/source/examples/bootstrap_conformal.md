@@ -9,7 +9,8 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, JackknifeBootstrap
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()
@@ -30,13 +31,13 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -50,20 +51,20 @@ print(f"Discoveries with FDR control: {discoveries.sum()}")
 # Use plus mode to keep all bootstrap models for aggregation
 jab_plus_strategy = JackknifeBootstrap(
     n_bootstraps=100,
-    aggregation_method=Aggregation.MEDIAN,
-    plus=True
+    aggregation_method="median",
+    mode="plus"
 )
 
 detector_plus = ConformalDetector(
     detector=base_detector,
     strategy=jab_plus_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
 # Fit and predict with ensemble
 detector_plus.fit(X)
-p_values_plus = detector_plus.predict(X, raw=False)
+p_values_plus = detector_plus.compute_p_values(X)
 
 # Compare with FDR control
 jab_disc = false_discovery_control(p_values, method='bh') < 0.05
@@ -84,11 +85,11 @@ for n_bootstraps in bootstrap_counts:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     key = f"B={n_bootstraps}"
@@ -113,7 +114,7 @@ print(f"Statistical Power: {statistical_power(y=y_anomaly, y_hat=discoveries):.3
 
 ```python
 # Get raw scores for uncertainty analysis
-raw_scores = detector.predict(X, raw=True)
+raw_scores = detector.score_samples(X)
 
 # Analyze score distribution
 plt.figure(figsize=(12, 4))
@@ -126,7 +127,7 @@ plt.ylabel('Frequency')
 plt.title('Bootstrap Anomaly Score Distribution')
 
 # P-value calculation using final calibration set
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # P-value vs Score relationship
 plt.subplot(1, 3, 2)
@@ -143,11 +144,11 @@ for _ in range(10):
     det = ConformalDetector(
         detector=base_detector,
         strategy=JackknifeBootstrap(n_bootstraps=50),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=np.random.randint(1000)
     )
     det.fit(X)
-    p_vals = det.predict(X, raw=False)
+    p_vals = det.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     stability_results.append(disc.sum())
 
@@ -176,11 +177,11 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
     comparison_results[name] = {
         'discoveries': disc.sum(),

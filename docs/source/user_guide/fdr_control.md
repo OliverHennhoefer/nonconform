@@ -27,8 +27,18 @@ decisions = false_discovery_control(p_values, method='bh') < 0.05
 
 For weighted conformal p-values (covariate shift), use `weighted_false_discovery_control`:
 
+!!! note
+    `detector.last_result` is populated by the most recent `detector.compute_p_values(...)` call.
+    See [Weighted Conformal Selection](#weighted-conformal-selection) below for a complete runnable example.
+
 ```python
-from nonconform import weighted_false_discovery_control, Pruning
+# After creating and fitting a weighted detector:
+# detector = ConformalDetector(...)
+# detector.fit(X_train)
+# detector.compute_p_values(X_test)
+
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.enums import Pruning
 
 decisions = weighted_false_discovery_control(
     result=detector.last_result,
@@ -40,24 +50,73 @@ decisions = weighted_false_discovery_control(
 
 ---
 
+## Weighted FDR Entry Points
+
+Use these weighted FDR functions depending on the inputs you have available:
+
+- `weighted_false_discovery_control(result=...)`
+- `weighted_false_discovery_control_from_arrays(...)`
+- `weighted_false_discovery_control_empirical(...)`
+- `weighted_bh(p_values, alpha=...)`
+- `weighted_bh_from_result(result=...)`
+- `weighted_bh_empirical(...)`
+
+!!! warning "Strict validation for weighted inputs"
+    Weighted FDR routines fail fast on invalid inputs.
+    They now raise `ValueError` when:
+
+    - score/weight arrays are not 1D numeric arrays of matching lengths
+    - any score/weight/p-value contains non-finite values
+    - any weight is negative
+    - total calibration weight is not strictly positive
+    - `result.metadata["kde"]` is present but malformed
+      (missing keys, invalid shapes, non-monotone grid/CDF, or non-positive total weight)
+
+```python
+from nonconform.fdr import (
+    weighted_bh,
+    weighted_bh_from_result,
+    weighted_false_discovery_control_from_arrays,
+)
+
+# Strict BH from p-values
+bh_mask = weighted_bh(result.p_values, alpha=0.05)
+
+# Strict BH from cached result
+bh_mask_from_result = weighted_bh_from_result(result, alpha=0.05)
+
+# Strict WCS from explicit arrays
+wcs_mask = weighted_false_discovery_control_from_arrays(
+    p_values=result.p_values,
+    test_scores=result.test_scores,
+    calib_scores=result.calib_scores,
+    test_weights=result.test_weights,
+    calib_weights=result.calib_weights,
+    alpha=0.05,
+)
+```
+
+---
+
 ## Basic Usage
 
 ```python
 import numpy as np
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+
 from pyod.models.lof import LOF
 
 # Prepare detector and data
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 
 detector.fit(X_train)
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply Benjamini–Hochberg control at 5%
 adjusted_p_values = false_discovery_control(p_values, method="bh", alpha=0.05)
@@ -73,13 +132,9 @@ When calibration and test distributions differ, use Weighted Conformal Selection
 
 ```python
 import numpy as np
-from nonconform import (
-    ConformalDetector,
-    JackknifeBootstrap,
-    Pruning,
-    logistic_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, JackknifeBootstrap, logistic_weight_estimator
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 detector = ConformalDetector(
@@ -92,7 +147,7 @@ detector = ConformalDetector(
 detector.fit(X_train)
 
 # Weighted conformal selection reads all cached quantities from detector.last_result
-detector.predict(X_test, raw=False)
+detector.compute_p_values(X_test)
 
 selected = weighted_false_discovery_control(
     result=detector.last_result,
@@ -170,33 +225,39 @@ Use FDR control when:
 #### High-dimensional Anomaly Detection
 ```python
 # When analyzing many features independently
-n_features = X.shape[1]
+# Use disjoint train/test samples for valid conformal p-values
+X_train, X_test = ...  # same feature space, different samples
+n_features = X_train.shape[1]
 feature_p_values = []
 
 for i in range(n_features):
     # Analyze each feature separately
-    X_feature = X[:, [i]]
-    detector.fit(X_feature)
-    p_vals = detector.predict(X_feature, raw=False)
+    X_train_feature = X_train[:, [i]]
+    X_test_feature = X_test[:, [i]]
+    detector.fit(X_train_feature)
+    p_vals = detector.compute_p_values(X_test_feature)
     feature_p_values.extend(p_vals)
 
 # Apply FDR control across all features
-all_adjusted = false_discovery_control(feature_p_values, method='bh', alpha=0.05)
+all_adjusted = false_discovery_control(feature_p_values, method='bh')
+discoveries = all_adjusted < 0.05
 ```
 
 #### Multiple Time Series
 ```python
 # When analyzing multiple time series
-time_series_data = [ts1, ts2, ts3, ...]  # Multiple time series
+train_series = [ts1_train, ts2_train, ts3_train, ...]
+test_series = [ts1_test, ts2_test, ts3_test, ...]
 all_p_values = []
 
-for ts in time_series_data:
-    detector.fit(ts)
-    p_vals = detector.predict(ts, raw=False)
+for ts_train, ts_test in zip(train_series, test_series):
+    detector.fit(ts_train)
+    p_vals = detector.compute_p_values(ts_test)
     all_p_values.extend(p_vals)
 
 # Control FDR across all time series
-adjusted_p_vals = false_discovery_control(all_p_values, method='bh', alpha=0.05)
+adjusted_p_vals = false_discovery_control(all_p_values, method='bh')
+discoveries = adjusted_p_vals < 0.05
 ```
 
 ## Integration with Conformal Prediction
@@ -205,14 +266,9 @@ FDR control works naturally with conformal prediction p-values:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform import (
-    Aggregation,
-    ConformalDetector,
-    Pruning,
-    Split,
-    logistic_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.lof import LOF
 
 # Standard conformal detector: use scipy for FDR control
@@ -222,12 +278,12 @@ strategy = Split(n_calib=0.2)
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 standard_detector.fit(X_train)
 standard_mask = false_discovery_control(
-    standard_detector.predict(X_test, raw=False),
+    standard_detector.compute_p_values(X_test),
     method="bh",
     alpha=0.05,
 ) < 0.05
@@ -236,13 +292,13 @@ standard_mask = false_discovery_control(
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
 weighted_detector.fit(X_train)
 
-weighted_detector.predict(X_test, raw=False)
+weighted_detector.compute_p_values(X_test)
 weighted_mask = weighted_false_discovery_control(
     result=weighted_detector.last_result,
     alpha=0.05,
@@ -260,7 +316,7 @@ Evaluate the effectiveness of FDR control using nonconform's built-in metrics:
 
 ```python
 from scipy.stats import false_discovery_control
-from nonconform import false_discovery_rate, statistical_power
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     """Evaluate FDR control performance."""
@@ -310,7 +366,7 @@ adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=adjusted_
 # Track FDR control performance over time
 fdr_history = []
 for batch in data_batches:
-    p_vals = detector.predict(batch, raw=False)
+    p_vals = detector.compute_p_values(batch)
     adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
     discoveries = adj_p_vals < 0.05
 
@@ -341,7 +397,8 @@ from scipy.stats import combine_pvalues, false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.knn import KNN
 from pyod.models.ocsvm import OCSVM
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+
 
 # Get p-values from multiple detectors
 detectors = [LOF(), KNN(), OCSVM()]
@@ -352,11 +409,11 @@ for base_detector in detectors:
     conf_detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     conf_detector.fit(X_train)
-    p_vals = conf_detector.predict(X_test, raw=False)
+    p_vals = conf_detector.compute_p_values(X_test)
     p_values_list.append(p_vals)
 
 # Combine p-values using Fisher's method
@@ -394,7 +451,7 @@ def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
 
     for batch in data_stream:
         # Get p-values for current batch
-        p_values = detector.predict(batch, raw=False)
+        p_values = detector.compute_p_values(batch)
 
         # Apply online FDR control
         for p_val in p_values:

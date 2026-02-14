@@ -77,7 +77,7 @@ detector = ConformalDetector(
     seed=42
 )
 detector.fit(X_train)
-p_values = detector.predict(X_test)
+p_values = detector.compute_p_values(X_test)
 ```
 
 ### Automatic Configuration
@@ -131,11 +131,12 @@ from nonconform import ConformalDetector, Split
 detector = ConformalDetector(
     detector=MahalanobisDetector(random_state=42),
     strategy=Split(n_calib=0.3),
+    score_polarity="higher_is_anomalous",  # explicit for clarity; also the default
     seed=42
 )
 ```
 
-See `examples/custom_detector.py` for a complete working example.
+See `examples/custom/centroid_detector.py` for a complete working example.
 
 ## Scikit-learn Detectors
 
@@ -148,11 +149,18 @@ from nonconform import ConformalDetector, Split
 detector = ConformalDetector(
     detector=OneClassSVM(kernel="rbf", nu=0.05),
     strategy=Split(n_calib=0.3),
+    score_polarity="auto",
     seed=42
 )
 ```
 
-> **Note:** `decision_function` must return higher scores for more anomalous samples. Some sklearn detectors use the opposite convention.
+If you omit `score_polarity`, nonconform defaults to:
+- `"higher_is_normal"` for known sklearn normality detectors
+- `"higher_is_anomalous"` for PyOD detectors and custom detectors outside
+  recognized PyOD/known-sklearn families
+
+`score_polarity="auto"` is strict and raises for custom estimators outside
+recognized PyOD/known-sklearn families.
 
 ## Troubleshooting
 
@@ -174,7 +182,16 @@ Install PyOD: `pip install nonconform[pyod]`
 
 ### Score Direction
 
-Ensure your `decision_function` returns scores where **higher values = more anomalous**. This is the convention nonconform expects for computing p-values.
+nonconform computes p-values using **higher scores = more anomalous** internally.
+
+- Use `score_polarity="higher_is_anomalous"` when your detector already follows
+  that convention.
+- Use `score_polarity="higher_is_normal"` when larger scores mean more normal.
+- Omit `score_polarity` for convenience defaults (automatic handling for known
+  sklearn normality detector families, plus custom-detector fallback to
+  anomalous-higher).
+- Use `score_polarity="auto"` for strict detector-family validation (raises on
+  custom estimators outside recognized PyOD/known-sklearn families).
 
 ### Copyability
 

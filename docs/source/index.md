@@ -2,60 +2,62 @@
 
 **Turn anomaly scores into statistically valid decisions.**
 
-Traditional anomaly detectors output scores and require you to pick an arbitrary threshold. How do you know if a score of -0.5 really means "anomaly"? nonconform solves this by converting raw scores into **p-values**—probabilities that tell you how likely an observation is to be normal. Combined with **False Discovery Rate (FDR) control**, you get principled anomaly detection with mathematical guarantees on your error rates.
+Traditional anomaly detectors output scores and require arbitrary thresholds.
+nonconform converts raw scores to conformal p-values and supports principled
+False Discovery Rate (FDR) control for final decisions.
 
 ## The Problem
 
 ```python
-# Traditional approach - arbitrary thresholds, no statistical guarantees
+# Traditional approach: arbitrary threshold, no formal error control
 scores = detector.decision_function(X_test)
-anomalies = scores > 0.5  # Why 0.5? What's my false positive rate?
+anomalies = scores > 0.5
 ```
 
 ## The Solution
 
 ```python
-from nonconform import ConformalDetector, Split
-from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
+from sklearn.ensemble import IsolationForest
 
-# Wrap any anomaly detector with nonconform
-detector = ConformalDetector(IForest(), Split())
+from nonconform import ConformalDetector, Split
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(),
+    score_polarity="auto",
+)
 detector.fit(X_train)
 
-# Get p-values instead of arbitrary scores
-p_values = detector.predict(X_test)
-
-# Control false discovery rate at 5%
-decisions = false_discovery_control(p_values, method='bh') < 0.05
+p_values = detector.compute_p_values(X_test)
+discoveries = false_discovery_control(p_values, method="bh") < 0.05
 ```
-
-With nonconform, you know that among all the points you flag as anomalies, at most 5% will be false positives—guaranteed by statistical theory, not guesswork.
 
 ## When to Use nonconform
 
 Use this library when you need:
 
-- **Statistical guarantees** on your anomaly detection results
-- **Principled thresholds** instead of arbitrary cutoffs
-- **Multiple testing correction** when evaluating many observations
-- **Calibrated uncertainty** for downstream decision-making
+- Statistical guarantees on anomaly decisions
+- Principled thresholds instead of ad hoc cutoffs
+- Multiple testing correction
+- Calibrated uncertainty for downstream workflows
 
 ## Quick Links
 
-- [Installation](installation.md) – Get started in minutes
-- [Quick Start](quickstart.md) – Learn the basics with working examples
-- [User Guide](user_guide/index.md) – Comprehensive documentation
-- [Examples](examples/index.md) – Practical tutorials
-- [API Reference](api/index.md) – Complete API documentation
+- [Installation](installation.md)
+- [Quick Start](quickstart.md)
+- [User Guide](user_guide/index.md)
+- [Examples](examples/index.md)
+- [Common API Workflows](api/common_workflows.md)
+- [API Reference](api/index.md)
 
 ## Key Features
 
-- **Conformal Inference**: Distribution-free uncertainty quantification with finite-sample guarantees
-- **Detector Agnostic**: Works with PyOD, scikit-learn, or any custom detector
-- **Multiple Strategies**: Split, CrossValidation, Jackknife+, and Bootstrap methods
-- **FDR Control**: Control false discovery rates when testing many observations
-- **Weighted Conformal**: Handle distribution shift between training and test data
+- Conformal inference with finite-sample guarantees
+- Detector agnostic design (PyOD, scikit-learn, custom detectors)
+- Multiple calibration strategies (Split, CV, Jackknife+ variants)
+- FDR and weighted FDR workflows
+- Covariate-shift handling via weighted conformal methods
 
 ## Installation
 
@@ -69,6 +71,4 @@ Use this library when you need:
     uv add nonconform
     ```
 
-## Next Steps
-
-Ready to get started? Head to the [Quick Start guide](quickstart.md) to see nonconform in action.
+Ready to start? Continue with the [Quick Start guide](quickstart.md).

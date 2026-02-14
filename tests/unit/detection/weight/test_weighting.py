@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -140,7 +141,7 @@ def _simple_data(n_calib: int = 6, n_test: int = 4) -> tuple[np.ndarray, np.ndar
 class TestBaseWeightEstimatorHelpers:
     def test_get_weights_requires_fit(self):
         estimator = IdentityWeightEstimator()
-        with pytest.raises(RuntimeError):
+        with pytest.raises(NotFittedError):
             estimator.get_weights()
 
     def test_get_weights_requires_matching_inputs(self):
@@ -334,15 +335,23 @@ class TestSklearnWeightEstimator:
 class TestBootstrapBaggedWeightEstimator:
     def test_invalid_constructor_args_raise(self):
         with pytest.raises(ValueError):
-            BootstrapBaggedWeightEstimator(IdentityWeightEstimator(), n_bootstrap=0)
+            BootstrapBaggedWeightEstimator(IdentityWeightEstimator(), n_bootstraps=0)
         with pytest.raises(ValueError):
             BootstrapBaggedWeightEstimator(
-                IdentityWeightEstimator(), n_bootstrap=2, clip_quantile=0.5
+                IdentityWeightEstimator(), n_bootstraps=2, clip_quantile=0.5
+            )
+        with pytest.raises(TypeError):
+            BootstrapBaggedWeightEstimator(IdentityWeightEstimator(), n_bootstrap=2)
+        with pytest.raises(ValueError, match="scoring_mode"):
+            BootstrapBaggedWeightEstimator(
+                IdentityWeightEstimator(),
+                n_bootstraps=2,
+                scoring_mode="rescore",  # type: ignore[arg-type]
             )
 
     def test_fit_requires_nonempty_calibration(self):
         bagged = BootstrapBaggedWeightEstimator(
-            IdentityWeightEstimator(), n_bootstrap=2
+            IdentityWeightEstimator(), n_bootstraps=2
         )
         with pytest.raises(ValueError):
             bagged.fit(np.empty((0, 2)), np.ones((2, 2)))
@@ -351,22 +360,33 @@ class TestBootstrapBaggedWeightEstimator:
         recorder: list[tuple[int, int]] = []
         base = RecordingWeightEstimator(recorder)
         bagged = BootstrapBaggedWeightEstimator(
-            base_estimator=base, n_bootstrap=3, clip_quantile=None
+            base_estimator=base, n_bootstraps=3, clip_quantile=None
         )
         bagged.fit(np.ones((5, 2)), np.ones((3, 2)))
         assert recorder == [(3, 3), (3, 3), (3, 3)]
 
     def test_score_new_data_shape_mismatch_raises(self):
         bagged = BootstrapBaggedWeightEstimator(
-            base_estimator=IdentityWeightEstimator(), n_bootstrap=2
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
         )
         bagged.fit(np.ones((4, 1)), np.ones((2, 1)))
         with pytest.raises(NotImplementedError):
             bagged.get_weights(np.ones((5, 1)), np.ones((2, 1)))
 
+    def test_score_new_data_value_mismatch_raises(self):
+        """Frozen scoring mode rejects new samples even when shapes match."""
+        bagged = BootstrapBaggedWeightEstimator(
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
+        )
+        calib = np.ones((4, 1))
+        test = np.ones((2, 1))
+        bagged.fit(calib, test)
+        with pytest.raises(NotImplementedError, match="scoring_mode='frozen'"):
+            bagged.get_weights(calib * 2.0, test * 3.0)
+
     def test_weight_counts_and_copy(self):
         bagged = BootstrapBaggedWeightEstimator(
-            base_estimator=IdentityWeightEstimator(), n_bootstrap=2
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
         )
         bagged.fit(np.ones((3, 1)), np.ones((3, 1)))
         w_calib, _ = bagged.get_weights()
@@ -378,11 +398,18 @@ class TestBootstrapBaggedWeightEstimator:
         assert "Calibration instances: 3" in info
         assert "Test instances: 3" in info
 
+    def test_scoring_mode_api_surface(self):
+        bagged = BootstrapBaggedWeightEstimator(
+            base_estimator=IdentityWeightEstimator(), n_bootstraps=2
+        )
+        assert bagged.scoring_mode == "frozen"
+        assert bagged.supports_rescoring is False
+
     def test_geometric_mean_aggregation_and_clipping(self):
         base = DeterministicWeightEstimator()
         bagged = BootstrapBaggedWeightEstimator(
             base_estimator=base,
-            n_bootstrap=3,
+            n_bootstraps=3,
             clip_quantile=0.2,
         )
         bagged.set_seed(7)

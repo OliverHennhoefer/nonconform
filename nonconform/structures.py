@@ -16,6 +16,13 @@ from typing import Any, Protocol, Self, runtime_checkable
 import numpy as np
 
 
+def _array_summary(arr: np.ndarray | None) -> str:
+    """Return compact summary for ndarray fields."""
+    if arr is None:
+        return "None"
+    return f"array(shape={arr.shape}, dtype={arr.dtype})"
+
+
 @runtime_checkable
 class AnomalyDetector(Protocol):
     """Protocol defining the interface for anomaly detectors.
@@ -116,7 +123,8 @@ class ConformalResult:
 
     Examples:
         ```python
-        result = detector.predict(X_test)
+        p_values = detector.compute_p_values(X_test)
+        result = detector.last_result
         print(result.p_values)  # Access p-values
         print(result.metadata)  # Access optional metadata
         ```
@@ -128,6 +136,23 @@ class ConformalResult:
     test_weights: np.ndarray | None = None
     calib_weights: np.ndarray | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        """Return concise notebook-friendly result summary."""
+        metadata_keys = sorted(self.metadata.keys())
+        if len(metadata_keys) > 5:
+            metadata_repr = f"{metadata_keys[:5]}... (total={len(metadata_keys)})"
+        else:
+            metadata_repr = str(metadata_keys)
+        return (
+            "ConformalResult("
+            f"p_values={_array_summary(self.p_values)}, "
+            f"test_scores={_array_summary(self.test_scores)}, "
+            f"calib_scores={_array_summary(self.calib_scores)}, "
+            f"test_weights={_array_summary(self.test_weights)}, "
+            f"calib_weights={_array_summary(self.calib_weights)}, "
+            f"metadata_keys={metadata_repr})"
+        )
 
     def copy(self) -> ConformalResult:
         """Return a copy with arrays and metadata fully duplicated.

@@ -4,43 +4,34 @@ Common issues and solutions for nonconform.
 
 ## Common Issues and Solutions
 
-### 1. ImportError: Cannot import DetectorConfig
+### 1. ImportError: Cannot import symbols from nonconform
 
-**Problem**: Getting import errors when trying to use DetectorConfig.
+**Problem**: Getting import errors for detector or strategy classes.
 
-**Solution**: DetectorConfig has been removed. Use direct parameters instead:
+**Solution**: Import public classes from the package root:
 
 ```python
-# Old API (deprecated)
-# from nonconform.detection.configuration import DetectorConfig
-# config=DetectorConfig(alpha=0.1)
+from nonconform import ConformalDetector, Split, CrossValidation, JackknifeBootstrap
 
-# New API
-from nonconform import Aggregation, ConformalDetector, Split
 from pyod.models.lof import LOF
 
 detector = ConformalDetector(
     detector=LOF(),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 ```
 
-### 2. AttributeError: predict() has no parameter 'output'
+### 2. AttributeError: `ConformalDetector` has no method `predict`
 
-**Problem**: Using the old output parameter in predict() method.
+**Problem**: Calling methods or parameters that are not part of the detector interface.
 
-**Solution**: Replace `output` with `raw` parameter:
+**Solution**: Use `compute_p_values(...)` for conformal p-values and `score_samples(...)` for raw detector scores:
 
 ```python
-# Old API (deprecated)
-p_values = detector.predict(X, output="p-value")
-scores = detector.predict(X, output="score")
-
-# New API
-p_values = detector.predict(X, raw=False)  # Get p-values
-scores = detector.predict(X, raw=True)     # Get raw scores
+p_values = detector.compute_p_values(X)  # Conformal p-values
+scores = detector.score_samples(X)       # Raw anomaly scores
 ```
 
 ### 3. Memory Issues
@@ -60,7 +51,7 @@ def process_in_batches(detector, X, batch_size=1000):
     """Process large datasets in batches."""
     results = []
     for batch in itertools.batched(X, batch_size):
-        batch_results = detector.predict(batch, raw=False)
+        batch_results = detector.compute_p_values(batch)
         results.extend(batch_results)
     return np.array(results)
 ```
@@ -85,7 +76,7 @@ detector.fit(X_train)
 fit_time = time.time() - start_time
 
 start_time = time.time()
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 predict_time = time.time() - start_time
 
 print(f"Fit time: {fit_time:.2f}s, Predict time: {predict_time:.2f}s")
@@ -124,7 +115,7 @@ def validate_p_values(p_values):
 
 **Solutions**:
 - Increase the calibration set size
-- Use a more conservative α level for FDR control
+- Use a more conservative alpha level for FDR control
 - Consider using weighted conformal p-values if there's covariate shift
 - Try different detectors
 - Check for data quality issues
@@ -148,7 +139,7 @@ if y_true is not None:
 **Problem**: Missing too many anomalies.
 
 **Solutions**:
-- Use less conservative α levels
+- Use less conservative alpha levels
 - Use more powerful detectors
 - Consider using ensemble methods
 - Try different conformal strategies (e.g., bootstrap, cross-validation)
@@ -168,11 +159,11 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     detector.fit(X_train)
-    p_vals = detector.predict(X_test, raw=False)
+    p_vals = detector.compute_p_values(X_test)
     adjusted = false_discovery_control(p_vals, method='bh')
     detections = (adjusted < 0.05).sum()
     print(f"{name}: {detections} discoveries")
@@ -180,15 +171,11 @@ for name, strategy in strategies.items():
 
 ### 8. Strategy Import Issues
 
-**Problem**: Cannot import strategy classes with old import paths.
+**Problem**: Cannot import strategy classes.
 
 **Solution**: Import all strategies from the package root:
 
 ```python
-# Old imports (deprecated)
-# from nonconform.strategy import Split, Jackknife, Bootstrap
-
-# New imports - use package root
 from nonconform import Split, CrossValidation, JackknifeBootstrap
 ```
 
@@ -197,17 +184,16 @@ from nonconform import Split, CrossValidation, JackknifeBootstrap
     - `CrossValidation` - K-fold cross-validation (use high k for leave-one-out)
     - `JackknifeBootstrap` - Jackknife+-after-Bootstrap (JaB+)
 
-### 9. Parameter Name Changes
+### 9. Invalid Strategy Parameters
 
-**Problem**: Using old parameter names that have been renamed.
+**Problem**: Passing unsupported keyword arguments to strategy constructors.
 
-**Solution**: Update parameter names:
+**Solution**: Use the supported constructor parameters:
 
 ```python
-# Old parameter names → New parameter names
-Split(calibration_size=0.2)     # → Split(n_calib=0.2)
-CrossValidation(n_splits=5)     # → CrossValidation(k=5)
-JackknifeBootstrap(...)         # → JackknifeBootstrap(n_bootstraps=50)
+Split(n_calib=0.2)
+CrossValidation(k=5)
+JackknifeBootstrap(n_bootstraps=50)
 ```
 
 ### 10. Integration Issues
@@ -216,18 +202,21 @@ JackknifeBootstrap(...)         # → JackknifeBootstrap(n_bootstraps=50)
 
 **Solutions**:
 - Ensure your detector implements the AnomalyDetector protocol (fit, decision_function, get_params, set_params)
-- Check for version compatibility
 - Verify that the detector's output format matches expectations
-- Use the correct aggregation enum values
+- Use a valid aggregation string (`"mean"`, `"median"`, `"minimum"`, `"maximum"`)
+- Use `score_polarity` to define score direction before conformalization.
+- Valid `score_polarity` values are `"higher_is_anomalous"`, `"higher_is_normal"`, and `"auto"` (or omit it).
+- If omitted, known sklearn normality detector families default to `"higher_is_normal"`, while PyOD and custom detectors outside recognized families default to `"higher_is_anomalous"`.
+- Set `score_polarity` explicitly for custom detectors when you want deterministic behavior; use `"auto"` for strict family validation.
 
 ```python
-from nonconform import Aggregation
 
-# Correct usage of aggregation enums
+# Correct usage of aggregation strings
 detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,  # Not "median"
+    aggregation="median",
+    score_polarity="higher_is_anomalous",
     seed=42
 )
 ```
@@ -245,7 +234,7 @@ logging.getLogger('nonconform').setLevel(logging.INFO)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -257,8 +246,8 @@ logging.getLogger('nonconform').setLevel(logging.DEBUG)
 
 ```python
 # Get raw scores before p-value conversion
-raw_scores = detector.predict(X_test, raw=True)
-p_values = detector.predict(X_test, raw=False)
+raw_scores = detector.score_samples(X_test)
+p_values = detector.compute_p_values(X_test)
 
 print(f"Raw scores range: [{raw_scores.min():.4f}, {raw_scores.max():.4f}]")
 print(f"P-values range: [{p_values.min():.4f}, {p_values.max():.4f}]")
@@ -319,7 +308,7 @@ def print_memory_usage(label=""):
 print_memory_usage("before fitting")
 detector.fit(X_train)
 print_memory_usage("after fitting")
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 print_memory_usage("after prediction")
 ```
 
@@ -376,7 +365,7 @@ def optimized_batch_processing(detector, X, batch_size=1000):
 
     start_idx = 0
     for i, batch in enumerate(itertools.batched(X, batch_size)):
-        batch_results = detector.predict(batch, raw=False)
+        batch_results = detector.compute_p_values(batch)
         end_idx = start_idx + len(batch)
         results[start_idx:end_idx] = batch_results
         start_idx = end_idx
@@ -422,36 +411,19 @@ fast_detectors = [
 
 If you encounter other issues:
 
-1. **Check the New API**: Ensure you're using the updated API with direct parameters instead of DetectorConfig
-2. **Update Import Statements**: Use the new module structure for strategy imports
-3. **Verify Parameter Names**: Check that parameter names match the new API
-4. **Check the [GitHub Issues](https://github.com/OliverHennhoefer/nonconform/issues)** for similar problems
-5. **Search the [Discussions](https://github.com/OliverHennhoefer/nonconform/discussions)** for solutions
-6. **Create a new issue** with:
-   - A minimal reproducible example using the new API
+1. **Verify imports**: Use package-root imports for detector and strategy classes
+2. **Verify parameters**: Ensure constructor argument names are valid
+3. **Check the [GitHub Issues](https://github.com/OliverHennhoefer/nonconform/issues)** for similar problems
+4. **Search the [Discussions](https://github.com/OliverHennhoefer/nonconform/discussions)** for solutions
+5. **Create a new issue** with:
+   - A minimal reproducible example
    - Expected vs actual behavior
    - System information (Python version, nonconform version, etc.)
    - Relevant error messages
-   - Whether you're migrating from the old API
-
-## Migration Checklist
-
-When migrating from older versions of nonconform:
-
-- [ ] Remove `DetectorConfig` imports and usage
-- [ ] Update detector initialization to use direct parameters
-- [ ] Change `output="p-value"` to `raw=False`
-- [ ] Change `output="score"` to `raw=True`
-- [ ] Update strategy imports to use new module structure
-- [ ] Replace old parameter names with new ones
-- [ ] Add FDR control using `scipy.stats.false_discovery_control`
-- [ ] Test with small datasets first
-- [ ] Update any custom code that depends on the old API
-- [ ] Replace `silent=True/False` with `verbose` (aggregation) and logging levels (strategy progress)
 
 ## Logging Configuration
 
-nonconform uses Python's standard logging framework to control progress bars and informational output, plus the `verbose` flag on `ConformalDetector` for aggregation progress. This provides more flexibility than the old `silent` parameter.
+nonconform uses Python's standard logging framework to control progress bars and informational output, plus the `verbose` flag on `ConformalDetector` for aggregation progress.
 
 ### Basic Logging Setup
 

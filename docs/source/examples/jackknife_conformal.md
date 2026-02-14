@@ -9,7 +9,13 @@ import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
-from nonconform import Aggregation, ConformalDetector, JackknifeBootstrap, Split, CrossValidation, false_discovery_rate, statistical_power
+from nonconform import (
+    ConformalDetector,
+    JackknifeBootstrap,
+    Split,
+    CrossValidation,
+)
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
 data = load_breast_cancer()
@@ -30,13 +36,13 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control (Benjamini-Hochberg)
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -69,11 +75,11 @@ for n_bootstraps in bootstrap_options:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
     disc = false_discovery_control(p_vals, method='bh') < 0.05
 
     results[f"{n_bootstraps} bootstraps"] = disc.sum()
@@ -99,13 +105,13 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
 
     start_time = time.time()
     detector.fit(X_subset)
-    _ = detector.predict(X_subset, raw=False)
+    _ = detector.compute_p_values(X_subset)
     end_time = time.time()
 
     timing_results[name] = end_time - start_time
@@ -129,11 +135,11 @@ for size in dataset_sizes:
     jab_detector = ConformalDetector(
         detector=base_detector,
         strategy=JackknifeBootstrap(n_bootstraps=50),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     jab_detector.fit(X_sample)
-    jab_p_values = jab_detector.predict(X_sample, raw=False)
+    jab_p_values = jab_detector.compute_p_values(X_sample)
     jab_disc = false_discovery_control(jab_p_values, method='bh') < 0.05
     jab_results.append(jab_disc.sum() / size)
 
@@ -141,11 +147,11 @@ for size in dataset_sizes:
     split_detector = ConformalDetector(
         detector=base_detector,
         strategy=Split(n_calib=0.2),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     split_detector.fit(X_sample)
-    split_p_values = split_detector.predict(X_sample, raw=False)
+    split_p_values = split_detector.compute_p_values(X_sample)
     split_disc = false_discovery_control(split_p_values, method='bh') < 0.05
     split_results.append(split_disc.sum() / size)
 
@@ -177,11 +183,11 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.predict(X, raw=False)
+    p_vals = detector.compute_p_values(X)
 
     # Apply FDR control
     disc = false_discovery_control(p_vals, method='bh') < 0.05

@@ -4,12 +4,45 @@ This module provides aggregation, metrics, and statistical utilities
 used throughout the package.
 """
 
+from typing import Literal, assert_never, cast, get_args
+
 import numpy as np
 
-from .constants import Aggregation
+AggregationMethod = Literal["mean", "median", "minimum", "maximum"]
+BootstrapAggregationMethod = Literal["mean", "median"]
+_AGGREGATION_METHODS = get_args(AggregationMethod)
+_BOOTSTRAP_AGGREGATION_METHODS = get_args(BootstrapAggregationMethod)
 
 
-def aggregate(method: Aggregation, scores: np.ndarray) -> np.ndarray:
+def normalize_aggregation_method(method: str) -> AggregationMethod:
+    """Normalize and validate a general aggregation method string."""
+    if not isinstance(method, str):
+        raise TypeError(
+            f"aggregation method must be a string, got {type(method).__name__}."
+        )
+    normalized = method.strip().lower()
+    if normalized not in _AGGREGATION_METHODS:
+        valid_methods = ", ".join(_AGGREGATION_METHODS)
+        raise ValueError(
+            f"Unsupported aggregation method: {method!r}. "
+            f"Valid methods are: {valid_methods}."
+        )
+    return cast(AggregationMethod, normalized)
+
+
+def normalize_bootstrap_aggregation_method(method: str) -> BootstrapAggregationMethod:
+    """Normalize and validate a bootstrap aggregation method string."""
+    normalized = normalize_aggregation_method(method)
+    if normalized not in _BOOTSTRAP_AGGREGATION_METHODS:
+        valid_methods = ", ".join(_BOOTSTRAP_AGGREGATION_METHODS)
+        raise ValueError(
+            f"Unsupported bootstrap aggregation method: {method!r}. "
+            f"Valid methods are: {valid_methods}."
+        )
+    return cast(BootstrapAggregationMethod, normalized)
+
+
+def aggregate(method: str, scores: np.ndarray) -> np.ndarray:
     """Aggregate anomaly scores using a specified method.
 
     Applies a chosen aggregation technique to a 2D array of anomaly scores,
@@ -30,24 +63,20 @@ def aggregate(method: Aggregation, scores: np.ndarray) -> np.ndarray:
 
     Examples:
         >>> scores = np.array([[1, 2, 3], [4, 5, 6]])
-        >>> aggregate(Aggregation.MEAN, scores)
+        >>> aggregate("mean", scores)
         array([2.5, 3.5, 4.5])
     """
-    match method:
-        case Aggregation.MEAN:
+    normalized = normalize_aggregation_method(method)
+    match normalized:
+        case "mean":
             return np.mean(scores, axis=0)
-        case Aggregation.MEDIAN:
+        case "median":
             return np.median(scores, axis=0)
-        case Aggregation.MINIMUM:
+        case "minimum":
             return np.min(scores, axis=0)
-        case Aggregation.MAXIMUM:
+        case "maximum":
             return np.max(scores, axis=0)
-        case _:
-            valid_methods = ", ".join([f"Aggregation.{a.name}" for a in Aggregation])
-            raise ValueError(
-                f"Unsupported aggregation method: {method}. "
-                f"Valid methods are: {valid_methods}."
-            )
+    assert_never(normalized)
 
 
 def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray) -> float:
@@ -120,7 +149,11 @@ def statistical_power(y: np.ndarray, y_hat: np.ndarray) -> float:
 
 
 __all__ = [
+    "AggregationMethod",
+    "BootstrapAggregationMethod",
     "aggregate",
     "false_discovery_rate",
+    "normalize_aggregation_method",
+    "normalize_bootstrap_aggregation_method",
     "statistical_power",
 ]

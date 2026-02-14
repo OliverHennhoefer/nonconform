@@ -109,7 +109,8 @@ accurate_detectors = {
 Use multiple detectors for robustness:
 
 ```python
-from nonconform import Aggregation, ConformalDetector, Split
+from nonconform import ConformalDetector, Split
+
 from scipy.stats import false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.iforest import IForest
@@ -131,11 +132,11 @@ for name, base_detector in detectors.items():
     conf_detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     conf_detector.fit(X_train)
-    p_values = conf_detector.predict(X_test, raw=False)
+    p_values = conf_detector.compute_p_values(X_test)
     all_p_values[name] = p_values
 
 # Combine results (simple approach: use minimum p-value)
@@ -187,10 +188,14 @@ Best for:
 - When you want to balance efficiency and power
 
 ```python
-from nonconform import JackknifeBootstrap
+from nonconform import ConformalDetector, JackknifeBootstrap
 
 # Balanced approach for medium datasets
 strategy = JackknifeBootstrap(n_bootstraps=50)
+
+# Optional: pass n_jobs through the main detector API
+detector = ConformalDetector(detector=base_detector, strategy=strategy, seed=42)
+detector.fit(X_train, n_jobs=-1)  # uses all available CPU cores
 ```
 
 ## Calibration Best Practices
@@ -328,7 +333,7 @@ class PerformanceMonitor:
         start_time = time.time()
         start_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
 
-        p_values = detector.predict(X_test, raw=False)
+        p_values = detector.compute_p_values(X_test)
 
         end_time = time.time()
         end_memory = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
@@ -425,7 +430,7 @@ class ScalableAnomalyDetector:
         all_p_values = []
 
         for batch in itertools.batched(X_test, self.batch_size):
-            batch_p_values = self.detector.predict(batch, raw=False)
+            batch_p_values = self.detector.compute_p_values(batch)
             all_p_values.extend(batch_p_values)
 
         return np.array(all_p_values)
@@ -437,16 +442,13 @@ class ScalableAnomalyDetector:
 
 ```python
 from dataclasses import dataclass
-from nonconform import Aggregation
-
-
 @dataclass
 class AnomalyDetectionConfig:
     """Configuration for anomaly detection pipeline."""
     alpha: float = 0.05
     calibration_size: float = 0.2  # Can be float (ratio) or int (absolute)
     detector_type: str = "iforest"
-    aggregation: Aggregation = Aggregation.MEDIAN
+    aggregation: str = "median"
     seed: int = 42
     verbose: bool = False
     batch_size: int = 1000
@@ -459,6 +461,13 @@ class AnomalyDetectionConfig:
 
         if isinstance(self.calibration_size, float) and not 0 < self.calibration_size < 1:
             raise ValueError("Calibration size ratio must be between 0 and 1")
+
+        self.aggregation = self.aggregation.strip().lower()
+        valid_aggregations = {"mean", "median", "minimum", "maximum"}
+        if self.aggregation not in valid_aggregations:
+            raise ValueError(
+                f"aggregation must be one of {sorted(valid_aggregations)}"
+            )
 ```
 
 ### 2. Complete Pipeline Implementation
@@ -536,7 +545,7 @@ class AnomalyDetectionPipeline:
             # Use batch processing for large datasets
             p_values = self._predict_batch(X_test)
         else:
-            p_values = self.detector.predict(X_test, raw=False)
+            p_values = self.detector.compute_p_values(X_test)
 
         # Apply FDR control
         discoveries, adjusted_p_values = apply_fdr_control(
@@ -582,7 +591,7 @@ config = AnomalyDetectionConfig(
     alpha=0.05,
     calibration_size=0.2,
     detector_type="iforest",
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     fdr_method='bh'
 )
 
@@ -597,35 +606,30 @@ print(f"Discoveries: {results['discoveries'].sum()}")
 print(f"Performance metrics: {results['metrics']}")
 ```
 
-This comprehensive approach ensures robust, scalable, and maintainable anomaly detection systems using the new nonconform API.
+This comprehensive approach ensures robust, scalable, and maintainable anomaly detection systems using nonconform.
 
 ## Special Case: Online/Streaming Detection with Small Batches
 
 For streaming anomaly detection where you process small batches against a large historical calibration set:
 
 ```python
-from nonconform import (
-    Aggregation,
-    BootstrapBaggedWeightEstimator,
-    ConformalDetector,
-    Pruning,
-    Split,
-    forest_weight_estimator,
-    weighted_false_discovery_control,
-)
+from nonconform import ConformalDetector, Split, forest_weight_estimator
+from nonconform.enums import Pruning
+from nonconform.weighting import BootstrapBaggedWeightEstimator
+from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 # Premium configuration for small-batch streaming
 weight_est = BootstrapBaggedWeightEstimator(
     base_estimator=forest_weight_estimator(n_estimators=50),
-    n_bootstrap=50,
+    n_bootstraps=50,
     clip_quantile=0.05,
 )
 
 detector = ConformalDetector(
     detector=IForest(),
     strategy=Split(n_calib=1000),  # Large historical calibration
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=weight_est,
     seed=42,
 )
@@ -635,7 +639,7 @@ detector.fit(X_historical)
 
 # Process small incoming batches (e.g., 10-50 samples)
 for X_batch in stream:
-    p_values = detector.predict(X_batch, raw=False)
+    p_values = detector.compute_p_values(X_batch)
 
     discoveries = weighted_false_discovery_control(
         result=detector.last_result,

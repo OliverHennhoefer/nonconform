@@ -103,7 +103,11 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 ```python
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import (
+    false_discovery_rate,
+    statistical_power,
+)
 
 # Create batch generator
 batch_gen = BatchGenerator(
@@ -126,7 +130,7 @@ detector.fit(x_train)
 batch_results = []
 for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     # Get p-values
-    p_values = detector.predict(x_batch)
+    p_values = detector.compute_p_values(x_batch)
 
     # Apply FDR control (Benjamini-Hochberg)
     adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -248,7 +252,7 @@ for contamination in contamination_levels:
     for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
         if i >= 4:  # Stop after 5 batches
             break
-        p_values = detector.predict(x_batch)
+        p_values = detector.compute_p_values(x_batch)
         adjusted_p_values = false_discovery_control(p_values, method='bh')
         decisions = adjusted_p_values < 0.05
 
@@ -342,7 +346,12 @@ except ValueError as e:
 ## Integration with FDR Control
 
 ```python
+from oddball import Dataset, load
+from oddball.generator import BatchGenerator
+from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Generate batches and apply FDR control
 batch_gen = BatchGenerator(
@@ -361,7 +370,7 @@ detector.fit(x_train)
 
 for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     # Get p-values
-    p_values = detector.predict(x_batch)
+    p_values = detector.compute_p_values(x_batch)
 
     # Apply Benjamini-Hochberg FDR control
     fdr_adjusted = false_discovery_control(p_values, method='bh')

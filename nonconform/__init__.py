@@ -25,7 +25,7 @@ Examples:
     >>> from nonconform import ConformalDetector, Split
     >>> detector = ConformalDetector(detector=IForest(), strategy=Split(n_calib=0.2))
     >>> detector.fit(X_train)
-    >>> p_values = detector.predict(X_test)
+    >>> p_values = detector.compute_p_values(X_test)
 
     Weighted conformal prediction:
 
@@ -41,21 +41,10 @@ __version__ = "0.98.4"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 
-# Core detector
-# Enums and Utilities
-# External adapters
-from nonconform.adapters import PYOD_AVAILABLE, PyODAdapter, adapt
-from nonconform.detector import BaseConformalDetector, ConformalDetector
-
-# FDR control
-from nonconform.fdr import (
-    weighted_bh,
-    weighted_false_discovery_control,
-)
+from nonconform.detector import ConformalDetector
 
 # Calibration strategies
 from nonconform.resampling import (
-    BaseStrategy,
     CrossValidation,
     JackknifeBootstrap,
     Split,
@@ -63,62 +52,23 @@ from nonconform.resampling import (
 
 # P-value estimation
 from nonconform.scoring import (
-    BaseEstimation,
     Empirical,
     Probabilistic,
 )
 
-# Data structures
-from nonconform.structures import AnomalyDetector, ConformalResult
-
 # Weight estimation
 from nonconform.weighting import (
-    BaseWeightEstimator,
-    BootstrapBaggedWeightEstimator,
-    IdentityWeightEstimator,
-    SklearnWeightEstimator,
     forest_weight_estimator,
     logistic_weight_estimator,
 )
 
-from ._internal import (
-    Aggregation,
-    Distribution,
-    Kernel,
-    Pruning,
-    aggregate,
-    false_discovery_rate,
-    statistical_power,
-)
-
-__all__ = [
-    "PYOD_AVAILABLE",
-    "Aggregation",
-    "AnomalyDetector",
-    "BaseConformalDetector",
-    "BaseEstimation",
-    "BaseStrategy",
-    "BaseWeightEstimator",
-    "BootstrapBaggedWeightEstimator",
+__all__ = [  # noqa: RUF022
     "ConformalDetector",
-    "ConformalResult",
-    "CrossValidation",
-    "Distribution",
-    "Empirical",
-    "IdentityWeightEstimator",
-    "JackknifeBootstrap",
-    "Kernel",
-    "Probabilistic",
-    "Pruning",
-    "PyODAdapter",
-    "SklearnWeightEstimator",
     "Split",
-    "adapt",
-    "aggregate",
-    "false_discovery_rate",
-    "forest_weight_estimator",
+    "CrossValidation",
+    "JackknifeBootstrap",
+    "Empirical",
+    "Probabilistic",
     "logistic_weight_estimator",
-    "statistical_power",
-    "weighted_bh",
-    "weighted_false_discovery_control",
+    "forest_weight_estimator",
 ]

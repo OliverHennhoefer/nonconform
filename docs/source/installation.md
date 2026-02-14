@@ -4,7 +4,11 @@
 
 - Python 3.12 or higher
 
-## Basic Installation
+## Installation Profiles
+
+Pick an installation profile based on how you want to get started.
+
+### 1. Core (minimal dependencies)
 
 === "pip"
     ```bash
@@ -16,7 +20,35 @@
     uv add nonconform
     ```
 
-This installs nonconform with its core dependencies (NumPy, SciPy, scikit-learn). You can use any scikit-learn compatible anomaly detector out of the box.
+This includes NumPy, SciPy, and scikit-learn.
+
+### 2. Anomaly-ready (recommended for most users)
+
+=== "pip"
+    ```bash
+    pip install "nonconform[pyod,data]"
+    ```
+
+=== "uv"
+    ```bash
+    uv add "nonconform[pyod,data]"
+    ```
+
+This adds:
+- PyOD detector zoo (`[pyod]`)
+- oddball benchmark datasets (`[data]`)
+
+### 3. Full installation
+
+=== "pip"
+    ```bash
+    pip install "nonconform[all]"
+    ```
+
+=== "uv"
+    ```bash
+    uv add "nonconform[all]"
+    ```
 
 ## Optional Dependencies
 
@@ -27,42 +59,15 @@ nonconform offers optional extras for specific use cases:
 | `[pyod]` | [PyOD](https://pyod.readthedocs.io/) library | Access to 40+ anomaly detection algorithms (Isolation Forest, LOF, KNN, etc.) |
 | `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) + PyArrow | Benchmark datasets for experimentation and testing |
 | `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Streaming/online FDR control for real-time applications |
+| `[probabilistic]` | [KDEpy](https://kdepy.readthedocs.io/) + [Optuna](https://optuna.org/) | KDE-based probabilistic p-values and optional hyperparameter tuning |
 | `[all]` | All of the above | Full functionality |
-
-### Installing Extras
-
-=== "pip"
-    ```bash
-    # Most common: PyOD detectors + benchmark datasets
-    pip install "nonconform[pyod,data]"
-
-    # Full installation with all extras
-    pip install "nonconform[all]"
-    ```
-
-=== "uv"
-    ```bash
-    # Most common: PyOD detectors + benchmark datasets
-    uv add "nonconform[pyod,data]"
-
-    # Full installation with all extras
-    uv add "nonconform[all]"
-    ```
 
 ### Which Extras Do You Need?
 
-**For most users**, we recommend:
-
-```bash
-pip install "nonconform[pyod,data]"
-```
-
-This gives you:
-
-- **PyOD**: A large library of anomaly detection algorithms. Most examples in the documentation use PyOD detectors.
-- **Data**: Benchmark datasets for experimentation. Useful for learning and testing before applying to your own data.
-
-**Add `[fdr]`** if you need:
+- Add `[pyod]` if you want a larger set of anomaly detectors.
+- Add `[data]` if you want oddball benchmark datasets.
+- Add `[probabilistic]` if you use `Probabilistic()` estimation and KDE tuning.
+- Add `[fdr]` if you need:
 
 - Real-time anomaly detection with streaming FDR control
 - Sequential testing over time

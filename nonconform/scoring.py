@@ -10,11 +10,45 @@ Classes:
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
-from ._internal import Kernel
+from ._internal import Kernel, TieBreakMode
+
+TieBreakModeInput = TieBreakMode | Literal["classical", "randomized"]
+
+
+def _normalize_tie_break_mode(tie_break: TieBreakModeInput) -> TieBreakMode:
+    """Normalize user-facing tie-break inputs into TieBreakMode enums."""
+    if isinstance(tie_break, TieBreakMode):
+        return tie_break
+    if tie_break == "classical":
+        return TieBreakMode.CLASSICAL
+    if tie_break == "randomized":
+        return TieBreakMode.RANDOMIZED
+    raise ValueError(
+        "tie_break must be one of {'classical', 'randomized'} or TieBreakMode. "
+        f"Got {tie_break!r}."
+    )
+
+
+def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
+    """Normalize array-like input into a 1D ndarray."""
+    arr = np.asarray(values)
+    if arr.ndim > 2 or (arr.ndim == 2 and 1 not in arr.shape):
+        raise ValueError(
+            f"{name} must be a 1D array (or shape (n, 1)/(1, n)), got {arr.shape}."
+        )
+    return arr.ravel()
+
+
+def _validate_finite(name: str, values: np.ndarray) -> None:
+    """Validate that values are finite."""
+    if values.size == 0:
+        return
+    if not np.all(np.isfinite(values)):
+        raise ValueError(f"{name} must be finite.")
 
 
 class BaseEstimation(ABC):
@@ -56,26 +90,26 @@ class BaseEstimation(ABC):
 class Empirical(BaseEstimation):
     """Classical empirical p-value estimation using discrete CDF.
 
-    Computes p-values using the standard empirical distribution by default.
-    Optionally supports randomized smoothing to eliminate the resolution floor
-    caused by discrete ties (Jin & Candes 2023).
+    Computes p-values using deterministic tie handling by default. Optionally
+    supports randomized smoothing to eliminate the resolution floor caused by
+    discrete ties (Jin & Candes 2023).
 
     Args:
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy (`"classical"` or `"randomized"`).
+            Equivalent `TieBreakMode` enum values are also accepted.
 
     Examples:
         ```python
-        estimation = Empirical()  # randomize=False by default
+        estimation = Empirical()  # tie_break="classical" by default
         p_values = estimation.compute_p_values(test_scores, calib_scores)
 
         # For randomized smoothing:
-        estimation = Empirical(randomize=True)
+        estimation = Empirical(tie_break="randomized")
         ```
     """
 
-    def __init__(self, randomize: bool = False) -> None:
-        self._randomize = randomize
+    def __init__(self, tie_break: TieBreakModeInput = "classical") -> None:
+        self._tie_break = _normalize_tie_break_mode(tie_break)
         self._seed: int | None = None
 
     def set_seed(self, seed: int | None) -> None:
@@ -89,7 +123,8 @@ class Empirical(BaseEstimation):
         weights: tuple[np.ndarray, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Compute empirical p-values from calibration set."""
-        rng = np.random.default_rng(self._seed) if self._randomize else None
+        randomized = self._tie_break is TieBreakMode.RANDOMIZED
+        rng = np.random.default_rng(self._seed) if randomized else None
         if weights is not None:
             return self._compute_weighted(scores, calibration_set, weights, rng)
         return self._compute_standard(scores, calibration_set, rng)
@@ -102,7 +137,7 @@ class Empirical(BaseEstimation):
     ) -> np.ndarray:
         """Standard conformal p-value computation."""
         return calculate_p_val(
-            scores, calibration_set, randomize=self._randomize, rng=rng
+            scores, calibration_set, tie_break=self._tie_break, rng=rng
         )
 
     def _compute_weighted(
@@ -119,7 +154,7 @@ class Empirical(BaseEstimation):
             calibration_set,
             w_scores,
             w_calib,
-            randomize=self._randomize,
+            tie_break=self._tie_break,
             rng=rng,
         )
 
@@ -128,34 +163,36 @@ class Empirical(BaseEstimation):
 def calculate_p_val(
     scores: np.ndarray,
     calibration_set: np.ndarray,
-    randomize: bool = False,
+    tie_break: TieBreakModeInput = "classical",
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate empirical p-values (standalone function).
 
-    Uses the classical non-randomized formula by default. Optionally supports
+    Uses classical deterministic tie handling by default. Optionally supports
     randomized smoothing to eliminate the resolution floor caused by discrete
     ties (Jin & Candes 2023).
 
     Args:
         scores: Test instance anomaly scores (1D array).
         calibration_set: Calibration anomaly scores (1D array).
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy for equal scores (`"classical"` or
+            `"randomized"`). Equivalent `TieBreakMode` values are accepted.
         rng: Optional random number generator for reproducibility.
 
     Returns:
         Array of p-values for each test instance.
     """
+    mode = _normalize_tie_break_mode(tie_break)
+
     sorted_cal = np.sort(calibration_set)
     n_cal = len(calibration_set)
 
-    if not randomize:
+    if mode is TieBreakMode.CLASSICAL:
         # Old formula: count >= (at or above)
         ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
         return (1.0 + ranks) / (1.0 + n_cal)
 
-    # Randomized (default): separate strictly greater and ties
+    # Randomized tie handling: separate strictly greater and ties
     pos_right = np.searchsorted(sorted_cal, scores, side="right")
     pos_left = np.searchsorted(sorted_cal, scores, side="left")
     n_greater = n_cal - pos_right  # strictly greater
@@ -173,12 +210,12 @@ def calculate_weighted_p_val(
     calibration_set: np.ndarray,
     test_weights: np.ndarray,
     calib_weights: np.ndarray,
-    randomize: bool = False,
+    tie_break: TieBreakModeInput = "classical",
     rng: np.random.Generator | None = None,
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
 
-    Uses the classical non-randomized formula by default. Optionally supports
+    Uses classical deterministic tie handling by default. Optionally supports
     randomized smoothing to eliminate the resolution floor caused by discrete
     ties (Jin & Candes 2023).
 
@@ -187,8 +224,8 @@ def calculate_weighted_p_val(
         calibration_set: Calibration anomaly scores (1D array).
         test_weights: Test instance weights (1D array).
         calib_weights: Calibration weights (1D array).
-        randomize: If True, use randomized tie-breaking with U~Unif[0,1].
-            If False (default), use the classical non-randomized formula.
+        tie_break: Tie-breaking strategy for equal scores (`"classical"` or
+            `"randomized"`). Equivalent `TieBreakMode` values are accepted.
         rng: Optional random number generator for reproducibility.
 
     Returns:
@@ -199,19 +236,19 @@ def calculate_weighted_p_val(
         lower bound of test_weights / (sum(calib_weights) + test_weights) when
         there is no calibration mass above the test score.
     """
+    mode = _normalize_tie_break_mode(tie_break)
 
-    def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
-        arr = np.asarray(values)
-        if arr.ndim > 2 or (arr.ndim == 2 and 1 not in arr.shape):
-            raise ValueError(
-                f"{name} must be a 1D array (or shape (n, 1)/(1, n)), got {arr.shape}."
-            )
-        return arr.ravel()
-
-    scores = _as_1d("scores", scores)
-    calibration_set = _as_1d("calibration_set", calibration_set)
-    w_scores = _as_1d("test_weights", test_weights)
-    w_calib = _as_1d("calib_weights", calib_weights)
+    try:
+        scores = _as_1d("scores", scores).astype(float, copy=False)
+        calibration_set = _as_1d("calibration_set", calibration_set).astype(
+            float, copy=False
+        )
+        w_scores = _as_1d("test_weights", test_weights).astype(float, copy=False)
+        w_calib = _as_1d("calib_weights", calib_weights).astype(float, copy=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "scores, calibration_set, test_weights, and calib_weights must be numeric."
+        ) from exc
 
     if len(scores) != len(w_scores):
         raise ValueError(
@@ -223,18 +260,28 @@ def calculate_weighted_p_val(
             "calibration_set and calib_weights must have the same length. "
             f"Got {len(calibration_set)} and {len(w_calib)}."
         )
+    _validate_finite("scores", scores)
+    _validate_finite("calibration_set", calibration_set)
+    _validate_finite("test_weights", w_scores)
+    _validate_finite("calib_weights", w_calib)
+    if np.any(w_scores < 0):
+        raise ValueError("test_weights must be non-negative.")
+    if np.any(w_calib < 0):
+        raise ValueError("calib_weights must be non-negative.")
 
     sort_idx = np.argsort(calibration_set)
     sorted_scores = calibration_set[sort_idx]
     sorted_weights = w_calib[sort_idx]
 
     cumulative_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
-    total_weight = cumulative_weights[-1]
+    total_weight = float(cumulative_weights[-1])
+    if total_weight <= 0:
+        raise ValueError("calib_weights must sum to a positive value.")
 
     left_idx = np.searchsorted(sorted_scores, scores, side="left")
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
-    if not randomize:
+    if mode is TieBreakMode.CLASSICAL:
         weighted_sum_ge = total_weight - cumulative_weights[left_idx]
         numerator = weighted_sum_ge + w_scores
     else:
@@ -248,12 +295,7 @@ def calculate_weighted_p_val(
         numerator = weighted_greater + (weighted_equal + w_scores) * u
 
     denominator = total_weight + w_scores
-    return np.divide(
-        numerator,
-        denominator,
-        out=np.zeros_like(numerator, dtype=np.float64),
-        where=denominator != 0,
-    )
+    return numerator / denominator
 
 
 class Probabilistic(BaseEstimation):
@@ -316,9 +358,9 @@ class Probabilistic(BaseEstimation):
         do not set a positive lower bound on p-values.
         """
         if weights is not None:
-            w_calib, w_test = weights
+            w_calib, _w_test = weights
         else:
-            w_calib, w_test = None, None
+            w_calib, _w_test = None, None
 
         if weights is None:
             current_hash = hash(calibration_set.tobytes())
@@ -335,20 +377,21 @@ class Probabilistic(BaseEstimation):
             else float(len(calibration_set))
         )
 
-        return self._compute_p_values_from_kde(scores, w_test, sum_calib_weight)
+        return self._compute_p_values_from_kde(scores, sum_calib_weight)
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None) -> None:
         """Fit KDE with automatic hyperparameter tuning."""
-        # Lazy import to avoid circular dependency
+        # Lazy import to avoid optional dependency fragility.
         try:
             from KDEpy import FFTKDE
-
-            from ._internal import tune_kde_hyperparameters
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "Probabilistic estimation requires KDEpy. "
-                "Install with: pip install nonconform[all]"
-            )
+                'Install with: pip install "nonconform[probabilistic]" '
+                'or pip install "nonconform[all]".'
+            ) from exc
+
+        from ._internal.tuning import tune_kde_hyperparameters
 
         calibration_set = calibration_set.ravel()
 
@@ -382,13 +425,12 @@ class Probabilistic(BaseEstimation):
     def _compute_p_values_from_kde(
         self,
         scores: np.ndarray,
-        w_test: np.ndarray | None,
         sum_calib_weight: float,
     ) -> np.ndarray:
         """Compute P(X >= score) from fitted KDE via numerical integration.
 
-        Note: The weighted path intentionally omits w_test from the formula so
-        p-values are not bounded below by w_test / (sum_calib_weight + w_test).
+        Note: In weighted mode, only calibration weights shape the KDE. The
+        returned p-values are the clipped survival probabilities.
         """
         from scipy import integrate
         from scipy.interpolate import interp1d
@@ -397,7 +439,13 @@ class Probabilistic(BaseEstimation):
         eval_grid, pdf_values = self._kde_model.evaluate(2**14)
 
         cdf_values = integrate.cumulative_trapezoid(pdf_values, eval_grid, initial=0)
-        cdf_values = cdf_values / cdf_values[-1]  # Normalize
+        normalizer = float(cdf_values[-1])
+        if not np.isfinite(normalizer) or normalizer <= 0.0:
+            raise ValueError(
+                "Computed KDE CDF normalization constant must be finite and positive."
+            )
+        cdf_values = cdf_values / normalizer
+        cdf_values = np.maximum.accumulate(cdf_values)
         cdf_values = np.clip(cdf_values, 0, 1)  # Safety clipping
 
         cdf_func = interp1d(
@@ -413,18 +461,7 @@ class Probabilistic(BaseEstimation):
         self._kde_cdf_values = cdf_values.copy()
         self._kde_total_weight = float(sum_calib_weight)
 
-        if w_test is None or sum_calib_weight <= 0:
-            return np.clip(survival, 0, 1)
-
-        weighted_mass_above = sum_calib_weight * survival
-        p_values = np.divide(
-            weighted_mass_above,
-            sum_calib_weight,
-            out=np.zeros_like(weighted_mass_above),
-            where=sum_calib_weight != 0,
-        )
-
-        return np.clip(p_values, 0, 1)
+        return np.clip(survival, 0, 1)
 
     def get_metadata(self) -> dict[str, Any]:
         """Return KDE metadata after p-value computation."""

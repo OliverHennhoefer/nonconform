@@ -16,11 +16,11 @@ from nonconform import (
     Empirical,
     JackknifeBootstrap,
     Split,
-    false_discovery_rate,
     logistic_weight_estimator,
-    statistical_power,
-    weighted_false_discovery_control,
 )
+from nonconform.enums import ConformalMode
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 
 class TestWeightedEmpirical:
@@ -43,13 +43,13 @@ class TestWeightedEmpirical:
         ce = ConformalDetector(
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
-            estimation=Empirical(randomize=False),
+            estimation=Empirical(tie_break="classical"),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         # WCS is conservative: 0 discoveries with this configuration
         np.testing.assert_array_almost_equal(
@@ -70,13 +70,13 @@ class TestWeightedEmpirical:
         ce = ConformalDetector(
             detector=HBOS(),
             strategy=Split(n_calib=1_000),
-            estimation=Empirical(randomize=True),
+            estimation=Empirical(tie_break="randomized"),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.1132, decimal=3
@@ -94,14 +94,14 @@ class TestWeightedEmpirical:
 
         ce = ConformalDetector(
             detector=IForest(),
-            strategy=CrossValidation.jackknife(plus=False),
+            strategy=CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL),
             estimation=Empirical(),
             weight_estimator=logistic_weight_estimator(),
             seed=1,
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
         # WCS is conservative with small calibration: 0 discoveries
         np.testing.assert_array_almost_equal(
@@ -124,7 +124,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.0714, decimal=3
@@ -146,7 +146,7 @@ class TestWeightedEmpirical:
         )
 
         ce.fit(x_train)
-        ce.predict(x_test)
+        ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         np.testing.assert_array_almost_equal(
             false_discovery_rate(y=y_test, y_hat=decisions), 0.205, decimal=2

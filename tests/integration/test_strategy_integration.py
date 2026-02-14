@@ -11,7 +11,6 @@ pytest.importorskip("pyod", reason="pyod not installed")
 from pyod.models.iforest import IForest
 
 from nonconform import (
-    Aggregation,
     ConformalDetector,
     CrossValidation,
     JackknifeBootstrap,
@@ -33,22 +32,22 @@ STRATEGY_CASES = [
     ),
     StrategyCase(
         "cross-validation-plus",
-        lambda: CrossValidation(k=3, plus=True),
+        lambda: CrossValidation(k=3, mode="plus"),
         lambda n: n,
     ),
     StrategyCase(
         "cross-validation-standard",
-        lambda: CrossValidation(k=3, plus=False),
+        lambda: CrossValidation(k=3, mode="single_model"),
         lambda n: n,
     ),
     StrategyCase(
         "jackknife",
-        lambda: CrossValidation.jackknife(plus=True),
+        lambda: CrossValidation.jackknife(mode="plus"),
         lambda n: n,
     ),
     StrategyCase(
         "jackknife-bootstrap",
-        lambda: JackknifeBootstrap(n_bootstraps=4, plus=True),
+        lambda: JackknifeBootstrap(n_bootstraps=4, mode="plus"),
         lambda n: n,
     ),
 ]
@@ -62,7 +61,7 @@ def _build_detector(strategy):
             random_state=0,
         ),
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=11,
     )
 
@@ -74,56 +73,58 @@ def test_strategies_generate_expected_calibration(simple_dataset, case):
 
     detector = _build_detector(case.factory())
     detector.fit(x_train)
-    detector.predict(x_test[:6])
+    detector.compute_p_values(x_test[:6])
 
     calibration = detector.calibration_set
     assert len(calibration) == case.expected_calib(len(x_train))
     assert np.isfinite(calibration).all()
 
 
-PlusCase = namedtuple("PlusCase", "name factory expected_models")
+ModeCase = namedtuple("ModeCase", "name factory expected_models")
 
-PLUS_CASES: tuple[PlusCase, ...] = (
-    PlusCase(
+MODE_CASES: tuple[ModeCase, ...] = (
+    ModeCase(
         "cross-validation",
-        lambda plus: CrossValidation(k=3, plus=plus),
-        lambda plus, _: 3 if plus else 1,
+        lambda mode: CrossValidation(k=3, mode=mode),
+        lambda mode, _: 3 if mode == "plus" else 1,
     ),
-    PlusCase(
+    ModeCase(
         "jackknife",
-        lambda plus: CrossValidation.jackknife(plus=plus),
-        lambda plus, n: n if plus else 1,
+        lambda mode: CrossValidation.jackknife(mode=mode),
+        lambda mode, n: n if mode == "plus" else 1,
     ),
-    PlusCase(
+    ModeCase(
         "jackknife-bootstrap",
-        lambda plus: JackknifeBootstrap(n_bootstraps=3, plus=plus),
-        lambda plus, _: 3 if plus else 1,
+        lambda mode: JackknifeBootstrap(n_bootstraps=3, mode=mode),
+        lambda mode, _: 3 if mode == "plus" else 1,
     ),
 )
 
 
-@pytest.mark.parametrize("case", PLUS_CASES, ids=lambda c: c.name)
-def test_plus_variants_change_model_count(simple_dataset, case):
-    """Plus variants should keep multiple trained detectors for ensembles."""
+@pytest.mark.parametrize("case", MODE_CASES, ids=lambda c: c.name)
+def test_mode_variants_change_model_count(simple_dataset, case):
+    """Mode selection should control how many trained detectors are retained."""
     x_train, x_test, _ = simple_dataset(n_train=30, n_test=10, n_features=3)
 
-    det_plus = _build_detector(case.factory(True))
+    det_plus = _build_detector(case.factory("plus"))
     det_plus.fit(x_train)
-    det_plus.predict(x_test[:4])
+    det_plus.compute_p_values(x_test[:4])
 
-    det_std = _build_detector(case.factory(False))
+    det_std = _build_detector(case.factory("single_model"))
     det_std.fit(x_train)
-    det_std.predict(x_test[:4])
+    det_std.compute_p_values(x_test[:4])
 
-    assert len(det_plus.detector_set) == case.expected_models(True, len(x_train))
-    assert len(det_std.detector_set) == case.expected_models(False, len(x_train))
+    assert len(det_plus.detector_set) == case.expected_models("plus", len(x_train))
+    assert len(det_std.detector_set) == case.expected_models(
+        "single_model", len(x_train)
+    )
 
 
 SeedCase = namedtuple("SeedCase", "name factory")
 
 SEED_CASES = (
     SeedCase("split", lambda: Split(n_calib=0.2)),
-    SeedCase("cross-validation", lambda: CrossValidation(k=4, plus=True)),
+    SeedCase("cross-validation", lambda: CrossValidation(k=4, mode="plus")),
     SeedCase("jackknife-bootstrap", lambda: JackknifeBootstrap(n_bootstraps=3)),
 )
 
@@ -139,7 +140,7 @@ def test_strategy_runs_are_reproducible(simple_dataset, case):
     det_one.fit(x_train)
     det_two.fit(x_train)
 
-    preds_one = det_one.predict(x_test)
-    preds_two = det_two.predict(x_test)
+    preds_one = det_one.compute_p_values(x_test)
+    preds_two = det_two.compute_p_values(x_test)
 
     np.testing.assert_allclose(preds_one, preds_two, atol=1e-8)

@@ -35,7 +35,7 @@ If you're new to conformal prediction, start here:
 | [Streaming Evaluation](streaming_evaluation.md) | Online evaluation for real-time detection |
 | [Best Practices](best_practices.md) | Production patterns, data preparation, and model selection |
 | [Logging](logging.md) | Configure progress bars and debug output |
-| [Troubleshooting](troubleshooting.md) | Solutions to common issues and migration from older versions |
+| [Troubleshooting](troubleshooting.md) | Solutions to common issues |
 
 ## Recommended Reading Order
 

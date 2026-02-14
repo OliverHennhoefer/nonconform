@@ -4,7 +4,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from nonconform import AnomalyDetector
+from nonconform.structures import AnomalyDetector
 
 
 class CompliantDetector:

@@ -9,10 +9,13 @@ import numpy as np
 from pyod.models.lof import LOF
 from oddball import Dataset, load
 from nonconform import (
-    Aggregation, ConformalDetector, Split, Pruning,
-    logistic_weight_estimator, weighted_false_discovery_control,
-    false_discovery_rate, statistical_power,
+    ConformalDetector,
+    Split,
+    logistic_weight_estimator,
 )
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
 X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
@@ -29,7 +32,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -39,7 +42,7 @@ detector.fit(X)
 
 # Get weighted p-values for test data
 # The detector automatically estimates importance weights internally
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply Weighted Conformal Selection (WCS) for FDR control
 discoveries = weighted_false_discovery_control(
@@ -53,6 +56,9 @@ print(f"Weighted p-values range: {p_values.min():.4f} - {p_values.max():.4f}")
 print(f"Discoveries with WCS (FDR control): {discoveries.sum()}")
 ```
 
+`aggregation` accepts: `"mean"`, `"median"`, `"minimum"`, `"maximum"`.
+Invalid values raise `ValueError`.
+
 ## Handling Distribution Shift
 
 ```python
@@ -64,7 +70,7 @@ X_shifted = X + np.random.normal(0, 0.1, X.shape)
 detector_shifted = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
@@ -73,7 +79,7 @@ detector_shifted = ConformalDetector(
 detector_shifted.fit(X)
 
 # Predict on shifted data
-p_values_shifted = detector_shifted.predict(X_shifted, raw=False)
+p_values_shifted = detector_shifted.compute_p_values(X_shifted)
 
 # Apply WCS for FDR control
 discoveries_shifted = weighted_false_discovery_control(
@@ -97,7 +103,7 @@ from scipy.stats import false_discovery_control
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -105,7 +111,7 @@ standard_detector = ConformalDetector(
 standard_detector.fit(X)
 
 # Compare on shifted data
-standard_p_values = standard_detector.predict(X_shifted, raw=False)
+standard_p_values = standard_detector.compute_p_values(X_shifted)
 
 # Apply FDR control to standard conformal (BH procedure)
 standard_disc = false_discovery_control(standard_p_values, method='bh') < 0.05
@@ -125,22 +131,22 @@ print(f"Weighted conformal discoveries (WCS): {discoveries_shifted.sum()}")
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 standard_detector.fit(X)
-standard_p_values = standard_detector.predict(X_test, raw=False)
+standard_p_values = standard_detector.compute_p_values(X_test)
 
 # Weighted conformal detector
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 weighted_detector.fit(X)
-weighted_p_values = weighted_detector.predict(X_test, raw=False)
+weighted_p_values = weighted_detector.compute_p_values(X_test)
 
 # Apply FDR control
 standard_disc_severe = false_discovery_control(standard_p_values, method='bh') < 0.05
@@ -166,7 +172,7 @@ print(f"Statistical Power (weighted): {statistical_power(y=y_test, y_hat=weighte
 
 # Re-run with proper FDR control
 detector.fit(X)
-_ = detector.predict(X_test, raw=False)
+_ = detector.compute_p_values(X_test)
 
 eval_discoveries = weighted_false_discovery_control(
     result=detector.last_result,
@@ -216,9 +222,10 @@ plt.show()
 ```python
 # Compare different aggregation methods for weighted conformal
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "minimum",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -230,7 +237,7 @@ for agg_method in aggregation_methods:
         seed=42
     )
     det.fit(X)
-    _ = det.predict(X_test, raw=False)
+    _ = det.compute_p_values(X_test)
 
     disc = weighted_false_discovery_control(
         result=det.last_result,
@@ -238,7 +245,7 @@ for agg_method in aggregation_methods:
         pruning=Pruning.DETERMINISTIC,
         seed=42,
     )
-    print(f"{agg_method.value} aggregation: {disc.sum()} discoveries")
+    print(f"{agg_method} aggregation: {disc.sum()} discoveries")
 ```
 
 ## JaB+ Strategy with Weighted Conformal
@@ -252,13 +259,13 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 weighted_jab_detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
 
 weighted_jab_detector.fit(X)
-_ = weighted_jab_detector.predict(X_test, raw=False)
+_ = weighted_jab_detector.compute_p_values(X_test)
 
 # Apply WCS for FDR control
 jab_discoveries = weighted_false_discovery_control(

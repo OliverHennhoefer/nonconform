@@ -34,7 +34,8 @@ pip install nonconform
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
@@ -44,9 +45,7 @@ detector = ConformalDetector(
     strategy=Split(n_calib=1_000),
     seed=42,
 )
-detector.fit(x_train)
-
-p_values = detector.predict(x_test)
+p_values = detector.fit(x_train).compute_p_values(x_test)
 decisions = false_discovery_control(p_values, method="bh") <= 0.2
 
 print(f"Empirical FDR: {false_discovery_rate(y_test, decisions)}")
@@ -95,7 +94,7 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Weighted procedures require weighted FDR control for statistical validity (see ``weighted_false_discovery_control()``). Note that ``weighted_bh()`` often offers greater statistical power but has no strict statistical guarantees.
+> **Note:** Weighted procedures require weighted FDR control for statistical validity (see `nonconform.fdr.weighted_false_discovery_control()`). Note that `nonconform.fdr.weighted_bh()` often offers greater statistical power but has no strict statistical guarantees.
 
 
 # Beyond Static Data
@@ -108,12 +107,21 @@ While primarily designed for static (single-batch) applications, the optional `o
 Any detector implementing the `AnomalyDetector` protocol works with nonconform:
 
 ```python
+from typing import Self
+
+import numpy as np
+
 class MyDetector:
     def fit(self, X, y=None) -> Self: ...
     def decision_function(self, X) -> np.ndarray: ...  # higher = more anomalous
     def get_params(self, deep=True) -> dict: ...
     def set_params(self, **params) -> Self: ...
 ```
+
+For custom detectors, either set `score_polarity` explicitly
+(`"higher_is_anomalous"` in most cases), or omit it to use the pre-release
+default behavior. Use `score_polarity="auto"` only when you want strict
+detector-family validation.
 
 See the [documentation](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
 
@@ -155,12 +163,25 @@ If you find this repository useful for your research, please cite the following 
 }
 ```
 
+##### Algorithmic Learning in a Random World
+```bibtex
+@book{Vovk2005,
+    title     = {Algorithmic Learning in a Random World},
+    author    = {Vladimir Vovk and Alex Gammerman and Glenn Shafer},
+    year      = {2005},
+    publisher = {Springer},
+    note      = {Springer, New York},
+    language  = {English}
+}
+```
+
 # Optional Dependencies
 
 _For additional features, you might need optional dependencies:_
 - `pip install nonconform[pyod]` - Includes PyOD anomaly detection library
 - `pip install nonconform[data]` - Includes oddball for loading benchmark datasets
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
+- `pip install nonconform[probabilistic]` - Includes KDEpy and Optuna for probabilistic estimation/tuning
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._

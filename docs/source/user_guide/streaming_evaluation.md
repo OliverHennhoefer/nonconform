@@ -70,7 +70,8 @@ for prop in proportions:
 ```python
 from pyod.models.iforest import IForest
 from onlinefdr import Alpha_investing
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Create online generator
 online_gen = OnlineGenerator(
@@ -99,7 +100,7 @@ running_metrics = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000)):
     # Get p-value for instance
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
 
     # Online FDR-controlled decision
     decision = online_fdr.run_single(p_value)
@@ -158,7 +159,7 @@ window_results = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     # Get prediction
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
 
     # Add to current window
     window_predictions.append(p_value)
@@ -234,7 +235,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
     instance_start = time.time()
 
     # Process instance with online FDR control
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
     decision = online_fdr.run_single(p_value)
 
     instance_end = time.time()
@@ -285,7 +286,7 @@ current_block_preds = []
 current_block_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500)):
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
 
     current_block_preds.append(p_value)
     current_block_labels.append(y_label)
@@ -363,7 +364,7 @@ online_decisions = []
 online_labels = []
 
 for x_instance, y_label in online_gen.generate(n_instances=600):
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
     decision = online_fdr_ctrl.run_single(p_value)
     online_decisions.append(decision)
     online_labels.append(y_label)
@@ -383,9 +384,10 @@ batch_gen = BatchGenerator(
 
 batch_fdrs = []
 batch_powers = []
+total_batch_anomalies = 0
 
 for x_batch, y_batch in batch_gen.generate():
-    p_values = detector.predict(x_batch)
+    p_values = detector.compute_p_values(x_batch)
     adjusted = false_discovery_control(p_values, method='bh')
     batch_decisions = adjusted < 0.05
 
@@ -394,6 +396,7 @@ for x_batch, y_batch in batch_gen.generate():
 
     batch_fdrs.append(batch_fdr)
     batch_powers.append(batch_power)
+    total_batch_anomalies += np.sum(y_batch)
 
 batch_mean_fdr = np.mean(batch_fdrs)
 batch_mean_power = np.mean(batch_powers)
@@ -407,7 +410,7 @@ print(f"  Total Anomalies: {sum(online_labels)}")
 print(f"Batch Processing:")
 print(f"  FDR: {batch_mean_fdr:.3f} ± {np.std(batch_fdrs):.3f}")
 print(f"  Power: {batch_mean_power:.3f} ± {np.std(batch_powers):.3f}")
-print(f"  Total Anomalies: {sum(sum(y_batch.values) for _, y_batch in batch_gen.generate())}")
+print(f"  Total Anomalies: {total_batch_anomalies}")
 ```
 
 ## Advanced Configuration
@@ -510,7 +513,7 @@ current_batch_p = []
 current_batch_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=500)):
-    p_value = detector.predict(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
 
     current_batch_p.append(p_value)
     current_batch_labels.append(y_label)

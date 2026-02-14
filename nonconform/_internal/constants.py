@@ -20,20 +20,18 @@ class Distribution(Enum):
     GRID = auto()
 
 
-class Aggregation(Enum):
-    """Aggregation functions for combining multiple model outputs or scores.
+class ScorePolarity(Enum):
+    """Score direction conventions for anomaly detectors.
 
     Attributes:
-        MEAN: Aggregate by calculating the arithmetic mean.
-        MEDIAN: Aggregate by calculating the median.
-        MINIMUM: Aggregate by selecting the minimum value.
-        MAXIMUM: Aggregate by selecting the maximum value.
+        AUTO: Infer polarity from known detector families.
+        HIGHER_IS_ANOMALOUS: Higher scores indicate more anomalous samples.
+        HIGHER_IS_NORMAL: Higher scores indicate more normal samples.
     """
 
-    MEAN = auto()
-    MEDIAN = auto()
-    MINIMUM = auto()
-    MAXIMUM = auto()
+    AUTO = auto()
+    HIGHER_IS_ANOMALOUS = auto()
+    HIGHER_IS_NORMAL = auto()
 
 
 class Pruning(Enum):
@@ -48,6 +46,30 @@ class Pruning(Enum):
     HETEROGENEOUS = auto()
     HOMOGENEOUS = auto()
     DETERMINISTIC = auto()
+
+
+class ConformalMode(Enum):
+    """Model retention modes for conformal resampling strategies.
+
+    Attributes:
+        PLUS: Keep all calibration-time models for inference (Jackknife+/CV+ style).
+        SINGLE_MODEL: Fit and retain one final model after calibration.
+    """
+
+    PLUS = "plus"
+    SINGLE_MODEL = "single_model"
+
+
+class TieBreakMode(Enum):
+    """Tie-breaking modes for empirical p-value estimation.
+
+    Attributes:
+        CLASSICAL: Deterministic empirical conformal formula.
+        RANDOMIZED: Randomized smoothing with uniform tie-breaking.
+    """
+
+    CLASSICAL = "classical"
+    RANDOMIZED = "randomized"
 
 
 class Kernel(Enum):
@@ -77,8 +99,10 @@ class Kernel(Enum):
 
 
 __all__ = [
-    "Aggregation",
+    "ConformalMode",
     "Distribution",
     "Kernel",
     "Pruning",
+    "ScorePolarity",
+    "TieBreakMode",
 ]

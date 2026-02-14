@@ -9,7 +9,10 @@ import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
 from oddball import Dataset, load
-from nonconform import Aggregation, ConformalDetector, Split, Pruning, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.enums import Pruning
+from nonconform.fdr import weighted_false_discovery_control
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
 X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
@@ -28,13 +31,13 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
 # Fit and get p-values
 detector.fit(X)
-p_values = detector.predict(X, raw=False)
+p_values = detector.compute_p_values(X)
 
 # Apply FDR control using scipy
 adjusted_p_values = false_discovery_control(p_values, method='bh')
@@ -68,8 +71,6 @@ print(f"No adjustment: {no_adjustment} detections")
 
 ```python
 from nonconform import JackknifeBootstrap, logistic_weight_estimator
-from nonconform import weighted_false_discovery_control
-from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
 # Load a dataset that exhibits covariate shift between calibration and test sets
@@ -78,7 +79,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 weighted_detector = ConformalDetector(
     detector=IForest(random_state=1),
     strategy=JackknifeBootstrap(n_bootstraps=50),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=1,
 )
@@ -86,7 +87,7 @@ weighted_detector = ConformalDetector(
 weighted_detector.fit(x_train)
 
 # Obtain weighted p-values, raw scores, and importance weights
-weighted_p_values = weighted_detector.predict(x_test, raw=False)
+weighted_p_values = weighted_detector.compute_p_values(x_test)
 
 # Weighted Conformal Selection controls the FDR under covariate shift
 wcs_mask = weighted_false_discovery_control(
@@ -95,7 +96,7 @@ wcs_mask = weighted_false_discovery_control(
     pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
-# detector.last_result bundles the scores/weights produced by predict()
+# detector.last_result bundles the scores/weights produced by compute_p_values()
 
 print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")
@@ -127,7 +128,7 @@ for alpha in fdr_levels:
 
 # Fit detector and get p-values
 detector.fit(X)  # Fit only on normal data
-p_values = detector.predict(X_test, raw=False)
+p_values = detector.compute_p_values(X_test)
 
 # Apply different FDR control levels
 fdr_levels = [0.05, 0.1, 0.15, 0.2]
@@ -168,11 +169,11 @@ for name, base_det in detectors.items():
     detector = ConformalDetector(
         detector=base_det,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     detector.fit(X)
-    p_vals = detector.predict(X_test, raw=False)
+    p_vals = detector.compute_p_values(X_test)
     all_p_values[name] = p_vals
 
 # Apply FDR control to each detector's p-values
@@ -291,11 +292,11 @@ power_results = {}
 detector = ConformalDetector(
     detector=LOF(contamination=0.1),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 detector.fit(X)
-p_vals = detector.predict(X_test, raw=False)
+p_vals = detector.compute_p_values(X_test)
 
 for alpha in alpha_levels:
     # Apply FDR control at different significance levels

@@ -9,11 +9,11 @@ from pyod.models.iforest import IForest
 from nonconform import (
     ConformalDetector,
     Empirical,
-    Kernel,
     Probabilistic,
     Split,
     logistic_weight_estimator,
 )
+from nonconform.enums import Kernel
 
 
 def _build_detector(estimation):
@@ -42,7 +42,7 @@ def test_estimation_methods_return_unit_interval(simple_dataset, name, factory):
     detector = _build_detector(factory())
 
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     assert p_values.shape == (len(x_test),)
     assert np.all((0.0 <= p_values) & (p_values <= 1.0))
@@ -62,8 +62,8 @@ def test_empirical_and_probabilistic_differ(simple_dataset):
     empirical.fit(x_train)
     probabilistic.fit(x_train)
 
-    emp_vals = empirical.predict(x_test)
-    prob_vals = probabilistic.predict(x_test)
+    emp_vals = empirical.compute_p_values(x_test)
+    prob_vals = probabilistic.compute_p_values(x_test)
 
     assert not np.allclose(emp_vals, prob_vals)
 
@@ -85,7 +85,7 @@ def test_weighted_estimation_populates_metadata(shifted_dataset, name, factory):
     )
 
     detector.fit(x_train)
-    detector.predict(x_test)
+    detector.compute_p_values(x_test)
 
     result = detector.last_result
     assert result is not None

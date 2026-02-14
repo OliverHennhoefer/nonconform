@@ -37,7 +37,7 @@ def test_weight_estimators_attach_weights(shifted_dataset, estimator_factory):
     detector = _build_weighted_detector(estimator)
 
     detector.fit(x_train)
-    p_values = detector.predict(x_test)
+    p_values = detector.compute_p_values(x_test)
 
     result = detector.last_result
     assert result is not None
@@ -66,8 +66,8 @@ def test_weighted_vs_unweighted_predictions_differ(shifted_dataset):
     weighted.fit(x_train)
     standard.fit(x_train)
 
-    weighted_p = weighted.predict(x_test)
-    standard_p = standard.predict(x_test)
+    weighted_p = weighted.compute_p_values(x_test)
+    standard_p = standard.compute_p_values(x_test)
 
     assert not np.allclose(weighted_p, standard_p)
 
@@ -79,7 +79,7 @@ def test_weight_clipping_bounds_propagate(shifted_dataset):
 
     x_train, x_test, _ = shifted_dataset(n_train=160, n_test=64, n_features=3)
     detector.fit(x_train)
-    detector.predict(x_test)
+    detector.compute_p_values(x_test)
 
     assert estimator._clip_bounds is not None
     lower, upper = estimator._clip_bounds
