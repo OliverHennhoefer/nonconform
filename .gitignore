@@ -30,7 +30,6 @@ CLAUDE.local.md
 .claudeignore
 
 # Codex
-AGENTS.md
 /.codex
 /.snippet_lint_tmp
 /.snippet_exec_tmp_userguide
