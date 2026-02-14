@@ -131,6 +131,7 @@ from nonconform import ConformalDetector, Split
 detector = ConformalDetector(
     detector=MahalanobisDetector(random_state=42),
     strategy=Split(n_calib=0.3),
+    score_polarity="higher_is_anomalous",  # explicit for clarity; also the default
     seed=42
 )
 ```
@@ -153,8 +154,13 @@ detector = ConformalDetector(
 )
 ```
 
-`score_polarity="auto"` handles known sklearn score direction conventions.
-For unknown custom estimators, set `score_polarity` explicitly.
+If you omit `score_polarity`, nonconform defaults to:
+- `"higher_is_normal"` for known sklearn normality detectors
+- `"higher_is_anomalous"` for PyOD detectors and custom detectors outside
+  recognized PyOD/known-sklearn families
+
+`score_polarity="auto"` is strict and raises for custom estimators outside
+recognized PyOD/known-sklearn families.
 
 ## Troubleshooting
 
@@ -181,8 +187,11 @@ nonconform computes p-values using **higher scores = more anomalous** internally
 - Use `score_polarity="higher_is_anomalous"` when your detector already follows
   that convention.
 - Use `score_polarity="higher_is_normal"` when larger scores mean more normal.
-- Use `score_polarity="auto"` for known detector families (PyOD and supported
-  sklearn estimators).
+- Omit `score_polarity` for convenience defaults (automatic handling for known
+  sklearn normality detector families, plus custom-detector fallback to
+  anomalous-higher).
+- Use `score_polarity="auto"` for strict detector-family validation (raises on
+  custom estimators outside recognized PyOD/known-sklearn families).
 
 ### Copyability
 

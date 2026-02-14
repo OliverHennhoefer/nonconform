@@ -28,8 +28,13 @@ CLAUDE.md
 CLAUDE.local.md
 .claude
 .claudeignore
+
+# Codex
 AGENTS.md
 /.codex
 /.snippet_lint_tmp
 /.snippet_exec_tmp_userguide
 /.snippet_exec_tmp
+
+# Miscellaneous
+anomaly_detection.log

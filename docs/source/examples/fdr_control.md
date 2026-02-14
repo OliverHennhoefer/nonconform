@@ -10,7 +10,7 @@ from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
 from oddball import Dataset, load
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -31,7 +31,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -79,7 +79,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 weighted_detector = ConformalDetector(
     detector=IForest(random_state=1),
     strategy=JackknifeBootstrap(n_bootstraps=50),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=1,
 )
@@ -169,7 +169,7 @@ for name, base_det in detectors.items():
     detector = ConformalDetector(
         detector=base_det,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42
     )
     detector.fit(X)
@@ -292,7 +292,7 @@ power_results = {}
 detector = ConformalDetector(
     detector=LOF(contamination=0.1),
     strategy=Split(n_calib=0.2),
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 detector.fit(X)

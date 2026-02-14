@@ -33,6 +33,24 @@ def _normalize_tie_break_mode(tie_break: TieBreakModeInput) -> TieBreakMode:
     )
 
 
+def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
+    """Normalize array-like input into a 1D ndarray."""
+    arr = np.asarray(values)
+    if arr.ndim > 2 or (arr.ndim == 2 and 1 not in arr.shape):
+        raise ValueError(
+            f"{name} must be a 1D array (or shape (n, 1)/(1, n)), got {arr.shape}."
+        )
+    return arr.ravel()
+
+
+def _validate_finite(name: str, values: np.ndarray) -> None:
+    """Validate that values are finite."""
+    if values.size == 0:
+        return
+    if not np.all(np.isfinite(values)):
+        raise ValueError(f"{name} must be finite.")
+
+
 class BaseEstimation(ABC):
     """Abstract base for p-value estimation strategies."""
 
@@ -220,18 +238,17 @@ def calculate_weighted_p_val(
     """
     mode = _normalize_tie_break_mode(tie_break)
 
-    def _as_1d(name: str, values: np.ndarray) -> np.ndarray:
-        arr = np.asarray(values)
-        if arr.ndim > 2 or (arr.ndim == 2 and 1 not in arr.shape):
-            raise ValueError(
-                f"{name} must be a 1D array (or shape (n, 1)/(1, n)), got {arr.shape}."
-            )
-        return arr.ravel()
-
-    scores = _as_1d("scores", scores)
-    calibration_set = _as_1d("calibration_set", calibration_set)
-    w_scores = _as_1d("test_weights", test_weights)
-    w_calib = _as_1d("calib_weights", calib_weights)
+    try:
+        scores = _as_1d("scores", scores).astype(float, copy=False)
+        calibration_set = _as_1d("calibration_set", calibration_set).astype(
+            float, copy=False
+        )
+        w_scores = _as_1d("test_weights", test_weights).astype(float, copy=False)
+        w_calib = _as_1d("calib_weights", calib_weights).astype(float, copy=False)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "scores, calibration_set, test_weights, and calib_weights must be numeric."
+        ) from exc
 
     if len(scores) != len(w_scores):
         raise ValueError(
@@ -243,13 +260,23 @@ def calculate_weighted_p_val(
             "calibration_set and calib_weights must have the same length. "
             f"Got {len(calibration_set)} and {len(w_calib)}."
         )
+    _validate_finite("scores", scores)
+    _validate_finite("calibration_set", calibration_set)
+    _validate_finite("test_weights", w_scores)
+    _validate_finite("calib_weights", w_calib)
+    if np.any(w_scores < 0):
+        raise ValueError("test_weights must be non-negative.")
+    if np.any(w_calib < 0):
+        raise ValueError("calib_weights must be non-negative.")
 
     sort_idx = np.argsort(calibration_set)
     sorted_scores = calibration_set[sort_idx]
     sorted_weights = w_calib[sort_idx]
 
     cumulative_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
-    total_weight = cumulative_weights[-1]
+    total_weight = float(cumulative_weights[-1])
+    if total_weight <= 0:
+        raise ValueError("calib_weights must sum to a positive value.")
 
     left_idx = np.searchsorted(sorted_scores, scores, side="left")
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
@@ -268,12 +295,7 @@ def calculate_weighted_p_val(
         numerator = weighted_greater + (weighted_equal + w_scores) * u
 
     denominator = total_weight + w_scores
-    return np.divide(
-        numerator,
-        denominator,
-        out=np.zeros_like(numerator, dtype=np.float64),
-        where=denominator != 0,
-    )
+    return numerator / denominator
 
 
 class Probabilistic(BaseEstimation):
@@ -336,9 +358,9 @@ class Probabilistic(BaseEstimation):
         do not set a positive lower bound on p-values.
         """
         if weights is not None:
-            w_calib, w_test = weights
+            w_calib, _w_test = weights
         else:
-            w_calib, w_test = None, None
+            w_calib, _w_test = None, None
 
         if weights is None:
             current_hash = hash(calibration_set.tobytes())
@@ -355,20 +377,21 @@ class Probabilistic(BaseEstimation):
             else float(len(calibration_set))
         )
 
-        return self._compute_p_values_from_kde(scores, w_test, sum_calib_weight)
+        return self._compute_p_values_from_kde(scores, sum_calib_weight)
 
     def _fit_kde(self, calibration_set: np.ndarray, weights: np.ndarray | None) -> None:
         """Fit KDE with automatic hyperparameter tuning."""
-        # Lazy import to avoid circular dependency
+        # Lazy import to avoid optional dependency fragility.
         try:
             from KDEpy import FFTKDE
-
-            from ._internal import tune_kde_hyperparameters
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "Probabilistic estimation requires KDEpy. "
-                "Install with: pip install nonconform[all]"
-            )
+                'Install with: pip install "nonconform[probabilistic]" '
+                'or pip install "nonconform[all]".'
+            ) from exc
+
+        from ._internal.tuning import tune_kde_hyperparameters
 
         calibration_set = calibration_set.ravel()
 
@@ -402,13 +425,12 @@ class Probabilistic(BaseEstimation):
     def _compute_p_values_from_kde(
         self,
         scores: np.ndarray,
-        w_test: np.ndarray | None,
         sum_calib_weight: float,
     ) -> np.ndarray:
         """Compute P(X >= score) from fitted KDE via numerical integration.
 
-        Note: The weighted path intentionally omits w_test from the formula so
-        p-values are not bounded below by w_test / (sum_calib_weight + w_test).
+        Note: In weighted mode, only calibration weights shape the KDE. The
+        returned p-values are the clipped survival probabilities.
         """
         from scipy import integrate
         from scipy.interpolate import interp1d
@@ -417,7 +439,13 @@ class Probabilistic(BaseEstimation):
         eval_grid, pdf_values = self._kde_model.evaluate(2**14)
 
         cdf_values = integrate.cumulative_trapezoid(pdf_values, eval_grid, initial=0)
-        cdf_values = cdf_values / cdf_values[-1]  # Normalize
+        normalizer = float(cdf_values[-1])
+        if not np.isfinite(normalizer) or normalizer <= 0.0:
+            raise ValueError(
+                "Computed KDE CDF normalization constant must be finite and positive."
+            )
+        cdf_values = cdf_values / normalizer
+        cdf_values = np.maximum.accumulate(cdf_values)
         cdf_values = np.clip(cdf_values, 0, 1)  # Safety clipping
 
         cdf_func = interp1d(
@@ -433,18 +461,7 @@ class Probabilistic(BaseEstimation):
         self._kde_cdf_values = cdf_values.copy()
         self._kde_total_weight = float(sum_calib_weight)
 
-        if w_test is None or sum_calib_weight <= 0:
-            return np.clip(survival, 0, 1)
-
-        weighted_mass_above = sum_calib_weight * survival
-        p_values = np.divide(
-            weighted_mass_above,
-            sum_calib_weight,
-            out=np.zeros_like(weighted_mass_above),
-            where=sum_calib_weight != 0,
-        )
-
-        return np.clip(p_values, 0, 1)
+        return np.clip(survival, 0, 1)
 
     def get_metadata(self) -> dict[str, Any]:
         """Return KDE metadata after p-value computation."""

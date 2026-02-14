@@ -10,7 +10,6 @@ from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
 from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, JackknifeBootstrap
-from nonconform.enums import Aggregation
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
@@ -32,7 +31,7 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -52,14 +51,14 @@ print(f"Discoveries with FDR control: {discoveries.sum()}")
 # Use plus mode to keep all bootstrap models for aggregation
 jab_plus_strategy = JackknifeBootstrap(
     n_bootstraps=100,
-    aggregation_method=Aggregation.MEDIAN,
+    aggregation_method="median",
     mode="plus"
 )
 
 detector_plus = ConformalDetector(
     detector=base_detector,
     strategy=jab_plus_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -86,7 +85,7 @@ for n_bootstraps in bootstrap_counts:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
@@ -145,7 +144,7 @@ for _ in range(10):
     det = ConformalDetector(
         detector=base_detector,
         strategy=JackknifeBootstrap(n_bootstraps=50),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=np.random.randint(1000)
     )
     det.fit(X)
@@ -178,7 +177,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)

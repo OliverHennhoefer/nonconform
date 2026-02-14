@@ -59,12 +59,14 @@ nonconform offers optional extras for specific use cases:
 | `[pyod]` | [PyOD](https://pyod.readthedocs.io/) library | Access to 40+ anomaly detection algorithms (Isolation Forest, LOF, KNN, etc.) |
 | `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) + PyArrow | Benchmark datasets for experimentation and testing |
 | `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Streaming/online FDR control for real-time applications |
+| `[probabilistic]` | [KDEpy](https://kdepy.readthedocs.io/) + [Optuna](https://optuna.org/) | KDE-based probabilistic p-values and optional hyperparameter tuning |
 | `[all]` | All of the above | Full functionality |
 
 ### Which Extras Do You Need?
 
 - Add `[pyod]` if you want a larger set of anomaly detectors.
 - Add `[data]` if you want oddball benchmark datasets.
+- Add `[probabilistic]` if you use `Probabilistic()` estimation and KDE tuning.
 - Add `[fdr]` if you need:
 
 - Real-time anomaly detection with streaming FDR control

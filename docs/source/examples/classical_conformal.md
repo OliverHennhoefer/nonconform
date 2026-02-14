@@ -9,7 +9,6 @@ import numpy as np
 from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Aggregation
 from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
 
@@ -29,7 +28,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -62,7 +61,7 @@ cv_strategy = CrossValidation(k=5)
 cv_detector = ConformalDetector(
     detector=base_detector,
     strategy=cv_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -84,9 +83,9 @@ print(f"Cross-validation detections: {(cv_fdr < 0.05).sum()}")
 ```python
 # Try different aggregation methods
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -101,7 +100,7 @@ for agg_method in aggregation_methods:
 
     # Apply FDR control
     fdr_controlled = false_discovery_control(p_vals, method='bh')
-    print(f"{agg_method.value} aggregation: {(fdr_controlled < 0.05).sum()} detections")
+    print(f"{agg_method} aggregation: {(fdr_controlled < 0.05).sum()} detections")
 ```
 
 ## Visualization

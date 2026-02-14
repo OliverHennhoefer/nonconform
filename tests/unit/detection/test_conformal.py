@@ -201,6 +201,23 @@ class TestConformalDetectorInit:
         )
         assert detector.score_polarity is ScorePolarity.HIGHER_IS_ANOMALOUS
 
+    def test_init_without_score_polarity_defaults_unknown_detector_to_anomalous(self):
+        """Omitted score_polarity defaults unknown detectors to anomalous-higher."""
+        detector = _ConformalDetector(
+            detector=MockDetector(),
+            strategy=Split(n_calib=0.2),
+        )
+        assert detector.score_polarity is ScorePolarity.HIGHER_IS_ANOMALOUS
+        assert detector.get_params(deep=False)["score_polarity"] is None
+
+    def test_init_without_score_polarity_recognizes_sklearn_normality(self):
+        """Omitted score_polarity keeps known sklearn defaults safe."""
+        detector = _ConformalDetector(
+            detector=OneClassSVM(),
+            strategy=Split(n_calib=0.2),
+        )
+        assert detector.score_polarity is ScorePolarity.HIGHER_IS_NORMAL
+
     def test_init_invalid_score_polarity_raises(self):
         """Invalid score_polarity string raises ValueError."""
         with pytest.raises(ValueError, match="Invalid score_polarity value"):
@@ -212,12 +229,19 @@ class TestConformalDetectorInit:
 
     def test_init_auto_unknown_detector_raises(self):
         """AUTO mode fails fast for unknown detector classes."""
-        with pytest.raises(ValueError, match="Unable to infer score polarity"):
+        with pytest.raises(ValueError) as exc_info:
             _ConformalDetector(
                 detector=MockDetector(),
                 strategy=Split(n_calib=0.2),
                 score_polarity="auto",
             )
+        message = str(exc_info.value)
+        assert (
+            "Unable to infer score polarity automatically in strict auto mode"
+            in message
+        )
+        assert "higher_is_anomalous" in message
+        assert "higher_is_normal" in message
 
 
 class TestConformalDetectorFit:

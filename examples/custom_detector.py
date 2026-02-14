@@ -33,6 +33,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 ce = ConformalDetector(
     detector=CentroidDetector(),
     strategy=Split(n_calib=1_000),
+    score_polarity="higher_is_anomalous",
     seed=1,
 )
 

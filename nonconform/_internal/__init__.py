@@ -24,7 +24,6 @@ from .math_utils import (
     normalize_bootstrap_aggregation_method,
     statistical_power,
 )
-from .tuning import tune_kde_hyperparameters
 
 __all__ = [
     "AggregationMethod",
@@ -43,5 +42,4 @@ __all__ = [
     "normalize_bootstrap_aggregation_method",
     "set_params",
     "statistical_power",
-    "tune_kde_hyperparameters",
 ]

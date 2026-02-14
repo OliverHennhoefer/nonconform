@@ -35,8 +35,6 @@ dependencies = [
     "scikit-learn>=1.5.2,<1.6",
     "scipy>=1.13.0",
     "tqdm>=4.66.2",
-    "optuna>=4.5.0",
-    "kdepy>=1.1.12",
 ]
 
 [build-system]
@@ -57,8 +55,12 @@ data = [
 fdr = [
     "online-fdr>=0.0.3",
 ]
+probabilistic = [
+    "optuna>=4.5.0",
+    "kdepy>=1.1.12",
+]
 all = [
-    "nonconform[pyod,data,fdr]"
+    "nonconform[pyod,data,fdr,probabilistic]"
 ]
 
 [dependency-groups]
@@ -75,6 +77,8 @@ dev = [
     "scipy-stubs==1.16.3.0",
     "oddball>=1.4.0",
     "pyod==2.0.5",
+    "optuna>=4.5.0",
+    "kdepy>=1.1.12",
 ]
 
 [project.urls]

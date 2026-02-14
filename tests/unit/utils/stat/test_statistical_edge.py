@@ -54,10 +54,12 @@ class TestExtremeWeights:
         test_weights = np.array([1.0])
         calib_weights = np.array([0.0, 0.0, 0.0])
 
-        p_values = calculate_weighted_p_val(
-            test_scores, calib_scores, test_weights, calib_weights
-        )
-        assert len(p_values) == 1
+        with pytest.raises(
+            ValueError, match="calib_weights must sum to a positive value"
+        ):
+            calculate_weighted_p_val(
+                test_scores, calib_scores, test_weights, calib_weights
+            )
 
     def test_very_large_weights(self):
         test_scores = np.array([5.0])

@@ -24,6 +24,7 @@ from tqdm import tqdm
 from nonconform.adapters import (
     adapt,
     apply_score_polarity,
+    resolve_implicit_score_polarity,
     resolve_score_polarity,
 )
 from nonconform.scoring import Empirical
@@ -185,8 +186,12 @@ class ConformalDetector(BaseConformalDetector):
         score_polarity: Score direction convention. Use `"higher_is_anomalous"`
             when higher raw scores indicate more anomalous samples, and
             `"higher_is_normal"` when higher scores indicate more normal samples.
-            `"auto"` infers polarity for known detector families and raises for
-            unknown detectors. Defaults to ScorePolarity.AUTO.
+            If omitted (`None`), nonconform applies an implicit default policy:
+            known sklearn normality detectors resolve to `"higher_is_normal"`,
+            while PyOD and unknown custom detectors resolve to
+            `"higher_is_anomalous"`. Explicit `"auto"` enables strict inference:
+            known detector families are inferred, and unknown detectors raise.
+            Defaults to None.
         seed: Random seed for reproducibility. Defaults to None.
         verbose: If True, displays progress bars during prediction. Defaults to False.
         verify_prepared_batch_content: If True (default), weighted reuse mode
@@ -250,9 +255,8 @@ class ConformalDetector(BaseConformalDetector):
         weight_estimator: BaseWeightEstimator | None = None,
         aggregation: str = "median",
         score_polarity: ScorePolarity
-        | Literal["auto", "higher_is_anomalous", "higher_is_normal"] = (
-            ScorePolarity.AUTO
-        ),
+        | Literal["auto", "higher_is_anomalous", "higher_is_normal"]
+        | None = None,
         seed: int | None = None,
         verbose: bool = False,
         verify_prepared_batch_content: bool = True,
@@ -289,7 +293,8 @@ class ConformalDetector(BaseConformalDetector):
         weight_estimator: BaseWeightEstimator | None,
         aggregation: str,
         score_polarity: ScorePolarity
-        | Literal["auto", "higher_is_anomalous", "higher_is_normal"],
+        | Literal["auto", "higher_is_anomalous", "higher_is_normal"]
+        | None,
         seed: int | None,
         verbose: bool,
         verify_prepared_batch_content: bool,
@@ -316,7 +321,10 @@ class ConformalDetector(BaseConformalDetector):
         normalized_aggregation = normalize_aggregation_method(aggregation)
 
         adapted_detector = adapt(detector)
-        resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
+        if score_polarity is None:
+            resolved_polarity = resolve_implicit_score_polarity(adapted_detector)
+        else:
+            resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
         normalized_detector = apply_score_polarity(adapted_detector, resolved_polarity)
 
         self.detector = set_params(deepcopy(normalized_detector), seed)

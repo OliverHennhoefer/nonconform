@@ -169,14 +169,16 @@ class TestExtremeWeights:
         test_weights = np.zeros(10)
         calib_weights = np.zeros(50)
 
-        discoveries = weighted_false_discovery_control_empirical(
-            test_scores=test_scores,
-            calib_scores=calib_scores,
-            test_weights=test_weights,
-            calib_weights=calib_weights,
-            alpha=0.1,
-        )
-        assert len(discoveries) == 10
+        with pytest.raises(
+            ValueError, match="calib_weights must sum to a positive value"
+        ):
+            weighted_false_discovery_control_empirical(
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+            )
 
     def test_very_large_weights(self, sample_scores):
         test_scores, calib_scores = sample_scores(n_test=10, n_calib=50)
@@ -223,6 +225,77 @@ class TestInvalidPValues:
     def test_invalid_p_values_shape_bh(self):
         with pytest.raises(ValueError):
             weighted_bh(np.array([[0.1], [0.2]]), alpha=0.1)
+
+    def test_invalid_p_values_shape_wcs(self):
+        test_scores = np.array([1.0, 2.0])
+        calib_scores = np.array([0.0, 1.0, 2.0])
+        test_weights = np.array([1.0, 1.0])
+        calib_weights = np.array([1.0, 1.0, 1.0])
+        with pytest.raises(ValueError, match="p_values must be a 1D array"):
+            weighted_false_discovery_control_from_arrays(
+                p_values=np.array([[0.1], [0.2]]),
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+            )
+
+
+class TestKDEMetadataValidation:
+    def test_missing_kde_keys_raise(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {"kde": {"eval_grid": np.array([0.0, 1.0])}}
+        with pytest.raises(ValueError, match="missing keys"):
+            weighted_false_discovery_control(result=result, alpha=0.1)
+
+    def test_non_increasing_eval_grid_raises(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "kde": {
+                "eval_grid": np.array([0.0, 1.0, 1.0]),
+                "cdf_values": np.array([0.0, 0.5, 1.0]),
+                "total_weight": 10.0,
+            }
+        }
+        with pytest.raises(ValueError, match="strictly increasing"):
+            weighted_false_discovery_control(result=result, alpha=0.1)
+
+    def test_non_positive_kde_total_weight_raises(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "kde": {
+                "eval_grid": np.array([0.0, 1.0, 2.0]),
+                "cdf_values": np.array([0.0, 0.5, 1.0]),
+                "total_weight": 0.0,
+            }
+        }
+        with pytest.raises(ValueError, match="finite positive value"):
+            weighted_false_discovery_control(result=result, alpha=0.1)
+
+    def test_tiny_cdf_jitter_is_tolerated(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "kde": {
+                "eval_grid": np.array([0.0, 1.0, 2.0]),
+                "cdf_values": np.array([0.0, 0.5, 0.5 - 5e-13]),
+                "total_weight": 10.0,
+            }
+        }
+        discoveries = weighted_false_discovery_control(result=result, alpha=0.1)
+        assert discoveries.shape == (5,)
+
+    def test_large_cdf_decrease_still_raises(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "kde": {
+                "eval_grid": np.array([0.0, 1.0, 2.0]),
+                "cdf_values": np.array([0.0, 0.5, 0.49]),
+                "total_weight": 10.0,
+            }
+        }
+        with pytest.raises(ValueError, match="non-decreasing"):
+            weighted_false_discovery_control(result=result, alpha=0.1)
 
 
 class TestOutputValidation:

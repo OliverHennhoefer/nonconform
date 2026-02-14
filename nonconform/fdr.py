@@ -15,11 +15,24 @@ from nonconform.structures import ConformalResult
 
 from ._internal import Pruning, TieBreakMode, get_logger
 
+_KDE_MONOTONICITY_TOL = 1e-12
+
 
 def _validate_alpha(alpha: float) -> None:
     """Validate FDR target level."""
     if not (0.0 < alpha < 1.0):
         raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+
+
+def _as_1d_numeric(name: str, values: np.ndarray) -> np.ndarray:
+    """Normalize array-like input into a strict 1D float ndarray."""
+    try:
+        arr = np.asarray(values, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a numeric array.") from exc
+    if arr.ndim != 1:
+        raise ValueError(f"{name} must be a 1D array, got shape {arr.shape!r}.")
+    return arr
 
 
 def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
@@ -37,6 +50,14 @@ def _validate_non_negative_finite(name: str, values: np.ndarray) -> None:
         raise ValueError(f"{name} must be finite.")
     if np.any(values < 0):
         raise ValueError(f"{name} must be non-negative.")
+
+
+def _validate_finite(name: str, values: np.ndarray) -> None:
+    """Validate that an array has only finite entries."""
+    if values.size == 0:
+        return
+    if not np.all(np.isfinite(values)):
+        raise ValueError(f"{name} must be finite.")
 
 
 def _validate_p_values(p_values: np.ndarray) -> None:
@@ -126,14 +147,22 @@ def _compute_rejection_set_size_for_instance(
     calib_mass_at_or_above: np.ndarray,
     scratch: np.ndarray,
     include_self_weight: bool,
+    sorted_test_idx: np.ndarray | None,
+    le_cutoffs: np.ndarray | None,
 ) -> int:
     """Compute rejection set size |R_j^{(0)}| for test instance j."""
     np.copyto(scratch, calib_mass_at_or_above)
     if include_self_weight:
-        scratch += w_test[j] * (test_scores[j] >= test_scores)
+        if sorted_test_idx is None or le_cutoffs is None:
+            raise ValueError("Internal error: missing score-rank cache for WCS.")
+        scratch[sorted_test_idx[: le_cutoffs[j]]] += w_test[j]
         denominator = sum_calib_weight + w_test[j]
     else:
         denominator = sum_calib_weight
+    if denominator <= 0.0 or not np.isfinite(denominator):
+        raise ValueError(
+            "Weighted FDR requires positive finite effective calibration mass."
+        )
     scratch[j] = 0.0
     scratch /= denominator
     scratch[j] = 0.0
@@ -187,21 +216,56 @@ def _extract_kde_support(
     kde_meta = result.metadata.get("kde")
     if kde_meta is None:
         return None, True
-    try:
-        eval_grid = np.asarray(kde_meta["eval_grid"])
-        cdf_values = np.asarray(kde_meta["cdf_values"])
-        total_weight = float(kde_meta["total_weight"])
-    except KeyError:
-        return None, True
+    if not isinstance(kde_meta, dict):
+        raise ValueError("result.metadata['kde'] must be a dictionary.")
 
-    if (
-        eval_grid.ndim == 1
-        and cdf_values.ndim == 1
-        and eval_grid.size == cdf_values.size
-        and eval_grid.size > 1
-    ):
-        return (eval_grid, cdf_values, total_weight), False
-    return None, True
+    required_keys = ("eval_grid", "cdf_values", "total_weight")
+    missing_keys = [key for key in required_keys if key not in kde_meta]
+    if missing_keys:
+        missing = ", ".join(missing_keys)
+        raise ValueError(
+            f"result.metadata['kde'] is malformed: missing keys {missing}."
+        )
+
+    eval_grid = _as_1d_numeric(
+        "result.metadata['kde']['eval_grid']", kde_meta["eval_grid"]
+    )
+    cdf_values = _as_1d_numeric(
+        "result.metadata['kde']['cdf_values']", kde_meta["cdf_values"]
+    )
+    try:
+        total_weight = float(kde_meta["total_weight"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "result.metadata['kde']['total_weight'] must be a finite positive float."
+        ) from exc
+
+    if eval_grid.size <= 1:
+        raise ValueError(
+            "result.metadata['kde']['eval_grid'] must contain at least 2 points."
+        )
+    if eval_grid.size != cdf_values.size:
+        raise ValueError(
+            "result.metadata['kde']['eval_grid'] and ['cdf_values'] "
+            "must have equal length."
+        )
+    _validate_finite("result.metadata['kde']['eval_grid']", eval_grid)
+    _validate_finite("result.metadata['kde']['cdf_values']", cdf_values)
+    if np.any(np.diff(eval_grid) <= 0):
+        raise ValueError(
+            "result.metadata['kde']['eval_grid'] must be strictly increasing."
+        )
+    if np.any(np.diff(cdf_values) < -_KDE_MONOTONICITY_TOL):
+        raise ValueError("result.metadata['kde']['cdf_values'] must be non-decreasing.")
+    eps = 1e-10
+    if np.any((cdf_values < -eps) | (cdf_values > 1 + eps)):
+        raise ValueError("result.metadata['kde']['cdf_values'] must be within [0, 1].")
+    if not np.isfinite(total_weight) or total_weight <= 0:
+        raise ValueError(
+            "result.metadata['kde']['total_weight'] must be a finite positive value."
+        )
+
+    return (eval_grid, cdf_values, total_weight), False
 
 
 def _run_wcs(
@@ -222,15 +286,15 @@ def _run_wcs(
     _validate_alpha(alpha)
     _validate_pruning(pruning)
 
-    p_vals = np.asarray(p_values)
-    test_scores_arr = np.asarray(test_scores)
-    calib_scores_arr = np.asarray(calib_scores)
-    test_weights_arr = np.asarray(test_weights)
-    calib_weights_arr = np.asarray(calib_weights)
+    p_vals = _as_1d_numeric("p_values", p_values)
+    test_scores_arr = _as_1d_numeric("test_scores", test_scores)
+    calib_scores_arr = _as_1d_numeric("calib_scores", calib_scores)
+    test_weights_arr = _as_1d_numeric("test_weights", test_weights)
+    calib_weights_arr = _as_1d_numeric("calib_weights", calib_weights)
 
-    if p_vals.ndim != 1:
-        raise ValueError(f"p_values must be a 1D array, got shape {p_vals.shape}.")
     _validate_p_values(p_vals)
+    _validate_finite("test_scores", test_scores_arr)
+    _validate_finite("calib_scores", calib_scores_arr)
     _validate_non_negative_finite("test_weights", test_weights_arr)
     _validate_non_negative_finite("calib_weights", calib_weights_arr)
 
@@ -259,14 +323,24 @@ def _run_wcs(
             )
         )
     else:
-        sum_calib_weight = np.sum(calib_weights_arr)
+        sum_calib_weight = float(np.sum(calib_weights_arr, dtype=float))
         calib_mass_at_or_above = _calib_weight_mass_at_or_above(
             calib_scores_arr, calib_weights_arr, test_scores_arr
+        )
+    if not np.isfinite(sum_calib_weight) or sum_calib_weight <= 0.0:
+        raise ValueError(
+            "Weighted FDR requires positive finite total calibration weight."
         )
 
     r_sizes = np.zeros(m, dtype=float)
     bh_thresholds = alpha * (np.arange(1, m + 1) / m)
     scratch = np.empty(m, dtype=float)
+    sorted_test_idx: np.ndarray | None = None
+    le_cutoffs: np.ndarray | None = None
+    if include_self_weight:
+        sorted_test_idx = np.argsort(test_scores_arr, kind="mergesort")
+        sorted_scores = test_scores_arr[sorted_test_idx]
+        le_cutoffs = np.searchsorted(sorted_scores, test_scores_arr, side="right")
     logger = get_logger("fdr")
     j_iterator = (
         tqdm(range(m), desc="Weighted FDR Control")
@@ -283,6 +357,8 @@ def _run_wcs(
             calib_mass_at_or_above,
             scratch,
             include_self_weight=include_self_weight,
+            sorted_test_idx=sorted_test_idx,
+            le_cutoffs=le_cutoffs,
         )
 
     thresholds = alpha * r_sizes / m
@@ -390,11 +466,7 @@ def weighted_bh(p_values: np.ndarray, *, alpha: float = 0.05) -> np.ndarray:
     """Apply weighted Benjamini-Hochberg to precomputed p-values."""
     _validate_alpha(alpha)
 
-    p_values_arr = np.asarray(p_values, dtype=float)
-    if p_values_arr.ndim != 1:
-        raise ValueError(
-            f"p_values must be a 1D array, got shape {p_values_arr.shape!r}."
-        )
+    p_values_arr = _as_1d_numeric("p_values", p_values)
     _validate_p_values(p_values_arr)
 
     m = len(p_values_arr)

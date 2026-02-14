@@ -15,7 +15,6 @@ from nonconform import (
     Split,
     CrossValidation,
 )
-from nonconform.enums import Aggregation
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load example data
@@ -37,7 +36,7 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42,
 )
 
@@ -76,7 +75,7 @@ for n_bootstraps in bootstrap_options:
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)
@@ -106,7 +105,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
 
@@ -136,7 +135,7 @@ for size in dataset_sizes:
     jab_detector = ConformalDetector(
         detector=base_detector,
         strategy=JackknifeBootstrap(n_bootstraps=50),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     jab_detector.fit(X_sample)
@@ -148,7 +147,7 @@ for size in dataset_sizes:
     split_detector = ConformalDetector(
         detector=base_detector,
         strategy=Split(n_calib=0.2),
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     split_detector.fit(X_sample)
@@ -184,7 +183,7 @@ for name, strategy in strategies.items():
     detector = ConformalDetector(
         detector=base_detector,
         strategy=strategy,
-        aggregation=Aggregation.MEDIAN,
+        aggregation="median",
         seed=42,
     )
     detector.fit(X)

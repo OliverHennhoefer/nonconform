@@ -61,6 +61,17 @@ Use these weighted FDR functions depending on the inputs you have available:
 - `weighted_bh_from_result(result=...)`
 - `weighted_bh_empirical(...)`
 
+!!! warning "Strict validation for weighted inputs"
+    Weighted FDR routines fail fast on invalid inputs.
+    They now raise `ValueError` when:
+
+    - score/weight arrays are not 1D numeric arrays of matching lengths
+    - any score/weight/p-value contains non-finite values
+    - any weight is negative
+    - total calibration weight is not strictly positive
+    - `result.metadata["kde"]` is present but malformed
+      (missing keys, invalid shapes, non-monotone grid/CDF, or non-positive total weight)
+
 ```python
 from nonconform.fdr import (
     weighted_bh,

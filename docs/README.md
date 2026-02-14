@@ -116,6 +116,11 @@ class MyDetector:
     def set_params(self, **params) -> Self: ...
 ```
 
+For custom detectors, either set `score_polarity` explicitly
+(`"higher_is_anomalous"` in most cases), or omit it to use the pre-release
+default behavior. Use `score_polarity="auto"` only when you want strict
+detector-family validation.
+
 See [Detector Compatibility](user_guide/detector_compatibility.md) for details and examples.
 
 
@@ -174,6 +179,7 @@ _For additional features, you might need optional dependencies:_
 - `pip install nonconform[pyod]` - Includes PyOD anomaly detection library
 - `pip install nonconform[data]` - Includes oddball for loading benchmark datasets
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
+- `pip install nonconform[probabilistic]` - Includes KDEpy and Optuna for probabilistic estimation/tuning
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._

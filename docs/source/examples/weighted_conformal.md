@@ -13,7 +13,7 @@ from nonconform import (
     Split,
     logistic_weight_estimator,
 )
-from nonconform.enums import Aggregation, Pruning
+from nonconform.enums import Pruning
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -32,7 +32,7 @@ strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
@@ -56,6 +56,9 @@ print(f"Weighted p-values range: {p_values.min():.4f} - {p_values.max():.4f}")
 print(f"Discoveries with WCS (FDR control): {discoveries.sum()}")
 ```
 
+`aggregation` accepts: `"mean"`, `"median"`, `"minimum"`, `"maximum"`.
+Invalid values raise `ValueError`.
+
 ## Handling Distribution Shift
 
 ```python
@@ -67,7 +70,7 @@ X_shifted = X + np.random.normal(0, 0.1, X.shape)
 detector_shifted = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
@@ -100,7 +103,7 @@ from scipy.stats import false_discovery_control
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 
@@ -128,7 +131,7 @@ print(f"Weighted conformal discoveries (WCS): {discoveries_shifted.sum()}")
 standard_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     seed=42
 )
 standard_detector.fit(X)
@@ -138,7 +141,7 @@ standard_p_values = standard_detector.compute_p_values(X_test)
 weighted_detector = ConformalDetector(
     detector=base_detector,
     strategy=strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )
@@ -219,9 +222,10 @@ plt.show()
 ```python
 # Compare different aggregation methods for weighted conformal
 aggregation_methods = [
-    Aggregation.MEAN,
-    Aggregation.MEDIAN,
-    Aggregation.MAXIMUM,
+    "mean",
+    "median",
+    "minimum",
+    "maximum",
 ]
 
 for agg_method in aggregation_methods:
@@ -241,7 +245,7 @@ for agg_method in aggregation_methods:
         pruning=Pruning.DETERMINISTIC,
         seed=42,
     )
-    print(f"{agg_method.value} aggregation: {disc.sum()} discoveries")
+    print(f"{agg_method} aggregation: {disc.sum()} discoveries")
 ```
 
 ## JaB+ Strategy with Weighted Conformal
@@ -255,7 +259,7 @@ jab_strategy = JackknifeBootstrap(n_bootstraps=50)
 weighted_jab_detector = ConformalDetector(
     detector=base_detector,
     strategy=jab_strategy,
-    aggregation=Aggregation.MEDIAN,
+    aggregation="median",
     weight_estimator=logistic_weight_estimator(),
     seed=42
 )

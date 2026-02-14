@@ -107,11 +107,32 @@ def _is_known_sklearn_normality_detector(detector: Any) -> bool:
     return isinstance(detector, _sklearn_normality_types())
 
 
+def resolve_implicit_score_polarity(detector: Any) -> ScorePolarity:
+    """Resolve score polarity when users omit score_polarity.
+
+    This pre-release default favors low-friction custom detector onboarding while
+    preserving safe behavior for known detector families:
+    - Known sklearn normality detectors -> HIGHER_IS_NORMAL
+    - PyOD detectors -> HIGHER_IS_ANOMALOUS
+    - Unknown custom detectors -> HIGHER_IS_ANOMALOUS
+    """
+    if _is_known_sklearn_normality_detector(detector):
+        return ScorePolarity.HIGHER_IS_NORMAL
+    if isinstance(detector, PyODAdapter) or _looks_like_pyod(detector):
+        return ScorePolarity.HIGHER_IS_ANOMALOUS
+    return ScorePolarity.HIGHER_IS_ANOMALOUS
+
+
 def resolve_score_polarity(
     detector: Any,
     score_polarity: ScorePolarityInput,
 ) -> ScorePolarity:
-    """Resolve requested score polarity, inferring from detector in AUTO mode."""
+    """Resolve requested score polarity in strict AUTO mode.
+
+    Unlike ``resolve_implicit_score_polarity``, this function is intentionally
+    strict for explicit ``score_polarity="auto"`` and raises for unknown
+    detectors.
+    """
     parsed = parse_score_polarity(score_polarity)
     if parsed is not ScorePolarity.AUTO:
         return parsed
@@ -124,9 +145,11 @@ def resolve_score_polarity(
     detector_cls = type(detector)
     detector_name = f"{detector_cls.__module__}.{detector_cls.__qualname__}"
     raise ValueError(
-        "Unable to infer score polarity automatically for detector "
-        f"'{detector_name}'. Pass score_polarity='higher_is_anomalous' "
-        "or score_polarity='higher_is_normal'."
+        "Unable to infer score polarity automatically in strict auto mode for "
+        f"detector '{detector_name}'. Auto inference currently supports PyOD "
+        "detectors and known sklearn normality estimators. For custom detectors, "
+        "pass score_polarity='higher_is_anomalous' (recommended when larger "
+        "scores mean more anomalous) or score_polarity='higher_is_normal'."
     )
 
 
@@ -273,5 +296,6 @@ __all__ = [
     "adapt",
     "apply_score_polarity",
     "parse_score_polarity",
+    "resolve_implicit_score_polarity",
     "resolve_score_polarity",
 ]

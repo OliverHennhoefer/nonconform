@@ -430,9 +430,21 @@ detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
     aggregation="median",
+    score_polarity="higher_is_anomalous",
     seed=42
 )
 ```
+
+`score_polarity` controls how detector scores are interpreted before
+conformalization. Valid values are `"higher_is_anomalous"`,
+`"higher_is_normal"`, and `"auto"` (or omit it).
+
+If omitted, known sklearn normality detector families default to
+`"higher_is_normal"`, while PyOD and custom detectors outside recognized
+families default to `"higher_is_anomalous"`.
+
+Use `"auto"` for strict detector-family validation (raises for custom
+detectors outside recognized families).
 
 See [Detector Compatibility](detector_compatibility.md) for more details on implementing custom detectors.
 

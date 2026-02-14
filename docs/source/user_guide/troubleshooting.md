@@ -204,6 +204,10 @@ JackknifeBootstrap(n_bootstraps=50)
 - Ensure your detector implements the AnomalyDetector protocol (fit, decision_function, get_params, set_params)
 - Verify that the detector's output format matches expectations
 - Use a valid aggregation string (`"mean"`, `"median"`, `"minimum"`, `"maximum"`)
+- Use `score_polarity` to define score direction before conformalization.
+- Valid `score_polarity` values are `"higher_is_anomalous"`, `"higher_is_normal"`, and `"auto"` (or omit it).
+- If omitted, known sklearn normality detector families default to `"higher_is_normal"`, while PyOD and custom detectors outside recognized families default to `"higher_is_anomalous"`.
+- Set `score_polarity` explicitly for custom detectors when you want deterministic behavior; use `"auto"` for strict family validation.
 
 ```python
 
@@ -212,6 +216,7 @@ detector = ConformalDetector(
     detector=custom_detector,
     strategy=strategy,
     aggregation="median",
+    score_polarity="higher_is_anomalous",
     seed=42
 )
 ```
@@ -494,4 +499,3 @@ nonconform uses the following logger hierarchy:
 - `nonconform.utils.*`: Utility function logging
 
 You can configure specific loggers for fine-grained control over output.
-

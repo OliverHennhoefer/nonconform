@@ -15,6 +15,7 @@ from nonconform.adapters import (
     ScorePolarityAdapter,
     apply_score_polarity,
     parse_score_polarity,
+    resolve_implicit_score_polarity,
     resolve_score_polarity,
 )
 from nonconform.enums import ScorePolarity
@@ -87,8 +88,26 @@ def test_resolve_score_polarity_auto_recognizes_supported_sklearn() -> None:
 
 def test_resolve_score_polarity_auto_rejects_unknown_detector() -> None:
     detector = MockScoreDetector()
-    with pytest.raises(ValueError, match="Unable to infer score polarity"):
+    with pytest.raises(ValueError) as exc_info:
         resolve_score_polarity(detector, "auto")
+    message = str(exc_info.value)
+    assert "Unable to infer score polarity" in message
+    assert "higher_is_anomalous" in message
+    assert "higher_is_normal" in message
+
+
+def test_resolve_implicit_score_polarity_defaults_unknown_to_anomalous() -> None:
+    detector = MockScoreDetector()
+    assert (
+        resolve_implicit_score_polarity(detector) is ScorePolarity.HIGHER_IS_ANOMALOUS
+    )
+
+
+def test_resolve_implicit_score_polarity_recognizes_supported_sklearn() -> None:
+    iforest = IsolationForest(random_state=1)
+    ocsvm = OneClassSVM()
+    assert resolve_implicit_score_polarity(iforest) is ScorePolarity.HIGHER_IS_NORMAL
+    assert resolve_implicit_score_polarity(ocsvm) is ScorePolarity.HIGHER_IS_NORMAL
 
 
 def test_resolve_score_polarity_auto_recognizes_pyod_when_available() -> None:
@@ -99,6 +118,18 @@ def test_resolve_score_polarity_auto_recognizes_pyod_when_available() -> None:
 
     detector = IForest(n_estimators=10, random_state=0)
     assert resolve_score_polarity(detector, "auto") is ScorePolarity.HIGHER_IS_ANOMALOUS
+
+
+def test_resolve_implicit_score_polarity_recognizes_pyod_when_available() -> None:
+    if importlib.util.find_spec("pyod") is None:
+        pytest.skip("PyOD not installed")
+
+    from pyod.models.iforest import IForest
+
+    detector = IForest(n_estimators=10, random_state=0)
+    assert (
+        resolve_implicit_score_polarity(detector) is ScorePolarity.HIGHER_IS_ANOMALOUS
+    )
 
 
 def test_score_polarity_adapter_copy_support() -> None:
