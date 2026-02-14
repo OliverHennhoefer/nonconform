@@ -49,6 +49,11 @@ def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
     return None if arr is None else arr.copy()
 
 
+def _snapshot_param(value: Any) -> Any:
+    """Return an immutable constructor-parameter snapshot."""
+    return deepcopy(value)
+
+
 def _batch_signature(x: np.ndarray) -> tuple[tuple[int, ...], str, str]:
     """Return stable signature for a concrete batch.
 
@@ -300,10 +305,10 @@ class ConformalDetector(BaseConformalDetector):
         verify_prepared_batch_content: bool,
     ) -> None:
         """Apply constructor parameters and reset learned state."""
-        self._init_detector = detector
-        self._init_strategy = strategy
-        self._init_estimation = estimation
-        self._init_weight_estimator = weight_estimator
+        self._init_detector = _snapshot_param(detector)
+        self._init_strategy = _snapshot_param(strategy)
+        self._init_estimation = _snapshot_param(estimation)
+        self._init_weight_estimator = _snapshot_param(weight_estimator)
         self._init_aggregation = aggregation
         self._init_score_polarity = score_polarity
         self._init_seed = seed
@@ -429,6 +434,12 @@ class ConformalDetector(BaseConformalDetector):
 
         self._configure(**updated_params)
         return self
+
+    def __sklearn_clone__(self) -> Self:
+        """Return sklearn-compatible unfitted clone from constructor snapshots."""
+        params = self.get_params(deep=False)
+        cloned_params = {key: _snapshot_param(value) for key, value in params.items()}
+        return type(self)(**cloned_params)
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly detector summary."""
