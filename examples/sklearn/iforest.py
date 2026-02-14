@@ -1,18 +1,17 @@
 from oddball import Dataset, load
-from pyod.models.cd import CD
 from scipy.stats import false_discovery_control
+from sklearn.ensemble import IsolationForest
 
-from nonconform import (
-    ConformalDetector,
-    CrossValidation,
-)
+from nonconform import ConformalDetector, JackknifeBootstrap
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
+x_train, x_test, y_test = load(Dataset.CARDIO, setup=True, seed=1)
 
 ce = ConformalDetector(
-    detector=CD(),
-    strategy=CrossValidation(k=20),
+    detector=IsolationForest(random_state=1),
+    strategy=JackknifeBootstrap(n_bootstraps=100),
+    score_polarity="higher_is_normal",
+    seed=1,
 )
 
 ce.fit(x_train)

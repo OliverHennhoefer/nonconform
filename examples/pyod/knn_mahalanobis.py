@@ -3,7 +3,8 @@ from oddball import Dataset, load
 from pyod.models.knn import KNN
 from scipy.stats import false_discovery_control
 
-from nonconform import ConformalDetector, Split, false_discovery_rate, statistical_power
+from nonconform import ConformalDetector, Split
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
@@ -17,7 +18,7 @@ ce = ConformalDetector(
 )
 
 ce.fit(x_train)
-estimates = ce.predict(x_test)
+estimates = ce.compute_p_values(x_test)
 # Apply FDR control
 decisions = false_discovery_control(estimates, method="bh") <= 0.2
 

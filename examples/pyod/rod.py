@@ -5,16 +5,15 @@ from scipy.stats import false_discovery_control
 from nonconform import (
     ConformalDetector,
     JackknifeBootstrap,
-    false_discovery_rate,
-    statistical_power,
 )
+from nonconform.metrics import false_discovery_rate, statistical_power
 
 x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
 
 ce = ConformalDetector(detector=ROD(), strategy=JackknifeBootstrap(n_bootstraps=100))
 
 ce.fit(x_train)
-estimates = ce.predict(x_test)
+estimates = ce.compute_p_values(x_test)
 
 decisions = false_discovery_control(estimates, method="bh") <= 0.2
 

@@ -1,18 +1,17 @@
 from oddball import Dataset, load
-from pyod.models.cd import CD
 from scipy.stats import false_discovery_control
+from sklearn.linear_model import SGDOneClassSVM
 
-from nonconform import (
-    ConformalDetector,
-    CrossValidation,
-)
+from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
+x_train, x_test, y_test = load(Dataset.WBC, setup=True, seed=1)
 
 ce = ConformalDetector(
-    detector=CD(),
-    strategy=CrossValidation(k=20),
+    detector=SGDOneClassSVM(nu=0.05, random_state=1),
+    strategy=Split(n_calib=1_000),
+    score_polarity="higher_is_normal",
+    seed=1,
 )
 
 ce.fit(x_train)

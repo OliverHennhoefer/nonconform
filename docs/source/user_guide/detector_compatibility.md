@@ -136,7 +136,7 @@ detector = ConformalDetector(
 )
 ```
 
-See `examples/custom_detector.py` for a complete working example.
+See `examples/custom/centroid_detector.py` for a complete working example.
 
 ## Scikit-learn Detectors
 

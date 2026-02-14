@@ -3,17 +3,20 @@ from pyod.models.hbos import HBOS
 from scipy.stats import false_discovery_control
 
 from nonconform import (
-    BootstrapBaggedWeightEstimator,
     ConformalDetector,
     Empirical,
     Probabilistic,
-    Pruning,
     Split,
-    false_discovery_rate,
-    logistic_weight_estimator,
-    statistical_power,
-    weighted_bh,
+)
+from nonconform.enums import Pruning
+from nonconform.fdr import (
+    weighted_bh_from_result,
     weighted_false_discovery_control,
+)
+from nonconform.metrics import false_discovery_rate, statistical_power
+from nonconform.weighting import (
+    BootstrapBaggedWeightEstimator,
+    logistic_weight_estimator,
 )
 
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
@@ -29,7 +32,7 @@ ce = ConformalDetector(
     seed=1,
 )
 ce.fit(x_train)
-p_values = ce.predict(x_test)
+p_values = ce.compute_p_values(x_test)
 decisions = false_discovery_control(p_values, method="bh") <= alpha
 
 print("Standard Empirical")
@@ -44,7 +47,7 @@ pce = ConformalDetector(
     seed=1,
 )
 pce.fit(x_train)
-p_values = pce.predict(x_test)
+p_values = pce.compute_p_values(x_test)
 decisions = false_discovery_control(p_values, method="bh") <= alpha
 
 print("\nStandard Probabilistic (KDE)")
@@ -57,12 +60,12 @@ wce = ConformalDetector(
     strategy=strategy,
     weight_estimator=BootstrapBaggedWeightEstimator(
         base_estimator=logistic_weight_estimator(),
-        n_bootstrap=100,
+        n_bootstraps=100,
     ),
     seed=1,
 )
 wce.fit(x_train)
-p_values = wce.predict(x_test)
+p_values = wce.compute_p_values(x_test)
 
 decisions = weighted_false_discovery_control(
     result=wce.last_result,
@@ -74,7 +77,7 @@ print("\nWeighted Empirical (Conformal Selection)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.11
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
 
-decisions = weighted_bh(wce.last_result, alpha=alpha)
+decisions = weighted_bh_from_result(wce.last_result, alpha=alpha)
 print("\nWeighted Empirical (Weighted BH)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.11
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
@@ -85,13 +88,13 @@ wpce = ConformalDetector(
     strategy=strategy,
     weight_estimator=BootstrapBaggedWeightEstimator(
         base_estimator=logistic_weight_estimator(),
-        n_bootstrap=100,
+        n_bootstraps=100,
     ),
     estimation=Probabilistic(n_trials=10),
     seed=1,
 )
 wpce.fit(x_train)
-_ = wpce.predict(x_test)
+_ = wpce.compute_p_values(x_test)
 
 decisions = weighted_false_discovery_control(
     result=wpce.last_result,
@@ -103,7 +106,7 @@ print("\nWeighted Probabilistic (Conformal Selection)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.10
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
 
-decisions = weighted_bh(wpce.last_result, alpha=alpha)
+decisions = weighted_bh_from_result(wpce.last_result, alpha=alpha)
 print("\nWeighted Probabilistic (Weighted BH)")
 print(f"  FDR: {false_discovery_rate(y=y_test, y_hat=decisions):.2f}")  # 0.10
 print(f"  Power: {statistical_power(y=y_test, y_hat=decisions):.2f}")  # 0.94
