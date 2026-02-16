@@ -1,0 +1,9 @@
+{
+  "name": "Repo Sandbox",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "remoteUser": "vscode",
+  "postCreateCommand": "uv sync --all-extras --dev"
+}
