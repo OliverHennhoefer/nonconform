@@ -687,3 +687,20 @@ class TestConformalDetectorSklearnParams:
         )
         cloned = clone(detector)
         assert isinstance(cloned, _ConformalDetector)
+
+    def test_clone_uses_constructor_snapshot_after_external_mutation(self):
+        """Clone should not pick up post-init changes to external param objects."""
+        external_detector = OneClassSVM(gamma=0.1)
+        external_strategy = Split(n_calib=0.2)
+        detector = _ConformalDetector(
+            detector=external_detector,
+            strategy=external_strategy,
+            score_polarity="auto",
+        )
+
+        external_detector.set_params(gamma=0.9)
+        external_strategy._calib_size = 0.5
+
+        cloned = clone(detector)
+        assert cloned.get_params(deep=True)["detector__gamma"] == 0.1
+        assert cloned.strategy.calib_size == 0.2

@@ -1,4 +1,4 @@
-# nonconform AGENT Playbook
+# nGlobal Rules (Must Follow)
 
 ## Mission
 
@@ -26,7 +26,6 @@ At `v1.0.0`, remove this section and switch to strict backward-compatibility pol
 3. Architecture clarity and long-term design quality.
 4. Maintainability and readability.
 5. Performance.
-6. Delivery speed.
 
 ## Execution Defaults
 
