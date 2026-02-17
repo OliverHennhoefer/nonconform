@@ -2,6 +2,10 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
+#
+# Note: MkDocs is the canonical docs build/deploy path for this project
+# (see docs/mkdocs.yml and .github/workflows/docs.yml). This Sphinx
+# configuration is retained for local/legacy workflows.
 
 import sys
 from pathlib import Path
@@ -17,7 +21,7 @@ from nonconform import __version__
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Nonconform"
-copyright = "2024, Oliver Hennhöfer"
+copyright = "2025, Oliver Hennhöfer"
 author = "Oliver Hennhöfer"
 release = __version__
 
@@ -161,12 +165,9 @@ autoapi_keep_files = False
 suppress_warnings = ["ref.python"]
 
 
-# Configure autoapi to prefer the re-exported versions
+# Configure AutoAPI member skipping.
 def autoapi_skip_member(app, what, name, obj, skip, options):
-    """Skip specific duplicate members to avoid cross-reference warnings."""
-    # Skip the original enum location in favor of the re-exported one
-    if name == "nonconform.utils.func.enums.Aggregation":
-        return True
+    """Apply custom member skipping rules (none at the moment)."""
     return skip
 
 

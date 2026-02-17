@@ -9,7 +9,7 @@ Welcome to Nonconform's documentation!
    quickstart
    user_guide/index
    examples/index
-   api/nonconform/index
+   api/index
    contributing
 
 Indices and tables
