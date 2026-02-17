@@ -33,6 +33,7 @@ At `v1.0.0`, remove this section and switch to strict backward-compatibility pol
 - Ask questions only for contradictions, missing critical requirements, or destructive/irreversible risk.
 - Enforce strict no-scope-creep: do only what is requested and directly necessary.
 - Assume declared dependencies are available; do not redesign around hypothetical missing dependencies.
+- Do not run `uv update` lightly; it can override intentionally pinned security patch versions in this repository.
 
 ## Statistical-Core Change Guardrail
 
