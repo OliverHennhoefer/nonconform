@@ -270,7 +270,7 @@ def apply_fdr_control(p_values, alpha=0.05, method='bh'):
         raise ValueError("P-values must be between 0 and 1")
 
     # Apply FDR control
-    adjusted_p_values = false_discovery_control(p_values, method=method, alpha=alpha)
+    adjusted_p_values = false_discovery_control(p_values, method=method)
     discoveries = adjusted_p_values < alpha
 
     print(f"Original detections: {(p_values < alpha).sum()}")

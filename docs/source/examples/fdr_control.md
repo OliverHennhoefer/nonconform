@@ -114,7 +114,7 @@ print(f"{'FDR Level':<12} {'Discoveries':<12} {'Adjusted α':<12}")
 print("-" * 40)
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method="bh", alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method="bh")
     discoveries = adjusted_p_vals < alpha
 
     print(f"{alpha:<12} {discoveries.sum():<12} {adjusted_p_vals.min():.6f}")
@@ -139,7 +139,7 @@ print(f"{'FDR Level':<12} {'Discoveries':<14} {'Empirical FDR':<14} {'Power':<10
 print("-" * 60)
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method="bh", alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method="bh")
     discoveries = adjusted_p_vals < alpha
 
     empirical_fdr = false_discovery_rate(y_test, discoveries)
@@ -187,7 +187,7 @@ for name, p_vals in all_p_values.items():
     raw_detections = (p_vals < 0.05).sum()
 
     # FDR controlled detections
-    adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
+    adj_p_vals = false_discovery_control(p_vals, method='bh')
     fdr_discoveries = adj_p_vals < 0.05
 
     # Performance metrics using nonconform functions
@@ -209,7 +209,7 @@ p_values_list = list(all_p_values.values())
 combined_stats, combined_p_values = combine_pvalues(np.array(p_values_list).T, method='fisher')
 
 # Apply FDR control to combined p-values
-adj_combined_p_vals = false_discovery_control(combined_p_values, method='bh', alpha=0.05)
+adj_combined_p_vals = false_discovery_control(combined_p_values, method='bh')
 combined_discoveries = adj_combined_p_vals < 0.05
 
 # Evaluate ensemble performance using nonconform metrics
@@ -239,7 +239,7 @@ axes[0, 0].set_title('P-value Distribution')
 axes[0, 0].legend()
 
 # Adjusted p-value histogram
-adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=0.05)
+adjusted_p_vals = false_discovery_control(p_values, method='bh')
 axes[0, 1].hist(adjusted_p_vals, bins=50, alpha=0.7, color='orange', edgecolor='black')
 axes[0, 1].axvline(x=0.05, color='red', linestyle='--', label='α=0.05')
 axes[0, 1].set_xlabel('Adjusted p-value')
@@ -265,7 +265,7 @@ fdr_levels = np.arange(0.01, 0.21, 0.01)
 discoveries_at_levels = []
 
 for alpha in fdr_levels:
-    adj_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
+    adj_p_vals = false_discovery_control(p_values, method='bh')
     discoveries_at_levels.append((adj_p_vals < alpha).sum())
 
 axes[1, 1].plot(fdr_levels, discoveries_at_levels, 'o-', linewidth=2)
@@ -300,7 +300,7 @@ p_vals = detector.compute_p_values(X_test)
 
 for alpha in alpha_levels:
     # Apply FDR control at different significance levels
-    adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=alpha)
+    adj_p_vals = false_discovery_control(p_vals, method='bh')
     discoveries = adj_p_vals < alpha
 
     # Calculate power using nonconform's statistical_power

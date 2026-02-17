@@ -124,7 +124,7 @@ def validate_p_values(p_values):
 from scipy.stats import false_discovery_control
 
 # Use more conservative FDR control
-adjusted_p_values = false_discovery_control(p_values, method='by', alpha=0.01)  # More conservative
+adjusted_p_values = false_discovery_control(p_values, method='by')  # More conservative
 discoveries = adjusted_p_values < 0.01
 
 # Monitor empirical FDR if ground truth is available

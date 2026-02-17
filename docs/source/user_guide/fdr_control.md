@@ -119,7 +119,7 @@ detector.fit(X_train)
 p_values = detector.compute_p_values(X_test)
 
 # Apply Benjamini–Hochberg control at 5%
-adjusted_p_values = false_discovery_control(p_values, method="bh", alpha=0.05)
+adjusted_p_values = false_discovery_control(p_values, method="bh")
 discoveries = adjusted_p_values < 0.05
 
 print(f"Original detections: {(p_values < 0.05).sum()}")
@@ -182,8 +182,8 @@ The `scipy.stats.false_discovery_control` function supports several methods:
 
 ```python
 # Compare different methods
-bh_adjusted = false_discovery_control(p_values, method='bh', alpha=0.05)
-by_adjusted = false_discovery_control(p_values, method='by', alpha=0.05)
+bh_adjusted = false_discovery_control(p_values, method='bh')
+by_adjusted = false_discovery_control(p_values, method='by')
 
 bh_discoveries = (bh_adjusted < 0.05).sum()
 by_discoveries = (by_adjusted < 0.05).sum()
@@ -201,7 +201,7 @@ You can control the desired FDR level using the `alpha` parameter:
 fdr_levels = [0.01, 0.05, 0.1, 0.2]
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method='bh')
     discoveries = (adjusted_p_vals < alpha).sum()
     print(f"FDR level {alpha}: {discoveries} discoveries")
 ```
@@ -285,7 +285,6 @@ standard_detector.fit(X_train)
 standard_mask = false_discovery_control(
     standard_detector.compute_p_values(X_test),
     method="bh",
-    alpha=0.05,
 ) < 0.05
 
 # Weighted conformal detector: use Weighted Conformal Selection
@@ -321,7 +320,7 @@ from nonconform.metrics import false_discovery_rate, statistical_power
 def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     """Evaluate FDR control performance."""
     # Apply FDR control
-    adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=alpha)
+    adjusted_p_vals = false_discovery_control(p_values, method='bh')
     discoveries = adjusted_p_vals < alpha
 
     # Calculate metrics using nonconform functions
@@ -358,7 +357,7 @@ print(f"Statistical Power: {results['power']:.3f}")
 expected_anomaly_rate = 0.02  # 2% expected anomalies
 adjusted_alpha = min(0.05, expected_anomaly_rate * 2)  # Adjust FDR level
 
-adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=adjusted_alpha)
+adjusted_p_vals = false_discovery_control(p_values, method='bh')
 ```
 
 ### 4. Monitor Performance
@@ -367,7 +366,7 @@ adjusted_p_vals = false_discovery_control(p_values, method='bh', alpha=adjusted_
 fdr_history = []
 for batch in data_batches:
     p_vals = detector.compute_p_values(batch)
-    adj_p_vals = false_discovery_control(p_vals, method='bh', alpha=0.05)
+    adj_p_vals = false_discovery_control(p_vals, method='bh')
     discoveries = adj_p_vals < 0.05
 
     if len(true_labels_batch) > 0:  # If ground truth available
@@ -423,7 +422,7 @@ combined_stats, combined_p_values = combine_pvalues(
 )
 
 # Apply FDR control to combined p-values
-final_adjusted = false_discovery_control(combined_p_values, method='bh', alpha=0.05)
+final_adjusted = false_discovery_control(combined_p_values, method='bh')
 final_discoveries = final_adjusted < 0.05
 ```
 
