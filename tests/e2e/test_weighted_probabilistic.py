@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 pytest.importorskip("pyod", reason="pyod not installed")
@@ -20,6 +19,8 @@ from nonconform import (
 from nonconform.enums import ConformalMode
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
+
+METRIC_ATOL = 5e-3
 
 
 class TestWeightedProbabilistic:
@@ -45,11 +46,11 @@ class TestWeightedProbabilistic:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.105, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.104761904762, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.94, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.94, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife(self):
@@ -67,11 +68,11 @@ class TestWeightedProbabilistic:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.333, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.333333333333, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife_bootstrap(self):
@@ -89,9 +90,9 @@ class TestWeightedProbabilistic:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.059, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.058823529412, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.16, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.16, rel=0.0, abs=METRIC_ATOL
         )

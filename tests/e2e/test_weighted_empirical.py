@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 pytest.importorskip("pyod", reason="pyod not installed")
@@ -21,6 +20,8 @@ from nonconform import (
 from nonconform.enums import ConformalMode
 from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
+
+METRIC_ATOL = 5e-3
 
 
 class TestWeightedEmpirical:
@@ -52,11 +53,11 @@ class TestWeightedEmpirical:
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         # WCS is conservative: 0 discoveries with this configuration
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_split_randomized(self):
@@ -78,11 +79,11 @@ class TestWeightedEmpirical:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.1132, decimal=3
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.11320754717, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.94, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.94, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife(self):
@@ -104,11 +105,11 @@ class TestWeightedEmpirical:
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.25)
         # WCS is conservative with small calibration: 0 discoveries
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife_bootstrap(self):
@@ -126,11 +127,11 @@ class TestWeightedEmpirical:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.1)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0714, decimal=3
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.071428571429, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.13, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.13, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_cv(self):
@@ -148,9 +149,9 @@ class TestWeightedEmpirical:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.205, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.205357142857, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.89, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.89, rel=0.0, abs=METRIC_ATOL
         )

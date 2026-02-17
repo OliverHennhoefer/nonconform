@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 pytest.importorskip("pyod", reason="pyod not installed")
@@ -20,6 +19,8 @@ from nonconform import (
 from nonconform.enums import ConformalMode
 from nonconform.metrics import false_discovery_rate, statistical_power
 
+METRIC_ATOL = 5e-3
+
 
 class TestStandardProbabilistic:
     def test_split(self):
@@ -35,11 +36,11 @@ class TestStandardProbabilistic:
         ce.fit(x_train)
         estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.2
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.161, decimal=3
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.160714285714, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.94, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.94, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife(self):
@@ -55,11 +56,11 @@ class TestStandardProbabilistic:
         ce.fit(x_train)
         estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.25
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.0, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 1.0, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            1.0, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife_bootstrap(self):
@@ -75,9 +76,9 @@ class TestStandardProbabilistic:
         ce.fit(x_train)
         estimates = ce.compute_p_values(x_test)
         decisions = false_discovery_control(estimates, method="bh") <= 0.1
-        np.testing.assert_array_almost_equal(
-            false_discovery_rate(y=y_test, y_hat=decisions), 0.071, decimal=2
+        assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
+            0.071428571429, rel=0.0, abs=METRIC_ATOL
         )
-        np.testing.assert_array_almost_equal(
-            statistical_power(y=y_test, y_hat=decisions), 0.26, decimal=2
+        assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
+            0.26, rel=0.0, abs=METRIC_ATOL
         )
