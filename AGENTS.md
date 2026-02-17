@@ -53,7 +53,7 @@ Statistical-core means any logic that computes statistics or affects statistical
 
 No substantial task is complete without validation evidence.
 
-- Run `uv run pytest` for every task, regardless of change type.
+- Run `uv run pytest` for every task, except Markdown-only (`*.md`) changes.
 - Run `uv run ruff format .` for every task.
 - Run `uv run ruff check . --fix` for every task.
 - Run narrower tests while iterating, then finish with full `pytest`.
