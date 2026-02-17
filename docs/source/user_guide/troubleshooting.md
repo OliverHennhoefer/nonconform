@@ -470,7 +470,7 @@ import logging
 
 # Show progress but hide specific module info
 logging.getLogger('nonconform').setLevel(logging.INFO)
-logging.getLogger('nonconform.strategy.bootstrap').setLevel(logging.WARNING)
+logging.getLogger('nonconform.resampling.bootstrap').setLevel(logging.WARNING)
 
 # This will show aggregation progress but hide bootstrap configuration details
 ```
@@ -494,8 +494,10 @@ detector.fit(X_train)
 
 nonconform uses the following logger hierarchy:
 - `nonconform`: Root logger for all nonconform output
-- `nonconform.detection.*`: Detector-specific logging
-- `nonconform.strategy.*`: Strategy-specific logging
-- `nonconform.utils.*`: Utility function logging
+- `nonconform.resampling.*`: Strategy-specific logging
+- `nonconform.weighting.*`: Weight-estimation logging
+- `nonconform.fdr`: Weighted FDR control logging
+- `nonconform.adapters`: Detector adapter and score-polarity logging
+- `nonconform._internal.*`: Internal utility logging
 
 You can configure specific loggers for fine-grained control over output.
