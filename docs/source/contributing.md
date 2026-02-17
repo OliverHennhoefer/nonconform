@@ -42,8 +42,8 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 2. **Install dependencies and setup development environment**
    ```bash
-   # Install all dependencies including dev extras
-   uv sync --extra dev --extra all
+   # Install project + development dependencies
+   uv sync --group dev
    ```
 
 3. **Setup pre-commit hooks**
@@ -53,7 +53,7 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 4. **Run tests to verify setup**
    ```bash
-   uv run python -m unittest discover tests/
+   uv run pytest
    ```
 
 ## Development Workflow
@@ -78,8 +78,8 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 1. **Write tests first** (TDD approach recommended)
    ```bash
-   # Add tests in tests/
-   uv run python -m unittest tests.unit.test_your_feature -v
+   # Add tests in tests/ and run a focused subset while iterating
+   uv run pytest tests/unit/test_your_feature.py -q
    ```
 
 2. **Implement your changes**
@@ -89,14 +89,14 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 3. **Run the full test suite**
    ```bash
-   uv run python -m unittest discover tests/
+   uv run pytest
    ```
 
 4. **Check code quality**
    ```bash
    # Format code and fix linting issues
-   uv run ruff format nonconform/ tests/
-   uv run ruff check nonconform/ tests/ --fix
+   uv run ruff format .
+   uv run ruff check . --fix
 
    # Or run all pre-commit hooks
    uv run pre-commit run --all-files
@@ -116,8 +116,7 @@ We welcome contributions to nonconform! This guide will help you get started.
 
 3. **Build documentation locally**
    ```bash
-   cd docs/
-   uv run mkdocs serve
+   uv run mkdocs serve -f docs/mkdocs.yml
    # Open http://127.0.0.1:8000 in browser
    ```
 
