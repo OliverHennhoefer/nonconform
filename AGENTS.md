@@ -53,7 +53,10 @@ Statistical-core means any logic that computes statistics or affects statistical
 
 No substantial task is complete without validation evidence.
 
-- Run `uv run pytest` for every task, except Markdown-only (`*.md`) changes.
+- Run `uv run pytest` when changes touch `nonconform/**` or `tests/**`.
+- Skip full `pytest` when changes are limited to:
+  - Markdown-only (`*.md`) files, or
+  - Python files outside `nonconform/**` and `tests/**` (for example `examples/**`).
 - Run `uv run ruff format .` for every task.
 - Run `uv run ruff check . --fix` for every task.
 - Run `uv run mkdocs build -f docs/mkdocs.yml` whenever documentation changes under `docs/**`.
