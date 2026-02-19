@@ -35,7 +35,6 @@ REMOVED_ROOT_SYMBOLS = [
     "aggregate",
     "false_discovery_rate",
     "statistical_power",
-    "weighted_bh",
     "weighted_false_discovery_control",
 ]
 
