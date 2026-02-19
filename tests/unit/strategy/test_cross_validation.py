@@ -8,6 +8,30 @@ from nonconform.enums import ConformalMode
 from tests.conftest import MockDetector
 
 
+class SetParamsTypeErrorDetector:
+    """Detector whose set_params raises TypeError (unsupported random_state)."""
+
+    def fit(
+        self, X: np.ndarray, y: np.ndarray | None = None
+    ) -> "SetParamsTypeErrorDetector":
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        return np.arange(len(X), dtype=float)
+
+    def get_params(self, deep: bool = True) -> dict[str, object]:
+        return {}
+
+    def set_params(self, **params: object) -> "SetParamsTypeErrorDetector":
+        raise TypeError("set_params is not supported")
+
+    def __copy__(self) -> "SetParamsTypeErrorDetector":
+        return SetParamsTypeErrorDetector()
+
+    def __deepcopy__(self, memo: dict) -> "SetParamsTypeErrorDetector":
+        return SetParamsTypeErrorDetector()
+
+
 class TestCrossValidationFitCalibrate:
     """Tests for CrossValidation.fit_calibrate()."""
 
@@ -70,3 +94,39 @@ class TestCrossValidationFitCalibrate:
     def test_non_boolean_shuffle_raises(self):
         with pytest.raises(TypeError, match="shuffle must be a boolean value"):
             CrossValidation(k=5, mode="plus", shuffle=1)  # type: ignore[arg-type]
+
+    def test_k_below_two_raises_with_diagnostic_notes(self, sample_data):
+        strategy = CrossValidation(k=1, mode="plus", shuffle=True)
+        with pytest.raises(ValueError, match="k must be at least 2"):
+            strategy.fit_calibrate(
+                x=sample_data,
+                detector=MockDetector(),
+                seed=123,
+            )
+
+    def test_k_above_sample_size_raises_with_diagnostic_notes(self, sample_data):
+        strategy = CrossValidation(k=len(sample_data) + 1, mode="plus", shuffle=True)
+        with pytest.raises(ValueError, match="Not enough samples"):
+            strategy.fit_calibrate(
+                x=sample_data,
+                detector=MockDetector(),
+                seed=123,
+            )
+
+    def test_set_params_type_error_is_ignored(self, sample_data):
+        strategy = CrossValidation(k=5, mode="single_model", shuffle=True)
+        detector_set, calib_scores = strategy.fit_calibrate(
+            x=sample_data,
+            detector=SetParamsTypeErrorDetector(),
+            seed=123,
+        )
+        assert len(detector_set) == 1
+        assert len(calib_scores) == len(sample_data)
+
+    def test_public_properties_reflect_configuration(self):
+        plus = CrossValidation(k=7, mode="plus", shuffle=True)
+        assert plus.k == 7
+        assert plus.mode == "plus"
+        jackknife = CrossValidation.jackknife(mode=ConformalMode.SINGLE_MODEL)
+        assert jackknife.k is None
+        assert jackknife.mode == "single_model"
