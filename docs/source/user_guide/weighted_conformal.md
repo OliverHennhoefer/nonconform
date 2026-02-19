@@ -569,9 +569,6 @@ from nonconform.enums import Pruning
 from nonconform.fdr import (
     weighted_false_discovery_control_from_arrays,
     weighted_false_discovery_control_empirical,
-    weighted_bh,
-    weighted_bh_from_result,
-    weighted_bh_empirical,
 )
 
 # WCS from precomputed p-values + arrays
@@ -594,18 +591,6 @@ wcs_empirical = weighted_false_discovery_control_empirical(
     calib_weights=weighted_detector.last_result.calib_weights,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-# Weighted BH variants
-bh_from_result = weighted_bh_from_result(weighted_detector.last_result, alpha=0.05)
-bh_from_pvalues = weighted_bh(weighted_detector.last_result.p_values, alpha=0.05)
-bh_empirical = weighted_bh_empirical(
-    test_scores=weighted_detector.last_result.test_scores,
-    calib_scores=weighted_detector.last_result.calib_scores,
-    test_weights=weighted_detector.last_result.test_weights,
-    calib_weights=weighted_detector.last_result.calib_weights,
-    alpha=0.05,
     seed=42,
 )
 ```

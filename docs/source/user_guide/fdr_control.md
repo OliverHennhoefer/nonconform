@@ -57,9 +57,6 @@ Use these weighted FDR functions depending on the inputs you have available:
 - `weighted_false_discovery_control(result=...)`
 - `weighted_false_discovery_control_from_arrays(...)`
 - `weighted_false_discovery_control_empirical(...)`
-- `weighted_bh(p_values, alpha=...)`
-- `weighted_bh_from_result(result=...)`
-- `weighted_bh_empirical(...)`
 
 !!! warning "Strict validation for weighted inputs"
     Weighted FDR routines fail fast on invalid inputs.
@@ -74,16 +71,15 @@ Use these weighted FDR functions depending on the inputs you have available:
 
 ```python
 from nonconform.fdr import (
-    weighted_bh,
-    weighted_bh_from_result,
+    weighted_false_discovery_control,
     weighted_false_discovery_control_from_arrays,
 )
 
-# Strict BH from p-values
-bh_mask = weighted_bh(result.p_values, alpha=0.05)
-
-# Strict BH from cached result
-bh_mask_from_result = weighted_bh_from_result(result, alpha=0.05)
+# Strict WCS from cached result bundle
+wcs_from_result = weighted_false_discovery_control(
+    result=result,
+    alpha=0.05,
+)
 
 # Strict WCS from explicit arrays
 wcs_mask = weighted_false_discovery_control_from_arrays(

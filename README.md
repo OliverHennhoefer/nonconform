@@ -94,7 +94,7 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Weighted procedures require weighted FDR control for statistical validity (see `nonconform.fdr.weighted_false_discovery_control()`). Note that `nonconform.fdr.weighted_bh()` often offers greater statistical power but has no strict statistical guarantees.
+> **Note:** Weighted procedures require weighted FDR control for statistical validity (see `nonconform.fdr.weighted_false_discovery_control()`).
 
 
 # Beyond Static Data
