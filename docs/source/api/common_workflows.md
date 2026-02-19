@@ -88,6 +88,33 @@ Use this when you need explicit state transitions for batched or exploratory wor
 
 ---
 
+## 5. Pre-Trained Detector + Detached Calibration (Split Strategy)
+
+```python
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+
+# Train base detector in a separate step/pipeline
+base_detector = IsolationForest(random_state=42)
+base_detector.fit(X_fit)
+
+# Attach pre-trained detector and calibrate on dedicated calibration data
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=Split(n_calib=0.2),
+    score_polarity="auto",
+    seed=42,
+)
+detector.calibrate(X_calib)
+
+p_values = detector.compute_p_values(X_test)
+```
+
+`calibrate(...)` is currently supported only for `Split` strategy.
+
+---
+
 ## Score Polarity
 
 `ConformalDetector` expects anomaly-oriented scores internally (`higher = more anomalous`).

@@ -37,7 +37,7 @@ Examples:
     ... )
 """
 
-__version__ = "0.98.4"
+__version__ = "0.98.5"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

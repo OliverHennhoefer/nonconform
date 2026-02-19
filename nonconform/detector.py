@@ -87,10 +87,14 @@ class BaseConformalDetector(ABC):
     """Abstract base class for all conformal anomaly detectors.
 
     Defines the core interface that all conformal anomaly detection implementations
-    must provide. All conformal detectors follow a two-phase workflow:
+    must provide. Conformal detectors support either an integrated or detached
+    calibration workflow:
 
-    1. **Calibration Phase**: `fit()` trains detector, computes calibration scores
-    2. **Inference Phase**: `compute_p_values()` converts new data scores to valid
+    1. **Integrated calibration**: `fit()` trains detector(s) and computes
+       calibration scores
+    2. **Detached calibration**: train detector externally, then call
+       `calibrate()` on a separate calibration dataset
+    3. **Inference Phase**: `compute_p_values()` converts new data scores to valid
        p-values
 
     Subclasses must implement both abstract methods.
@@ -123,6 +127,23 @@ class BaseConformalDetector(ABC):
             The fitted detector instance.
         """
         raise NotImplementedError("Subclasses must implement fit()")
+
+    @ensure_numpy_array
+    def calibrate(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        y: np.ndarray | None = None,
+    ) -> Self:
+        """Calibrate a pre-fitted detector on separate calibration data.
+
+        Args:
+            x: Dataset used only to compute calibration scores.
+            y: Ignored. Present for sklearn API compatibility.
+
+        Returns:
+            The calibrated detector instance.
+        """
+        raise NotImplementedError("Subclasses must implement calibrate()")
 
     @abstractmethod
     def compute_p_values(
@@ -241,6 +262,17 @@ class ConformalDetector(BaseConformalDetector):
             seed=42,
         )
         detector.fit(X_train)
+        p_values = detector.compute_p_values(X_test)
+        ```
+
+        Detached calibration with a pre-trained model (Split strategy):
+
+        ```python
+        base_detector.fit(X_fit)
+        detector = ConformalDetector(
+            detector=base_detector, strategy=Split(n_calib=0.2)
+        )
+        detector.calibrate(X_calib)
         p_values = detector.compute_p_values(X_test)
         ```
 
@@ -508,6 +540,73 @@ class ConformalDetector(BaseConformalDetector):
             and len(self.strategy.calibration_ids) > 0
         ):
             self._calibration_samples = x[self.strategy.calibration_ids]
+        else:
+            self._calibration_samples = np.array([])
+
+        self._prepared_weight_batch_size = None
+        self._prepared_weight_batch_signature = None
+        self._last_result = None
+        return self
+
+    @ensure_numpy_array
+    def calibrate(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        y: np.ndarray | None = None,
+    ) -> Self:
+        """Calibrate a pre-fitted detector on separate calibration data.
+
+        This detached workflow is currently supported only for ``Split`` strategy,
+        where a single pre-fitted model is calibrated on a dedicated dataset.
+
+        Args:
+            x: Calibration dataset used to compute calibration scores.
+            y: Ignored. Present for sklearn API compatibility.
+
+        Returns:
+            The calibrated detector instance (for method chaining).
+
+        Raises:
+            ValueError: If strategy is not ``Split``.
+            NotFittedError: If the base detector appears unfitted.
+        """
+        _ = y
+        from nonconform.resampling import Split
+
+        if not isinstance(self.strategy, Split):
+            raise ValueError(
+                "calibrate() is supported only with Split strategy. "
+                f"Got {type(self.strategy).__name__}."
+            )
+
+        try:
+            calibration_set = np.asarray(
+                self.detector.decision_function(x),
+                dtype=float,
+            ).ravel()
+        except Exception as exc:
+            message = str(exc).lower()
+            if (
+                isinstance(exc, NotFittedError)
+                or "not fitted" in message
+                or (isinstance(exc, AttributeError) and "has no attribute" in message)
+            ):
+                raise NotFittedError(
+                    "Base detector is not fitted. Fit the base detector before "
+                    "calling calibrate()."
+                ) from exc
+            raise
+
+        if calibration_set.shape[0] != len(x):
+            raise ValueError(
+                "calibration scores must have one value per calibration sample. "
+                f"Got {calibration_set.shape[0]} scores for {len(x)} samples."
+            )
+
+        self._detector_set = [self.detector]
+        self._calibration_set = calibration_set
+        if self._is_weighted_mode:
+            self._calibration_samples = x.copy()
         else:
             self._calibration_samples = np.array([])
 

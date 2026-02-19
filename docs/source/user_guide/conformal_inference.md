@@ -58,6 +58,11 @@ fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
 anomalies = fdr_corrected_pvals < 0.05  # Controls FDR at 5%
 ```
 
+`fit(...)` remains the default one-call workflow: train + calibrate together.
+If your base model is already trained in a separate pipeline stage, you can
+calibrate separately with `detector.calibrate(X_calib)` (currently split-style
+detached calibration with `Split` strategy).
+
 ## Mathematical Foundation
 
 ### Classical Conformal p-values
@@ -196,6 +201,28 @@ detector = ConformalDetector(
 
 # 4. Fit detector and get p-values
 p_values = detector.fit(X_train).compute_p_values(X_test)
+```
+
+### Detached Calibration with a Pre-Trained Detector
+
+When model training and conformal calibration happen in separate steps, train
+the base detector first, then call `calibrate(...)` on dedicated calibration data:
+
+```python
+from sklearn.ensemble import IsolationForest
+from nonconform import ConformalDetector, Split
+
+base_detector = IsolationForest(random_state=42)
+base_detector.fit(X_fit)
+
+detector = ConformalDetector(
+    detector=base_detector,
+    strategy=Split(n_calib=0.2),
+    aggregation="median",
+    seed=42
+)
+detector.calibrate(X_calib)
+p_values = detector.compute_p_values(X_test)
 ```
 
 ### Understanding the Output

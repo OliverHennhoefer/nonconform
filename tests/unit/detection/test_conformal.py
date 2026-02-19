@@ -84,6 +84,45 @@ class SeedAwareDetector:
         return new
 
 
+class StrictFittableDetector:
+    """Detector that enforces fit-before-decision_function behavior."""
+
+    def __init__(self) -> None:
+        self._fitted = False
+        self._params = {"random_state": None}
+
+    def fit(
+        self, X: np.ndarray, y: np.ndarray | None = None
+    ) -> "StrictFittableDetector":
+        self._fitted = True
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        if not self._fitted:
+            raise NotFittedError("StrictFittableDetector is not fitted.")
+        return np.linalg.norm(X, axis=1)
+
+    def get_params(self, deep: bool = True) -> dict[str, int | None]:
+        return self._params.copy()
+
+    def set_params(self, **params: int | None) -> "StrictFittableDetector":
+        self._params.update(params)
+        return self
+
+    def __copy__(self) -> "StrictFittableDetector":
+        new = type(self)()
+        new._fitted = self._fitted
+        new._params = self._params.copy()
+        return new
+
+    def __deepcopy__(self, memo: dict) -> "StrictFittableDetector":
+        new = type(self)()
+        memo[id(self)] = new
+        new._fitted = self._fitted
+        new._params = self._params.copy()
+        return new
+
+
 @pytest.fixture
 def fitted_detector():
     """Pre-fitted conformal detector."""
@@ -343,6 +382,93 @@ class TestConformalDetectorFit:
         )
         with pytest.raises(ValueError, match="does not support n_jobs"):
             detector.fit(sample_data, n_jobs=2)
+
+
+class TestConformalDetectorCalibrate:
+    """Tests for detached calibration on pre-fitted detectors."""
+
+    @pytest.fixture
+    def sample_data(self):
+        rng = np.random.default_rng(1337)
+        x_train = rng.standard_normal((80, 4))
+        x_calib = rng.standard_normal((30, 4))
+        x_test = rng.standard_normal((12, 4))
+        return x_train, x_calib, x_test
+
+    def test_calibrate_returns_self(self, sample_data):
+        x_train, x_calib, _ = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(detector=base, strategy=Split(n_calib=0.2), seed=7)
+        result = detector.calibrate(x_calib)
+        assert result is detector
+
+    def test_calibrate_works_with_prefitted_detector(self, sample_data):
+        x_train, x_calib, _ = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(detector=base, strategy=Split(n_calib=0.2), seed=7)
+
+        detector.calibrate(x_calib)
+        assert detector.is_fitted
+        assert len(detector.detector_set) == 1
+        assert len(detector.calibration_set) == len(x_calib)
+
+    def test_calibrate_rejects_non_split_strategy(self, sample_data):
+        x_train, x_calib, _ = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(
+            detector=base,
+            strategy=JackknifeBootstrap(n_bootstraps=3),
+            seed=7,
+        )
+
+        with pytest.raises(ValueError, match="supported only with Split"):
+            detector.calibrate(x_calib)
+
+    def test_calibrate_unfitted_detector_raises(self, sample_data):
+        _, x_calib, _ = sample_data
+        detector = ConformalDetector(
+            detector=StrictFittableDetector(),
+            strategy=Split(n_calib=0.2),
+            seed=7,
+        )
+
+        with pytest.raises(NotFittedError, match="Base detector is not fitted"):
+            detector.calibrate(x_calib)
+
+    def test_compute_p_values_after_calibrate(self, sample_data):
+        x_train, x_calib, x_test = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(detector=base, strategy=Split(n_calib=0.2), seed=7)
+
+        detector.calibrate(x_calib)
+        p_values = detector.compute_p_values(x_test)
+        assert len(p_values) == len(x_test)
+        assert np.all((0 <= p_values) & (p_values <= 1))
+
+    def test_calibrate_weighted_mode_stores_calibration_samples(self, sample_data):
+        x_train, x_calib, x_test = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(
+            detector=base,
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=7,
+        )
+
+        detector.calibrate(x_calib)
+        np.testing.assert_array_equal(detector.calibration_samples, x_calib)
+
+        p_values = detector.compute_p_values(x_test)
+        assert len(p_values) == len(x_test)
+
+    def test_calibrate_accepts_dataframe(self, sample_data):
+        x_train, x_calib, _ = sample_data
+        base = StrictFittableDetector().fit(x_train)
+        detector = ConformalDetector(detector=base, strategy=Split(n_calib=0.2), seed=7)
+
+        x_calib_df = pd.DataFrame(x_calib)
+        detector.calibrate(x_calib_df)
+        assert len(detector.calibration_set) == len(x_calib_df)
 
 
 class TestConformalDetectorPredict:
