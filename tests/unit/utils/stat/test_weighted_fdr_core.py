@@ -1,14 +1,13 @@
 import numpy as np
 import pytest
+from scipy.stats import false_discovery_control
 
 from nonconform.fdr import (
-    weighted_bh,
-    weighted_bh_empirical,
-    weighted_bh_from_result,
     weighted_false_discovery_control,
     weighted_false_discovery_control_empirical,
     weighted_false_discovery_control_from_arrays,
 )
+from nonconform.scoring import calculate_weighted_p_val
 
 
 class TestBasicFDRControl:
@@ -56,24 +55,24 @@ class TestBasicFDRControl:
 class TestWeightedBH:
     def test_returns_boolean_array(self, conformal_result):
         result = conformal_result(n_test=20, n_calib=100)
-        discoveries = weighted_bh_from_result(result=result, alpha=0.1)
+        discoveries = false_discovery_control(result.p_values, method="bh") <= 0.1
         assert isinstance(discoveries, np.ndarray)
         assert discoveries.dtype == bool
 
     def test_output_length_matches_test_set(self, conformal_result):
         result = conformal_result(n_test=25, n_calib=100)
-        discoveries = weighted_bh_from_result(result=result, alpha=0.1)
+        discoveries = false_discovery_control(result.p_values, method="bh") <= 0.1
         assert len(discoveries) == 25
 
     def test_low_p_values_discovered(self, conformal_result):
         result = conformal_result(n_test=20, n_calib=100, seed=42)
-        discoveries = weighted_bh_from_result(result=result, alpha=0.2)
+        discoveries = false_discovery_control(result.p_values, method="bh") <= 0.2
         assert isinstance(discoveries, np.ndarray)
         assert len(discoveries) == 20
 
     def test_accepts_direct_p_values(self, sample_p_values):
         p_values = sample_p_values(n=12)
-        discoveries = weighted_bh(p_values, alpha=0.1)
+        discoveries = false_discovery_control(p_values, method="bh") <= 0.1
         assert len(discoveries) == 12
         assert discoveries.dtype == bool
 
@@ -82,41 +81,42 @@ class TestWeightedBH:
     ):
         test_scores, calib_scores = sample_scores(n_test=12, n_calib=40)
         test_weights, calib_weights = sample_weights(n_test=12, n_calib=40)
-        discoveries = weighted_bh_empirical(
-            test_scores=test_scores,
-            calib_scores=calib_scores,
+        p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
             test_weights=test_weights,
             calib_weights=calib_weights,
-            alpha=0.1,
         )
+        discoveries = false_discovery_control(p_values, method="bh") <= 0.1
         assert len(discoveries) == 12
         assert discoveries.dtype == bool
 
     def test_recompute_with_seed_is_reproducible(self, sample_scores, sample_weights):
         test_scores, calib_scores = sample_scores(n_test=20, n_calib=80, seed=7)
         test_weights, calib_weights = sample_weights(n_test=20, n_calib=80, seed=7)
-        first = weighted_bh_empirical(
-            test_scores=test_scores,
-            calib_scores=calib_scores,
+        first_p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
             test_weights=test_weights,
             calib_weights=calib_weights,
-            alpha=0.1,
-            seed=42,
+            tie_break="randomized",
+            rng=np.random.default_rng(42),
         )
-        second = weighted_bh_empirical(
-            test_scores=test_scores,
-            calib_scores=calib_scores,
+        second_p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
             test_weights=test_weights,
             calib_weights=calib_weights,
-            alpha=0.1,
-            seed=42,
+            tie_break="randomized",
+            rng=np.random.default_rng(42),
         )
+        first = false_discovery_control(first_p_values, method="bh") <= 0.1
+        second = false_discovery_control(second_p_values, method="bh") <= 0.1
         np.testing.assert_array_equal(first, second)
 
     def test_uses_explicit_p_values(self):
-        discoveries = weighted_bh(
-            np.array([0.001, 0.002, 0.003], dtype=float), alpha=0.05
-        )
+        p_values = np.array([0.001, 0.002, 0.003], dtype=float)
+        discoveries = false_discovery_control(p_values, method="bh") <= 0.05
         assert np.sum(discoveries) == 3
 
 

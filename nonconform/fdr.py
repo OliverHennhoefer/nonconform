@@ -2,7 +2,6 @@
 
 This module exposes explicit, non-polymorphic entrypoints for:
 - Weighted Conformalized Selection (WCS)
-- weighted Benjamini-Hochberg (BH)
 """
 
 import logging
@@ -194,16 +193,6 @@ def _extract_required_wcs_fields(
     test_weights = np.asarray(required["test_weights"])
     calib_weights = np.asarray(required["calib_weights"])
     return p_values, test_scores, calib_scores, test_weights, calib_weights
-
-
-def _extract_required_bh_p_values(result: ConformalResult) -> np.ndarray:
-    """Extract required p-values from a result bundle for weighted BH."""
-    if result.p_values is None:
-        raise ValueError(
-            "result.p_values is required for weighted_bh_from_result(...). "
-            "Run compute_p_values(...) first."
-        )
-    return np.asarray(result.p_values, dtype=float)
 
 
 def _extract_kde_support(
@@ -462,62 +451,8 @@ def weighted_false_discovery_control_empirical(
     )
 
 
-def weighted_bh(p_values: np.ndarray, *, alpha: float = 0.05) -> np.ndarray:
-    """Apply weighted Benjamini-Hochberg to precomputed p-values."""
-    _validate_alpha(alpha)
-
-    p_values_arr = _as_1d_numeric("p_values", p_values)
-    _validate_p_values(p_values_arr)
-
-    m = len(p_values_arr)
-    if m == 0:
-        return np.zeros(0, dtype=bool)
-
-    sorted_idx = np.argsort(p_values_arr)
-    sorted_p = p_values_arr[sorted_idx]
-    adjusted_sorted = np.minimum.accumulate((sorted_p * m / np.arange(1, m + 1))[::-1])[
-        ::-1
-    ]
-
-    adjusted_p_values = np.empty(m)
-    adjusted_p_values[sorted_idx] = adjusted_sorted
-    return adjusted_p_values <= alpha
-
-
-def weighted_bh_from_result(
-    result: ConformalResult, *, alpha: float = 0.05
-) -> np.ndarray:
-    """Apply weighted BH from a strict ConformalResult bundle."""
-    p_values = _extract_required_bh_p_values(result)
-    return weighted_bh(p_values, alpha=alpha)
-
-
-def weighted_bh_empirical(
-    *,
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
-    test_weights: np.ndarray,
-    calib_weights: np.ndarray,
-    alpha: float = 0.05,
-    seed: int | None = None,
-) -> np.ndarray:
-    """Apply weighted BH after empirical randomized p-value computation."""
-    p_values = calculate_weighted_p_val(
-        scores=np.asarray(test_scores),
-        calibration_set=np.asarray(calib_scores),
-        test_weights=np.asarray(test_weights),
-        calib_weights=np.asarray(calib_weights),
-        tie_break=TieBreakMode.RANDOMIZED,
-        rng=np.random.default_rng(seed),
-    )
-    return weighted_bh(p_values, alpha=alpha)
-
-
 __all__ = [
     "Pruning",
-    "weighted_bh",
-    "weighted_bh_empirical",
-    "weighted_bh_from_result",
     "weighted_false_discovery_control",
     "weighted_false_discovery_control_empirical",
     "weighted_false_discovery_control_from_arrays",

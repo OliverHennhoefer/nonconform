@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from pyod.models.iforest import IForest
+from scipy.stats import false_discovery_control
 
 from nonconform import (
     ConformalDetector,
@@ -13,7 +14,7 @@ from nonconform import (
     logistic_weight_estimator,
 )
 from nonconform.enums import Kernel, Pruning
-from nonconform.fdr import weighted_bh_from_result, weighted_false_discovery_control
+from nonconform.fdr import weighted_false_discovery_control
 
 
 def _fit_weighted_detector(x_train):
@@ -53,7 +54,7 @@ def test_pruning_modes_control_false_discoveries(simple_dataset, pruning):
         assert observed_fdr <= 0.35  # empirical control with generous slack
 
 
-def test_weighted_bh_respects_pvalue_ordering(simple_dataset):
+def test_standard_bh_on_weighted_pvalues_respects_ordering(simple_dataset):
     """Selected discoveries must correspond to the smallest p-values."""
     x_train, x_test, _ = simple_dataset(n_train=100, n_test=50, n_features=4)
     detector = _fit_weighted_detector(x_train)
@@ -61,7 +62,7 @@ def test_weighted_bh_respects_pvalue_ordering(simple_dataset):
     result = detector.last_result
     assert result is not None and result.p_values is not None
 
-    mask = weighted_bh_from_result(result=result, alpha=0.2)
+    mask = false_discovery_control(result.p_values, method="bh") <= 0.2
     assert mask.shape == (len(x_test),)
 
     if np.any(mask):
