@@ -28,7 +28,7 @@ pip install nonconform
 
 ## Classical (Conformal) Approach
 
-**Example:** Detecting anomalies with Isolation Forest on the Shuttle dataset. The approach splits data for calibration, trains the model, then converts anomaly scores to p-values by comparing test scores against the calibration distribution.
+**Example:** Detecting anomalies with Isolation Forest on the Shuttle dataset. The approach splits data for calibration, trains the model, then converts anomaly scores to p-values by comparing test scores against the calibration distribution. See [ConformalDetector](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.detector.ConformalDetector), [Split](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.resampling.Split), and [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/).
 
 ```python
 from pyod.models.iforest import IForest
@@ -61,8 +61,8 @@ Statistical Power: 0.99
 # :hatched_chick: Advanced Methods
 
 Two advanced approaches are implemented that may increase the power of a conformal anomaly detector:
-- A KDE-based (probabilistic) approach that models the calibration scores to achieve continuous *p*-values in contrast to the standard empirical distribution function.
-- A weighted approach that prioritizes calibration scores by their similarity to the test batch at hand and is more robust to covariate shift between test and calibration data (can be combined with the probabilistic approach).
+- A KDE-based ([probabilistic](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.scoring.Probabilistic)) approach that models the calibration scores to achieve continuous *p*-values in contrast to the standard empirical distribution function.
+- A [weighted](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) approach that prioritizes calibration scores by their similarity to the test batch at hand and is more robust to covariate shift between test and calibration data (can be combined with the probabilistic approach).
 
 Probabilistic Conformal Approach:
 
@@ -94,17 +94,17 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Weighted procedures require weighted FDR control for statistical validity (see `nonconform.fdr.weighted_false_discovery_control()`).
+> **Note:** Weighted procedures require weighted FDR control for statistical validity (see [`nonconform.fdr.weighted_false_discovery_control()`](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#weighted-conformal-selection)).
 
 
 # Beyond Static Data
 
-While primarily designed for static (single-batch) applications, the optional `onlinefdr` dependency provides FDR control methods appropriate for streaming scenarios.
+While primarily designed for static (single-batch) applications, the optional `onlinefdr` dependency provides FDR control methods appropriate for [streaming scenarios](https://oliverhennhoefer.github.io/nonconform/user_guide/streaming_evaluation/).
 
 
 # Custom Detectors
 
-Any detector implementing the `AnomalyDetector` protocol works with nonconform:
+Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol works with nonconform:
 
 ```python
 from typing import Self
@@ -123,7 +123,7 @@ For custom detectors, either set `score_polarity` explicitly
 default behavior. Use `score_polarity="auto"` only when you want strict
 detector-family validation.
 
-See the [documentation](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
+See [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
 
 
 # Citation
