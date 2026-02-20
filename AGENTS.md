@@ -34,6 +34,7 @@ At `v1.0.0`, remove this section and switch to strict backward-compatibility pol
 - Enforce strict no-scope-creep: do only what is requested and directly necessary.
 - Assume declared dependencies are available; do not redesign around hypothetical missing dependencies.
 - Do not run `uv update` lightly; it can override intentionally pinned security patch versions in this repository.
+- Treat current CI trigger and test-run cadence as intentional; do not suggest changing it unless explicitly requested by the user.
 
 ## Statistical-Core Change Guardrail
 
