@@ -8,7 +8,7 @@ from nonconform import (
 )
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
+x_train, x_test, y_test = load(Dataset.MUSK, setup=True)
 
 ce = ConformalDetector(detector=ABOD(), strategy=CrossValidation(k=20))
 

@@ -5,7 +5,7 @@ from sklearn.covariance import EllipticEnvelope
 from nonconform import ConformalDetector, JackknifeBootstrap
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
+x_train, x_test, y_test = load(Dataset.BREASTW, setup=True, seed=1)
 
 ce = ConformalDetector(
     detector=EllipticEnvelope(random_state=1),

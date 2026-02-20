@@ -4,15 +4,15 @@ from sklearn.svm import OneClassSVM
 
 from nonconform import (
     ConformalDetector,
-    CrossValidation,
+    Split,
 )
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.MUSK, setup=True, seed=1)
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
 ce = ConformalDetector(
     detector=OneClassSVM(kernel="rbf", nu=0.05),
-    strategy=CrossValidation.jackknife(mode="plus"),
+    strategy=Split(1_000),
     score_polarity="higher_is_normal",
     seed=1,
 )

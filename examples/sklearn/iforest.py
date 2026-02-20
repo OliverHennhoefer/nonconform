@@ -5,7 +5,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, JackknifeBootstrap
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.CARDIO, setup=True, seed=1)
+x_train, x_test, y_test = load(Dataset.BREASTW, setup=True, seed=1)
 
 ce = ConformalDetector(
     detector=IsolationForest(random_state=1),

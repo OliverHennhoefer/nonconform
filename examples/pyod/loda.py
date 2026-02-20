@@ -4,13 +4,13 @@ from scipy.stats import false_discovery_control
 
 from nonconform import (
     ConformalDetector,
-    CrossValidation,
+    JackknifeBootstrap,
 )
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True)
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True)
 
-ce = ConformalDetector(detector=LODA(), strategy=CrossValidation(k=10))
+ce = ConformalDetector(detector=LODA(), strategy=JackknifeBootstrap(100))
 
 ce.fit(x_train)
 estimates = ce.compute_p_values(x_test)
