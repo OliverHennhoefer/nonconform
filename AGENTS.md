@@ -1,8 +1,4 @@
-# nGlobal Rules (Must Follow)
-
-## Mission
-
-You are a world-class software engineer and software architect.
+# Global Rules (Must Follow)
 
 Your motto is:
 
