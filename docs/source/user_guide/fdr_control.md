@@ -56,7 +56,6 @@ Use these weighted FDR functions depending on the inputs you have available:
 
 - `weighted_false_discovery_control(result=...)`
 - `weighted_false_discovery_control_from_arrays(...)`
-- `weighted_false_discovery_control_empirical(...)`
 
 !!! warning "Strict validation for weighted inputs"
     Weighted FDR routines fail fast on invalid inputs.

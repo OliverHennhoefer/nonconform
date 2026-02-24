@@ -4,9 +4,34 @@ from scipy.stats import false_discovery_control
 
 from nonconform.fdr import (
     weighted_false_discovery_control,
-    weighted_false_discovery_control_empirical,
     weighted_false_discovery_control_from_arrays,
 )
+from nonconform.scoring import calculate_weighted_p_val
+
+
+def _wcs_from_empirical_scores(
+    *,
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    test_weights: np.ndarray,
+    calib_weights: np.ndarray,
+    alpha: float = 0.05,
+) -> np.ndarray:
+    p_values = calculate_weighted_p_val(
+        scores=test_scores,
+        calibration_set=calib_scores,
+        test_weights=test_weights,
+        calib_weights=calib_weights,
+        tie_break="classical",
+    )
+    return weighted_false_discovery_control_from_arrays(
+        p_values=p_values,
+        test_scores=test_scores,
+        calib_scores=calib_scores,
+        test_weights=test_weights,
+        calib_weights=calib_weights,
+        alpha=alpha,
+    )
 
 
 class TestNoDiscoveries:
@@ -121,7 +146,7 @@ class TestErrorHandling:
         test_scores, calib_scores = sample_scores(n_test=10, n_calib=50)
 
         with pytest.raises(TypeError):
-            weighted_false_discovery_control_empirical(
+            _wcs_from_empirical_scores(
                 test_scores=test_scores,
                 calib_scores=calib_scores,
                 alpha=0.1,
@@ -137,7 +162,7 @@ class TestInvalidWeights:
         calib_weights = np.ones(50)
 
         with pytest.raises(ValueError):
-            weighted_false_discovery_control_empirical(
+            _wcs_from_empirical_scores(
                 test_scores=test_scores,
                 calib_scores=calib_scores,
                 test_weights=test_weights,
@@ -153,7 +178,7 @@ class TestInvalidWeights:
         calib_weights[0] = bad_value
 
         with pytest.raises(ValueError):
-            weighted_false_discovery_control_empirical(
+            _wcs_from_empirical_scores(
                 test_scores=test_scores,
                 calib_scores=calib_scores,
                 test_weights=test_weights,
@@ -171,7 +196,7 @@ class TestExtremeWeights:
         with pytest.raises(
             ValueError, match="calib_weights must sum to a positive value"
         ):
-            weighted_false_discovery_control_empirical(
+            _wcs_from_empirical_scores(
                 test_scores=test_scores,
                 calib_scores=calib_scores,
                 test_weights=test_weights,
@@ -184,7 +209,7 @@ class TestExtremeWeights:
         test_weights = np.ones(10) * 1e6
         calib_weights = np.ones(50) * 1e6
 
-        discoveries = weighted_false_discovery_control_empirical(
+        discoveries = _wcs_from_empirical_scores(
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,

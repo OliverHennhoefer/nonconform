@@ -282,8 +282,8 @@ def calculate_weighted_p_val(
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
     if mode is TieBreakMode.CLASSICAL:
-        weighted_sum_ge = total_weight - cumulative_weights[left_idx]
-        numerator = weighted_sum_ge + w_scores
+        weighted_greater = total_weight - cumulative_weights[right_idx]
+        numerator = weighted_greater + w_scores
     else:
         weighted_greater = total_weight - cumulative_weights[right_idx]
         weighted_equal = cumulative_weights[right_idx] - cumulative_weights[left_idx]

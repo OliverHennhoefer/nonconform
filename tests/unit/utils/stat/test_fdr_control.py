@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 
 from nonconform._internal import Pruning
-from nonconform.fdr import weighted_false_discovery_control_empirical
+from nonconform.fdr import weighted_false_discovery_control_from_arrays
+from nonconform.scoring import calculate_weighted_p_val
 
 
 def _run_fdr_simulation(
@@ -56,8 +57,17 @@ def _run_fdr_simulation(
             calib_weights = np.ones(n_calib)
             test_weights = np.ones(n_test)
 
+        p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="classical",
+        )
+
         # Apply WCS
-        discoveries_mask = weighted_false_discovery_control_empirical(
+        discoveries_mask = weighted_false_discovery_control_from_arrays(
+            p_values=p_values,
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,
@@ -100,7 +110,15 @@ class TestFDRControl:
         calib_weights = np.ones_like(calib_scores)
         test_weights = np.ones_like(test_scores)
 
-        first = weighted_false_discovery_control_empirical(
+        p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="classical",
+        )
+        first = weighted_false_discovery_control_from_arrays(
+            p_values=p_values,
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,
@@ -109,7 +127,8 @@ class TestFDRControl:
             pruning=Pruning.HETEROGENEOUS,
             seed=123,
         )
-        second = weighted_false_discovery_control_empirical(
+        second = weighted_false_discovery_control_from_arrays(
+            p_values=p_values,
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,

@@ -52,19 +52,17 @@ class TestWeightedEmpirical:
         ce.fit(x_train)
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
-        # WCS is conservative: 0 discoveries with this configuration
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
-            0.0, rel=0.0, abs=METRIC_ATOL
+            0.145454545455, rel=0.0, abs=METRIC_ATOL
         )
         assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
-            0.0, rel=0.0, abs=METRIC_ATOL
+            0.94, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_split_randomized(self):
         """Test WCS with split conformal on SHUTTLE dataset (randomized smoothing).
 
-        Uses randomized p-values (Jin & Candes 2023) for
-        better resolution with discrete ties.
+        Uses randomized p-values (Jin & Candes 2023) for tie smoothing.
         """
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
@@ -80,10 +78,10 @@ class TestWeightedEmpirical:
         ce.compute_p_values(x_test)
         decisions = weighted_false_discovery_control(result=ce.last_result, alpha=0.2)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
-            0.11320754717, rel=0.0, abs=METRIC_ATOL
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
         assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
-            0.94, rel=0.0, abs=METRIC_ATOL
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_jackknife(self):

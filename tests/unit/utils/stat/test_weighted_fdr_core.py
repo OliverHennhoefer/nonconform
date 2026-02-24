@@ -4,7 +4,6 @@ from scipy.stats import false_discovery_control
 
 from nonconform.fdr import (
     weighted_false_discovery_control,
-    weighted_false_discovery_control_empirical,
     weighted_false_discovery_control_from_arrays,
 )
 from nonconform.scoring import calculate_weighted_p_val
@@ -183,8 +182,15 @@ class TestDirectInput:
     def test_without_p_values(self, sample_scores, sample_weights):
         test_scores, calib_scores = sample_scores(n_test=15, n_calib=80)
         test_weights, calib_weights = sample_weights(n_test=15, n_calib=80)
+        p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+        )
 
-        discoveries = weighted_false_discovery_control_empirical(
+        discoveries = weighted_false_discovery_control_from_arrays(
+            p_values=p_values,
             test_scores=test_scores,
             calib_scores=calib_scores,
             test_weights=test_weights,

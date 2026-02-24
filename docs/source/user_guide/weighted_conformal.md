@@ -568,8 +568,8 @@ For explicit array-first workflows, use:
 from nonconform.enums import Pruning
 from nonconform.fdr import (
     weighted_false_discovery_control_from_arrays,
-    weighted_false_discovery_control_empirical,
 )
+from nonconform.scoring import calculate_weighted_p_val
 
 # WCS from precomputed p-values + arrays
 wcs_from_arrays = weighted_false_discovery_control_from_arrays(
@@ -583,15 +583,22 @@ wcs_from_arrays = weighted_false_discovery_control_from_arrays(
     seed=42,
 )
 
-# WCS with internal empirical p-value computation
-wcs_empirical = weighted_false_discovery_control_empirical(
+# WCS with explicit empirical p-value computation
+p_values_empirical = calculate_weighted_p_val(
+    scores=weighted_detector.last_result.test_scores,
+    calibration_set=weighted_detector.last_result.calib_scores,
+    test_weights=weighted_detector.last_result.test_weights,
+    calib_weights=weighted_detector.last_result.calib_weights,
+    tie_break="classical",
+)
+wcs_empirical = weighted_false_discovery_control_from_arrays(
+    p_values=p_values_empirical,
     test_scores=weighted_detector.last_result.test_scores,
     calib_scores=weighted_detector.last_result.calib_scores,
     test_weights=weighted_detector.last_result.test_weights,
     calib_weights=weighted_detector.last_result.calib_weights,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
-    seed=42,
 )
 ```
 

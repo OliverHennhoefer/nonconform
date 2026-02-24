@@ -9,10 +9,9 @@ import logging
 import numpy as np
 from tqdm import tqdm
 
-from nonconform.scoring import calculate_weighted_p_val
 from nonconform.structures import ConformalResult
 
-from ._internal import Pruning, TieBreakMode, get_logger
+from ._internal import Pruning, get_logger
 
 _KDE_MONOTONICITY_TOL = 1e-12
 
@@ -78,16 +77,16 @@ def _validate_pruning(pruning: Pruning) -> None:
         )
 
 
-def _calib_weight_mass_at_or_above(
+def _calib_weight_mass_strictly_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
-    """Compute weighted calibration mass at or above each target score."""
+    """Compute weighted calibration mass strictly above each target score."""
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
     total_weight = np.sum(sorted_weights)
     cum_weights = np.concatenate(([0.0], np.cumsum(sorted_weights)))
-    positions = np.searchsorted(sorted_scores, targets, side="left")
+    positions = np.searchsorted(sorted_scores, targets, side="right")
     return total_weight - cum_weights[positions]
 
 
@@ -143,18 +142,18 @@ def _compute_rejection_set_size_for_instance(
     w_test: np.ndarray,
     sum_calib_weight: float,
     bh_thresholds: np.ndarray,
-    calib_mass_at_or_above: np.ndarray,
+    calib_mass_strictly_above: np.ndarray,
     scratch: np.ndarray,
     include_self_weight: bool,
     sorted_test_idx: np.ndarray | None,
-    le_cutoffs: np.ndarray | None,
+    lt_cutoffs: np.ndarray | None,
 ) -> int:
     """Compute rejection set size |R_j^{(0)}| for test instance j."""
-    np.copyto(scratch, calib_mass_at_or_above)
+    np.copyto(scratch, calib_mass_strictly_above)
     if include_self_weight:
-        if sorted_test_idx is None or le_cutoffs is None:
+        if sorted_test_idx is None or lt_cutoffs is None:
             raise ValueError("Internal error: missing score-rank cache for WCS.")
-        scratch[sorted_test_idx[: le_cutoffs[j]]] += w_test[j]
+        scratch[sorted_test_idx[: lt_cutoffs[j]]] += w_test[j]
         denominator = sum_calib_weight + w_test[j]
     else:
         denominator = sum_calib_weight
@@ -301,7 +300,7 @@ def _run_wcs(
     if kde_support is not None:
         eval_grid, cdf_values, total_weight = kde_support
         sum_calib_weight = total_weight
-        calib_mass_at_or_above = sum_calib_weight * (
+        calib_mass_strictly_above = sum_calib_weight * (
             1.0
             - np.interp(
                 test_scores_arr,
@@ -313,7 +312,7 @@ def _run_wcs(
         )
     else:
         sum_calib_weight = float(np.sum(calib_weights_arr, dtype=float))
-        calib_mass_at_or_above = _calib_weight_mass_at_or_above(
+        calib_mass_strictly_above = _calib_weight_mass_strictly_above(
             calib_scores_arr, calib_weights_arr, test_scores_arr
         )
     if not np.isfinite(sum_calib_weight) or sum_calib_weight <= 0.0:
@@ -325,11 +324,11 @@ def _run_wcs(
     bh_thresholds = alpha * (np.arange(1, m + 1) / m)
     scratch = np.empty(m, dtype=float)
     sorted_test_idx: np.ndarray | None = None
-    le_cutoffs: np.ndarray | None = None
+    lt_cutoffs: np.ndarray | None = None
     if include_self_weight:
         sorted_test_idx = np.argsort(test_scores_arr, kind="mergesort")
         sorted_scores = test_scores_arr[sorted_test_idx]
-        le_cutoffs = np.searchsorted(sorted_scores, test_scores_arr, side="right")
+        lt_cutoffs = np.searchsorted(sorted_scores, test_scores_arr, side="left")
     logger = get_logger("fdr")
     j_iterator = (
         tqdm(range(m), desc="Weighted FDR Control")
@@ -343,11 +342,11 @@ def _run_wcs(
             test_weights_arr,
             sum_calib_weight,
             bh_thresholds,
-            calib_mass_at_or_above,
+            calib_mass_strictly_above,
             scratch,
             include_self_weight=include_self_weight,
             sorted_test_idx=sorted_test_idx,
-            le_cutoffs=le_cutoffs,
+            lt_cutoffs=lt_cutoffs,
         )
 
     thresholds = alpha * r_sizes / m
@@ -418,42 +417,8 @@ def weighted_false_discovery_control_from_arrays(
     )
 
 
-def weighted_false_discovery_control_empirical(
-    *,
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
-    test_weights: np.ndarray,
-    calib_weights: np.ndarray,
-    alpha: float = 0.05,
-    pruning: Pruning = Pruning.DETERMINISTIC,
-    seed: int | None = None,
-) -> np.ndarray:
-    """Perform WCS from explicit arrays with empirical randomized p-values."""
-    rng = np.random.default_rng(seed)
-    p_values = calculate_weighted_p_val(
-        scores=np.asarray(test_scores),
-        calibration_set=np.asarray(calib_scores),
-        test_weights=np.asarray(test_weights),
-        calib_weights=np.asarray(calib_weights),
-        tie_break=TieBreakMode.RANDOMIZED,
-        rng=rng,
-    )
-    return _run_wcs(
-        p_values=p_values,
-        test_scores=test_scores,
-        calib_scores=calib_scores,
-        test_weights=test_weights,
-        calib_weights=calib_weights,
-        alpha=alpha,
-        pruning=pruning,
-        seed=seed,
-        rng=rng,
-    )
-
-
 __all__ = [
     "Pruning",
     "weighted_false_discovery_control",
-    "weighted_false_discovery_control_empirical",
     "weighted_false_discovery_control_from_arrays",
 ]

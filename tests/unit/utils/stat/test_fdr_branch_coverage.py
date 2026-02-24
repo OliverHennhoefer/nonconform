@@ -68,11 +68,11 @@ def test_compute_rejection_set_size_requires_score_rank_cache() -> None:
             w_test=np.array([1.0, 1.0]),
             sum_calib_weight=2.0,
             bh_thresholds=np.array([0.05, 0.10]),
-            calib_mass_at_or_above=np.array([1.0, 0.5]),
+            calib_mass_strictly_above=np.array([1.0, 0.5]),
             scratch=np.empty(2, dtype=float),
             include_self_weight=True,
             sorted_test_idx=None,
-            le_cutoffs=None,
+            lt_cutoffs=None,
         )
 
 
@@ -84,11 +84,11 @@ def test_compute_rejection_set_size_rejects_non_positive_effective_mass() -> Non
             w_test=np.array([1.0, 1.0]),
             sum_calib_weight=0.0,
             bh_thresholds=np.array([0.05, 0.10]),
-            calib_mass_at_or_above=np.array([0.0, 0.0]),
+            calib_mass_strictly_above=np.array([0.0, 0.0]),
             scratch=np.empty(2, dtype=float),
             include_self_weight=False,
             sorted_test_idx=None,
-            le_cutoffs=None,
+            lt_cutoffs=None,
         )
 
 
