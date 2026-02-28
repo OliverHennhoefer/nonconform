@@ -1,7 +1,8 @@
 """Exchangeability martingales for sequential conformal evidence.
 
-This module implements p-value-native martingales and alarm statistics for
-streaming or temporal monitoring workflows.
+This module implements p-value-based martingales and alarm statistics for
+streaming or temporal monitoring workflows. In practice, you feed one conformal
+p-value at a time and read a running evidence state after each update.
 
 Implemented martingales:
     - PowerMartingale
@@ -22,6 +23,9 @@ from dataclasses import dataclass
 import numpy as np
 
 _PROB_TOL = 1e-12
+_FLOAT_INFO = np.finfo(float)
+_LOG_FLOAT_MAX = float(np.log(_FLOAT_INFO.max))
+_LOG_FLOAT_MIN = float(np.log(_FLOAT_INFO.smallest_subnormal))
 
 
 def _logsumexp(values: np.ndarray) -> float:
@@ -69,6 +73,10 @@ def _validate_positive_threshold(name: str, threshold: float | None) -> float | 
 
 def _linear_from_log(log_value: float) -> float:
     """Convert a log-statistic into linear scale."""
+    if np.isposinf(log_value) or log_value >= _LOG_FLOAT_MAX:
+        return float("inf")
+    if np.isneginf(log_value) or log_value <= _LOG_FLOAT_MIN:
+        return 0.0
     return float(np.exp(log_value))
 
 
@@ -85,7 +93,8 @@ def _power_log_increment(p_value: float, epsilon: float) -> float:
 class AlarmConfig:
     """Optional alarm thresholds for martingale evidence statistics.
 
-    Thresholds are disabled when set to ``None``.
+    Thresholds are disabled when set to ``None``. Each threshold compares
+    against a running statistic in :class:`MartingaleState`.
     """
 
     ville_threshold: float | None = None
@@ -116,7 +125,7 @@ class AlarmConfig:
 
 @dataclass(slots=True, frozen=True)
 class MartingaleState:
-    """Snapshot of martingale and alarm statistics after an update."""
+    """Snapshot of martingale and alarm statistics after one update."""
 
     step: int
     p_value: float
@@ -158,7 +167,7 @@ class BaseMartingale(ABC):
         return [self.update(float(p_value)) for p_value in p_values]
 
     def update(self, p_value: float) -> MartingaleState:
-        """Ingest one p-value and return updated state."""
+        """Ingest one p-value in ``[0, 1]`` and return the updated state."""
         p_value_validated = _validate_probability(p_value)
         log_increment = self._compute_log_increment(p_value_validated)
         if np.isnan(log_increment):
@@ -291,7 +300,11 @@ class SimpleMixtureMartingale(BaseMartingale):
 
 
 class SimpleJumperMartingale(BaseMartingale):
-    """Simple Jumper martingale (Algorithm 1 in Vovk et al.)."""
+    """Simple Jumper martingale (Algorithm 1 in Vovk et al.).
+
+    This method mixes three betting components and redistributes mass each
+    step through ``jump``.
+    """
 
     def __init__(
         self,

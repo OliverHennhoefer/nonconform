@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import numpy as np
+from sklearn.base import BaseEstimator
 
 from nonconform import ConformalDetector, Split
 from nonconform.martingales import PowerMartingale, SimpleJumperMartingale
 from tests.conftest import MockDetector
+
+
+class DistanceFromMeanDetector(BaseEstimator):
+    """Deterministic detector with scores tied to distance from train mean."""
+
+    def fit(
+        self, X: np.ndarray, y: np.ndarray | None = None
+    ) -> DistanceFromMeanDetector:
+        _ = y
+        self.center_ = np.mean(X, axis=0)
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        return np.linalg.norm(X - self.center_, axis=1)
 
 
 def test_detector_streaming_p_values_feed_martingale():
@@ -40,10 +55,8 @@ def test_shifted_stream_tends_to_increase_power_martingale_evidence():
     x_train = rng.standard_normal((180, 4))
     x_normal = rng.standard_normal((60, 4))
     x_shifted = rng.standard_normal((60, 4)) + 2.0
-    fixed_scores = np.linspace(-1.0, 1.0, 600)
-
     detector = ConformalDetector(
-        detector=MockDetector(scores=fixed_scores),
+        detector=DistanceFromMeanDetector(),
         strategy=Split(n_calib=0.25),
         seed=11,
     )
@@ -55,4 +68,5 @@ def test_shifted_stream_tends_to_increase_power_martingale_evidence():
     normal_m = PowerMartingale(epsilon=0.5).update_many(normal_p)[-1].log_martingale
     shifted_m = PowerMartingale(epsilon=0.5).update_many(shifted_p)[-1].log_martingale
 
-    assert shifted_m >= normal_m
+    # With a fixed seed and a +2.0 location shift, shifted evidence should be stronger.
+    assert shifted_m > normal_m

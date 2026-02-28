@@ -2,16 +2,23 @@
 
 ## What is FDR and Why Does It Matter?
 
-When you test many observations for anomalies, some will look anomalous by chance—even if they're perfectly normal. If you test 1,000 observations at a 5% significance level, you'd expect about 50 false positives purely by chance.
+When you test many observations for anomalies, some will look anomalous by
+chance even if they are truly normal. For example, testing 1,000 observations
+at a 5% level yields about 50 false positives on average.
 
 **False Discovery Rate (FDR)** is the proportion of false positives among all the observations you flag as anomalies:
 
 $$\text{FDR} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
 
-**FDR control** adjusts your threshold so that this proportion stays below a target level (e.g., 5%). This is different from controlling the false positive *rate* per test—it controls the proportion of mistakes among your actual decisions.
+**FDR control** adjusts your threshold so that this proportion stays below a
+target level (for example, 5%). This differs from controlling false positives
+per individual test: FDR controls the error proportion among the points you
+actually flag.
 
 !!! example "Example"
-    You flag 100 observations as anomalies with FDR controlled at 5%. This means at most 5 of those 100 are expected to be false positives. Without FDR control, you might have flagged 200 observations with 50 being false positives (25% FDR).
+    You flag 100 observations with FDR controlled at 5%. On average, no more
+    than about 5 of those are false positives. Without FDR control, you might
+    flag 200 observations with 50 false positives (25% FDR).
 
 ---
 
@@ -157,7 +164,9 @@ print(f"Selected points: {selected.sum()} / {len(selected)}")
 `ConformalDetector.last_result` always reflects the most recent prediction call,
 bundling p-values, scores, and importance weights for downstream analysis.
 
-The ``pruning`` parameter controls the tie-breaking strategy: ``DETERMINISTIC`` uses a fixed rule, while ``HOMOGENEOUS`` and ``HETEROGENEOUS`` introduce shared or independent randomness. Set ``seed`` for reproducible pruning decisions.
+The ``pruning`` parameter controls tie handling. ``DETERMINISTIC`` uses a fixed
+rule. ``HOMOGENEOUS`` and ``HETEROGENEOUS`` use shared or independent
+randomness. Set ``seed`` for reproducible randomized pruning decisions.
 
 ## Available Methods
 
@@ -166,7 +175,10 @@ The `scipy.stats.false_discovery_control` function supports several methods:
 ### Benjamini-Hochberg (BH)
 - **Method**: `'bh'`
 - **Description**: Most commonly used FDR control method
-- **Assumptions**: Independent tests, or tests satisfying positive regression dependence on subsets (PRDS). Note that PRDS is more restrictive than general positive dependence - it requires that for any subset of hypotheses, the joint distribution of p-values is positively dependent.
+- **Assumptions**: Independent tests, or tests satisfying positive regression
+  dependence on subsets (PRDS). In plain terms, PRDS means small p-values tend
+  to occur together in a positively dependent way; it is stricter than generic
+  "positive dependence."
 - **Usage**: `false_discovery_control(p_values, method='bh')`
 
 ### Benjamini-Yekutieli (BY)
@@ -424,6 +436,11 @@ final_discoveries = final_adjusted < 0.05
 ## Online FDR Control for Streaming Data
 
 For dynamic settings with streaming data batches, the optional `online-fdr` package provides methods that adapt to temporal dependencies while maintaining FDR control.
+
+Do not conflate this with martingale alarm thresholds such as
+`ville_threshold` in [Exchangeability Martingales](exchangeability_martingales.md):
+those provide anytime false-alarm control on evidence processes, not FDR
+control across multiple tested hypotheses.
 
 ### Installation and Basic Usage
 
