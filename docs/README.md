@@ -61,6 +61,7 @@ Statistical Power: 0.99
 Two advanced approaches are implemented that may increase the power of a conformal anomaly detector:
 - A KDE-based ([probabilistic](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.scoring.Probabilistic)) approach that models the calibration scores to achieve continuous *p*-values in contrast to the standard empirical distribution function.
 - A [weighted](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) approach that prioritizes calibration scores by their similarity to the test batch at hand and is more robust to covariate shift between test and calibration data (can be combined with the probabilistic approach).
+- [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) for sequential evidence monitoring on conformal *p*-value streams (`PowerMartingale`, `SimpleMixtureMartingale`, `SimpleJumperMartingale`).
 
 Probabilistic Conformal Approach:
 
@@ -93,6 +94,31 @@ detector = ConformalDetector(
 ```
 
 > **Note:** Weighted procedures require weighted FDR control for statistical validity (see [`nonconform.fdr.weighted_false_discovery_control()`](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#weighted-conformal-selection)).
+
+
+Exchangeability Martingales (sequential monitoring):
+
+This snippet shows martingale setup only. In normal use:
+- a fitted `ConformalDetector` produces streaming conformal p-values from model scores
+- each incoming p-value is fed to the martingale via `martingale.update(p_t)`
+
+```python
+from nonconform.martingales import AlarmConfig, PowerMartingale
+
+martingale = PowerMartingale(
+    epsilon=0.5,
+    alarm_config=AlarmConfig(ville_threshold=100.0),
+)
+
+state = martingale.update(float(p_t))
+
+# or update a sequence of p-values
+states = martingale.update_many(p_values_chunk)
+```
+
+> **Note:** Martingale alarms are evidence-monitoring signals on sequential *p*-values. They are not a replacement for cross-hypothesis FDR control.
+> See the user guide for a compact end-to-end flow:
+> [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/).
 
 
 # Beyond Static Data
@@ -170,6 +196,30 @@ If you find this repository useful for your research, please cite the following 
     publisher = {Springer},
     note      = {Springer, New York},
     language  = {English}
+}
+```
+
+##### Testing Exchangeability On-line
+```bibtex
+@inproceedings{Vovk2003,
+    title     = {Testing Exchangeability On-line},
+    author    = {Vovk, Vladimir and Nouretdinov, Ilia and Gammerman, Alex},
+    booktitle = {Proceedings of the 20th International Conference on Machine Learning (ICML)},
+    year      = {2003}
+}
+```
+
+##### Retrain or Not Retrain: Conformal Test Martingales for Change-Point Detection
+```bibtex
+@inproceedings{Vovk2021,
+    title     = {Retrain or Not Retrain: Conformal Test Martingales for Change-Point Detection},
+    author    = {Vovk, Vladimir and Volkhonskiy, Daniil and Nouretdinov, Ilia and Gammerman, Alex},
+    booktitle = {Proceedings of The 10th Symposium on Conformal and Probabilistic Prediction and Applications},
+    series    = {PMLR},
+    volume    = {152},
+    pages     = {210--231},
+    year      = {2021},
+    url       = {https://proceedings.mlr.press/v152/vovk21b.html}
 }
 ```
 
