@@ -110,6 +110,7 @@ martingale = PowerMartingale(
     alarm_config=AlarmConfig(ville_threshold=100.0),
 )
 
+# update one p-value at a time
 state = martingale.update(float(p_t))
 
 # or update a sequence of p-values
