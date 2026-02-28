@@ -42,6 +42,13 @@ If you are looking for task-oriented call sequences, start with
       show_root_heading: true
       heading_level: 3
 
+## Martingales
+
+::: nonconform.martingales
+    options:
+      show_root_heading: true
+      heading_level: 3
+
 ## Data Structures
 
 ::: nonconform.structures
