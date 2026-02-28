@@ -60,16 +60,16 @@ for x_t in x_stream:
         break
 ```
 
-## Minimal Flat Script (Repository Root)
+## Minimal Example Notebook
 
-A minimal, flat script is available at:
+A runnable notebook example is available at:
 
-- `martingale_streaming_example.py`
+- `examples/martingale_streaming.ipynb`
 
-Run it directly:
+Open it with Jupyter:
 
 ```bash
-python martingale_streaming_example.py
+jupyter notebook examples/martingale_streaming.ipynb
 ```
 
 It uses:
@@ -79,8 +79,8 @@ It uses:
 - `ConformalDetector` to produce streaming p-values
 - `PowerMartingale` for online evidence updates
 
-The script trains on a subset and processes the remaining data in a streaming
-loop with no helper methods or extra abstraction layers.
+The example trains on a subset and processes the remaining data in a streaming
+loop while logging p-values and evidence statistics step by step.
 
 ## Available Martingales
 
