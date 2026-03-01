@@ -135,18 +135,6 @@ exclude = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"nonconform/estimation/conformal.py" = [
-    "E402" # Module level import not at top of file
-]
-"nonconform/estimation/weighted_conformal.py" = [
-    "E402" # Module level import not at top of file
-]
-"nonconform/detection/protocol.py" = [
-    "N803" # Uppercase X is ML convention for data matrices
-]
-"nonconform/detection/adapter.py" = [
-    "N803" # Uppercase X is ML convention for data matrices
-]
 "docs/source/conf.py" = [
     "D100", # Missing docstring in public module
     "E402"  # Module level import not at top of file (sys.path.insert)
