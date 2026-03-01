@@ -239,7 +239,7 @@ class TestUtilityBehavior:
         assert np.isfinite(final.log_cusum)
         assert np.isfinite(final.log_shiryaev_roberts)
 
-    def test_alarm_triggering_is_opt_in(self):
+    def test_alarms_fire_when_thresholds_configured(self):
         martingale = PowerMartingale(
             epsilon=0.5,
             alarm_config=AlarmConfig(

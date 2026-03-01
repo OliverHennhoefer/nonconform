@@ -433,7 +433,7 @@ class Probabilistic(BaseEstimation):
         returned p-values are the clipped survival probabilities.
         """
         from scipy import integrate
-        from scipy.interpolate import interp1d
+        from scipy.interpolate import interp1d  # TODO: migrate to make_interp_spline (interp1d deprecated in SciPy 1.14)
 
         scores = scores.ravel()
         eval_grid, pdf_values = self._kde_model.evaluate(2**14)

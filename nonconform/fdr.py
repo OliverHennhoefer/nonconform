@@ -163,7 +163,6 @@ def _compute_rejection_set_size_for_instance(
         )
     scratch[j] = 0.0
     scratch /= denominator
-    scratch[j] = 0.0
     return _bh_rejection_count(scratch, bh_thresholds)
 
 

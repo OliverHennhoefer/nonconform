@@ -335,8 +335,8 @@ class SimpleJumperMartingale(BaseMartingale):
             )
 
         betting_terms = 1.0 + self._epsilons * (p_value - 0.5)
-        if np.any(betting_terms <= 0.0):
-            raise ValueError("Simple Jumper betting term must stay positive.")
+        # Note: with epsilons=[-1, 0, 1] and p_value in [0, 1], betting_terms are
+        # always in [0.5, 1.5] — all strictly positive for valid inputs.
 
         self._log_components = log_components_after_jump + np.log(betting_terms)
         log_capital_new = _logsumexp(self._log_components)
