@@ -1,7 +1,7 @@
-"""False Discovery Rate control for weighted conformal prediction.
+"""False Discovery Rate control utilities for weighted conformal prediction.
 
-This module exposes explicit, non-polymorphic entrypoints for:
-- Weighted Conformalized Selection (WCS)
+This module provides explicit entry points for Weighted Conformalized Selection
+(WCS), used to turn weighted conformal outputs into FDR-controlled selections.
 """
 
 import logging
@@ -163,7 +163,6 @@ def _compute_rejection_set_size_for_instance(
         )
     scratch[j] = 0.0
     scratch /= denominator
-    scratch[j] = 0.0
     return _bh_rejection_count(scratch, bh_thresholds)
 
 

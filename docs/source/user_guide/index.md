@@ -33,6 +33,7 @@ If you're new to conformal prediction, start here:
 | [Input Validation](input_validation.md) | Parameter constraints and what error messages mean |
 | [Batch Evaluation](batch_evaluation.md) | Evaluate performance on labeled test sets |
 | [Streaming Evaluation](streaming_evaluation.md) | Online evaluation for real-time detection |
+| [Exchangeability Martingales](exchangeability_martingales.md) | Sequential evidence monitoring on streaming conformal p-values |
 | [Best Practices](best_practices.md) | Production patterns, data preparation, and model selection |
 | [Logging](logging.md) | Configure progress bars and debug output |
 | [Troubleshooting](troubleshooting.md) | Solutions to common issues |

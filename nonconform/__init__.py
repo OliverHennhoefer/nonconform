@@ -9,6 +9,7 @@ Main Components:
     - Calibration strategies for different data scenarios
     - Weighted conformal detection for covariate shift
     - Statistical utilities and FDR control
+    - Sequential evidence monitoring via ``nonconform.martingales``
 
 Logging Control:
     By default, INFO level messages and above are shown.

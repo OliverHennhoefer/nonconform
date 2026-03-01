@@ -64,6 +64,7 @@ nav:
     - FDR Control: user_guide/fdr_control.md
     - Batch Evaluation: user_guide/batch_evaluation.md
     - Streaming Evaluation: user_guide/streaming_evaluation.md
+    - Exchangeability Martingales: user_guide/exchangeability_martingales.md
     - Statistical Concepts: user_guide/statistical_concepts.md
     - Input Validation: user_guide/input_validation.md
     - Best Practices: user_guide/best_practices.md

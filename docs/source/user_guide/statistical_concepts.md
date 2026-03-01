@@ -12,7 +12,17 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **Example**: A p-value of 0.02 means only 2% of normal observations would have a score this extreme.
 
-**Classical vs. Randomized**: `Empirical()` defaults to `tie_break="classical"` (discrete p-values limited to multiples of $1/(n+1)$). Valid `tie_break` values are `"classical"` and `"randomized"` (or `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid. For continuous p-values without this resolution floor, use `Empirical(tie_break="randomized")`. Alternatively, `Probabilistic()` provides continuous p-values via KDE (trading finite-sample for asymptotic guarantees).
+**Classical vs. Randomized**:
+
+- `Empirical()` defaults to `tie_break="classical"`, which gives discrete
+  p-values in steps of $1/(n+1)$.
+- Valid `tie_break` values are `"classical"` and `"randomized"` (or
+  `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid.
+- For smoother (continuous) p-values, use
+  `Empirical(tie_break="randomized")`.
+- `Probabilistic()` also gives continuous p-values through KDE. It trades
+  finite-sample guarantees for asymptotic guarantees (guarantees that become
+  accurate as sample size grows).
 
 ---
 
@@ -23,6 +33,26 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 **Why it matters**: When you test many observations, some will look anomalous by chance. FDR control ensures that at most (say) 5% of your "discoveries" are actually false positives.
 
 **In nonconform**: Use `scipy.stats.false_discovery_control(p_values, method='bh')` to apply Benjamini-Hochberg FDR control.
+
+---
+
+## Anytime False-Alarm Control (Ville Bound)
+
+**What it is**: A sequential false-alarm guarantee for martingale evidence
+processes. If `M_t` is a valid nonnegative martingale under the null and starts
+at 1, then for any threshold `lambda`:
+
+$$
+\Pr\left(\sup_t M_t \ge \lambda\right) \le \frac{1}{\lambda}.
+$$
+
+**In nonconform**: `AlarmConfig(ville_threshold=lambda)` uses this style of
+anytime alarm thresholding for exchangeability martingales.
+
+This guarantee applies to false alarms over time on a single stream. For
+multiple testing settings across many hypotheses or streams, use dedicated FDR
+procedures; see [Exchangeability Martingales](exchangeability_martingales.md)
+and [FDR Control](fdr_control.md).
 
 ---
 
@@ -74,6 +104,7 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 |---------|----------|-------------|
 | **p-value** | False positive rate (per test) | Calibration set size, detector quality |
 | **FDR** | False positives among discoveries | p-value validity, number of tests |
+| **Ville threshold** | Anytime false alarm probability (per stream) | Martingale validity, threshold choice |
 | **Power** | True positive rate | FDR threshold, detector quality |
 | **Exchangeability** | p-value validity | Data collection process, distribution shift |
 
