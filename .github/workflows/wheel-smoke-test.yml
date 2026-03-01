@@ -1,0 +1,135 @@
+name: Wheel smoke test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    name: Build wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  smoke-test:
+    name: Smoke test (${{ matrix.python-version }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel with all extras
+        # Install the built wheel directly — no source tree present, no editable
+        # install. pip resolves extras from the wheel metadata and fetches
+        # dependencies from PyPI as a normal user would.
+        run: pip install "$(ls dist/*.whl)[pyod,data,probabilistic]"
+
+      - name: Verify public API imports
+        run: |
+          python - <<'EOF'
+          import nonconform
+          from nonconform import (
+              ConformalDetector,
+              Split,
+              CrossValidation,
+              JackknifeBootstrap,
+              Empirical,
+              Probabilistic,
+              logistic_weight_estimator,
+              forest_weight_estimator,
+          )
+          print(f"nonconform {nonconform.__version__} — all public imports OK")
+          EOF
+
+      - name: Verify basic instantiation (no detector call)
+        run: |
+          python - <<'EOF'
+          from nonconform import ConformalDetector, Split, CrossValidation, JackknifeBootstrap, Empirical
+
+          Split(n_calib=0.2)
+          Split(n_calib=200)
+          CrossValidation(k=5)
+          JackknifeBootstrap(n_bootstraps=50)
+          Empirical()
+          print("Instantiation OK")
+          EOF
+
+      - name: Verify fit/predict cycle (sklearn IsolationForest, no optional deps)
+        run: |
+          python - <<'EOF'
+          import numpy as np
+          from sklearn.ensemble import IsolationForest
+          from nonconform import ConformalDetector, Split, Empirical
+
+          rng = np.random.default_rng(0)
+          X_train = rng.standard_normal((200, 4))
+          X_test  = rng.standard_normal((40, 4))
+
+          cd = ConformalDetector(
+              detector=IsolationForest(n_estimators=20, random_state=0),
+              strategy=Split(n_calib=50),
+              estimation=Empirical(),
+              seed=0,
+          )
+          cd.fit(X_train)
+          p_values = cd.compute_p_values(X_test)
+
+          assert p_values.shape == (40,), f"unexpected shape {p_values.shape}"
+          assert np.all(np.isfinite(p_values)), "non-finite p-values"
+          assert np.all((0.0 <= p_values) & (p_values <= 1.0)), "p-values out of [0,1]"
+          print(f"fit/predict OK — p-value range [{p_values.min():.3f}, {p_values.max():.3f}]")
+          EOF
+
+      - name: Verify pyod extra
+        run: |
+          python - <<'EOF'
+          from pyod.models.iforest import IForest
+          import numpy as np
+          from nonconform import ConformalDetector, Split, Empirical
+
+          rng = np.random.default_rng(1)
+          X_train = rng.standard_normal((200, 4))
+          X_test  = rng.standard_normal((30, 4))
+
+          cd = ConformalDetector(
+              detector=IForest(n_estimators=20, random_state=1),
+              strategy=Split(n_calib=50),
+              estimation=Empirical(),
+              seed=1,
+          )
+          cd.fit(X_train)
+          p_values = cd.compute_p_values(X_test)
+          assert np.all((0.0 <= p_values) & (p_values <= 1.0))
+          print("pyod extra OK")
+          EOF
