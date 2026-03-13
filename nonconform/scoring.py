@@ -5,6 +5,7 @@ This module provides strategies for computing p-values from calibration scores.
 Classes:
     BaseEstimation: Abstract base class for p-value estimation.
     Empirical: Classical empirical p-value estimation using discrete CDF.
+    ConditionalEmpirical: Conditionally calibrated empirical p-values.
     Probabilistic: KDE-based probabilistic p-value estimation.
 """
 
@@ -15,6 +16,11 @@ from typing import Any, Literal
 import numpy as np
 
 from ._internal import Kernel, TieBreakMode
+from ._internal.conditional_calibration import (
+    ConditionalCalibrationMethod,
+    calibrate_conditional_p_values,
+    normalize_conditional_calibration_method,
+)
 
 TieBreakModeInput = TieBreakMode | Literal["classical", "randomized"]
 
@@ -157,6 +163,113 @@ class Empirical(BaseEstimation):
             tie_break=self._tie_break,
             rng=rng,
         )
+
+
+class ConditionalEmpirical(Empirical):
+    r"""Conditionally calibrated empirical conformal p-values (CCCPV).
+
+    This estimator first computes classical empirical conformal p-values and
+    then applies a finite-sample calibration map:
+
+    .. math::
+        p_j = \frac{1 + \sum_{i=1}^{n_{\text{cal}}}\mathbf{1}[s_i \ge s_j]}
+        {n_{\text{cal}} + 1},
+        \qquad
+        \tilde p_j = C_{n_{\text{cal}},\delta}(p_j).
+
+    Supported calibration maps are ``"mc"``, ``"simes"``, ``"dkwm"``, and
+    ``"asymptotic"``.
+
+    References:
+        Bates et al. (2023), *Testing for outliers with conformal p-values*.
+        Reference implementation:
+        https://github.com/msesia/conditional-conformal-pvalues
+
+    Note:
+        Weighted conformal p-values are intentionally not supported in this
+        first release of ``ConditionalEmpirical``.
+
+    Args:
+        delta: Confidence level used by the conditional calibration map.
+            Must be in ``(0, 1)``. Defaults to ``0.05``.
+        method: Conditional calibration method. One of
+            ``{"mc", "simes", "dkwm", "asymptotic"}``. Defaults to ``"mc"``.
+        tie_break: Tie-breaking strategy used for base empirical p-values
+            (`"classical"` or `"randomized"`).
+        simes_kden: Denominator used to derive ``k = floor(n_cal / simes_kden)``
+            for the Simes calibration map. Must be a positive integer.
+            Defaults to 2.
+        mc_num_simulations: Monte Carlo sample size used to estimate the
+            finite-sample correction for ``method="mc"``. Defaults to 10,000.
+    """
+
+    def __init__(
+        self,
+        *,
+        delta: float = 0.05,
+        method: str | ConditionalCalibrationMethod = "mc",
+        tie_break: TieBreakModeInput = "classical",
+        simes_kden: int = 2,
+        mc_num_simulations: int = 10_000,
+    ) -> None:
+        super().__init__(tie_break=tie_break)
+        try:
+            delta_float = float(delta)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("delta must be a float in (0, 1).") from exc
+        if not np.isfinite(delta_float) or not (0.0 < delta_float < 1.0):
+            raise ValueError(f"delta must be in (0, 1), got {delta!r}.")
+        if not isinstance(simes_kden, int) or simes_kden < 1:
+            raise ValueError("simes_kden must be a positive integer.")
+        if not isinstance(mc_num_simulations, int) or mc_num_simulations < 100:
+            raise ValueError("mc_num_simulations must be an integer >= 100.")
+
+        self._delta = delta_float
+        self._method = normalize_conditional_calibration_method(method)
+        self._simes_kden = simes_kden
+        self._mc_num_simulations = mc_num_simulations
+        self._mc_correction_cache: dict[tuple[int, float], float] = {}
+
+    def set_seed(self, seed: int | None) -> None:
+        """Set random seed for reproducibility."""
+        super().set_seed(seed)
+        # MC correction estimation depends on RNG; invalidate cached estimates.
+        self._mc_correction_cache.clear()
+
+    def compute_p_values(
+        self,
+        scores: np.ndarray,
+        calibration_set: np.ndarray,
+        weights: tuple[np.ndarray, np.ndarray] | None = None,
+    ) -> np.ndarray:
+        """Compute conditionally calibrated conformal p-values."""
+        if weights is not None:
+            raise ValueError(
+                "ConditionalEmpirical does not support weighted p-values. "
+                "Use Empirical or Probabilistic for weighted conformal mode."
+            )
+
+        base_p = super().compute_p_values(scores, calibration_set, weights=None)
+        n_cal = len(np.asarray(calibration_set).ravel())
+
+        cache_key = (n_cal, self._delta)
+        cached_fs = (
+            self._mc_correction_cache.get(cache_key) if self._method == "mc" else None
+        )
+        rng = np.random.default_rng(self._seed) if self._seed is not None else None
+        calibrated, fs_correction = calibrate_conditional_p_values(
+            base_p,
+            n_calibration=n_cal,
+            delta=self._delta,
+            method=self._method,
+            simes_kden=self._simes_kden,
+            fs_correction=cached_fs,
+            rng=rng,
+            mc_num_simulations=self._mc_num_simulations,
+        )
+        if self._method == "mc" and fs_correction is not None:
+            self._mc_correction_cache[cache_key] = fs_correction
+        return calibrated
 
 
 # Standalone p-value functions (consolidated from utils/stat/statistical.py)
@@ -484,6 +597,7 @@ class Probabilistic(BaseEstimation):
 
 __all__ = [
     "BaseEstimation",
+    "ConditionalEmpirical",
     "Empirical",
     "Kernel",
     "Probabilistic",

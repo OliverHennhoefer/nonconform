@@ -37,6 +37,9 @@ If you are looking for task-oriented call sequences, start with
 
 ## FDR Control
 
+Includes both exchangeable conformalized selection
+(`conformalized_selection`) and weighted conformalized selection
+(`weighted_false_discovery_control`).
 ::: nonconform.fdr
     options:
       show_root_heading: true

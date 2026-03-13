@@ -24,12 +24,13 @@ actually flag.
 
 ## Quick Start
 
-For standard conformal p-values (exchangeable data), use `scipy.stats.false_discovery_control`:
+For standard conformal p-values (exchangeable data), use
+`conformalized_selection`:
 
 ```python
-from scipy.stats import false_discovery_control
+from nonconform.fdr import conformalized_selection
 
-decisions = false_discovery_control(p_values, method='bh') < 0.05
+decisions = conformalized_selection(result=detector.last_result, alpha=0.05)
 ```
 
 For weighted conformal p-values (covariate shift), use `weighted_false_discovery_control`:
@@ -57,12 +58,40 @@ decisions = weighted_false_discovery_control(
 
 ---
 
-## Weighted FDR Entry Points
+## Selection Entry Points
 
-Use these weighted FDR functions depending on the inputs you have available:
+Use these functions depending on your setting:
 
+- Standard (exchangeable, unweighted conformal p-values):
+- `conformalized_selection(result=...)`
+- `conformalized_selection_from_arrays(...)`
+
+- Weighted (covariate shift with importance weights):
 - `weighted_false_discovery_control(result=...)`
 - `weighted_false_discovery_control_from_arrays(...)`
+
+## Parameter Roles (`delta` vs `alpha`)
+
+When using `ConditionalEmpirical`, keep these roles separate:
+
+- `delta`: calibration confidence/failure budget inside the conditional
+  p-value map.
+- `alpha`: target FDR level in the final selection rule.
+
+They do not need to be equal. A common pattern is to tune `delta` for p-value
+calibration behavior and `alpha` for operational false discovery tolerance.
+
+## Guarantee Scope for `conformalized_selection`
+
+`conformalized_selection` is an explicit BH-style selection step applied to the
+provided p-values. Its FDR guarantee depends on:
+
+- how valid/calibrated those p-values are,
+- exchangeability (or the relevant data-shift assumptions for weighted methods),
+- and BH dependence assumptions (independence or PRDS).
+
+In other words, the selection routine itself does not create validity from
+invalid inputs; it preserves guarantees under the assumptions above.
 
 !!! warning "Strict validation for weighted inputs"
     Weighted FDR routines fail fast on invalid inputs.
@@ -77,8 +106,22 @@ Use these weighted FDR functions depending on the inputs you have available:
 
 ```python
 from nonconform.fdr import (
+    conformalized_selection,
+    conformalized_selection_from_arrays,
     weighted_false_discovery_control,
     weighted_false_discovery_control_from_arrays,
+)
+
+# Conformalized Selection (CS, also called conformal BH/cfBH) from result bundle
+cs_mask = conformalized_selection(
+    result=result,
+    alpha=0.05,
+)
+
+# CS/cfBH from explicit p-values
+cs_from_arrays = conformalized_selection_from_arrays(
+    p_values=result.p_values,
+    alpha=0.05,
 )
 
 # Strict WCS from cached result bundle
@@ -103,9 +146,8 @@ wcs_mask = weighted_false_discovery_control_from_arrays(
 ## Basic Usage
 
 ```python
-import numpy as np
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformalized_selection
 
 from pyod.models.lof import LOF
 
@@ -118,13 +160,14 @@ detector = ConformalDetector(
 )
 
 detector.fit(X_train)
-p_values = detector.compute_p_values(X_test)
+_ = detector.compute_p_values(X_test)
 
-# Apply Benjamini–Hochberg control at 5%
-adjusted_p_values = false_discovery_control(p_values, method="bh")
-discoveries = adjusted_p_values < 0.05
+# Apply conformalized selection (BH-style) at 5%
+discoveries = conformalized_selection(
+    result=detector.last_result,
+    alpha=0.05,
+)
 
-print(f"Original detections: {(p_values < 0.05).sum()}")
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
 ```
 
@@ -170,7 +213,9 @@ randomness. Set ``seed`` for reproducible randomized pruning decisions.
 
 ## Available Methods
 
-The `scipy.stats.false_discovery_control` function supports several methods:
+`conformalized_selection` uses BH-style selection by default.
+If you need direct adjusted p-values or BY control, use
+`scipy.stats.false_discovery_control`:
 
 ### Benjamini-Hochberg (BH)
 - **Method**: `'bh'`
@@ -188,6 +233,8 @@ The `scipy.stats.false_discovery_control` function supports several methods:
 - **Usage**: `false_discovery_control(p_values, method='by')`
 
 ```python
+from scipy.stats import false_discovery_control
+
 # Compare different methods
 bh_adjusted = false_discovery_control(p_values, method='bh')
 by_adjusted = false_discovery_control(p_values, method='by')
@@ -204,12 +251,16 @@ print(f"BY discoveries: {by_discoveries}")
 You can control the desired FDR level using the `alpha` parameter:
 
 ```python
+from nonconform.fdr import conformalized_selection_from_arrays
+
 # Different FDR levels
 fdr_levels = [0.01, 0.05, 0.1, 0.2]
 
 for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method='bh')
-    discoveries = (adjusted_p_vals < alpha).sum()
+    discoveries = conformalized_selection_from_arrays(
+        p_values=p_values,
+        alpha=alpha,
+    ).sum()
     print(f"FDR level {alpha}: {discoveries} discoveries")
 ```
 
@@ -231,6 +282,8 @@ Use FDR control when:
 
 #### High-dimensional Anomaly Detection
 ```python
+from nonconform.fdr import conformalized_selection_from_arrays
+
 # When analyzing many features independently
 # Use disjoint train/test samples for valid conformal p-values
 X_train, X_test = ...  # same feature space, different samples
@@ -246,12 +299,16 @@ for i in range(n_features):
     feature_p_values.extend(p_vals)
 
 # Apply FDR control across all features
-all_adjusted = false_discovery_control(feature_p_values, method='bh')
-discoveries = all_adjusted < 0.05
+discoveries = conformalized_selection_from_arrays(
+    p_values=feature_p_values,
+    alpha=0.05,
+)
 ```
 
 #### Multiple Time Series
 ```python
+from nonconform.fdr import conformalized_selection_from_arrays
+
 # When analyzing multiple time series
 train_series = [ts1_train, ts2_train, ts3_train, ...]
 test_series = [ts1_test, ts2_test, ts3_test, ...]
@@ -263,8 +320,10 @@ for ts_train, ts_test in zip(train_series, test_series):
     all_p_values.extend(p_vals)
 
 # Control FDR across all time series
-adjusted_p_vals = false_discovery_control(all_p_values, method='bh')
-discoveries = adjusted_p_vals < 0.05
+discoveries = conformalized_selection_from_arrays(
+    p_values=all_p_values,
+    alpha=0.05,
+)
 ```
 
 ## Integration with Conformal Prediction
@@ -272,13 +331,15 @@ discoveries = adjusted_p_vals < 0.05
 FDR control works naturally with conformal prediction p-values:
 
 ```python
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split, logistic_weight_estimator
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
+from nonconform.fdr import (
+    conformalized_selection,
+    weighted_false_discovery_control,
+)
 from pyod.models.lof import LOF
 
-# Standard conformal detector: use scipy for FDR control
+# Standard conformal detector: use conformalized selection
 base_detector = LOF()
 strategy = Split(n_calib=0.2)
 
@@ -289,10 +350,11 @@ standard_detector = ConformalDetector(
     seed=42,
 )
 standard_detector.fit(X_train)
-standard_mask = false_discovery_control(
-    standard_detector.compute_p_values(X_test),
-    method="bh",
-) < 0.05
+standard_detector.compute_p_values(X_test)
+standard_mask = conformalized_selection(
+    result=standard_detector.last_result,
+    alpha=0.05,
+)
 
 # Weighted conformal detector: use Weighted Conformal Selection
 weighted_detector = ConformalDetector(
@@ -321,14 +383,16 @@ print(f"Weighted detections: {weighted_mask.sum()}")
 Evaluate the effectiveness of FDR control using nonconform's built-in metrics:
 
 ```python
-from scipy.stats import false_discovery_control
+from nonconform.fdr import conformalized_selection_from_arrays
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
     """Evaluate FDR control performance."""
     # Apply FDR control
-    adjusted_p_vals = false_discovery_control(p_values, method='bh')
-    discoveries = adjusted_p_vals < alpha
+    discoveries = conformalized_selection_from_arrays(
+        p_values=p_values,
+        alpha=alpha,
+    )
 
     # Calculate metrics using nonconform functions
     empirical_fdr = false_discovery_rate(true_labels, discoveries)
@@ -355,26 +419,35 @@ print(f"Statistical Power: {results['power']:.3f}")
 - **Liberal**: α = 0.1 when false positives are less costly
 
 ### 2. Method Selection
-- Use **BH** for most applications (independent or positively dependent tests)
-- Use **BY** when tests may have negative dependence or when more conservative control is needed
+- Use **`conformalized_selection` (BH-style)** for most conformal workflows
+- Use **BY** via SciPy when tests may have negative dependence or when more conservative control is needed
 
 ### 3. Combine with Domain Knowledge
 ```python
+from nonconform.fdr import conformalized_selection_from_arrays
+
 # Incorporate prior knowledge about anomaly prevalence
 expected_anomaly_rate = 0.02  # 2% expected anomalies
 adjusted_alpha = min(0.05, expected_anomaly_rate * 2)  # Adjust FDR level
 
-adjusted_p_vals = false_discovery_control(p_values, method='bh')
+discoveries = conformalized_selection_from_arrays(
+    p_values=p_values,
+    alpha=adjusted_alpha,
+)
 ```
 
 ### 4. Monitor Performance
 ```python
+from nonconform.fdr import conformalized_selection_from_arrays
+
 # Track FDR control performance over time
 fdr_history = []
 for batch in data_batches:
     p_vals = detector.compute_p_values(batch)
-    adj_p_vals = false_discovery_control(p_vals, method='bh')
-    discoveries = adj_p_vals < 0.05
+    discoveries = conformalized_selection_from_arrays(
+        p_values=p_vals,
+        alpha=0.05,
+    )
 
     if len(true_labels_batch) > 0:  # If ground truth available
         metrics = evaluate_fdr_control(p_vals, true_labels_batch)
@@ -399,11 +472,13 @@ for batch in data_batches:
 
 ### Combining Multiple Detection Methods
 ```python
-from scipy.stats import combine_pvalues, false_discovery_control
+import numpy as np
+from scipy.stats import combine_pvalues
 from pyod.models.lof import LOF
 from pyod.models.knn import KNN
 from pyod.models.ocsvm import OCSVM
 from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformalized_selection_from_arrays
 
 
 # Get p-values from multiple detectors
@@ -429,8 +504,10 @@ combined_stats, combined_p_values = combine_pvalues(
 )
 
 # Apply FDR control to combined p-values
-final_adjusted = false_discovery_control(combined_p_values, method='bh')
-final_discoveries = final_adjusted < 0.05
+final_discoveries = conformalized_selection_from_arrays(
+    p_values=combined_p_values,
+    alpha=0.05,
+)
 ```
 
 ## Online FDR Control for Streaming Data

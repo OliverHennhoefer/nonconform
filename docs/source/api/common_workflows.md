@@ -115,6 +115,30 @@ p_values = detector.compute_p_values(X_test)
 
 ---
 
+## 6. Conditional Conformal P-Values + Conformalized Selection
+
+```python
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformalized_selection
+from nonconform.scoring import ConditionalEmpirical
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    estimation=ConditionalEmpirical(method="simes", delta=0.1),
+    score_polarity="auto",
+    seed=42,
+)
+detector.fit(X_train)
+
+p_values = detector.compute_p_values(X_test)
+discoveries = conformalized_selection(result=detector.last_result, alpha=0.05)
+```
+
+---
+
 ## Score Polarity
 
 `ConformalDetector` expects anomaly-oriented scores internally (`higher = more anomalous`).

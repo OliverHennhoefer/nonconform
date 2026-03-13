@@ -73,6 +73,7 @@ nav:
   - Examples:
     - examples/index.md
     - Classical Conformal: examples/classical_conformal.md
+    - Conditional Conformal: examples/conditional_conformal.md
     - Bootstrap Conformal: examples/bootstrap_conformal.md
     - Cross-Validation Conformal: examples/cross_val_conformal.md
     - Jackknife Conformal: examples/jackknife_conformal.md
