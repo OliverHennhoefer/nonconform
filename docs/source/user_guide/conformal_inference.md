@@ -216,7 +216,7 @@ These parameters control different steps:
 - `delta` is the confidence/failure budget for the conditional calibration map
   `C_{n_{\text{cal}},\delta}` inside `ConditionalEmpirical`.
 - `alpha` is the downstream FDR target used by a selection rule
-  (for example `conformalized_selection(..., alpha=0.05)`).
+  (for example `detector.select(..., alpha=0.05)`).
 
 For example, `delta=0.1` means the conditional calibration map is configured
 with a 10% failure budget (about 90% confidence for that calibration event).

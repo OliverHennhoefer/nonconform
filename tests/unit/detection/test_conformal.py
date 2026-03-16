@@ -3,14 +3,15 @@
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.stats import false_discovery_control
 from sklearn.base import clone
 from sklearn.exceptions import NotFittedError
 from sklearn.svm import OneClassSVM
 
 from nonconform import ConformalDetector as _ConformalDetector
 from nonconform import JackknifeBootstrap, Split
-from nonconform.enums import ScorePolarity
-from nonconform.structures import AnomalyDetector
+from nonconform.enums import Pruning, ScorePolarity
+from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator
 
 # MockDetector is imported from tests/conftest.py via pytest fixture discovery
@@ -526,6 +527,68 @@ class TestConformalDetectorPredict:
         assert scores.index.equals(index)
         assert len(scores) == 10
 
+    def test_select_matches_bh_from_scipy(self, fitted_detector):
+        """select() should match BH selection from SciPy on p-values."""
+        rng = np.random.default_rng(42)
+        x_test = rng.standard_normal((10, 5))
+        p_values = fitted_detector.compute_p_values(x_test)
+        expected = false_discovery_control(p_values, method="bh") <= 0.2
+        selected = fitted_detector.select(x_test, alpha=0.2)
+        np.testing.assert_array_equal(selected, expected)
+
+    def test_select_matches_bh_with_tied_p_values(self, fitted_detector, monkeypatch):
+        """select() should match BH behavior when p-values contain ties."""
+        tied_p_values = np.array([0.01, 0.01, 0.01, 0.2, 0.2, 0.2, 0.7, 1.0])
+
+        def fake_compute_p_values(
+            x: np.ndarray,
+            *,
+            refit_weights: bool = True,
+        ) -> np.ndarray:
+            _ = refit_weights
+            fitted_detector._last_result = ConformalResult(
+                p_values=tied_p_values.copy(),
+                test_scores=np.zeros(len(tied_p_values), dtype=float),
+                calib_scores=np.zeros(1, dtype=float),
+                test_weights=None,
+                calib_weights=None,
+                metadata={},
+            )
+            return tied_p_values.copy()
+
+        monkeypatch.setattr(fitted_detector, "compute_p_values", fake_compute_p_values)
+        expected = false_discovery_control(tied_p_values, method="bh") <= 0.2
+        selected = fitted_detector.select(
+            np.zeros((len(tied_p_values), 5), dtype=float),
+            alpha=0.2,
+        )
+        np.testing.assert_array_equal(selected, expected)
+
+    def test_select_accepts_dataframe_returns_series(self, fitted_detector):
+        """select() with DataFrame input should preserve index."""
+        rng = np.random.default_rng(42)
+        index = pd.RangeIndex(start=10, stop=20, step=1)
+        x_test = pd.DataFrame(rng.standard_normal((10, 5)), index=index)
+        selected = fitted_detector.select(x_test, alpha=0.2)
+        assert isinstance(selected, pd.Series)
+        assert selected.name == "selected"
+        assert selected.index.equals(index)
+        assert selected.dtype == bool
+        assert len(selected) == len(x_test)
+
+    @pytest.mark.parametrize("alpha", [-0.1, 0.0, 1.0, 1.2])
+    def test_select_rejects_invalid_alpha_before_prediction(
+        self, fitted_detector, alpha
+    ):
+        """select() should fail fast for alpha outside (0, 1)."""
+        rng = np.random.default_rng(42)
+        x_test = rng.standard_normal((10, 5))
+
+        assert fitted_detector.last_result is None
+        with pytest.raises(ValueError, match="alpha must be in \\(0, 1\\)"):
+            fitted_detector.select(x_test, alpha=alpha)
+        assert fitted_detector.last_result is None
+
 
 class TestConformalDetectorProperties:
     """Tests for ConformalDetector properties."""
@@ -778,6 +841,82 @@ class TestConformalDetectorWeightedPreparation:
 
         p_values = detector.compute_p_values(x_test + 1.0, refit_weights=False)
         assert len(p_values) == len(x_test)
+
+    def test_select_passes_weighted_pruning_seed(self, sample_data, monkeypatch):
+        """Weighted select() forwards pruning and seed to weighted FDR."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+        )
+        detector.fit(x_train)
+
+        call_args: dict[str, object] = {}
+
+        def fake_weighted_fdr(
+            *,
+            result,
+            alpha: float,
+            pruning: Pruning,
+            seed: int | None,
+        ) -> np.ndarray:
+            call_args["result"] = result
+            call_args["alpha"] = alpha
+            call_args["pruning"] = pruning
+            call_args["seed"] = seed
+            assert result is not None and result.p_values is not None
+            return np.zeros(len(result.p_values), dtype=bool)
+
+        monkeypatch.setattr(
+            "nonconform.fdr.weighted_false_discovery_control", fake_weighted_fdr
+        )
+        selected = detector.select(
+            x_test,
+            alpha=0.1,
+            pruning=Pruning.HETEROGENEOUS,
+            seed=7,
+        )
+        assert selected.dtype == bool
+        assert len(selected) == len(x_test)
+        assert call_args["alpha"] == 0.1
+        assert call_args["pruning"] is Pruning.HETEROGENEOUS
+        assert call_args["seed"] == 7
+
+    def test_select_uses_detector_seed_by_default_in_weighted_mode(
+        self, sample_data, monkeypatch
+    ):
+        """Weighted select() defaults pruning seed to detector seed."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+            seed=123,
+        )
+        detector.fit(x_train)
+
+        captured_seed: dict[str, int | None] = {"value": None}
+
+        def fake_weighted_fdr(
+            *,
+            result,
+            alpha: float,
+            pruning: Pruning,
+            seed: int | None,
+        ) -> np.ndarray:
+            captured_seed["value"] = seed
+            assert result is not None and result.p_values is not None
+            return np.zeros(len(result.p_values), dtype=bool)
+
+        monkeypatch.setattr(
+            "nonconform.fdr.weighted_false_discovery_control", fake_weighted_fdr
+        )
+        _ = detector.select(x_test, alpha=0.1, pruning=Pruning.HOMOGENEOUS)
+        assert captured_seed["value"] == 123
 
 
 class TestConformalDetectorSklearnParams:

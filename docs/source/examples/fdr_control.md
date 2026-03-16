@@ -1,6 +1,7 @@
 # FDR Control for Multiple Testing
 
-Use FDR control in anomaly detection with `scipy.stats.false_discovery_control`.
+Use `detector.select(...)` for default FDR-controlled anomaly decisions, and
+`scipy.stats.false_discovery_control` for manual BH/BY analysis on p-values.
 
 ## Setup
 
@@ -11,7 +12,6 @@ from scipy.stats import false_discovery_control
 from oddball import Dataset, load
 from nonconform import ConformalDetector, Split
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
@@ -35,13 +35,13 @@ detector = ConformalDetector(
     seed=42
 )
 
-# Fit and get p-values
+# Fit and run FDR-controlled selection
 detector.fit(X)
-p_values = detector.compute_p_values(X)
+discoveries = detector.select(X_test, alpha=0.05)
+p_values = detector.last_result.p_values
 
-# Apply FDR control using scipy
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# Optional manual BH analysis on cached p-values
+adjusted_p_values = false_discovery_control(p_values, method="bh")
 
 print(f"Original detections: {(p_values < 0.05).sum()}")
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
@@ -86,17 +86,14 @@ weighted_detector = ConformalDetector(
 
 weighted_detector.fit(x_train)
 
-# Obtain weighted p-values, raw scores, and importance weights
-weighted_p_values = weighted_detector.compute_p_values(x_test)
-
-# Weighted Conformal Selection controls the FDR under covariate shift
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+# Weighted select() dispatches to Weighted Conformal Selection under covariate shift
+wcs_mask = weighted_detector.select(
+    x_test,
     alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=1,
 )
-# detector.last_result bundles the scores/weights produced by compute_p_values()
+# detector.last_result bundles the scores/weights produced by select()
 
 print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")

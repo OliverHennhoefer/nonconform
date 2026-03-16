@@ -4,8 +4,10 @@ Task-first API map for common nonconform usage patterns.
 
 ## 1. Standard Conformal Detection
 
+`select()` combines p-value computation and FDR-controlled selection in one
+call — the recommended workflow for most use cases:
+
 ```python
-from scipy.stats import false_discovery_control
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
@@ -18,8 +20,13 @@ detector = ConformalDetector(
 )
 detector.fit(X_train)
 
+mask = detector.select(X_test, alpha=0.05)
+```
+
+When you need the raw p-values for custom downstream analysis:
+
+```python
 p_values = detector.compute_p_values(X_test)
-discoveries = false_discovery_control(p_values, method="bh") < 0.05
 ```
 
 ---
@@ -49,12 +56,14 @@ Use this when you want calibrated scoring artifacts without applying FDR control
 
 ## 3. Weighted Conformal + Weighted FDR Control
 
+`select()` automatically dispatches to weighted FDR control when a
+`weight_estimator` is configured:
+
 ```python
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split, logistic_weight_estimator
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
@@ -65,9 +74,8 @@ detector = ConformalDetector(
 )
 detector.fit(X_train)
 
-_ = detector.compute_p_values(X_test)
-discoveries = weighted_false_discovery_control(
-    result=detector.last_result,
+mask = detector.select(
+    X_test,
     alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -115,13 +123,12 @@ p_values = detector.compute_p_values(X_test)
 
 ---
 
-## 6. Conditional Conformal P-Values + Conformalized Selection
+## 6. Conditional Conformal P-Values + `select()`
 
 ```python
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformalized_selection
 from nonconform.scoring import ConditionalEmpirical
 
 detector = ConformalDetector(
@@ -133,8 +140,7 @@ detector = ConformalDetector(
 )
 detector.fit(X_train)
 
-p_values = detector.compute_p_values(X_test)
-discoveries = conformalized_selection(result=detector.last_result, alpha=0.05)
+mask = detector.select(X_test, alpha=0.05)
 ```
 
 ---

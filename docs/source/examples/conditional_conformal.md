@@ -1,6 +1,7 @@
 # Conditional Conformal Selection
 
-This example shows how to use conditionally calibrated conformal p-values with conformalized selection.
+This example shows how to use conditionally calibrated conformal p-values with
+FDR-controlled selection via `detector.select(...)`.
 
 ## Setup
 
@@ -9,7 +10,6 @@ from oddball import Dataset, load
 from pyod.models.iforest import IForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformalized_selection
 from nonconform.metrics import false_discovery_rate, statistical_power
 from nonconform.scoring import ConditionalEmpirical
 
@@ -31,13 +31,10 @@ detector = ConformalDetector(
 )
 
 detector.fit(x_train)
-p_values = detector.compute_p_values(x_test)
+discoveries = detector.select(x_test, alpha=0.2)
 
-discoveries = conformalized_selection(
-    result=detector.last_result,
-    alpha=0.2,
-)
-
+# Access p-values from the same selection pass
+p_values = detector.last_result.p_values
 print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=discoveries):.3f}")
 print(f"Empirical Power: {statistical_power(y=y_test, y_hat=discoveries):.3f}")
@@ -60,7 +57,7 @@ for method in methods:
         seed=1,
     )
     detector.fit(x_train)
-    p_values = detector.compute_p_values(x_test)
-    discoveries = conformalized_selection(result=detector.last_result, alpha=0.2)
+    discoveries = detector.select(x_test, alpha=0.2)
+    p_values = detector.last_result.p_values
     print(f"{method}: {discoveries.sum()} discoveries, min p={p_values.min():.4f}")
 ```

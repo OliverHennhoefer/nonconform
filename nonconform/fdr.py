@@ -2,7 +2,6 @@
 
 This module provides explicit entry points for:
 
-- Conformalized Selection (CS/cfBH) in the exchangeable setting.
 - Weighted Conformalized Selection (WCS) under covariate shift.
 """
 
@@ -24,14 +23,16 @@ def _validate_alpha(alpha: float) -> None:
         raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
 
-def _extract_required_cs_fields(result: ConformalResult) -> np.ndarray:
-    """Extract p-values required for conformalized selection."""
-    if result.p_values is None:
+def _require_result_bundle(
+    result: ConformalResult | None, *, caller: str
+) -> ConformalResult:
+    """Ensure a non-empty result bundle is provided."""
+    if result is None:
         raise ValueError(
-            "result is missing required CS field: p_values. "
-            "Run compute_p_values(...) before calling conformalized_selection()."
+            f"result must be a ConformalResult, got None. "
+            f"Run compute_p_values(...) before calling {caller}()."
         )
-    return np.asarray(result.p_values)
+    return result
 
 
 def _as_1d_numeric(name: str, values: np.ndarray) -> np.ndarray:
@@ -50,23 +51,6 @@ def _bh_rejection_count(p_values: np.ndarray, thresholds: np.ndarray) -> int:
     sorted_p = np.sort(p_values)
     below = np.nonzero(sorted_p <= thresholds)[0]
     return 0 if len(below) == 0 else int(below[-1] + 1)
-
-
-def _bh_selection_mask(p_values: np.ndarray, alpha: float) -> np.ndarray:
-    """Return BH selection mask at level ``alpha`` for 1D p-values."""
-    m = len(p_values)
-    if m == 0:
-        return np.zeros(0, dtype=bool)
-    order = np.argsort(p_values, kind="mergesort")
-    sorted_p = p_values[order]
-    thresholds = alpha * (np.arange(1, m + 1) / m)
-    below = np.nonzero(sorted_p <= thresholds)[0]
-    if len(below) == 0:
-        return np.zeros(m, dtype=bool)
-    k = int(below[-1] + 1)
-    mask = np.zeros(m, dtype=bool)
-    mask[order[:k]] = True
-    return mask
 
 
 def _validate_non_negative_finite(name: str, values: np.ndarray) -> None:
@@ -196,9 +180,10 @@ def _compute_rejection_set_size_for_instance(
 
 
 def _extract_required_wcs_fields(
-    result: ConformalResult,
+    result: ConformalResult | None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Extract required WCS arrays from a result bundle."""
+    result = _require_result_bundle(result, caller="weighted_false_discovery_control")
     required = {
         "p_values": result.p_values,
         "test_scores": result.test_scores,
@@ -223,9 +208,10 @@ def _extract_required_wcs_fields(
 
 
 def _extract_kde_support(
-    result: ConformalResult,
+    result: ConformalResult | None,
 ) -> tuple[tuple[np.ndarray, np.ndarray, float] | None, bool]:
     """Extract optional KDE support metadata for probabilistic estimation."""
+    result = _require_result_bundle(result, caller="weighted_false_discovery_control")
     if not result.metadata:
         return None, True
 
@@ -395,48 +381,8 @@ def _run_wcs(
     return final_sel_mask
 
 
-def conformalized_selection(
-    result: ConformalResult,
-    *,
-    alpha: float = 0.05,
-) -> np.ndarray:
-    """Perform conformalized selection (CS/cfBH) from a result bundle.
-
-    Args:
-        result: Result bundle containing conformal p-values.
-        alpha: Target FDR level in ``(0, 1)``.
-
-    Returns:
-        Boolean selection mask of shape ``(n_test,)``.
-    """
-    p_values = _extract_required_cs_fields(result)
-    return conformalized_selection_from_arrays(p_values=p_values, alpha=alpha)
-
-
-def conformalized_selection_from_arrays(
-    *,
-    p_values: np.ndarray,
-    alpha: float = 0.05,
-) -> np.ndarray:
-    """Perform conformalized selection (CS/cfBH) from explicit p-values.
-
-    This entry point applies Benjamini-Hochberg directly to conformal p-values.
-
-    Args:
-        p_values: Conformal p-values for test instances.
-        alpha: Target FDR level in ``(0, 1)``.
-
-    Returns:
-        Boolean selection mask of shape ``(n_test,)``.
-    """
-    _validate_alpha(alpha)
-    p_vals = _as_1d_numeric("p_values", p_values)
-    _validate_p_values(p_vals)
-    return _bh_selection_mask(p_vals, alpha)
-
-
 def weighted_false_discovery_control(
-    result: ConformalResult,
+    result: ConformalResult | None,
     *,
     alpha: float = 0.05,
     pruning: Pruning = Pruning.DETERMINISTIC,
@@ -487,8 +433,6 @@ def weighted_false_discovery_control_from_arrays(
 
 __all__ = [
     "Pruning",
-    "conformalized_selection",
-    "conformalized_selection_from_arrays",
     "weighted_false_discovery_control",
     "weighted_false_discovery_control_from_arrays",
 ]

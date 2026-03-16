@@ -1,5 +1,4 @@
 from oddball import Dataset, load
-from scipy.stats import false_discovery_control
 from sklearn.svm import OneClassSVM
 
 from nonconform import (
@@ -13,14 +12,12 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 ce = ConformalDetector(
     detector=OneClassSVM(kernel="rbf", nu=0.05),
     strategy=Split(1_000),
-    score_polarity="higher_is_normal",
+    score_polarity="auto",
     seed=1,
 )
 
 ce.fit(x_train)
-estimates = ce.compute_p_values(x_test)
-
-decisions = false_discovery_control(estimates, method="bh") <= 0.2
+decisions = ce.select(x_test, alpha=0.2)
 
 print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=decisions)}")
 print(f"Empirical Power: {statistical_power(y=y_test, y_hat=decisions)}")

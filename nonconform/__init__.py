@@ -20,12 +20,16 @@ Logging Control:
         logging.getLogger("nonconform").setLevel(logging.DEBUG)  # Enable debug
 
 Examples:
-    Basic usage with PyOD detector:
+    Basic usage — FDR-controlled selection in one call:
 
     >>> from pyod.models.iforest import IForest
     >>> from nonconform import ConformalDetector, Split
     >>> detector = ConformalDetector(detector=IForest(), strategy=Split(n_calib=0.2))
     >>> detector.fit(X_train)
+    >>> mask = detector.select(X_test, alpha=0.05)
+
+    Raw p-values for custom downstream analysis:
+
     >>> p_values = detector.compute_p_values(X_test)
 
     Weighted conformal prediction:

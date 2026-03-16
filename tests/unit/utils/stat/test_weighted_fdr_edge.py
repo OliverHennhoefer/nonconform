@@ -124,6 +124,10 @@ class TestErrorHandling:
         with pytest.raises(TypeError):
             weighted_false_discovery_control(alpha=0.1)  # type: ignore[call-arg]
 
+    def test_none_result_bundle_raises_clear_error(self):
+        with pytest.raises(ValueError, match="result must be a ConformalResult"):
+            weighted_false_discovery_control(result=None, alpha=0.1)  # type: ignore[arg-type]
+
     def test_bh_missing_required_inputs(self):
         with pytest.raises(TypeError):
             false_discovery_control(method="bh")  # type: ignore[call-arg]

@@ -14,7 +14,6 @@ from nonconform import (
     logistic_weight_estimator,
 )
 from nonconform.enums import Kernel, Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 
 def _fit_weighted_detector(x_train):
@@ -31,15 +30,12 @@ def _fit_weighted_detector(x_train):
 
 @pytest.mark.parametrize("pruning", list(Pruning))
 def test_pruning_modes_control_false_discoveries(simple_dataset, pruning):
-    """weighted_false_discovery_control should run for all pruning modes."""
+    """select() should support weighted pruning modes end-to-end."""
     x_train, x_test, y_test = simple_dataset(n_train=120, n_test=60, n_features=5)
     detector = _fit_weighted_detector(x_train)
-    detector.compute_p_values(x_test)
-    result = detector.last_result
-    assert result is not None
 
-    selections = weighted_false_discovery_control(
-        result=result,
+    selections = detector.select(
+        x_test,
         alpha=0.25,
         pruning=pruning,
         seed=0,

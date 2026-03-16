@@ -7,7 +7,6 @@ This example demonstrates how to use classical conformal prediction for anomaly 
 ```python
 import numpy as np
 from pyod.models.lof import LOF
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 from oddball import Dataset, load
@@ -35,15 +34,12 @@ detector = ConformalDetector(
 # Fit the detector on training data (normal samples only)
 detector.fit(x_train)
 
-# Get p-values for test data
-p_values = detector.compute_p_values(x_test)
-
 # Get raw anomaly scores (optional)
 scores = detector.score_samples(x_test)
 
-# Apply FDR control (Benjamini-Hochberg)
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+# Apply FDR-controlled selection
+discoveries = detector.select(x_test, alpha=0.05)
+p_values = detector.last_result.p_values
 
 print(f"Discoveries with FDR control: {discoveries.sum()}")
 print(f"True anomaly rate in test set: {y_test.mean():.2%}")
@@ -67,15 +63,11 @@ cv_detector = ConformalDetector(
 
 # Fit and predict with cross-validation
 cv_detector.fit(x_train)
-cv_p_values = cv_detector.compute_p_values(x_test)
+cv_discoveries = cv_detector.select(x_test, alpha=0.05)
 
 # Compare with split strategy
-# Apply FDR control for fair comparison
-split_fdr = false_discovery_control(p_values, method='bh')
-cv_fdr = false_discovery_control(cv_p_values, method='bh')
-
-print(f"Split strategy detections: {(split_fdr < 0.05).sum()}")
-print(f"Cross-validation detections: {(cv_fdr < 0.05).sum()}")
+print(f"Split strategy detections: {discoveries.sum()}")
+print(f"Cross-validation detections: {cv_discoveries.sum()}")
 ```
 
 ## Comparing Different Aggregation Methods
@@ -96,11 +88,8 @@ for agg_method in aggregation_methods:
         seed=42
     )
     detector.fit(x_train)
-    p_vals = detector.compute_p_values(x_test)
-
-    # Apply FDR control
-    fdr_controlled = false_discovery_control(p_vals, method='bh')
-    print(f"{agg_method} aggregation: {(fdr_controlled < 0.05).sum()} detections")
+    selected = detector.select(x_test, alpha=0.05)
+    print(f"{agg_method} aggregation: {selected.sum()} detections")
 ```
 
 ## Visualization

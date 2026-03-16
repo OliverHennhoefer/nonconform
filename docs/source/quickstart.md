@@ -23,7 +23,6 @@ This first runnable example uses only the core install (`pip install nonconform`
 import numpy as np
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest
-from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split
 
@@ -55,8 +54,7 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-p_values = detector.compute_p_values(x_test)
-discoveries = false_discovery_control(p_values, method="bh") < 0.05
+discoveries = detector.select(x_test, alpha=0.05)
 
 print(f"Discoveries: {discoveries.sum()} / {len(x_test)}")
 print(f"True anomalies in test set: {y_true.sum()}")
@@ -78,7 +76,6 @@ pip install "nonconform[pyod,data]"
 ```python
 from oddball import Dataset, load
 from pyod.models.iforest import IForest
-from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split
 
@@ -92,8 +89,7 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-p_values = detector.compute_p_values(x_test)
-discoveries = false_discovery_control(p_values, method="bh") < 0.05
+discoveries = detector.select(x_test, alpha=0.05)
 print(f"Discoveries: {discoveries.sum()}")
 print(f"Anomaly rate in test set: {y_test.mean():.1%}")
 ```
@@ -125,11 +121,8 @@ print(f"Anomaly rate: {y_test.mean():.1%}")
 import numpy as np
 from sklearn.datasets import make_blobs
 from sklearn.ensemble import IsolationForest
-from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import weighted_false_discovery_control
-from nonconform.enums import Pruning
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 rng = np.random.default_rng(7)
@@ -162,19 +155,12 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-p_values = detector.compute_p_values(x_test)
-result = detector.last_result  # ConformalResult bundle
+discoveries = detector.select(x_test, alpha=0.05)
+result = detector.last_result  # ConformalResult bundle from select()
+p_values = result.p_values
 
-discoveries = false_discovery_control(p_values, method="bh") < 0.05
-weighted_discoveries = weighted_false_discovery_control(
-    result=result,
-    alpha=0.1,
-    pruning=Pruning.DETERMINISTIC,
-    seed=7,
-)
-
-print(f"BH discoveries: {discoveries.sum()}")
-print(f"Weighted discoveries: {weighted_discoveries.sum()}")
+print(f"Discoveries: {discoveries.sum()}")
+print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")
 print(f"FDR: {false_discovery_rate(y_true, discoveries):.3f}")
 print(f"Power: {statistical_power(y_true, discoveries):.3f}")
 ```

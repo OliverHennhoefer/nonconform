@@ -9,7 +9,6 @@ from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformalized_selection
 from nonconform.metrics import false_discovery_rate, statistical_power
 from nonconform.scoring import ConditionalEmpirical
 
@@ -24,10 +23,11 @@ def test_conditional_empirical_selection_matches_bh():
         seed=1,
     )
     detector.fit(x_train)
-    p_values = detector.compute_p_values(x_test)
+    cs_mask = detector.select(x_test, alpha=0.2)
+    result = detector.last_result
+    assert result is not None and result.p_values is not None
 
-    cs_mask = conformalized_selection(result=detector.last_result, alpha=0.2)
-    bh_mask = false_discovery_control(p_values, method="bh") <= 0.2
+    bh_mask = false_discovery_control(result.p_values, method="bh") <= 0.2
 
     assert cs_mask.dtype == bool
     assert cs_mask.shape == (len(x_test),)
