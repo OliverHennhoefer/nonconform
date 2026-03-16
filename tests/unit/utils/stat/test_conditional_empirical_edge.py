@@ -28,7 +28,12 @@ def test_conditional_empirical_accepts_empty_scores() -> None:
         ({"delta": 1.0}, "delta must be in"),
         ({"method": "unknown"}, "must be one of"),
         ({"simes_kden": 0}, "simes_kden must be a positive integer"),
+        ({"simes_kden": True}, "simes_kden must be a positive integer"),
         ({"mc_num_simulations": 10}, "mc_num_simulations must be an integer >= 100"),
+        (
+            {"mc_num_simulations": False},
+            "mc_num_simulations must be an integer >= 100",
+        ),
     ],
 )
 def test_conditional_empirical_invalid_init_raises(

@@ -219,9 +219,17 @@ class ConditionalEmpirical(Empirical):
             raise ValueError("delta must be a float in (0, 1).") from exc
         if not np.isfinite(delta_float) or not (0.0 < delta_float < 1.0):
             raise ValueError(f"delta must be in (0, 1), got {delta!r}.")
-        if not isinstance(simes_kden, int) or simes_kden < 1:
+        if (
+            isinstance(simes_kden, bool)
+            or not isinstance(simes_kden, int)
+            or simes_kden < 1
+        ):
             raise ValueError("simes_kden must be a positive integer.")
-        if not isinstance(mc_num_simulations, int) or mc_num_simulations < 100:
+        if (
+            isinstance(mc_num_simulations, bool)
+            or not isinstance(mc_num_simulations, int)
+            or mc_num_simulations < 100
+        ):
             raise ValueError("mc_num_simulations must be an integer >= 100.")
 
         self._delta = delta_float
