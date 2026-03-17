@@ -11,7 +11,10 @@ nonconform provides four calibration strategies, each with distinct trade-offs:
 | **Split** | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | Large datasets, real-time |
 | **Jackknife+** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | General purpose, balanced |
 | **Cross-Validation** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Small datasets, maximum accuracy |
-| **Bootstrap** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | Uncertainty quantification |
+| **JackknifeBootstrap (JaB+)** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | Uncertainty quantification |
+
+> **Guarantee note:** Strict finite-sample/theoretical guarantees are tied to `"plus"` variants (for example `CV+`, `Jackknife+`, `JaB+`).  
+> Non-plus (`mode="single_model"`) variants can be close in practice and lighter at inference time, but they do not provide the same strict guarantees.
 
 ## Detailed Strategy Characteristics
 
@@ -134,14 +137,14 @@ strategy = CrossValidation(k=3, mode="single_model")
 ```python
 from nonconform import JackknifeBootstrap
 
-# Standard JaB+ (recommended starting point)
-strategy = JackknifeBootstrap(n_bootstraps=50)
+# Standard JaB+ (typically 100+ bootstraps)
+strategy = JackknifeBootstrap(n_bootstraps=100)
 
 # High-precision JaB+ for research
 strategy = JackknifeBootstrap(n_bootstraps=200)
 
 # Fast JaB+ for prototyping
-strategy = JackknifeBootstrap(n_bootstraps=20)
+strategy = JackknifeBootstrap(n_bootstraps=50)
 ```
 
 ## Decision Framework
@@ -150,15 +153,15 @@ strategy = JackknifeBootstrap(n_bootstraps=20)
 
 **Large datasets (>10,000 samples):**
 - **Primary choice:** Split (fast, efficient)
-- **Alternative:** Jackknife+ (if accuracy is critical)
+- **Alternative:** JackknifeBootstrap (if speed is not the top priority)
 
 **Medium datasets (1,000-10,000 samples):**
-- **Primary choice:** Jackknife+ (balanced performance)
-- **Alternative:** Cross-Validation (if maximum accuracy needed)
+- **Primary choice:** JackknifeBootstrap (balanced robustness and practicality)
+- **Alternative:** Jackknife+ (if you want lower compute than larger-bootstrap setups)
 
 **Small datasets (<1,000 samples):**
-- **Primary choice:** Cross-Validation (data efficient)
-- **Alternative:** Bootstrap (if robustness critical)
+- **Primary choice:** Jackknife+
+- **Alternative:** Jackknife (for the smallest datasets)
 
 ### 2. Performance Requirements
 
@@ -168,12 +171,12 @@ strategy = JackknifeBootstrap(n_bootstraps=20)
 - Consider caching fitted detectors
 
 **Batch processing (latency <10s):**
-- Jackknife+ or Cross-Validation
+- Jackknife+ or JackknifeBootstrap
 - Optimize based on accuracy requirements
 
 **Offline analysis (no latency constraints):**
 - Any strategy based on accuracy needs
-- Bootstrap for maximum robustness
+- JackknifeBootstrap for maximum robustness
 
 ### 3. Accuracy vs Speed Trade-offs
 
@@ -185,14 +188,14 @@ strategy = Split(n_calib=1000)  # Fixed size for predictable performance
 
 **Balanced (general applications):**
 ```python
-# Good accuracy with reasonable speed
-strategy = CrossValidation.jackknife(mode="plus")
+# Good robustness with practical defaults
+strategy = JackknifeBootstrap(n_bootstraps=100)
 ```
 
 **Maximum accuracy (research/critical applications):**
 ```python
 # Most robust but slower
-strategy = CrossValidation(k=10, mode="plus")
+strategy = JackknifeBootstrap(n_bootstraps=200)
 ```
 
 ## Advanced Considerations
@@ -205,12 +208,12 @@ strategy = CrossValidation(k=10, mode="plus")
 
 **Non-exchangeable data (distribution shift):**
 - Consider weighted conformal detection
-- Bootstrap strategy may provide additional robustness
+- JackknifeBootstrap strategy may provide additional robustness
 - Monitor calibration performance over time
 
 **Heterogeneous data (mixed distributions):**
-- Bootstrap conformal recommended
-- Cross-validation as alternative
+- JackknifeBootstrap recommended
+- Jackknife+ as alternative
 - Avoid Split with very diverse training sets
 
 ### Computational Resource Planning
@@ -218,20 +221,20 @@ strategy = CrossValidation(k=10, mode="plus")
 **Memory constraints:**
 - Split: O(n_calib) memory usage
 - Jackknife+: O(n_train) memory usage
-- Cross-Validation: O(n_train × n_folds) memory usage
-- Bootstrap: O(n_train × n_bootstraps) memory usage
+- Cross-Validation: O(k × n_test) inference peak; O(k) stored models + O(n_train) calibration scores
+- JackknifeBootstrap: O(n_train x n_bootstraps) memory usage (includes permanent `_oob_mask` storage)
 
 **CPU considerations:**
 - Split: Single model training
 - Jackknife+: n_train + 1 model trainings
 - Cross-Validation: n_folds model trainings
-- Bootstrap: n_bootstraps model trainings
+- JackknifeBootstrap: n_bootstraps model trainings
 
 ## Strategy Transition Guide
 
 ### From Research to Production
 
-1. **Development phase:** Use Cross-Validation for robust results
+1. **Development phase:** Use JackknifeBootstrap for robust results
 2. **Validation phase:** Compare with Jackknife+ for speed assessment
 3. **Production phase:** Deploy with Split for optimal performance
 4. **Monitoring phase:** Validate that Split maintains required accuracy
@@ -262,7 +265,7 @@ If you observe degraded performance after strategy changes:
 - **Don't:** Use without plus correction in critical applications
 - **Do:** Balance n_folds with computational budget
 
-### Bootstrap Conformal
+### JackknifeBootstrap (JaB+) Conformal
 - **Don't:** Use too few bootstraps (<20) for robust estimates
 - **Don't:** Ignore bootstrap variance in interpretation
 - **Do:** Monitor convergence of bootstrap estimates
@@ -272,15 +275,14 @@ If you observe degraded performance after strategy changes:
 Always validate your strategy choice with performance metrics:
 
 ```python
-from scipy.stats import false_discovery_control
-from nonconform import ConformalDetector, Split, CrossValidation
+from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Compare strategies on your data
 strategies = {
     'Split': Split(n_calib=0.2),
     'Jackknife+': CrossValidation.jackknife(mode="plus"),
-    'CrossVal': CrossValidation(k=5, mode="plus")
+    'JaB+': JackknifeBootstrap(n_bootstraps=100)
 }
 
 for name, strategy in strategies.items():
@@ -290,11 +292,9 @@ for name, strategy in strategies.items():
         seed=42
     )
     detector.fit(X_train)
-    p_values = detector.compute_p_values(X_test)
+    decisions = detector.select(X_test, alpha=0.1)
 
-    # Apply FDR control and evaluate performance
-    adjusted = false_discovery_control(p_values, method='bh')
-    decisions = adjusted <= 0.1
+    # Evaluate FDR-controlled decisions
     fdr = false_discovery_rate(y_test, decisions)
     power = statistical_power(y_test, decisions)
 

@@ -1,7 +1,7 @@
 # FDR Control for Multiple Testing
 
 Use `detector.select(...)` for default FDR-controlled anomaly decisions, and
-`scipy.stats.false_discovery_control` for manual BH/BY analysis on p-values.
+`scipy.stats.false_discovery_control` for manual BH analysis on p-values.
 
 ## Setup
 
@@ -51,16 +51,10 @@ print(f"Reduction: {(p_values < 0.05).sum() - discoveries.sum()}")
 ## Different FDR Control Methods
 
 ```python
-# Available methods in scipy.stats.false_discovery_control
-fdr_methods = ['bh', 'by']
-
-results = {}
-for method in fdr_methods:
-    adjusted_p_vals = false_discovery_control(p_values, method=method)
-    discoveries = adjusted_p_vals < 0.05
-    results[method] = discoveries.sum()
-
-    print(f"{method.upper()} method: {results[method]} discoveries")
+# BH method in scipy.stats.false_discovery_control
+adjusted_p_vals = false_discovery_control(p_values, method='bh')
+discoveries = adjusted_p_vals < 0.05
+print(f"BH method: {discoveries.sum()} discoveries")
 
 # Compare with no adjustment
 no_adjustment = (p_values < 0.05).sum()
@@ -238,21 +232,20 @@ axes[0, 0].legend()
 # Adjusted p-value histogram
 adjusted_p_vals = false_discovery_control(p_values, method='bh')
 axes[0, 1].hist(adjusted_p_vals, bins=50, alpha=0.7, color='orange', edgecolor='black')
-axes[0, 1].axvline(x=0.05, color='red', linestyle='--', label='α=0.05')
+axes[0, 1].axvline(x=0.05, color='red', linestyle='--', label='alpha=0.05')
 axes[0, 1].set_xlabel('Adjusted p-value')
 axes[0, 1].set_ylabel('Frequency')
 axes[0, 1].set_title('BH Adjusted P-value Distribution')
 axes[0, 1].legend()
 
 # Comparison of detection methods
-detection_methods = ['Raw (α=0.05)', 'BH FDR Control', 'BY FDR Control']
+detection_methods = ['Raw (alpha=0.05)', 'BH FDR Control']
 detection_counts = [
     (p_values < 0.05).sum(),
-    (false_discovery_control(p_values, method='bh') < 0.05).sum(),
-    (false_discovery_control(p_values, method='by') < 0.05).sum()
+    (false_discovery_control(p_values, method='bh') < 0.05).sum()
 ]
 
-axes[1, 0].bar(detection_methods, detection_counts, color=['blue', 'orange', 'green'])
+axes[1, 0].bar(detection_methods, detection_counts, color=['blue', 'orange'])
 axes[1, 0].set_ylabel('Number of Detections')
 axes[1, 0].set_title('Detection Comparison')
 axes[1, 0].tick_params(axis='x', rotation=45)
@@ -267,7 +260,7 @@ for alpha in fdr_levels:
 
 axes[1, 1].plot(fdr_levels, discoveries_at_levels, 'o-', linewidth=2)
 axes[1, 1].axhline(y=(p_values < 0.05).sum(), color='red', linestyle='--',
-                   label='Raw (α=0.05)')
+                   label='Raw (alpha=0.05)')
 axes[1, 1].set_xlabel('FDR Level')
 axes[1, 1].set_ylabel('Number of Discoveries')
 axes[1, 1].set_title('Discoveries vs FDR Level')

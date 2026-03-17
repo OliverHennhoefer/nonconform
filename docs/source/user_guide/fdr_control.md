@@ -4,11 +4,15 @@
 
 When you test many observations for anomalies, some will look anomalous by
 chance even if they are truly normal. For example, testing 1,000 observations
-at a 5% level yields about 50 false positives on average.
+at significance level alpha = 0.05 yields about 50 false positives on average.
 
 **False Discovery Rate (FDR)** is the proportion of false positives among all the observations you flag as anomalies:
 
 $$\text{FDR} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
+
+An equivalent operational interpretation is:
+
+$$\text{FDR} \approx \frac{\text{Wasted Effort (chasing false positives)}}{\text{Total Investigation Effort}}$$
 
 **FDR control** adjusts your threshold so that this proportion stays below a
 target level (for example, 5%). This differs from controlling false positives
@@ -16,9 +20,17 @@ per individual test: FDR controls the error proportion among the points you
 actually flag.
 
 !!! example "Example"
-    You flag 100 observations with FDR controlled at 5%. On average, no more
-    than about 5 of those are false positives. Without FDR control, you might
-    flag 200 observations with 50 false positives (25% FDR).
+    Suppose your pipeline flags 100 observations as anomalies with
+    `alpha = 0.05` FDR control.
+
+    - Expected false alarms: about 5
+    - Useful follow-ups: about 95
+
+    Now compare this to an uncontrolled setup that flags 200 observations,
+    where 50 are false positives:
+
+    - False positives: 50/200 = 25% FDR
+    - This means 1 in 4 investigations is wasted effort
 
 ---
 
@@ -67,13 +79,13 @@ decisions = false_discovery_control(p_values, method="bh") <= 0.05
 
 ## Selection Entry Points
 
-**Primary (recommended):** `detector.select(X_test, alpha=...)` — dispatches
+**Primary (recommended):** `detector.select(X_test, alpha=...)` â€” dispatches
 automatically based on detector configuration; no manual result-bundle
 handling required.
 
 **Advanced/low-level options** (for custom workflows):
 
-- Standard (exchangeable): apply BH/BY directly via
+- Standard (exchangeable): apply BH directly via
   `scipy.stats.false_discovery_control(...)` to conformal p-values.
 - Weighted (covariate shift with importance weights):
   `weighted_false_discovery_control(result=...)` or
@@ -157,7 +169,7 @@ detector = ConformalDetector(
 
 detector.fit(X_train)
 
-# FDR-controlled selection at 5% — single call
+# FDR-controlled selection at 5% â€” single call
 discoveries = detector.select(X_test, alpha=0.05)
 
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
@@ -166,7 +178,7 @@ print(f"FDR-controlled discoveries: {discoveries.sum()}")
 ## Weighted Conformal Selection
 
 When calibration and test distributions differ, configure a `weight_estimator`
-and call `select()` — it automatically dispatches to Weighted Conformalized
+and call `select()` â€” it automatically dispatches to Weighted Conformalized
 Selection (WCS):
 
 ```python
@@ -199,7 +211,7 @@ randomness. Set ``seed`` for reproducible randomized pruning decisions.
 
 ## Available Methods
 
-For direct BH/BY control on conformal p-values, use
+For direct BH control on conformal p-values, use
 `scipy.stats.false_discovery_control`:
 
 ### Benjamini-Hochberg (BH)
@@ -211,24 +223,14 @@ For direct BH/BY control on conformal p-values, use
   "positive dependence."
 - **Usage**: `false_discovery_control(p_values, method='bh')`
 
-### Benjamini-Yekutieli (BY)
-- **Method**: `'by'`
-- **Description**: More conservative method for arbitrary dependence
-- **Assumptions**: Works under any dependency structure
-- **Usage**: `false_discovery_control(p_values, method='by')`
-
 ```python
 from scipy.stats import false_discovery_control
 
-# Compare different methods
+# BH control on conformal p-values
 bh_adjusted = false_discovery_control(p_values, method='bh')
-by_adjusted = false_discovery_control(p_values, method='by')
-
 bh_discoveries = (bh_adjusted < 0.05).sum()
-by_discoveries = (by_adjusted < 0.05).sum()
 
 print(f"BH discoveries: {bh_discoveries}")
-print(f"BY discoveries: {by_discoveries}")
 ```
 
 ## Setting FDR Levels
@@ -248,63 +250,27 @@ for alpha in fdr_levels:
 
 ## When to Use FDR Control
 
-### Multiple Testing Scenarios
-Use FDR control when:
-- Testing multiple hypotheses simultaneously
-- Analyzing high-dimensional data
-- Processing multiple datasets or time series
-- Running ensemble methods with multiple detectors
+Use FDR control whenever you make more than one test-level anomaly decision.
+This includes both batch decisions made simultaneously and decisions accumulated
+over time.
 
-### Benefits
-1. **Controlled FDR**: Bounds expected false positive proportion
-2. **Increased Power**: Often more powerful than family-wise error rate (FWER) control
-3. **Scalability**: Works well with large numbers of tests
+### Core Rule
+- One test: a per-test threshold may be enough.
+- Multiple tests: control FDR to bound the expected fraction of false
+  discoveries among flagged points.
 
-### Practical Examples
+### Why
+1. **Controlled false discoveries**: bounds expected false-positive proportion among detections.
+2. **Practical power trade-off**: usually more powerful than stricter family-wise error control.
+3. **Scales to many tests**: suitable for modern high-throughput anomaly workflows.
 
-#### High-dimensional Anomaly Detection
-```python
-from scipy.stats import false_discovery_control
-
-# When analyzing many features independently
-# Use disjoint train/test samples for valid conformal p-values
-X_train, X_test = ...  # same feature space, different samples
-n_features = X_train.shape[1]
-feature_p_values = []
-
-for i in range(n_features):
-    # Analyze each feature separately
-    X_train_feature = X_train[:, [i]]
-    X_test_feature = X_test[:, [i]]
-    detector.fit(X_train_feature)
-    p_vals = detector.compute_p_values(X_test_feature)
-    feature_p_values.extend(p_vals)
-
-# Apply FDR control across all features
-discoveries = false_discovery_control(feature_p_values, method="bh") <= 0.05
-```
-
-#### Multiple Time Series
-```python
-from scipy.stats import false_discovery_control
-
-# When analyzing multiple time series
-train_series = [ts1_train, ts2_train, ts3_train, ...]
-test_series = [ts1_test, ts2_test, ts3_test, ...]
-all_p_values = []
-
-for ts_train, ts_test in zip(train_series, test_series):
-    detector.fit(ts_train)
-    p_vals = detector.compute_p_values(ts_test)
-    all_p_values.extend(p_vals)
-
-# Control FDR across all time series
-discoveries = false_discovery_control(all_p_values, method="bh") <= 0.05
-```
+### Sequential Note
+If decisions are made over time (not a fixed batch), use procedures designed
+for online settings (see [Online FDR Control for Streaming Data](#online-fdr-control-for-streaming-data)).
 
 ## Integration with Conformal Prediction
 
-`select()` dispatches automatically — standard or weighted — based on the
+`select()` dispatches automatically â€” standard or weighted â€” based on the
 detector's configuration:
 
 ```python
@@ -378,13 +344,13 @@ print(f"Statistical Power: {results['power']:.3f}")
 ## Best Practices
 
 ### 1. Choose Appropriate FDR Level
-- **Conservative**: α = 0.01 for critical applications
-- **Standard**: α = 0.05 for most applications
-- **Liberal**: α = 0.1 when false positives are less costly
+- **Very strict**: `alpha = 0.01` only when false positives are extremely costly (often too strict for exploratory workflows)
+- **Standard**: `alpha = 0.05` for most applications
+- **Exploratory / higher-recall**: `alpha = 0.10` when missing anomalies is costlier than investigating additional false positives
 
 ### 2. Method Selection
 - Use **`detector.select(...)`** for most conformal workflows
-- Use **BY** via SciPy when tests may have negative dependence or when more conservative control is needed
+- Use **BH** via SciPy for manual p-value thresholding workflows
 
 ### 3. Combine with Domain Knowledge
 ```python
@@ -416,54 +382,11 @@ for batch in data_batches:
 
 ### 1. Inappropriate Independence Assumptions
 - BH assumes independence or positive dependence
-- Use BY if negative dependence is suspected
+- Re-check assumptions or move to methods designed for your dependence structure
 
 ### 2. Multiple Rounds of Testing
 - Don't apply FDR control multiple times to the same data
 - If doing sequential testing, use specialized methods
-
-### 3. Ignoring Effect Sizes
-- FDR control doesn't consider magnitude of anomalies
-- Consider combining with effect size thresholds
-
-## Advanced Usage
-
-### Combining Multiple Detection Methods
-```python
-import numpy as np
-from scipy.stats import combine_pvalues
-from pyod.models.lof import LOF
-from pyod.models.knn import KNN
-from pyod.models.ocsvm import OCSVM
-from scipy.stats import false_discovery_control
-from nonconform import ConformalDetector, Split
-
-
-# Get p-values from multiple detectors
-detectors = [LOF(), KNN(), OCSVM()]
-p_values_list = []
-strategy = Split(n_calib=0.2)
-
-for base_detector in detectors:
-    conf_detector = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation="median",
-        seed=42
-    )
-    conf_detector.fit(X_train)
-    p_vals = conf_detector.compute_p_values(X_test)
-    p_values_list.append(p_vals)
-
-# Combine p-values using Fisher's method
-combined_stats, combined_p_values = combine_pvalues(
-    np.array(p_values_list).T,
-    method='fisher'
-)
-
-# Apply FDR control to combined p-values
-final_discoveries = false_discovery_control(combined_p_values, method="bh") <= 0.05
-```
 
 ## Online FDR Control for Streaming Data
 
@@ -480,15 +403,15 @@ control across multiple tested hypotheses.
 # Install FDR dependencies
 # pip install nonconform[fdr]
 
-from onlinefdr import Alpha_investing, LORD
+from online_fdr.investing.alpha.alpha import Gai
 
 # Example with streaming conformal p-values
 def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
     """Online FDR control for streaming anomaly detection."""
 
     # Initialize online FDR method
-    # Alpha-investing: adapts alpha based on discoveries
-    online_fdr = Alpha_investing(alpha=alpha, w0=0.05)
+    # GAI: alpha-investing style online FDR control
+    online_fdr = Gai(alpha=alpha, wealth=alpha / 2)
 
     discoveries = []
 
@@ -498,7 +421,7 @@ def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
 
         # Apply online FDR control
         for p_val in p_values:
-            decision = online_fdr.run_single(p_val)
+            decision = online_fdr.test_one(float(p_val))
             discoveries.append(decision)
 
     return discoveries
@@ -507,14 +430,16 @@ def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
 ### LORD (Levels based On Recent Discovery) Method
 
 ```python
-# LORD method: more aggressive when recent discoveries
-lord_fdr = LORD(alpha=0.05, tau=0.5)
+from online_fdr.investing.lord.three import LordThree
+
+# LORD 3: alpha allocation adapts over the testing stream
+lord_fdr = LordThree(alpha=0.05, wealth=0.04, reward=0.05)
 
 # Process streaming data with temporal adaptation
 for t, (batch, p_values) in enumerate(stream_with_pvalues):
     for p_val in p_values:
         # LORD adapts rejection threshold based on recent discoveries
-        reject = lord_fdr.run_single(p_val)
+        reject = lord_fdr.test_one(float(p_val))
 
         if reject:
             print(f"Anomaly detected at time {t} with p-value {p_val:.4f}")

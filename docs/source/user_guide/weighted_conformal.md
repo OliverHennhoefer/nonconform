@@ -19,11 +19,11 @@ Handle distribution shift between training and test data while maintaining stati
     )
     ```
 
-    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same.
+    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same. You also need sufficient feature-support overlap between calibration and test data; if distributions are too far apart, weighting can become unstable and guarantees can degrade.
 
 ## Overview
 
-Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. When it holds you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift [[Jin & Candès, 2023](#references)].
+Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. A second practical requirement is sufficient support overlap between calibration and test feature distributions; when shift is too extreme, estimated density ratios become unstable and weighted conformal adjustment may fail. When assumptions hold you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift [[Jin & Candès, 2023](#references)].
 
 The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
 
@@ -65,8 +65,8 @@ During fitting, the detector:
 
 ### 2. Weight Estimation
 During prediction, the detector:
-- Trains a logistic regression model to distinguish calibration from test samples
-- Uses the predicted probabilities to estimate importance weights
+- Fits the configured likelihood-ratio estimator (typically a probabilistic binary domain classifier) to distinguish calibration from test samples
+- Uses predicted probabilities/scores from that estimator to compute importance weights
 - Applies weights to both calibration and test instances
 
 For explicit control of this state transition, you can precompute weights once and
@@ -114,18 +114,20 @@ def weighted_p_value(test_score, calibration_scores, calibration_weights, test_w
 ## When to Use Weighted Conformal
 
 ### Covariate Shift Scenarios
-Use weighted conformal detection when:
+Use weighted conformal detection when the shift is primarily in `P(X)` and not in `P(Y|X)`, for example:
 
-1. **Domain Adaptation**: Training on one domain, testing on another
-2. **Temporal Shift**: Data distribution changes over time
-3. **Sample Selection Bias**: Test data is not representative of training data
-4. **Stratified Sampling**: Different sampling rates for different subgroups
+1. **Domain Adaptation**: Training on one domain, testing on another with stable anomaly mechanism
+2. **Sampling/Selection Shift**: Deployment sampling differs from calibration sampling (population mix changes)
+3. **Subgroup Mixture Shift**: Different subgroup prevalence between calibration and test data
+4. **Time-based Deployment Changes**: Different time periods, only if the change is mostly covariate shift and `P(Y|X)` is still approximately stable
 
-### Examples of Distribution Shift
+Do **not** treat generic temporal drift as automatically suitable for weighted conformal. If the anomaly mechanism itself changes (`P(Y|X)` shift), weighting alone is insufficient.
+
+### Examples Where Covariate Shift May Occur
 
 ```python
-# Example 1: Temporal shift
-# Training data from 2020, test data from 2024
+# Example 1: Time-separated data
+# Use this only if P(Y|X) is approximately stable across periods
 detector.fit(X_train_2020)
 p_values_2024 = detector.compute_p_values(X_test_2024)
 
@@ -134,8 +136,8 @@ p_values_2024 = detector.compute_p_values(X_test_2024)
 detector.fit(X_us)
 p_values_europe = detector.compute_p_values(X_europe)
 
-# Example 3: Sensor drift
-# Calibration data before sensor drift, test data after
+# Example 3: Sensor/population shift
+# Suitable when feature distribution changed but anomaly semantics stayed stable
 detector.fit(X_before_drift)
 p_values_after_drift = detector.compute_p_values(X_after_drift)
 ```
@@ -164,19 +166,12 @@ weighted_detector = ConformalDetector(
 standard_detector.fit(X_train)
 weighted_detector.fit(X_train)
 
-# Compare on shifted test data
-standard_p_values = standard_detector.compute_p_values(X_test_shifted)
-weighted_p_values = weighted_detector.compute_p_values(X_test_shifted)
-
-# Apply FDR control for proper comparison
-from scipy.stats import false_discovery_control
+# Compare on shifted test data using the current one-step API
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
-standard_mask = false_discovery_control(standard_p_values, method="bh") < 0.05
-
-weighted_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+standard_mask = standard_detector.select(X_test_shifted, alpha=0.05)
+weighted_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,

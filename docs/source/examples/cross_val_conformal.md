@@ -8,7 +8,6 @@ Use k-fold cross-validation for conformal anomaly detection.
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, CrossValidation
 
 from nonconform.metrics import false_discovery_rate, statistical_power
@@ -38,11 +37,7 @@ detector = ConformalDetector(
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.compute_p_values(X)
-
-# Apply FDR control (Benjamini-Hochberg)
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+discoveries = detector.select(X, alpha=0.05)
 print(f"Discoveries with FDR control: {discoveries.sum()}")
 ```
 
@@ -61,11 +56,10 @@ detector_plus = ConformalDetector(
 
 # Fit and predict with ensemble
 detector_plus.fit(X)
-p_values_plus = detector_plus.compute_p_values(X)
 
-# Compare with FDR control
-cv_disc = false_discovery_control(p_values, method='bh') < 0.05
-cv_plus_disc = false_discovery_control(p_values_plus, method='bh') < 0.05
+# Compare with FDR control using select()
+cv_disc = detector.select(X, alpha=0.05)
+cv_plus_disc = detector_plus.select(X, alpha=0.05)
 print(f"CV discoveries: {cv_disc.sum()}")
 print(f"CV+ discoveries: {cv_plus_disc.sum()}")
 ```
@@ -86,8 +80,7 @@ for n_folds in fold_options:
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.compute_p_values(X)
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    disc = detector.select(X, alpha=0.05)
 
     results[f"{n_folds}-fold"] = disc.sum()
     print(f"{n_folds}-fold CV: {results[f'{n_folds}-fold']} discoveries")
@@ -144,8 +137,7 @@ for seed in seeds:
         seed=seed,
     )
     detector.fit(X)
-    p_vals = detector.compute_p_values(X)
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    disc = detector.select(X, alpha=0.05)
     cv_results.append(disc.sum())
 
 plt.figure(figsize=(10, 5))
@@ -195,7 +187,7 @@ for name, strategy in strategies.items():
     p_vals = detector.compute_p_values(X)
 
     # Apply FDR control
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    disc = detector.select(X, alpha=0.05)
 
     comparison_results[name] = {
         'discoveries': disc.sum(),

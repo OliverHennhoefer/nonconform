@@ -32,7 +32,7 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **Why it matters**: When you test many observations, some will look anomalous by chance. FDR control ensures that at most (say) 5% of your "discoveries" are actually false positives.
 
-**In nonconform**: Use `scipy.stats.false_discovery_control(p_values, method='bh')` to apply Benjamini-Hochberg FDR control.
+**In nonconform**: Prefer `detector.select(X_test, alpha=...)` for default FDR-controlled decisions. Use `scipy.stats.false_discovery_control(...)` when you intentionally need manual p-value post-processing.
 
 ---
 

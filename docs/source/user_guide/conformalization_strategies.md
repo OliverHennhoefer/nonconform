@@ -7,9 +7,14 @@ Calibration strategies with trade-offs between efficiency and robustness.
 | Dataset Size | Speed Priority | Recommendation |
 |-------------|----------------|----------------|
 | Large (>5,000) | Yes | `Split(n_calib=0.2)` |
-| Large (>5,000) | No | `CrossValidation(k=5)` |
-| Medium (500–5,000) | Any | `CrossValidation(k=5)` |
-| Small (<500) | Any | `CrossValidation.jackknife()` or `JackknifeBootstrap(n_bootstraps=50)` |
+| Large (>5,000) | No | `JackknifeBootstrap(n_bootstraps=100)` |
+| Medium (500-5,000) | Any | `JackknifeBootstrap(n_bootstraps=100)` |
+| Small (<500) | Any | `CrossValidation.jackknife()` |
+
+For very small datasets, use `CrossValidation.jackknife()` when you need strict finite-sample guarantees.
+If you need smoother p-values, consider `Probabilistic()` (KDE-based), noting this trades strict finite-sample guarantees for asymptotic behavior.
+For CV/Jackknife/Bootstrap-style conformalization, strict finite-sample theoretical guarantees are tied to the `"plus"` variants (`CV+`, `Jackknife+`, `JaB+`).
+`mode="single_model"` can perform similarly in practice and is lighter at inference time, but it does not provide the same strict guarantees.
 
 For detailed guidance, see [Choosing Strategies](choosing_strategies.md).
 
@@ -28,7 +33,7 @@ from nonconform import Split
 strategy = Split(n_calib=0.3)
 
 # Use fixed number of samples for calibration
-strategy = Split(n_calib=100)
+strategy = Split(n_calib=1000)
 ```
 
 **Characteristics:**
@@ -63,20 +68,20 @@ strategy = CrossValidation(k=5, mode="plus")
 - **Most robust** calibration
 - **Uses all data** for both training and calibration
 - **Higher computational cost**
-- **Recommended for small datasets**
+- **Useful alternative** when deterministic fold-based calibration is preferred
 
 ### JaB+ Strategy (Jackknife+-after-Bootstrap)
 
-Bootstrap resampling with Jackknife+ for robust calibration.
+Bootstrap resampling with Jackknife+ for robust calibration [[Kim et al., 2020](#references)].
 
 ```python
 from nonconform import JackknifeBootstrap
 
-# Basic JaB+ with 50 bootstraps
-strategy = JackknifeBootstrap(n_bootstraps=50)
+# Typical JaB+ starting point (100+ bootstraps recommended)
+strategy = JackknifeBootstrap(n_bootstraps=100)
 
 # Higher precision with more bootstraps
-strategy = JackknifeBootstrap(n_bootstraps=100)
+strategy = JackknifeBootstrap(n_bootstraps=200)
 ```
 
 **Characteristics:**
@@ -84,6 +89,7 @@ strategy = JackknifeBootstrap(n_bootstraps=100)
 - **Uncertainty quantification**
 - **Robust to outliers**
 - **Configurable computational cost**
+- **Typically recommended:** 100+ bootstraps for stable behavior
 
 ### Jackknife Strategy
 
@@ -109,32 +115,35 @@ strategy = CrossValidation.jackknife(mode="plus")
 
 | Dataset Size | Computational Budget | Recommendation |
 |-------------|---------------------|----------------|
-| Large (>1000) | Low | Split |
-| Large (>1000) | High | CrossValidation |
-| Medium (100-1000) | Any | CrossValidation |
-| Small (<100) | Any | Jackknife |
+| Large (>5,000) | Low | Split |
+| Large (>5,000) | High | JackknifeBootstrap |
+| Medium (500-5,000) | Any | JackknifeBootstrap |
+| Small (<500) | Any | Jackknife |
 
 ## Mode Semantics
 
-CrossValidation strategies support `"plus"` mode for tighter prediction intervals [[Barber et al., 2021](#references)]:
+CrossValidation and JackknifeBootstrap strategies support `"plus"` mode for stronger conformal validity behavior in anomaly detection workflows [[Barber et al., 2021](#references)]:
 
 ```python
 # Enable plus mode for CV strategies
 strategy = CrossValidation(k=5, mode="plus")
 strategy = CrossValidation.jackknife(mode="plus")
+strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
 ```
 
 **`mode="plus"` provides:**
 - Higher statistical efficiency in theory [[Barber et al., 2021](#references)]
 - Better finite-sample properties
 - Slightly higher computational cost
+- Strict finite-sample/theoretical guarantees for these strategy families
 
-The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined version that often produces shorter prediction intervals while maintaining coverage guarantees.
+The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined variant that is typically preferred when strict finite-sample validity is the priority.
 
 **`mode="single_model"` provides:**
 - Lower inference-time memory footprint
 - One final detector trained on full data for inference
-- Potentially weaker conformal validity than `mode="plus"`
+- Can be close to `mode="plus"` in practice for some datasets
+- No strict finite-sample/theoretical guarantee comparable to `"plus"`
 
 ## Performance Comparison
 
@@ -142,7 +151,7 @@ The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined version that often
 |----------|---------------|--------------|-------------------|
 | Split | Fast | Low | Good |
 | CrossValidation | Medium | Medium | Excellent |
-| JackknifeBootstrap | Medium-High | Medium-High | Very Good |
+| JackknifeBootstrap | Medium-High | Medium-High | Excellent |
 | Jackknife (LOO) | Slow | High | Excellent |
 
 ## Integration with Detectors
@@ -162,13 +171,15 @@ detector = ConformalDetector(
 # Weighted conformal with JaB+
 detector = ConformalDetector(
     detector=LOF(),
-    strategy=JackknifeBootstrap(n_bootstraps=50),
+    strategy=JackknifeBootstrap(n_bootstraps=100),
     weight_estimator=logistic_weight_estimator(),
     seed=42,
 )
 ```
 
 ## References
+
+- **Kim, B., Xu, C., & Barber, R. F. (2020)**. *Predictive Inference Is Free with the Jackknife+-after-Bootstrap.* Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method for bootstrap-based conformal calibration]
 
 - **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**. *Predictive Inference with the Jackknife+*. The Annals of Statistics, 49(1), 486-507. [Jackknife+ method with improved finite-sample efficiency]
 

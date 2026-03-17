@@ -102,7 +102,6 @@ print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.
 
 ```python
 from pyod.models.lof import LOF
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import (
     false_discovery_rate,
@@ -129,12 +128,8 @@ detector.fit(x_train)
 # Evaluate on generated batches
 batch_results = []
 for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    # Get p-values
-    p_values = detector.compute_p_values(x_batch)
-
-    # Apply FDR control (Benjamini-Hochberg)
-    adjusted_p_values = false_discovery_control(p_values, method='bh')
-    decisions = adjusted_p_values < 0.05
+    # Apply FDR control through the one-step API
+    decisions = detector.select(x_batch, alpha=0.05)
 
     # Calculate metrics
     fdr = false_discovery_rate(y_batch, decisions)
@@ -252,9 +247,7 @@ for contamination in contamination_levels:
     for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
         if i >= 4:  # Stop after 5 batches
             break
-        p_values = detector.compute_p_values(x_batch)
-        adjusted_p_values = false_discovery_control(p_values, method='bh')
-        decisions = adjusted_p_values < 0.05
+        decisions = detector.select(x_batch, alpha=0.05)
 
         fdr = false_discovery_rate(y_batch, decisions)
         power = statistical_power(y_batch, decisions)
@@ -349,7 +342,6 @@ except ValueError as e:
 from oddball import Dataset, load
 from oddball.generator import BatchGenerator
 from pyod.models.lof import LOF
-from scipy.stats import false_discovery_control
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -369,12 +361,8 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    # Get p-values
-    p_values = detector.compute_p_values(x_batch)
-
-    # Apply Benjamini-Hochberg FDR control
-    fdr_adjusted = false_discovery_control(p_values, method='bh')
-    decisions = fdr_adjusted < 0.05
+    # Apply FDR control through select()
+    decisions = detector.select(x_batch, alpha=0.05)
 
     # Calculate controlled FDR
     fdr = false_discovery_rate(y_batch, decisions)

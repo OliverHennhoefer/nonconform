@@ -121,11 +121,8 @@ def validate_p_values(p_values):
 - Check for data quality issues
 
 ```python
-from scipy.stats import false_discovery_control
-
 # Use more conservative FDR control
-adjusted_p_values = false_discovery_control(p_values, method='by')  # More conservative
-discoveries = adjusted_p_values < 0.01
+discoveries = detector.select(X_test, alpha=0.01)
 
 # Monitor empirical FDR if ground truth is available
 if y_true is not None:
@@ -163,9 +160,7 @@ for name, strategy in strategies.items():
         seed=42
     )
     detector.fit(X_train)
-    p_vals = detector.compute_p_values(X_test)
-    adjusted = false_discovery_control(p_vals, method='bh')
-    detections = (adjusted < 0.05).sum()
+    detections = detector.select(X_test, alpha=0.05).sum()
     print(f"{name}: {detections} discoveries")
 ```
 

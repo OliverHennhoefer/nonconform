@@ -14,7 +14,6 @@ from nonconform import (
     logistic_weight_estimator,
 )
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Load benchmark data
@@ -44,9 +43,9 @@ detector.fit(X)
 # The detector automatically estimates importance weights internally
 p_values = detector.compute_p_values(X_test)
 
-# Apply Weighted Conformal Selection (WCS) for FDR control
-discoveries = weighted_false_discovery_control(
-    result=detector.last_result,
+# Apply weighted FDR-controlled selection
+discoveries = detector.select(
+    X_test,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -81,9 +80,9 @@ detector_shifted.fit(X)
 # Predict on shifted data
 p_values_shifted = detector_shifted.compute_p_values(X_shifted)
 
-# Apply WCS for FDR control
-discoveries_shifted = weighted_false_discovery_control(
-    result=detector_shifted.last_result,
+# Apply weighted FDR-controlled selection
+discoveries_shifted = detector_shifted.select(
+    X_shifted,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -97,8 +96,6 @@ print(f"Discoveries with WCS: {discoveries_shifted.sum()}")
 ## Comparison with Standard Conformal Detection
 
 ```python
-from scipy.stats import false_discovery_control
-
 # Standard conformal detector for comparison
 standard_detector = ConformalDetector(
     detector=base_detector,
@@ -111,10 +108,7 @@ standard_detector = ConformalDetector(
 standard_detector.fit(X)
 
 # Compare on shifted data
-standard_p_values = standard_detector.compute_p_values(X_shifted)
-
-# Apply FDR control to standard conformal (BH procedure)
-standard_disc = false_discovery_control(standard_p_values, method='bh') < 0.05
+standard_disc = standard_detector.select(X_shifted, alpha=0.05)
 
 print(f"\nComparison on shifted data (with FDR control):")
 print(f"Standard conformal discoveries (BH): {standard_disc.sum()}")
@@ -149,9 +143,9 @@ weighted_detector.fit(X)
 weighted_p_values = weighted_detector.compute_p_values(X_test)
 
 # Apply FDR control
-standard_disc_severe = false_discovery_control(standard_p_values, method='bh') < 0.05
-weighted_disc_severe = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+standard_disc_severe = standard_detector.select(X_test, alpha=0.05)
+weighted_disc_severe = weighted_detector.select(
+    X_test,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -172,10 +166,8 @@ print(f"Statistical Power (weighted): {statistical_power(y=y_test, y_hat=weighte
 
 # Re-run with proper FDR control
 detector.fit(X)
-_ = detector.compute_p_values(X_test)
-
-eval_discoveries = weighted_false_discovery_control(
-    result=detector.last_result,
+eval_discoveries = detector.select(
+    X_test,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -237,10 +229,8 @@ for agg_method in aggregation_methods:
         seed=42
     )
     det.fit(X)
-    _ = det.compute_p_values(X_test)
-
-    disc = weighted_false_discovery_control(
-        result=det.last_result,
+    disc = det.select(
+        X_test,
         alpha=0.05,
         pruning=Pruning.DETERMINISTIC,
         seed=42,
@@ -265,11 +255,8 @@ weighted_jab_detector = ConformalDetector(
 )
 
 weighted_jab_detector.fit(X)
-_ = weighted_jab_detector.compute_p_values(X_test)
-
-# Apply WCS for FDR control
-jab_discoveries = weighted_false_discovery_control(
-    result=weighted_jab_detector.last_result,
+jab_discoveries = weighted_jab_detector.select(
+    X_test,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,

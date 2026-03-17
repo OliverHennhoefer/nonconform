@@ -8,7 +8,6 @@ This example demonstrates how to use the JaB+ strategy for conformal anomaly det
 import numpy as np
 from pyod.models.lof import LOF
 from sklearn.datasets import load_breast_cancer
-from scipy.stats import false_discovery_control
 from nonconform import (
     ConformalDetector,
     JackknifeBootstrap,
@@ -42,11 +41,7 @@ detector = ConformalDetector(
 
 # Fit and predict
 detector.fit(X)
-p_values = detector.compute_p_values(X)
-
-# Apply FDR control (Benjamini-Hochberg)
-adjusted_p_values = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_values < 0.05
+discoveries = detector.select(X, alpha=0.05)
 print(f"Discoveries with FDR control: {discoveries.sum()}")
 ```
 
@@ -79,8 +74,7 @@ for n_bootstraps in bootstrap_options:
         seed=42,
     )
     detector.fit(X)
-    p_vals = detector.compute_p_values(X)
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    disc = detector.select(X, alpha=0.05)
 
     results[f"{n_bootstraps} bootstraps"] = disc.sum()
     print(f"{n_bootstraps} bootstraps: {results[f'{n_bootstraps} bootstraps']} discoveries")
@@ -139,8 +133,7 @@ for size in dataset_sizes:
         seed=42,
     )
     jab_detector.fit(X_sample)
-    jab_p_values = jab_detector.compute_p_values(X_sample)
-    jab_disc = false_discovery_control(jab_p_values, method='bh') < 0.05
+    jab_disc = jab_detector.select(X_sample, alpha=0.05)
     jab_results.append(jab_disc.sum() / size)
 
     # Split for comparison
@@ -151,8 +144,7 @@ for size in dataset_sizes:
         seed=42,
     )
     split_detector.fit(X_sample)
-    split_p_values = split_detector.compute_p_values(X_sample)
-    split_disc = false_discovery_control(split_p_values, method='bh') < 0.05
+    split_disc = split_detector.select(X_sample, alpha=0.05)
     split_results.append(split_disc.sum() / size)
 
 plt.figure(figsize=(8, 5))
@@ -190,7 +182,7 @@ for name, strategy in strategies.items():
     p_vals = detector.compute_p_values(X)
 
     # Apply FDR control
-    disc = false_discovery_control(p_vals, method='bh') < 0.05
+    disc = detector.select(X, alpha=0.05)
 
     comparison_results[name] = {
         'discoveries': disc.sum(),
