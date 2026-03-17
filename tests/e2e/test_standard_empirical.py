@@ -8,7 +8,6 @@ from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
 from pyod.models.inne import INNE
-from scipy.stats import false_discovery_control
 
 from nonconform import (
     ConformalDetector,
@@ -35,8 +34,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.compute_p_values(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.2
+        decisions = ce.select(x_test, alpha=0.2)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
             0.203389830508, rel=0.0, abs=METRIC_ATOL
         )
@@ -55,8 +53,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.compute_p_values(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.25
+        decisions = ce.select(x_test, alpha=0.25)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
             0.0, rel=0.0, abs=METRIC_ATOL
         )
@@ -75,8 +72,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.compute_p_values(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.1
+        decisions = ce.select(x_test, alpha=0.1)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
             0.071428571429, rel=0.0, abs=METRIC_ATOL
         )
@@ -95,8 +91,7 @@ class TestStandardEmpirical:
         )
 
         ce.fit(x_train)
-        estimates = ce.compute_p_values(x_test)
-        decisions = false_discovery_control(estimates, method="bh") <= 0.2
+        decisions = ce.select(x_test, alpha=0.2)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
             0.175925925926, rel=0.0, abs=METRIC_ATOL
         )

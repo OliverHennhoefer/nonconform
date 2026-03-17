@@ -15,6 +15,7 @@ Practical examples demonstrating different conformal anomaly detection approache
 |---------|------------|-------------------|
 | [Jackknife Conformal](jackknife_conformal.md) | Intermediate | Jackknife+ strategy for theoretical guarantees |
 | [Bootstrap Conformal](bootstrap_conformal.md) | Intermediate | JaB+ strategy for uncertainty quantification |
+| [Conditional Conformal](conditional_conformal.md) | Intermediate | Conditionally calibrated conformal p-values with BH-style FDR selection |
 
 ## Special Topics
 
@@ -32,6 +33,8 @@ Practical examples demonstrating different conformal anomaly detection approache
 **[Jackknife Conformal](jackknife_conformal.md)** - Apply the Jackknife+ strategy, which provides finite-sample theoretical guarantees. A good balance between computational cost and accuracy.
 
 **[Bootstrap Conformal](bootstrap_conformal.md)** - Use the Jackknife+-after-Bootstrap (JaB+) strategy for robust uncertainty quantification. Best when you need to understand detection stability.
+
+**[Conditional Conformal](conditional_conformal.md)** - Apply conditional calibration maps (`mc`, `simes`, `dkwm`, `asymptotic`) to empirical conformal p-values, then run BH-style FDR selection.
 
 **[Weighted Conformal](weighted_conformal.md)** - Handle covariate shift scenarios where your test data comes from a different distribution than your training data. Essential for real-world deployment.
 

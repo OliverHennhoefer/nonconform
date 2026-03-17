@@ -37,6 +37,8 @@ If you are looking for task-oriented call sequences, start with
 
 ## FDR Control
 
+Includes weighted low-level expert APIs (`weighted_false_discovery_control`).
+For standard workflows, prefer `ConformalDetector.select(...)`.
 ::: nonconform.fdr
     options:
       show_root_heading: true

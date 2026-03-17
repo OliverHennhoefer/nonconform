@@ -129,6 +129,131 @@ estimation = Empirical(tie_break="randomized")
 !!! tip "Alternative: Probabilistic Estimation"
     The `Probabilistic()` estimator uses kernel density estimation (KDE) to produce continuous p-values. This addresses both the resolution collapse of classical discrete p-values and the potential variance increase from randomized smoothing. Note that this trades the finite-sample guarantee of conformal p-values for an asymptotic guarantee.
 
+### Conditionally Calibrated Conformal P-values
+
+`ConditionalEmpirical` is designed for settings where you want stronger
+calibration behavior than standard marginal conformal p-values.
+
+**The problem it addresses**
+- Standard `Empirical` p-values are marginally valid under exchangeability, but
+  can still be unstable across subsets or calibration draws.
+- In multiple-testing workflows, this can translate into less stable discovery
+  behavior in finite samples.
+
+**When to use it**
+- You use exchangeable (unweighted) conformal p-values and care about robust,
+  conservative calibration before selection.
+- You can tolerate some power loss for improved calibration robustness.
+- You have a sufficiently large calibration set (especially for `mc` /
+  `asymptotic` maps).
+
+**Expected benefits and tradeoffs**
+- Benefit: more conservative, conditionally calibrated p-values that can
+  improve stability of downstream selection.
+- Tradeoff: fewer discoveries are common, and `method="mc"` adds Monte Carlo
+  computation.
+
+`ConditionalEmpirical` applies a second calibration layer to empirical conformal
+p-values:
+
+$$
+\tilde p_j = C_{n_{\text{cal}}, \delta}(p_j),
+$$
+
+where $p_j$ is the empirical conformal p-value and
+$C_{n_{\text{cal}}, \delta}$ is a finite-sample calibration map.
+
+Available maps are:
+
+- `method="mc"` (Monte Carlo calibration)
+- `method="simes"` (Simes-based map)
+- `method="dkwm"` (Dvoretzky-Kiefer-Wolfowitz-Massart bound)
+- `method="asymptotic"` (iterated-log asymptotic map)
+
+```python
+from nonconform.scoring import ConditionalEmpirical
+
+estimation = ConditionalEmpirical(
+    method="simes",
+    delta=0.1,
+    tie_break="classical",
+)
+```
+
+`ConditionalEmpirical` is available from `nonconform.scoring` (module-level API).
+
+To use it in the full detector workflow, pass the estimator to
+`ConformalDetector(estimation=...)`:
+
+```python
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.scoring import ConditionalEmpirical
+
+# Assume X_train and X_test are prepared as in "Basic Setup".
+estimation = ConditionalEmpirical(method="simes", delta=0.1)
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.2),
+    estimation=estimation,
+    aggregation="median",
+    seed=42,
+)
+
+detector.fit(X_train)
+p_values = detector.compute_p_values(X_test)
+```
+
+`ConditionalEmpirical` currently supports unweighted conformal p-values only.
+For weighted workflows, use `Empirical` or `Probabilistic`.
+
+#### `delta` vs selection `alpha`
+
+These parameters control different steps:
+
+- `delta` is the confidence/failure budget for the conditional calibration map
+  `C_{n_{\text{cal}},\delta}` inside `ConditionalEmpirical`.
+- `alpha` is the downstream FDR target used by a selection rule
+  (for example `detector.select(..., alpha=0.05)`).
+
+For example, `delta=0.1` means the conditional calibration map is configured
+with a 10% failure budget (about 90% confidence for that calibration event).
+Using `delta=0.1` does not force `alpha=0.1`.
+
+#### Guarantee scope by `method`
+
+Under exchangeability assumptions:
+
+| Method | Calibration map type | Practical guarantee scope |
+|---|---|---|
+| `dkwm` | Finite-sample concentration bound | Finite-sample style calibration map |
+| `simes` | Finite-sample sequence-based map | Finite-sample style calibration map |
+| `mc` | Monte Carlo-calibrated finite-sample map | Finite-sample style map with MC-estimated correction |
+| `asymptotic` | Iterated-log asymptotic map | Asymptotic approximation, not finite-sample exact |
+
+#### Choosing a calibration `method`
+
+Use this quick guide for `ConditionalEmpirical(method=...)`:
+
+| Method | When to prefer it | Practical tradeoff |
+|---|---|---|
+| `simes` | Good default for most batch workflows | Deterministic and typically less conservative than `dkwm` |
+| `dkwm` | You want a simple conservative baseline, especially with small calibration sets | Can reduce power due to conservativeness |
+| `mc` | You want stronger finite-sample style calibration and can afford extra compute | First run estimates an MC correction (costly); then reused from cache for same `(n_cal, delta)` |
+| `asymptotic` | Larger calibration sets where a fast asymptotic map is acceptable | Not finite-sample exact; approximation quality depends on sample size |
+
+Recommended starting point:
+
+- Start with `method="simes"` and tune `delta` for your application.
+- Use `method="dkwm"` when you need a conservative fallback.
+- Use `method="mc"` for offline/high-rigor runs where extra runtime is acceptable.
+
+In this implementation, `method="mc"` and `method="asymptotic"` fall back to
+`"dkwm"` for very small calibration sets where iterated-log constants are not
+defined.
+
 ## Exchangeability Assumption
 
 ### What is Exchangeability?

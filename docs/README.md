@@ -30,7 +30,6 @@ pip install nonconform
 
 ```python
 from pyod.models.iforest import IForest
-from scipy.stats import false_discovery_control
 
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
@@ -43,8 +42,8 @@ detector = ConformalDetector(
     strategy=Split(n_calib=1_000),
     seed=42,
 )
-p_values = detector.fit(x_train).compute_p_values(x_test)
-decisions = false_discovery_control(p_values, method="bh") <= 0.2
+detector.fit(x_train)
+decisions = detector.select(x_test, alpha=0.2)
 
 print(f"Empirical FDR: {false_discovery_rate(y_test, decisions)}")
 print(f"Statistical Power: {statistical_power(y_test, decisions)}")
@@ -93,7 +92,7 @@ detector = ConformalDetector(
 )
 ```
 
-> **Note:** Weighted procedures require weighted FDR control for statistical validity (see [`nonconform.fdr.weighted_false_discovery_control()`](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#weighted-conformal-selection)).
+> **Note:** Weighted procedures require weighted FDR control for statistical validity. `ConformalDetector.select(...)` dispatches this automatically when a `weight_estimator` is configured.
 
 
 Exchangeability Martingales (sequential monitoring):

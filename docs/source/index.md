@@ -17,7 +17,6 @@ anomalies = scores > 0.5
 ## The Solution
 
 ```python
-from scipy.stats import false_discovery_control
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
@@ -29,8 +28,7 @@ detector = ConformalDetector(
 )
 detector.fit(X_train)
 
-p_values = detector.compute_p_values(X_test)
-discoveries = false_discovery_control(p_values, method="bh") < 0.05
+discoveries = detector.select(X_test, alpha=0.05)
 ```
 
 ## When to Use nonconform

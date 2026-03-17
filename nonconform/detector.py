@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pandas as pd
+from scipy.stats import false_discovery_control
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
@@ -32,6 +33,7 @@ from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
 
 from ._internal import (
+    Pruning,
     ScorePolarity,
     aggregate,
     ensure_numpy_array,
@@ -95,7 +97,7 @@ class BaseConformalDetector(ABC):
     2. **Detached calibration**: train detector externally, then call
        `calibrate()` on a separate calibration dataset
     3. **Inference Phase**: `compute_p_values()` converts new data scores to valid
-       p-values
+       p-values, or `select()` for the combined p-value + FDR-control workflow
 
     Subclasses must implement both abstract methods.
 
@@ -237,7 +239,7 @@ class ConformalDetector(BaseConformalDetector):
         _calibration_set: Calibration scores (populated after fit).
 
     Examples:
-        Standard conformal prediction:
+        Standard conformal prediction — FDR-controlled selection in one call:
 
         ```python
         from pyod.models.iforest import IForest
@@ -246,6 +248,13 @@ class ConformalDetector(BaseConformalDetector):
         detector = ConformalDetector(
             detector=IForest(), strategy=Split(n_calib=0.2), seed=42
         )
+        detector.fit(X_train)
+        mask = detector.select(X_test, alpha=0.05)
+        ```
+
+        Access raw p-values when needed:
+
+        ```python
         detector.fit(X_train)
         p_values = detector.compute_p_values(X_test)
         ```
@@ -262,7 +271,7 @@ class ConformalDetector(BaseConformalDetector):
             seed=42,
         )
         detector.fit(X_train)
-        p_values = detector.compute_p_values(X_test)
+        mask = detector.select(X_test, alpha=0.05)
         ```
 
         Detached calibration with a pre-trained model (Split strategy):
@@ -668,6 +677,95 @@ class ConformalDetector(BaseConformalDetector):
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
         return self.weight_estimator.get_weights()
+
+    def select(
+        self,
+        x: pd.DataFrame | pd.Series | np.ndarray,
+        *,
+        alpha: float = 0.05,
+        pruning: Pruning = Pruning.DETERMINISTIC,
+        seed: int | None = None,
+        refit_weights: bool = True,
+    ) -> np.ndarray | pd.Series:
+        """Compute p-values and apply FDR-controlled selection in one step.
+
+        This is the recommended single-call workflow for most use cases. It
+        combines ``compute_p_values()`` and the appropriate selection procedure
+        (BH-style FDR selection for standard mode, weighted conformalized
+        selection for weighted mode) into one method, eliminating the need to
+        access ``last_result`` manually.
+
+        Args:
+            x: New data instances for anomaly estimation.
+            alpha: Target FDR level in ``(0, 1)``. Defaults to ``0.05``.
+            pruning: Pruning strategy for weighted FDR control. Ignored in
+                standard (unweighted) mode. Defaults to
+                ``Pruning.DETERMINISTIC``.
+            seed: Optional random seed for weighted randomized pruning modes.
+                When ``None``, falls back to detector ``seed``. Ignored in
+                standard mode and deterministic pruning mode.
+            refit_weights: Whether to refit the weight estimator for this batch
+                in weighted mode. Ignored in standard mode. Defaults to True.
+
+        Returns:
+            Boolean selection mask of shape ``(n_test,)``. ``True`` entries are
+            the FDR-controlled anomaly discoveries. Returns a pandas Series when
+            the input is a DataFrame or Series.
+
+        Examples:
+            Standard workflow (no weight estimator):
+
+            ```python
+            detector.fit(X_train)
+            mask = detector.select(X_test, alpha=0.05)
+            print(f"Discoveries: {mask.sum()}")
+            ```
+
+            Weighted workflow:
+
+            ```python
+            detector = ConformalDetector(
+                detector=IForest(),
+                strategy=Split(n_calib=0.2),
+                weight_estimator=logistic_weight_estimator(),
+            )
+            detector.fit(X_train)
+            mask = detector.select(
+                X_test,
+                alpha=0.1,
+                pruning=Pruning.HETEROGENEOUS,
+                seed=42,
+            )
+            ```
+        """
+        if not (0.0 < alpha < 1.0):
+            raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+
+        from nonconform.fdr import weighted_false_discovery_control
+
+        x_array, index = _as_numpy_with_index(x)
+        self.compute_p_values(x_array, refit_weights=refit_weights)
+        result = self._last_result
+        if result is None or result.p_values is None:
+            raise RuntimeError(
+                "Internal error: select() expected p-values after compute_p_values()."
+            )
+
+        if self._is_weighted_mode:
+            selection_seed = self.seed if seed is None else seed
+            mask = weighted_false_discovery_control(
+                result=result,
+                alpha=alpha,
+                pruning=pruning,
+                seed=selection_seed,
+            )
+        else:
+            p_values = np.asarray(result.p_values, dtype=float)
+            mask = false_discovery_control(p_values, method="bh") <= alpha
+
+        if index is not None:
+            return pd.Series(mask, index=index, name="selected")
+        return mask
 
     @ensure_numpy_array
     def prepare_weights_for(self, x: pd.DataFrame | np.ndarray) -> Self:

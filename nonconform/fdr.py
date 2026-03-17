@@ -1,7 +1,8 @@
-"""False Discovery Rate control utilities for weighted conformal prediction.
+"""False Discovery Rate control utilities for conformal prediction.
 
-This module provides explicit entry points for Weighted Conformalized Selection
-(WCS), used to turn weighted conformal outputs into FDR-controlled selections.
+This module provides explicit entry points for:
+
+- Weighted Conformalized Selection (WCS) under covariate shift.
 """
 
 import logging
@@ -20,6 +21,18 @@ def _validate_alpha(alpha: float) -> None:
     """Validate FDR target level."""
     if not (0.0 < alpha < 1.0):
         raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+
+
+def _require_result_bundle(
+    result: ConformalResult | None, *, caller: str
+) -> ConformalResult:
+    """Ensure a non-empty result bundle is provided."""
+    if result is None:
+        raise ValueError(
+            f"result must be a ConformalResult, got None. "
+            f"Run compute_p_values(...) before calling {caller}()."
+        )
+    return result
 
 
 def _as_1d_numeric(name: str, values: np.ndarray) -> np.ndarray:
@@ -167,9 +180,10 @@ def _compute_rejection_set_size_for_instance(
 
 
 def _extract_required_wcs_fields(
-    result: ConformalResult,
+    result: ConformalResult | None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Extract required WCS arrays from a result bundle."""
+    result = _require_result_bundle(result, caller="weighted_false_discovery_control")
     required = {
         "p_values": result.p_values,
         "test_scores": result.test_scores,
@@ -194,9 +208,10 @@ def _extract_required_wcs_fields(
 
 
 def _extract_kde_support(
-    result: ConformalResult,
+    result: ConformalResult | None,
 ) -> tuple[tuple[np.ndarray, np.ndarray, float] | None, bool]:
     """Extract optional KDE support metadata for probabilistic estimation."""
+    result = _require_result_bundle(result, caller="weighted_false_discovery_control")
     if not result.metadata:
         return None, True
 
@@ -367,7 +382,7 @@ def _run_wcs(
 
 
 def weighted_false_discovery_control(
-    result: ConformalResult,
+    result: ConformalResult | None,
     *,
     alpha: float = 0.05,
     pruning: Pruning = Pruning.DETERMINISTIC,
