@@ -44,6 +44,15 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 path = "nonconform/__init__.py"
 
+# pyproject.toml
+[tool.hatch.build.targets.sdist]
+include = ["nonconform", "README.md", "LICENSE", "pyproject.toml"]
+exclude = [".uv-cache", ".venv", "dist", "docs/site", ".pytest_cache", ".ruff_cache", "__pycache__"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["nonconform"]
+
+
 [project.optional-dependencies]
 pyod = [
     "pyod==2.0.7",
