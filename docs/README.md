@@ -117,11 +117,12 @@ martingale = PowerMartingale(
     alarm_config=AlarmConfig(ville_threshold=100.0),
 )
 
-state = martingale.update(float(p_t))
+state = martingale.update(p_t)
 states = martingale.update_many(p_values_chunk)
 ```
 
-> **Note:** Martingale alarms monitor evidence over time; they do not replace cross-hypothesis FDR control.
+> **Note:** `update(...)` already validates and normalizes numeric scalar p-values, so an explicit `float(...)` cast is optional.
+> Martingale alarms monitor evidence over time; they do not replace cross-hypothesis FDR control.
 
 ## Beyond Static Data
 

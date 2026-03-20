@@ -53,7 +53,7 @@ martingale = SimpleJumperMartingale(
 )
 
 for x_t in x_stream:
-    p_t = float(detector.compute_p_values(x_t.reshape(1, -1))[0])
+    p_t = detector.compute_p_values(x_t.reshape(1, -1))[0]
     state = martingale.update(p_t)
     if "ville" in state.triggered_alarms:
         print(f"Ville alarm at step={state.step}, M={state.martingale:.2f}")
