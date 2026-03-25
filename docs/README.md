@@ -22,7 +22,7 @@ Thresholds for anomaly detection are often arbitrary and lack theoretical guaran
 | Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
 | Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
 | Sequential monitoring | Exchangeability martingales (`PowerMartingale`, `SimpleMixtureMartingale`, `SimpleJumperMartingale`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
-| Custom detector integration | Support for any detector implementing the `AnomalyDetector` protocol | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
+| Custom detector integration | Support for protocol-compliant detectors (with strict-inductive caveats for blocked PyOD models) | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
 ## Getting Started
 
@@ -130,7 +130,7 @@ While primarily designed for static (single-batch) workflows, optional `onlinefd
 
 ## Custom Detectors
 
-Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol works with nonconform:
+Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol can be integrated with nonconform:
 
 ```python
 from typing import Self
@@ -145,6 +145,10 @@ class MyDetector:
 ```
 
 For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the pre-release default behavior. Use `score_polarity="auto"` only when you want strict detector-family validation.
+
+For strict inductive conformal/FDR pipelines, avoid batch-adaptive PyOD
+detectors with non-frozen score maps (for example `ECOD` and `COPOD`, which are
+blocked at runtime).
 
 See [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
 

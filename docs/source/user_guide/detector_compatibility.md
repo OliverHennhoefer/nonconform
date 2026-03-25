@@ -1,6 +1,10 @@
-# Detector Compatibility Guide
+﻿# Detector Compatibility Guide
 
-Any detector implementing `AnomalyDetector` works with nonconform: PyOD, scikit-learn, or custom implementations.
+Most detectors implementing `AnomalyDetector` work with nonconform: PyOD,
+scikit-learn, or custom implementations.
+
+For strict inductive conformal/FDR guarantees, the detector must use a fixed
+training-only score map after `fit(...)`.
 
 ## AnomalyDetector Protocol
 
@@ -32,7 +36,7 @@ The detector must also be copyable (`copy.copy` and `copy.deepcopy`).
 
 ## PyOD Detectors
 
-PyOD detectors are fully supported. Install PyOD with:
+PyOD detectors are supported with strict-inductive caveats. Install PyOD with:
 
 ```sh
 pip install nonconform[pyod]
@@ -49,21 +53,34 @@ One-class classification detectors work with nonconform:
 | K-Nearest Neighbors | `KNN` | Simple distance-based detection |
 | One-Class SVM | `OCSVM` | Complex boundaries, small datasets |
 | PCA | `PCA` | Linear anomalies, interpretability |
-| ECOD | `ECOD` | Parameter-free, robust |
-| COPOD | `COPOD` | Correlation-based anomalies |
+| INNE | `INNE` | Isolation-based nearest-neighbor ensembles |
 | HBOS | `HBOS` | Feature independence assumptions |
 | GMM | `GMM` | Probabilistic modeling |
 | AutoEncoder | `AutoEncoder` | Deep learning, complex patterns |
 
-### Restricted Detectors
+### Strict-Inductive Unsafe (Hard-Blocked)
 
-These detectors require anomaly labels during training and are **not supported**:
+These detectors are blocked in `ConformalDetector` because they do not keep a
+fixed training-only score rule at inference:
 
-- `CBLOF` - Requires clustering labels
-- `COF` - Needs connectivity information
-- `RGraph` - Requires graph structure
-- `Sampling` - Needs anomaly examples
-- `SOS` - Requires pre-computed outlier probabilities
+- `CD`
+- `COF`
+- `COPOD`
+- `ECOD`
+- `LMDD`
+- `LOCI`
+- `RGraph`
+- `SOD`
+- `SOS`
+
+### Meta / Inherited-Risk Detectors
+
+These are not hard-blocked, but they inherit base-detector validity risks and
+require careful curation:
+
+- `FeatureBagging`
+- `LSCP`
+- `SUOD` (unsafe by default if it includes blocked base detectors)
 
 ### Basic Usage
 
@@ -80,13 +97,17 @@ detector.fit(X_train)
 p_values = detector.compute_p_values(X_test)
 ```
 
+For strict inductive workflows, choose detectors that score against frozen
+training state (for example `IForest`, `KNN`, `LOF`, `HBOS`, `PCA`, `OCSVM`,
+`INNE`).
+
 ### Automatic Configuration
 
 nonconform automatically adjusts PyOD detector parameters for one-class classification:
 
-- `contamination` → set to minimal value
-- `n_jobs` → set to `-1` (use all cores)
-- `random_state` → set to provided `seed`
+- `contamination` -> set to minimal value
+- `n_jobs` -> set to `-1` (use all cores)
+- `random_state` -> set to provided `seed`
 
 ## Custom Detectors
 
@@ -179,6 +200,15 @@ ImportError: Detector appears to be a PyOD detector, but PyOD is not installed.
 ```
 
 Install PyOD: `pip install nonconform[pyod]`
+
+### Blocked PyOD Detector
+
+```
+ValueError: PyOD detector 'ECOD' is incompatible with strict inductive conformal/FDR workflows.
+```
+
+Use an inductive-safe detector (for example `IForest`, `KNN`, `LOF`, `HBOS`,
+`PCA`, `OCSVM`, `INNE`) instead of blocked batch-adaptive detectors.
 
 ### Score Direction
 

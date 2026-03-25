@@ -40,7 +40,8 @@ class AnomalyDetector(Protocol):
 
     Examples:
         ```python
-        # Any PyOD detector works automatically
+        # Most PyOD detectors work automatically (blocked strict-inductive
+        # exceptions are documented in the detector compatibility guide)
         from pyod.models.iforest import IForest
 
         detector: AnomalyDetector = IForest()

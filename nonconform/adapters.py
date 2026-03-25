@@ -34,9 +34,44 @@ except ImportError:
     PYOD_AVAILABLE = False
     PyODBaseDetector = None
 
+_BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTORS = (
+    "CD",
+    "COF",
+    "COPOD",
+    "ECOD",
+    "LMDD",
+    "LOCI",
+    "RGraph",
+    "SOD",
+    "SOS",
+)
+_BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTOR_SET = frozenset(
+    name.upper() for name in _BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTORS
+)
+
+
+def _guard_blocked_pyod_detector(detector: Any) -> None:
+    """Raise for PyOD detectors that violate strict inductive score freezing."""
+    if not _looks_like_pyod(detector):
+        return
+
+    detector_name = type(detector).__name__
+    if detector_name.upper() not in _BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTOR_SET:
+        return
+
+    blocked = ", ".join(_BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTORS)
+    raise ValueError(
+        f"PyOD detector '{detector_name}' is incompatible with strict inductive "
+        "conformal/FDR workflows. This detector adapts its scoring rule to the "
+        "evaluation batch instead of using a fixed training-only score map. "
+        f"Blocked detectors: {blocked}."
+    )
+
 
 def adapt(detector: Any) -> AnomalyDetector:
     """Adapt a detector to the AnomalyDetector protocol."""
+    _guard_blocked_pyod_detector(detector)
+
     if isinstance(detector, AnomalyDetector):
         return detector
 

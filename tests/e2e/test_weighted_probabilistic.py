@@ -4,9 +4,9 @@ pytest.importorskip("pyod", reason="pyod not installed")
 pytest.importorskip("oddball", reason="oddball not installed")
 
 from oddball import Dataset, load
-from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
+from pyod.models.knn import KNN
 
 from nonconform import (
     ConformalDetector,
@@ -77,7 +77,7 @@ class TestWeightedProbabilistic:
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
         ce = ConformalDetector(
-            detector=ECOD(),
+            detector=KNN(method="mean", n_neighbors=7),
             strategy=JackknifeBootstrap(n_bootstraps=100),
             estimation=Probabilistic(n_trials=10),
             weight_estimator=logistic_weight_estimator(),
@@ -87,8 +87,8 @@ class TestWeightedProbabilistic:
         ce.fit(x_train)
         decisions = ce.select(x_test, alpha=0.1)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
-            0.058823529412, rel=0.0, abs=METRIC_ATOL
+            0.083333333333, rel=0.0, abs=METRIC_ATOL
         )
         assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
-            0.16, rel=0.0, abs=METRIC_ATOL
+            0.22, rel=0.0, abs=METRIC_ATOL
         )
