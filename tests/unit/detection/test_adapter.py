@@ -55,6 +55,35 @@ class MockPartialDetector:
     # Missing: get_params, set_params
 
 
+def _make_pyod_like_detector(detector_name: str):
+    """Create a protocol-compliant detector with a synthetic PyOD module path."""
+
+    def fit(self, X, y=None):
+        return self
+
+    def decision_function(self, X):
+        return np.ones(len(X), dtype=float)
+
+    def get_params(self, deep=True):
+        return {}
+
+    def set_params(self, **params):
+        return self
+
+    cls = type(
+        detector_name,
+        (),
+        {
+            "__module__": "pyod.models.synthetic",
+            "fit": fit,
+            "decision_function": decision_function,
+            "get_params": get_params,
+            "set_params": set_params,
+        },
+    )
+    return cls()
+
+
 class TestAdaptFunction:
     """Tests for adapt() function."""
 
@@ -84,6 +113,19 @@ class TestAdaptFunction:
         # Should NOT list methods that exist
         assert "fit" not in str(exc_info.value)
         assert "decision_function" not in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        "detector_name",
+        ["CD", "COF", "COPOD", "ECOD", "LMDD", "LOCI", "RGraph", "SOD", "SOS"],
+    )
+    def test_adapt_rejects_blocked_pyod_detector_names(self, detector_name):
+        """Blocked PyOD detector names fail fast before protocol adaptation."""
+        detector = _make_pyod_like_detector(detector_name)
+        with pytest.raises(
+            ValueError,
+            match=rf"{detector_name}.*strict inductive conformal/FDR workflows",
+        ):
+            adapt(detector)
 
 
 class TestPyODAdapter:

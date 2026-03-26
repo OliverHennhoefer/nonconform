@@ -286,9 +286,9 @@ class ConformalDetector(BaseConformalDetector):
         ```
 
     Note:
-        Some PyOD detectors are incompatible with conformal anomaly detection
-        because they require clustering. Known incompatible detectors include:
-        CBLOF, COF, RGraph, Sampling, SOS.
+        Strict inductive conformal/FDR workflows require a fixed training-only
+        score map at inference time. PyOD detectors known to violate this are:
+        CD, COF, COPOD, ECOD, LMDD, LOCI, RGraph, SOD, SOS.
     """
 
     _NESTED_COMPONENTS = ("detector", "strategy", "estimation", "weight_estimator")

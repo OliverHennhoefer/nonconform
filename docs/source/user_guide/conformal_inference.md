@@ -547,7 +547,13 @@ for agg_method in aggregation_methods:
 
 ### Custom Scoring Functions
 
-Any detector implementing the `AnomalyDetector` protocol works with nonconform:
+Any detector implementing the `AnomalyDetector` protocol can be integrated with
+nonconform:
+
+For strict inductive conformal/FDR use, prefer detectors with a fixed
+training-only score map after fitting. Batch-adaptive PyOD detectors such as
+`CD`, `COF`, `COPOD`, `ECOD`, `LMDD`, `LOCI`, `RGraph`, `SOD`, and `SOS` are
+blocked.
 
 ```python
 from typing import Any, Self

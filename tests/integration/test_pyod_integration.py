@@ -13,13 +13,15 @@ try:
     from pyod.models.copod import COPOD
     from pyod.models.ecod import ECOD
     from pyod.models.iforest import IForest
+    from pyod.models.inne import INNE
     from pyod.models.knn import KNN
     from pyod.models.lof import LOF
+    from pyod.models.pca import PCA
 
     HAS_PYOD = True
 except ImportError:
     HAS_PYOD = False
-    ABOD = COPOD = ECOD = IForest = KNN = LOF = None
+    ABOD = COPOD = ECOD = IForest = INNE = KNN = LOF = PCA = None
 
 try:  # TensorFlow-backed detector is optional/heavy
     from pyod.models.auto_encoder import AutoEncoder
@@ -119,22 +121,22 @@ DETECTOR_CASES = [
         False,
     ),
     DetectorCase(
-        "ecod",
-        lambda seed: ECOD(contamination=0.05),
-        False,
-        False,
-    ),
-    DetectorCase(
         "abod",
         lambda seed: ABOD(method="fast", contamination=0.05, n_neighbors=8),
         False,
+        True,
+    ),
+    DetectorCase(
+        "inne",
+        lambda seed: INNE(contamination=0.05, random_state=seed),
+        True,
         False,
     ),
     DetectorCase(
-        "copod",
-        lambda seed: COPOD(contamination=0.05),
-        False,
+        "pca",
+        lambda seed: PCA(contamination=0.05),
         True,
+        False,
     ),
 ]
 
@@ -162,6 +164,26 @@ def test_pyod_detectors_end_to_end(simple_dataset, case):
         assert fitted.random_state == detector.seed
     if case.expects_n_jobs and hasattr(fitted, "n_jobs"):
         assert fitted.n_jobs == -1
+
+
+@pytest.mark.skipif(not HAS_PYOD, reason="PyOD not installed")
+@pytest.mark.parametrize(
+    ("name", "factory"),
+    [
+        ("ECOD", lambda seed: ECOD(contamination=0.05)),
+        ("COPOD", lambda seed: COPOD(contamination=0.05)),
+    ],
+)
+def test_blocked_pyod_detectors_raise_on_initialization(name, factory):
+    """Blocked batch-adaptive PyOD detectors fail fast."""
+    with pytest.raises(
+        ValueError,
+        match=(
+            rf"{name}.*strict inductive conformal/FDR workflows.*"
+            r"fixed training-only score map"
+        ),
+    ):
+        _split_detector(factory(seed=17))
 
 
 @pytest.mark.skipif(not HAS_PYOD, reason="PyOD not installed")

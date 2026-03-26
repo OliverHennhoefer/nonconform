@@ -4,9 +4,9 @@ pytest.importorskip("pyod", reason="pyod not installed")
 pytest.importorskip("oddball", reason="oddball not installed")
 
 from oddball import Dataset, load
-from pyod.models.ecod import ECOD
 from pyod.models.hbos import HBOS
 from pyod.models.iforest import IForest
+from pyod.models.knn import KNN
 
 from nonconform import (
     ConformalDetector,
@@ -64,7 +64,7 @@ class TestStandardProbabilistic:
         x_train, x_test, y_test = load(Dataset.MAMMOGRAPHY, setup=True, seed=1)
 
         ce = ConformalDetector(
-            detector=ECOD(),
+            detector=KNN(method="mean", n_neighbors=7),
             strategy=JackknifeBootstrap(n_bootstraps=100),
             estimation=Probabilistic(n_trials=10),
             seed=1,
