@@ -69,8 +69,9 @@ for prop in proportions:
 
 ```python
 from pyod.models.iforest import IForest
-from onlinefdr import Alpha_investing
+from online_fdr.investing.alpha.alpha import Gai
 from nonconform import ConformalDetector, Split
+from nonconform.temporal import TemporalSession
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Create online generator
@@ -90,20 +91,21 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-# Streaming evaluation with online FDR control
+# Streaming evaluation with a unified temporal session
 import numpy as np
 
-online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
+session = TemporalSession(
+    detector=detector,
+    online_controller=Gai(alpha=0.05, wealth=0.025),
+)
 decisions = []
 labels = []
 running_metrics = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000)):
-    # Get p-value for instance
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
-
-    # Online FDR-controlled decision
-    decision = online_fdr.run_single(p_value)
+    # One step = p-value + online decision orchestration
+    result = session.step(x_instance.reshape(1, -1))
+    decision = bool(np.asarray(result.online_decisions, dtype=bool)[0])
     decisions.append(decision)
     labels.append(y_label)
 
@@ -225,7 +227,7 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Online FDR controller for streaming
-online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
+online_fdr = Gai(alpha=0.05, wealth=0.025)
 
 # Measure streaming performance
 latencies = []
@@ -236,7 +238,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
 
     # Process instance with online FDR control
     p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
-    decision = online_fdr.run_single(p_value)
+    decision = online_fdr.test_one(float(p_value))
 
     instance_end = time.time()
     latencies.append(instance_end - instance_start)
@@ -359,13 +361,13 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Online evaluation with online FDR control
-online_fdr_ctrl = Alpha_investing(alpha=0.05, w0=0.05)
+online_fdr_ctrl = Gai(alpha=0.05, wealth=0.025)
 online_decisions = []
 online_labels = []
 
 for x_instance, y_label in online_gen.generate(n_instances=600):
     p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
-    decision = online_fdr_ctrl.run_single(p_value)
+    decision = online_fdr_ctrl.test_one(float(p_value))
     online_decisions.append(decision)
     online_labels.append(y_label)
 

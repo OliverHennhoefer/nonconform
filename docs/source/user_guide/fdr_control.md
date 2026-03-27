@@ -404,28 +404,37 @@ control across multiple tested hypotheses.
 # pip install nonconform[fdr]
 
 from online_fdr.investing.alpha.alpha import Gai
+from sklearn.ensemble import IsolationForest
 
-# Example with streaming conformal p-values
-def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
-    """Online FDR control for streaming anomaly detection."""
+from nonconform import ConformalDetector, Split
+from nonconform.martingales import PowerMartingale
+from nonconform.temporal import TemporalSession
 
-    # Initialize online FDR method
-    # GAI: alpha-investing style online FDR control
-    online_fdr = Gai(alpha=alpha, wealth=alpha / 2)
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    score_polarity="auto",
+    seed=42,
+)
+detector.fit(X_train)
 
-    discoveries = []
+# GAI alpha-investing controller
+controller = Gai(alpha=0.05, wealth=0.025)
+session = TemporalSession(
+    detector=detector,
+    online_controller=controller,
+    martingale=PowerMartingale(epsilon=0.5),
+)
 
-    for batch in data_stream:
-        # Get p-values for current batch
-        p_values = detector.compute_p_values(batch)
-
-        # Apply online FDR control
-        for p_val in p_values:
-            decision = online_fdr.test_one(float(p_val))
-            discoveries.append(decision)
-
-    return discoveries
+for batch in data_stream:
+    result = session.step(batch, apply_batch_select=True, alpha=0.05)
+    print(result.online_decisions.sum(), result.triggered_alarms)
 ```
+
+`TemporalSession` is the recommended streaming orchestration path because it
+keeps p-value generation, online FDR decisions, and martingale updates in one
+stateful interface. The controller itself still follows the online-fdr contract
+(`test_one(float) -> bool`).
 
 ### LORD (Levels based On Recent Discovery) Method
 

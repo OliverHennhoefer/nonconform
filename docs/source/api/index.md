@@ -44,6 +44,15 @@ For standard workflows, prefer `ConformalDetector.select(...)`.
       show_root_heading: true
       heading_level: 3
 
+## Temporal
+
+Stateful orchestration for sequential workflows (detector p-values + optional
+online FDR + optional martingale updates).
+::: nonconform.temporal
+    options:
+      show_root_heading: true
+      heading_level: 3
+
 ## Martingales
 
 ::: nonconform.martingales

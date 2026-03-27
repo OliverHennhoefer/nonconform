@@ -145,6 +145,47 @@ mask = detector.select(X_test, alpha=0.05)
 
 ---
 
+## 7. Temporal Session (Streaming Orchestration)
+
+Use `TemporalSession` when you need one stateful call that combines:
+
+- p-value generation (`ConformalDetector`)
+- optional online FDR decisions (`controller.test_one(...)`)
+- optional martingale monitoring
+
+```python
+from online_fdr.investing.alpha.alpha import Gai
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.martingales import PowerMartingale
+from nonconform.temporal import TemporalSession
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    score_polarity="auto",
+    seed=42,
+)
+detector.fit(X_train)
+
+session = TemporalSession(
+    detector=detector,
+    online_controller=Gai(alpha=0.05, wealth=0.025),
+    martingale=PowerMartingale(epsilon=0.5),
+)
+
+result = session.step(X_batch, apply_batch_select=True, alpha=0.05)
+print(result.p_values.shape)
+print(result.online_decisions.sum())
+print(result.triggered_alarms)
+```
+
+`session.last_batch_decisions` stores the side-by-side batch BH/WCS mask from
+the same p-values used in the step.
+
+---
+
 ## Score Polarity
 
 `ConformalDetector` expects anomaly-oriented scores internally (`higher = more anomalous`).

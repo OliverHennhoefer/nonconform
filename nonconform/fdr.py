@@ -3,9 +3,11 @@
 This module provides explicit entry points for:
 
 - Weighted Conformalized Selection (WCS) under covariate shift.
+- Online FDR control over sequential p-values.
 """
 
 import logging
+from typing import Protocol
 
 import numpy as np
 from tqdm import tqdm
@@ -15,6 +17,21 @@ from nonconform.structures import ConformalResult
 from ._internal import Pruning, get_logger
 
 _KDE_MONOTONICITY_TOL = 1e-12
+
+
+class OnlineFDRController(Protocol):
+    """Protocol for stateful online FDR controllers.
+
+    Implementations must expose:
+
+    - ``test_one(p_value: float) -> bool``.
+
+    They may optionally expose ``reset()`` for stream lifecycle control.
+    """
+
+    def test_one(self, p_value: float) -> bool:
+        """Test one p-value sequentially and return a discovery decision."""
+        ...
 
 
 def _validate_alpha(alpha: float) -> None:
@@ -80,6 +97,15 @@ def _validate_p_values(p_values: np.ndarray) -> None:
     eps = 1e-10
     if np.any((p_values < -eps) | (p_values > 1 + eps)):
         raise ValueError("p_values must be within [0, 1].")
+
+
+def _require_online_controller(controller: object) -> OnlineFDRController:
+    """Validate controller interface contract."""
+    if not hasattr(controller, "test_one") or not callable(controller.test_one):
+        raise TypeError(
+            "controller must implement callable test_one(p_value: float) -> bool."
+        )
+    return controller  # type: ignore[return-value]
 
 
 def _validate_pruning(pruning: Pruning) -> None:
@@ -431,8 +457,43 @@ def weighted_false_discovery_control_from_arrays(
     )
 
 
+def online_false_discovery_control(
+    p_values: np.ndarray,
+    controller: OnlineFDRController,
+) -> np.ndarray:
+    """Apply sequential online-FDR controller decisions to conformal p-values.
+
+    Args:
+        p_values: 1D numeric p-values in ``[0, 1]``.
+        controller: Stateful controller implementing ``test_one(float) -> bool``.
+
+    Returns:
+        Boolean discovery mask with one entry per p-value, in order.
+
+    Raises:
+        ValueError: If p-values are invalid.
+        TypeError: If controller contract is invalid or returns non-boolean.
+    """
+    values = _as_1d_numeric("p_values", p_values)
+    _validate_p_values(values)
+    online_controller = _require_online_controller(controller)
+
+    decisions = np.zeros(values.shape[0], dtype=bool)
+    for i, p_value in enumerate(values):
+        decision = online_controller.test_one(float(p_value))
+        if not isinstance(decision, bool | np.bool_):
+            raise TypeError(
+                "controller.test_one(...) must return a boolean decision. "
+                f"Got {type(decision).__name__}."
+            )
+        decisions[i] = bool(decision)
+    return decisions
+
+
 __all__ = [
+    "OnlineFDRController",
     "Pruning",
+    "online_false_discovery_control",
     "weighted_false_discovery_control",
     "weighted_false_discovery_control_from_arrays",
 ]
