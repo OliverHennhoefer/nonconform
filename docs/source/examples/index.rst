@@ -7,6 +7,7 @@ Examples
 
    classical_conformal
    weighted_conformal
+   integrative_conformal
    fdr_control
    bootstrap_conformal
    cross_val_conformal

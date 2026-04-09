@@ -31,7 +31,51 @@ p_values = detector.compute_p_values(X_test)
 
 ---
 
-## 2. Scores-Only Workflow
+## 2. Integrative Conformal With Labeled Outliers
+
+Use `IntegrativeConformalDetector` when you have separate labeled inlier and
+labeled outlier sets. This is a different workflow from covariate-shift
+weighting.
+
+```python
+from sklearn.linear_model import LogisticRegression
+
+from nonconform import (
+    IntegrativeConformalDetector,
+    IntegrativeModel,
+    IntegrativeSplit,
+)
+
+models = [
+    IntegrativeModel.one_class(
+        reference="inlier",
+        estimator=inlier_detector,
+        score_polarity="higher_is_anomalous",
+    ),
+    IntegrativeModel.one_class(
+        reference="outlier",
+        estimator=outlier_detector,
+        score_polarity="higher_is_anomalous",
+    ),
+    IntegrativeModel.binary(
+        estimator=LogisticRegression(),
+        inlier_label=0,
+    ),
+]
+
+detector = IntegrativeConformalDetector(
+    models=models,
+    strategy=IntegrativeSplit(n_calib=0.2),
+    seed=42,
+)
+detector.fit(X_inliers, X_outliers)
+
+mask = detector.select(X_test, alpha=0.1)
+```
+
+---
+
+## 3. Scores-Only Workflow
 
 ```python
 from sklearn.ensemble import IsolationForest
@@ -54,7 +98,7 @@ Use this when you want calibrated scoring artifacts without applying FDR control
 
 ---
 
-## 3. Weighted Conformal + Weighted FDR Control
+## 4. Weighted Conformal + Weighted FDR Control
 
 `select()` automatically dispatches to weighted FDR control when a
 `weight_estimator` is configured:
@@ -84,7 +128,7 @@ mask = detector.select(
 
 ---
 
-## 4. Explicit Weight Preparation (Weighted Mode)
+## 5. Explicit Weight Preparation (Weighted Mode)
 
 ```python
 detector.fit(X_train)
@@ -96,7 +140,7 @@ Use this when you need explicit state transitions for batched or exploratory wor
 
 ---
 
-## 5. Pre-Trained Detector + Detached Calibration (Split Strategy)
+## 6. Pre-Trained Detector + Detached Calibration (Split Strategy)
 
 ```python
 from sklearn.ensemble import IsolationForest
@@ -123,7 +167,7 @@ p_values = detector.compute_p_values(X_test)
 
 ---
 
-## 6. Conditional Conformal P-Values + `select()`
+## 7. Conditional Conformal P-Values + `select()`
 
 ```python
 from sklearn.ensemble import IsolationForest

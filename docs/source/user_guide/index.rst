@@ -7,6 +7,7 @@ User Guide
    conformal_inference
    conformalization_strategies
    weighted_conformal
+   integrative_conformal
    fdr_control
    batch_evaluation
    streaming_evaluation

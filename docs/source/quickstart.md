@@ -9,9 +9,13 @@ By the end of this guide, you'll know how to:
 1. Wrap anomaly detectors to get statistically valid p-values
 2. Use FDR control to make principled anomaly decisions
 3. Use `detector.last_result` for downstream workflows
-4. Choose between a minimal core path and an anomaly-ready path
+4. Choose between `ConformalDetector` and `IntegrativeConformalDetector`
 
 **Prerequisites**: Familiarity with Python and basic anomaly detection concepts.
+
+Use `ConformalDetector` when you have only inliers for calibration. Use
+`IntegrativeConformalDetector` when you have separate labeled inlier and
+labeled outlier sets.
 
 ---
 
@@ -173,4 +177,5 @@ print(f"Power: {statistical_power(y_true, discoveries):.3f}")
 - **[Common API Workflows](api/common_workflows.md)** - task-first API map
 - **[FDR Control](user_guide/fdr_control.md)** - detailed multiple testing guidance
 - **[Weighted Conformal](user_guide/weighted_conformal.md)** - handling distribution shift
+- **[Integrative Conformal](user_guide/integrative_conformal.md)** - labeled inlier/outlier workflows
 - **[Examples](examples/index.md)** - full end-to-end examples

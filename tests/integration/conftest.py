@@ -90,3 +90,32 @@ def shifted_dataset():
         return x_train, x_test, y_test
 
     return _create
+
+
+@pytest.fixture
+def labeled_ood_dataset():
+    """Create labeled inlier/outlier/test sets for integrative workflows."""
+
+    def _build(
+        *,
+        n_inliers=80,
+        n_outliers=50,
+        n_test=24,
+        n_features=3,
+        seed=7,
+    ):
+        rng = np.random.default_rng(seed)
+        x_inliers = rng.normal(loc=0.0, scale=0.7, size=(n_inliers, n_features))
+        x_outliers = rng.normal(loc=3.0, scale=0.7, size=(n_outliers, n_features))
+
+        n_test_in = n_test // 2
+        n_test_out = n_test - n_test_in
+        x_test_in = rng.normal(loc=0.1, scale=0.8, size=(n_test_in, n_features))
+        x_test_out = rng.normal(loc=3.1, scale=0.8, size=(n_test_out, n_features))
+        x_test = np.vstack([x_test_in, x_test_out])
+        y_test = np.array([0] * n_test_in + [1] * n_test_out)
+
+        shuffle_idx = rng.permutation(n_test)
+        return x_inliers, x_outliers, x_test[shuffle_idx], y_test[shuffle_idx]
+
+    return _build
