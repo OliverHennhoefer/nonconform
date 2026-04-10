@@ -99,11 +99,20 @@ class IntegrativeModel:
                 raise ValueError(
                     "score_source is only applicable to binary model specifications."
                 )
+            if self.inlier_label is not None:
+                raise ValueError(
+                    "inlier_label is only applicable to binary model specifications."
+                )
         if self.kind == "binary":
             if self.inlier_label is None:
                 raise ValueError("binary model specifications require inlier_label.")
             if self.reference is not None:
                 raise ValueError("binary model specifications do not accept reference.")
+            if self.score_polarity is not None:
+                raise ValueError(
+                    "score_polarity is only applicable to one_class model "
+                    "specifications."
+                )
 
 
 __all__ = [

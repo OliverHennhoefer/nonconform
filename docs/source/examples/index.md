@@ -39,7 +39,7 @@ Practical examples demonstrating different conformal anomaly detection approache
 
 **[Weighted Conformal](weighted_conformal.md)** - Handle covariate shift scenarios where your test data comes from a different distribution than your training data. Essential for real-world deployment.
 
-**[Integrative Conformal](integrative_conformal.md)** - Use a dedicated integrative workflow when you have both labeled inliers and labeled outliers and want the paper's split conditional-FDR selection procedure.
+**[Integrative Conformal](integrative_conformal.md)** - Use a dedicated integrative workflow when you have both labeled inliers and labeled outliers with split conditional-FDR selection procedure.
 
 **[FDR Control](fdr_control.md)** - Deep dive into False Discovery Rate control. Understand when to use BH vs weighted methods and how to evaluate FDR performance.
 

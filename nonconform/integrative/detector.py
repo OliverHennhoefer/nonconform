@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Self
+from dataclasses import fields, is_dataclass
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,38 @@ from nonconform.integrative._core import (
 from nonconform.integrative.models import IntegrativeModel
 from nonconform.integrative.strategies import IntegrativeSplit, TransductiveCVPlus
 from nonconform.structures import ConformalResult
+
+
+def _snapshot_param(value: Any) -> Any:
+    """Return an immutable constructor-parameter snapshot."""
+    return deepcopy(value)
+
+
+def _normalize_models(
+    models: IntegrativeModel | list[IntegrativeModel],
+) -> list[IntegrativeModel]:
+    """Normalize the models input into a list."""
+    if isinstance(models, IntegrativeModel):
+        return [models]
+    return list(models)
+
+
+def _get_component_params(component: Any) -> dict[str, Any]:
+    """Return nested parameters for sklearn-style inspection."""
+    if hasattr(component, "get_params"):
+        try:
+            params = component.get_params(deep=True)
+        except TypeError:
+            params = component.get_params()
+        return {key: _snapshot_param(value) for key, value in params.items()}
+
+    if is_dataclass(component):
+        return {
+            field.name: _snapshot_param(getattr(component, field.name))
+            for field in fields(component)
+        }
+
+    return {}
 
 
 class IntegrativeConformalDetector:
@@ -45,16 +78,159 @@ class IntegrativeConformalDetector:
         seed: int | None = None,
         verbose: bool = False,
     ) -> None:
-        if isinstance(models, IntegrativeModel):
-            models = [models]
-        if not models:
+        self._configure(
+            models=models,
+            strategy=strategy,
+            seed=seed,
+            verbose=verbose,
+        )
+
+    def _reset_fit_state(self) -> None:
+        """Clear all learned state derived from fit()."""
+        self._state: SplitState | TCVPlusState | None = None
+        self._last_result: ConformalResult | None = None
+
+    def _configure(
+        self,
+        *,
+        models: IntegrativeModel | list[IntegrativeModel],
+        strategy: IntegrativeSplit | TransductiveCVPlus,
+        seed: int | None,
+        verbose: bool,
+    ) -> None:
+        """Apply constructor parameters and reset learned state."""
+        normalized_models = _normalize_models(models)
+        if not normalized_models:
             raise ValueError("models must contain at least one IntegrativeModel.")
-        self.models = [deepcopy(model) for model in models]
+
+        self._init_models = _snapshot_param(models)
+        self._init_strategy = _snapshot_param(strategy)
+        self._init_seed = seed
+        self._init_verbose = verbose
+
+        self.models = [deepcopy(model) for model in normalized_models]
         self.strategy = deepcopy(strategy)
         self.seed = seed
         self.verbose = verbose
-        self._state: SplitState | TCVPlusState | None = None
-        self._last_result: ConformalResult | None = None
+        self._reset_fit_state()
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Return estimator parameters following sklearn conventions."""
+        params: dict[str, Any] = {
+            "models": _snapshot_param(self._init_models),
+            "strategy": _snapshot_param(self._init_strategy),
+            "seed": self._init_seed,
+            "verbose": self._init_verbose,
+        }
+        if not deep:
+            return params
+
+        for key, value in _get_component_params(self.strategy).items():
+            params[f"strategy__{key}"] = value
+
+        for idx, model in enumerate(self.models):
+            params[f"models__{idx}"] = _snapshot_param(model)
+            for key, value in _get_component_params(model).items():
+                params[f"models__{idx}__{key}"] = value
+                if key != "estimator":
+                    continue
+                for estimator_key, estimator_value in _get_component_params(
+                    value
+                ).items():
+                    params[f"models__{idx}__estimator__{estimator_key}"] = (
+                        estimator_value
+                    )
+
+        return params
+
+    def set_params(self, **params: Any) -> Self:
+        """Set estimator parameters following sklearn conventions."""
+        if not params:
+            return self
+
+        updated_params = self.get_params(deep=False)
+        strategy_updates: dict[str, Any] = {}
+        model_updates: dict[int, dict[str, Any]] = {}
+
+        for key, value in params.items():
+            if "__" not in key:
+                if key not in updated_params:
+                    raise ValueError(
+                        f"Invalid parameter {key!r} for estimator "
+                        f"{type(self).__name__}."
+                    )
+                updated_params[key] = value
+                continue
+
+            component_name, nested_key = key.split("__", 1)
+            if component_name == "strategy":
+                strategy_updates[nested_key] = value
+                continue
+
+            if component_name == "models":
+                index_str, separator, remainder = nested_key.partition("__")
+                if not index_str.isdigit():
+                    raise ValueError(f"Invalid parameter {key!r}.")
+                idx = int(index_str)
+                if not separator:
+                    models = _normalize_models(updated_params["models"])
+                    if idx >= len(models):
+                        raise ValueError(f"Invalid parameter {key!r}.")
+                    models[idx] = value
+                    updated_params["models"] = models
+                    continue
+                model_updates.setdefault(idx, {})[remainder] = value
+                continue
+
+            raise ValueError(
+                f"Invalid parameter {component_name!r} for estimator "
+                f"{type(self).__name__}."
+            )
+
+        strategy = deepcopy(updated_params["strategy"])
+        for nested_key, value in strategy_updates.items():
+            if "__" in nested_key or not hasattr(strategy, nested_key):
+                raise ValueError(f"Invalid parameter 'strategy__{nested_key}'.")
+            setattr(strategy, nested_key, value)
+        updated_params["strategy"] = strategy
+
+        models_param = updated_params["models"]
+        models_are_scalar = isinstance(models_param, IntegrativeModel)
+        models = [deepcopy(model) for model in _normalize_models(models_param)]
+        for idx, updates in model_updates.items():
+            if idx >= len(models):
+                raise ValueError(f"Invalid parameter 'models__{idx}'.")
+            model = models[idx]
+            for nested_key, value in updates.items():
+                field_name, separator, remainder = nested_key.partition("__")
+                if field_name == "estimator":
+                    if not separator:
+                        model.estimator = value
+                        continue
+                    if not hasattr(model.estimator, "set_params"):
+                        raise ValueError(
+                            f"Cannot set nested parameters for 'models__{idx}__"
+                            "estimator': component does not implement "
+                            "set_params()."
+                        )
+                    model.estimator.set_params(**{remainder: value})
+                    continue
+
+                if separator or not hasattr(model, field_name):
+                    raise ValueError(
+                        f"Invalid parameter 'models__{idx}__{nested_key}'."
+                    )
+                setattr(model, field_name, value)
+
+        updated_params["models"] = models[0] if models_are_scalar else models
+        self._configure(**updated_params)
+        return self
+
+    def __sklearn_clone__(self) -> Self:
+        """Return sklearn-compatible unfitted clone from constructor snapshots."""
+        params = self.get_params(deep=False)
+        cloned_params = {key: _snapshot_param(value) for key, value in params.items()}
+        return type(self)(**cloned_params)
 
     def fit(
         self,

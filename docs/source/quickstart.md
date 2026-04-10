@@ -9,7 +9,7 @@ By the end of this guide, you'll know how to:
 1. Wrap anomaly detectors to get statistically valid p-values
 2. Use FDR control to make principled anomaly decisions
 3. Use `detector.last_result` for downstream workflows
-4. Choose between `ConformalDetector` and `IntegrativeConformalDetector`
+4. Understand when to use `ConformalDetector` vs `IntegrativeConformalDetector`
 
 **Prerequisites**: Familiarity with Python and basic anomaly detection concepts.
 

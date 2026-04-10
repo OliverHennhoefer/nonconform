@@ -461,7 +461,7 @@ In other words, $\Phi_i$ contains information on all conformity scores calculate
 \end{align}
 For each test point $i \in \mathcal{D}^{\mathrm{test}}$, compute a vector of $m$ random variables $\tilde{u}_{i}(X_j)$, for all $j \in \mathcal{D}^{\mathrm{test}} \setminus \{i\}$, by applying Algorithm~\ref{alg:weighted-pvalues} with $\mathcal{D}^{\mathrm{cal}}_0$ replaced by $\mathcal{D}^{\mathrm{cal}}_0 \cup \{i\}$.
 Note that  $\tilde{u}_{i}(X_j)$ may not be a valid conformal p-value because it is based on a perturbed inlier calibration set, $\mathcal{D}^{\mathrm{cal}}_0 \cup \{i\}$, which may contain an outlier, but it is a reasonable approximation of the valid p-value $\hat{u}(X_j)$ if $\mathcal{D}^{\mathrm{cal}}_0$ is large.
-Next, let $\tilde{R}_i$ indicate the number of rejections obtained by applying BH at level $\alpha$, for some fixed $\alpha \in (0,1)$, to the approximate p-values $(\tilde{u}_i(X_{n+1}), \dots, \tilde{u}_i(X_{i-1}), 0, \tilde{u}_i(X_{i+1}), \tilde{u}_i, \dots, \tilde{u}_i(X_{n+m}))$.
+Next, let $\tilde{R}_i$ indicate the number of rejections obtained by applying BH at level $\alpha$, for some fixed $\alpha \in (0,1)$, to the approximate p-values $(\tilde{u}_i(X_{n+1}), \dots, \tilde{u}_i(X_{i-1}), 0, \tilde{u}_i(X_{i+1}), \tilde{u}_i(X_{i+2}), \dots, \tilde{u}_i(X_{n+m}))$.
 
 \textbf{Step 2: Preliminary rejection.} Define the preliminary rejection set $\mathcal{R}_+$ as:
 \begin{align*}
@@ -537,7 +537,7 @@ Our three-step solution is outlined below and summarized graphically in Figure~\
 \end{align}
 For each test point $i \in \mathcal{D}^{\mathrm{test}}$, compute a vector of $m$ random variables $\tilde{u}_{i}(X_j)$, for all $j \in \mathcal{D}^{\mathrm{test}} \setminus \{i\}$, by applying Algorithm~\ref{alg_clra_cv+} with $\mathcal{D}_0$ replaced by $\mathcal{D}_0 \cup \{i\}$.
 It must be highlighted that, in contrast with Section~\ref{sec:fdr-3steps}, now evaluating each $\tilde{u}_{i}(X_j)$ involves re-fitting $K$ machine-learning models, and is therefore quite expensive.
-Then, as in Section~\ref{sec:fdr-3steps}, let $\tilde{R}_i$ indicate the number of rejections obtained by applying BH at level $\alpha$, for some fixed $\alpha \in (0,1)$, to the approximate conformal p-values $(\tilde{u}_i(X_{n+1}), \dots, \tilde{u}_i(X_{i-1}), 0, \tilde{u}_i(X_{i+1}), \tilde{u}_i, \dots, \tilde{u}_i(X_{n+m}))$.
+Then, as in Section~\ref{sec:fdr-3steps}, let $\tilde{R}_i$ indicate the number of rejections obtained by applying BH at level $\alpha$, for some fixed $\alpha \in (0,1)$, to the approximate conformal p-values $(\tilde{u}_i(X_{n+1}), \dots, \tilde{u}_i(X_{i-1}), 0, \tilde{u}_i(X_{i+1}), \tilde{u}_i(X_{i+2}), \dots, \tilde{u}_i(X_{n+m}))$.
 
 \textbf{Steps 2--3.} Same as the corresponding steps 2--3 in Section~\ref{sec:fdr-3steps}.
 
@@ -1441,7 +1441,6 @@ The proof is completed by noting that, by definition of $t^{\alpha}_{\mathrm{ora
     \includegraphics[width=0.75\linewidth]{figures/experiment_real_tabular_oracle_occ.pdf}
     \includegraphics[width=0.75\linewidth]{figures/experiment_real_tabular_oracle_bin.pdf}
     \caption{Performance of Storey's BH applied to conformal p-values based on different underlying machine-learning models, on two medical diagnostics data sets. Integrative conformal p-values are compared to standard conformal p-values based on six different one-class classification models (a) and six different binary classification models (b). Other details are as in Figure~\ref{fig:exp-tabular}.}
-    \label{fig:exp-flowers-oracle}
     \label{fig:exp-tabular-oracle}
 \end{figure}
 

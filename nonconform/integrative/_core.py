@@ -60,6 +60,8 @@ def self_inclusive_ranks(scores: np.ndarray) -> np.ndarray:
     Higher scores are considered more conforming.
     """
     values = np.asarray(scores, dtype=float).ravel()
+    if len(values) == 0:
+        return np.array([], dtype=float)
     sorted_values = np.sort(values)
     return np.searchsorted(sorted_values, values, side="right") / len(values)
 
@@ -116,6 +118,23 @@ def _resolve_one_class_polarity(
     if spec.score_polarity is None:
         return resolve_implicit_score_polarity(estimator)
     return resolve_score_polarity(estimator, spec.score_polarity)
+
+
+def _resolve_binary_outlier_label(
+    inlier_label: int | str | bool,
+) -> int | str | bool:
+    """Return a binary outlier label that does not collide with the inlier label."""
+    if isinstance(inlier_label, (bool, np.bool_)):
+        return not bool(inlier_label)
+    if isinstance(inlier_label, (int, np.integer)):
+        return 1 if int(inlier_label) == 0 else 0
+
+    candidate = "__outlier__"
+    suffix = 0
+    while candidate == inlier_label:
+        suffix += 1
+        candidate = f"__outlier__{suffix}"
+    return candidate
 
 
 @dataclass(slots=True)
@@ -189,13 +208,7 @@ def fit_integrative_model(
 
     configured = set_params(estimator, seed)
     y_in = np.repeat(spec.inlier_label, len(x_in_train))
-    out_label: object
-    if spec.inlier_label == 1:
-        out_label = 0
-    elif spec.inlier_label == 0:
-        out_label = 1
-    else:
-        out_label = "__outlier__"
+    out_label = _resolve_binary_outlier_label(spec.inlier_label)
     y_out = np.repeat(out_label, len(x_out_train))
     x_train = np.vstack([x_in_train, x_out_train])
     y_train = np.concatenate([y_in, y_out])
@@ -677,23 +690,21 @@ def compute_tcv_plus_batch(
     selected_u1_models = np.empty(len(x_test), dtype=int)
     selected_u0_signs = np.empty(len(x_test), dtype=int)
     selected_u1_signs = np.empty(len(x_test), dtype=int)
+    augmented_fold_assignments = _make_kfold_assignments(
+        len(state.x_inliers) + 1,
+        state.strategy_k_in,
+        seed=state.seed,
+        shuffle=state.shuffle,
+    )
+    inlier_assignments = augmented_fold_assignments[:-1]
+    target_fold = int(augmented_fold_assignments[-1])
 
     for idx, x_target in enumerate(x_test):
         x_single = x_target.reshape(1, -1)
-        augmented = np.vstack([state.x_inliers, x_single])
-        fold_assignments = _make_kfold_assignments(
-            len(augmented),
-            state.strategy_k_in,
-            seed=(None if state.seed is None else state.seed + idx),
-            shuffle=state.shuffle,
-        )
-        inlier_assignments = fold_assignments[:-1]
-        target_fold = int(fold_assignments[-1])
 
         u0_fold_models_all: list[list[FittedModel]] = []
         u0_inlier_scores_all: list[np.ndarray] = []
         u0_outlier_scores_all: list[np.ndarray] = []
-        u0_target_scores_all: list[np.ndarray] = []
         for spec in state.u0_specs:
             fold_models, held_out_scores = _fit_tcv_u0_fold_models(
                 spec,
@@ -710,11 +721,9 @@ def compute_tcv_plus_batch(
             u0_fold_models_all.append(fold_models)
             u0_inlier_scores_all.append(np.concatenate([held_out_scores, target_score]))
             u0_outlier_scores_all.append(outlier_scores)
-            u0_target_scores_all.append(target_score)
 
         u1_inlier_scores_all: list[np.ndarray] = []
         u1_outlier_scores_all: list[np.ndarray] = []
-        u1_target_scores_all: list[np.ndarray] = []
         for models, holdout_scores in zip(
             state.u1_fold_models, state.u1_holdout_scores, strict=True
         ):
@@ -723,7 +732,6 @@ def compute_tcv_plus_batch(
             outlier_scores = holdout_scores.copy()
             u1_inlier_scores_all.append(np.concatenate([inlier_scores, target_scores]))
             u1_outlier_scores_all.append(outlier_scores)
-            u1_target_scores_all.append(target_scores)
 
         u0_idx, u0_sign = _choose_tcv_u0_candidate(
             u0_inlier_scores_all,

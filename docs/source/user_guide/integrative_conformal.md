@@ -118,6 +118,18 @@ IntegrativeModel.binary(
 )
 ```
 
+`score_source` controls how nonconform extracts a continuous score from the
+binary estimator:
+
+- `"auto"` (recommended default): use `predict_proba` when available, otherwise
+  fall back to `decision_function`
+- `"predict_proba"`: force probability-based scoring
+- `"decision_function"`: force margin/decision-value scoring
+
+Set an explicit value when your estimator exposes both methods and you want to
+lock in one scoring interface for reproducibility, or when `auto` picks a
+source you do not want.
+
 Binary scores are standardized internally so higher values mean "more
 inlier-like". The detector then applies sign tuning as needed when selecting the
 best inlier-side and outlier-side model for each test point.
@@ -148,7 +160,9 @@ For `TransductiveCVPlus`, `select(...)` raises a clear `NotImplementedError`.
 
 ## References
 
-- Liang, Z., Sesia, M., & Sun, W. *Integrative conformal p-values for powerful
-  out-of-distribution testing with labeled outliers.*
+- Liang, Z., Sesia, M., & Sun, W. (2024). *Integrative conformal p-values for
+  out-of-distribution testing with labelled outliers.* Journal of the Royal
+  Statistical Society Series B: Statistical Methodology, 86(3), 671-693.
+  https://doi.org/10.1093/jrsssb/qkad138. Preprint: arXiv:2208.11111.
 - Repository reference:
   [weighted_conformal_pvalues](https://github.com/ZiyiLiang/weighted_conformal_pvalues)

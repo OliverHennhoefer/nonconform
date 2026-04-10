@@ -38,6 +38,7 @@ labeled outlier sets. This is a different workflow from covariate-shift
 weighting.
 
 ```python
+from sklearn.ensemble import IsolationForest
 from sklearn.linear_model import LogisticRegression
 
 from nonconform import (
@@ -45,6 +46,9 @@ from nonconform import (
     IntegrativeModel,
     IntegrativeSplit,
 )
+
+inlier_detector = IsolationForest(random_state=42)
+outlier_detector = IsolationForest(random_state=43)
 
 models = [
     IntegrativeModel.one_class(
