@@ -22,6 +22,7 @@ Practical examples demonstrating different conformal anomaly detection approache
 | Example | Difficulty | What You'll Learn |
 |---------|------------|-------------------|
 | [Weighted Conformal](weighted_conformal.md) | Advanced | Handling distribution shift between training and test data |
+| [Integrative Conformal](integrative_conformal.md) | Advanced | Labeled-inlier/labeled-outlier conformal testing with split conditional-FDR selection |
 | [FDR Control](fdr_control.md) | Intermediate | Multiple testing correction, Benjamini-Hochberg procedure |
 
 ## What Each Example Covers
@@ -37,6 +38,8 @@ Practical examples demonstrating different conformal anomaly detection approache
 **[Conditional Conformal](conditional_conformal.md)** - Apply conditional calibration maps (`mc`, `simes`, `dkwm`, `asymptotic`) to empirical conformal p-values, then run BH-style FDR selection.
 
 **[Weighted Conformal](weighted_conformal.md)** - Handle covariate shift scenarios where your test data comes from a different distribution than your training data. Essential for real-world deployment.
+
+**[Integrative Conformal](integrative_conformal.md)** - Use a dedicated integrative workflow when you have both labeled inliers and labeled outliers with split conditional-FDR selection procedure.
 
 **[FDR Control](fdr_control.md)** - Deep dive into False Discovery Rate control. Understand when to use BH vs weighted methods and how to evaluate FDR performance.
 

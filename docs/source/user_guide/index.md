@@ -25,6 +25,7 @@ If you're new to conformal prediction, start here:
 |------|-------------|
 | [FDR Control](fdr_control.md) | Control false discovery rates when testing many observations |
 | [Weighted Conformal](weighted_conformal.md) | Handle distribution shift between training and test data |
+| [Integrative Conformal](integrative_conformal.md) | Use labeled inliers and labeled outliers in a dedicated integrative conformal workflow |
 
 ## Practical Usage
 
@@ -44,3 +45,4 @@ If you're new to conformal prediction, start here:
 2. **Choosing a strategy?** Read [Choosing Strategies](choosing_strategies.md)
 3. **Going to production?** Review [Best Practices](best_practices.md) and [Troubleshooting](troubleshooting.md)
 4. **Dealing with distribution shift?** Study [Weighted Conformal](weighted_conformal.md)
+5. **Have labeled outliers too?** Use [Integrative Conformal](integrative_conformal.md)

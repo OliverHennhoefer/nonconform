@@ -47,6 +47,12 @@ __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 
 from nonconform.detector import ConformalDetector
+from nonconform.integrative import (
+    IntegrativeConformalDetector,
+    IntegrativeModel,
+    IntegrativeSplit,
+    TransductiveCVPlus,
+)
 
 # Calibration strategies
 from nonconform.resampling import (
@@ -69,6 +75,10 @@ from nonconform.weighting import (
 
 __all__ = [  # noqa: RUF022
     "ConformalDetector",
+    "IntegrativeConformalDetector",
+    "IntegrativeModel",
+    "IntegrativeSplit",
+    "TransductiveCVPlus",
     "Split",
     "CrossValidation",
     "JackknifeBootstrap",

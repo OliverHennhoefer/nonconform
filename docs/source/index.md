@@ -56,6 +56,7 @@ Use this library when you need:
 - Multiple calibration strategies (Split, CV, Jackknife+ variants)
 - FDR and weighted FDR workflows
 - Covariate-shift handling via weighted conformal methods
+- Labeled-inlier/labeled-outlier workflows via integrative conformal methods
 
 ## Installation
 

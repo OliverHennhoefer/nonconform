@@ -14,6 +14,27 @@ If you are looking for task-oriented call sequences, start with
       show_root_heading: true
       heading_level: 3
 
+## Integrative Detector
+
+::: nonconform.integrative.detector
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Integrative Models
+
+::: nonconform.integrative.models
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Integrative Strategies
+
+::: nonconform.integrative.strategies
+    options:
+      show_root_heading: true
+      heading_level: 3
+
 ## Resampling Strategies
 
 ::: nonconform.resampling
@@ -38,7 +59,8 @@ If you are looking for task-oriented call sequences, start with
 ## FDR Control
 
 Includes weighted low-level expert APIs (`weighted_false_discovery_control`).
-For standard workflows, prefer `ConformalDetector.select(...)`.
+For standard workflows, prefer `ConformalDetector.select(...)` or
+`IntegrativeConformalDetector.select(...)`.
 ::: nonconform.fdr
     options:
       show_root_heading: true
