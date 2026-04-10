@@ -130,6 +130,9 @@ extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
+hooks:
+  - hooks/pygments_filename_none_fix.py
+
 extra:
   social:
     - icon: fontawesome/brands/github
