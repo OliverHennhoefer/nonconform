@@ -616,7 +616,6 @@ For streaming anomaly detection where you process small batches against a large 
 from nonconform import ConformalDetector, Split, forest_weight_estimator
 from nonconform.enums import Pruning
 from nonconform.weighting import BootstrapBaggedWeightEstimator
-from nonconform.fdr import weighted_false_discovery_control
 from pyod.models.iforest import IForest
 
 # Premium configuration for small-batch streaming
@@ -639,13 +638,11 @@ detector.fit(X_historical)
 
 # Process small incoming batches (e.g., 10-50 samples)
 for X_batch in stream:
-    p_values = detector.compute_p_values(X_batch)
-
-    discoveries = weighted_false_discovery_control(
-        result=detector.last_result,
+    discoveries = detector.select(
+        X_batch,
         alpha=0.1,
         pruning=Pruning.DETERMINISTIC,
-        seed=42
+        seed=42,
     )
 
     print(f"Detected {discoveries.sum()} anomalies in batch of {len(X_batch)}")

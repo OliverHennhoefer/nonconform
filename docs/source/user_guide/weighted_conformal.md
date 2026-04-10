@@ -188,7 +188,6 @@ The choice of aggregation method can affect performance under distribution shift
 ```python
 # Compare different aggregation methods
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 aggregation_methods = [
     "mean",
@@ -205,10 +204,8 @@ for agg_method in aggregation_methods:
         seed=42,
     )
     detector.fit(X_train)
-    _ = detector.compute_p_values(X_test_shifted)
-
-    wcs_mask = weighted_false_discovery_control(
-        result=detector.last_result,
+    wcs_mask = detector.select(
+        X_test_shifted,
         alpha=0.05,
         pruning=Pruning.DETERMINISTIC,
         seed=42,
@@ -298,10 +295,8 @@ for name, weight_est in estimators.items():
         seed=42,
     )
     detector.fit(X_train)
-    _ = detector.compute_p_values(X_test_shifted)
-
-    wcs_mask = weighted_false_discovery_control(
-        result=detector.last_result,
+    wcs_mask = detector.select(
+        X_test_shifted,
         alpha=0.05,
         pruning=Pruning.DETERMINISTIC,
         seed=42,
@@ -430,7 +425,6 @@ For online/streaming anomaly detection with small batches:
 ```python
 from nonconform import ConformalDetector, Split, forest_weight_estimator
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 from nonconform.weighting import BootstrapBaggedWeightEstimator
 from pyod.models.iforest import IForest
 
@@ -454,14 +448,11 @@ detector.fit(X_historical)
 
 # Process small incoming batches
 for X_batch in stream_data(batch_size=25):
-    p_values = detector.compute_p_values(X_batch)
-
-    # Apply weighted FDR control
-    discoveries = weighted_false_discovery_control(
-        result=detector.last_result,
+    discoveries = detector.select(
+        X_batch,
         alpha=0.1,
         pruning=Pruning.DETERMINISTIC,
-        seed=42
+        seed=42,
     )
 
     print(f"Detected {discoveries.sum()} anomalies in batch of {len(X_batch)}")
@@ -537,13 +528,9 @@ Weighted conformal p-values are valid on their own. To obtain finite-sample FDR 
 
 ```python
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
-# Collect weighted p-values and cached statistics
-weighted_detector.compute_p_values(X_test_shifted)
-
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+wcs_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -552,7 +539,7 @@ wcs_mask = weighted_false_discovery_control(
 print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
 ```
 
-After any call to `compute_p_values()` or `score_samples()`, the detector caches
+After any call to `compute_p_values()`, `score_samples()`, or `select()`, the detector caches
 the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`.
 Passing this object to `weighted_false_discovery_control` avoids plumbing the raw
 arrays manually.
@@ -604,8 +591,8 @@ The `pruning` parameter controls how ties and randomization are handled in the W
 #### Pruning.DETERMINISTIC
 
 ```python
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+wcs_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,  # seed has no effect for deterministic mode
@@ -624,8 +611,8 @@ wcs_mask = weighted_false_discovery_control(
 #### Pruning.HOMOGENEOUS
 
 ```python
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+wcs_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.HOMOGENEOUS,
     seed=42,  # controls randomization
@@ -644,8 +631,8 @@ wcs_mask = weighted_false_discovery_control(
 #### Pruning.HETEROGENEOUS
 
 ```python
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+wcs_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.HETEROGENEOUS,
     seed=42,  # controls randomization
@@ -665,7 +652,6 @@ wcs_mask = weighted_false_discovery_control(
 
 ```python
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 pruning_methods = [
     Pruning.DETERMINISTIC,
@@ -673,11 +659,9 @@ pruning_methods = [
     Pruning.HETEROGENEOUS
 ]
 
-weighted_detector.compute_p_values(X_test_shifted)
-
 for pruning_method in pruning_methods:
-    wcs_mask = weighted_false_discovery_control(
-        result=weighted_detector.last_result,
+    wcs_mask = weighted_detector.select(
+        X_test_shifted,
         alpha=0.05,
         pruning=pruning_method,
         seed=42,
@@ -758,11 +742,9 @@ shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
 
 ```python
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
-weighted_p_values = weighted_detector.compute_p_values(X_test_shifted)
-wcs_mask = weighted_false_discovery_control(
-    result=weighted_detector.last_result,
+wcs_mask = weighted_detector.select(
+    X_test_shifted,
     alpha=0.05,
     pruning=Pruning.DETERMINISTIC,
     seed=42,
@@ -812,13 +794,11 @@ for domain in domains:
 
 # Predict on domain-specific test sets with WCS
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 for domain in domains:
     X_test_domain = load_domain_data(domain)  # Load domain-specific test data
-    _ = domain_detectors[domain].compute_p_values(X_test_domain)
-    wcs_mask = weighted_false_discovery_control(
-        result=domain_detectors[domain].last_result,
+    wcs_mask = domain_detectors[domain].select(
+        X_test_domain,
         alpha=0.05,
         pruning=Pruning.DETERMINISTIC,
         seed=42,
@@ -829,7 +809,6 @@ for domain in domains:
 ### Online Adaptation
 ```python
 from nonconform.enums import Pruning
-from nonconform.fdr import weighted_false_discovery_control
 
 # Adapt to gradual distribution shift over time
 def online_weighted_detection(detector, data_stream, window_size=1000):
@@ -848,9 +827,8 @@ def online_weighted_detection(detector, data_stream, window_size=1000):
                 detector.fit(X_calib)
 
             # Predict on current batch with WCS
-            _ = detector.compute_p_values(X_batch)
-            wcs_mask = weighted_false_discovery_control(
-                result=detector.last_result,
+            wcs_mask = detector.select(
+                X_batch,
                 alpha=0.05,
                 pruning=Pruning.DETERMINISTIC,
                 seed=42,
