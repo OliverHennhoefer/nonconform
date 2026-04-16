@@ -21,6 +21,7 @@ Thresholds for anomaly detection are often arbitrary and lack theoretical guaran
 | Principled anomaly decisions | `ConformalDetector.select(...)` combines conformal *p*-values with FDR-controlled selection | [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
 | Flexible calibration strategies | `Split`, `CrossValidation`, and `JackknifeBootstrap` for different data/compute tradeoffs | [Conformalization Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
+| Labeled outlier workflows | `IntegrativeConformalDetector` for labeled inliers and labeled outliers OOD testing with split conditional-FDR selection | [Integrative Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/integrative_conformal/) |
 | Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
 | Sequential monitoring | Exchangeability martingales (`PowerMartingale`, `SimpleMixtureMartingale`, `SimpleJumperMartingale`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Custom detector integration | Support for any detector implementing the `AnomalyDetector` protocol | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
@@ -74,6 +75,7 @@ nonconform includes advanced workflows for practitioners who need more power or 
 
 - **Probabilistic Conformal Estimation** (`Probabilistic`): uses KDE-based modeling of calibration scores to produce continuous *p*-values instead of purely empirical stepwise values.
 - **Weighted Conformal Prediction** (`weight_estimator=...`): reweights calibration evidence for covariate shift settings where test and calibration distributions differ, assuming enough support overlap between calibration and test features.
+- **Integrative Conformal Detection** (`IntegrativeConformalDetector`): combines labeled inliers and labeled outliers in a dedicated conformal workflow instead of treating the problem as covariate shift.
 - **Exchangeability Martingales** (`nonconform.martingales`): sequential evidence monitoring over conformal *p*-value streams.
 
 Probabilistic Conformal Setup:

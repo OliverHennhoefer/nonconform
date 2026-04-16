@@ -6,6 +6,10 @@ import nonconform
 
 CURATED_ROOT_EXPORTS = [
     "ConformalDetector",
+    "IntegrativeConformalDetector",
+    "IntegrativeModel",
+    "IntegrativeSplit",
+    "TransductiveCVPlus",
     "Split",
     "CrossValidation",
     "JackknifeBootstrap",

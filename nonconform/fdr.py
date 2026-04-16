@@ -3,6 +3,7 @@
 This module provides explicit entry points for:
 
 - Weighted Conformalized Selection (WCS) under covariate shift.
+- Split conditional-FDR control for integrative conformal p-values.
 """
 
 import logging
@@ -10,6 +11,11 @@ import logging
 import numpy as np
 from tqdm import tqdm
 
+from nonconform.integrative._core import (
+    bh_rejection_count,
+    compute_split_single,
+    prune_integrative_selection,
+)
 from nonconform.structures import ConformalResult
 
 from ._internal import Pruning, get_logger
@@ -431,8 +437,146 @@ def weighted_false_discovery_control_from_arrays(
     )
 
 
+def integrative_false_discovery_control(
+    result: ConformalResult | None,
+    *,
+    alpha: float = 0.05,
+    seed: int | None = None,
+) -> np.ndarray:
+    """Perform split conditional-FDR control for integrative conformal p-values.
+
+    This function expects the result bundle emitted by
+    ``IntegrativeConformalDetector.compute_p_values(...)`` with an
+    ``IntegrativeSplit`` strategy.
+    """
+    _validate_alpha(alpha)
+    result = _require_result_bundle(
+        result, caller="integrative_false_discovery_control"
+    )
+    if result.p_values is None:
+        raise ValueError(
+            "result must contain p_values. Run compute_p_values(...) before calling "
+            "integrative_false_discovery_control()."
+        )
+    if result.metadata is None or "integrative" not in result.metadata:
+        raise ValueError(
+            "result.metadata must contain integrative split caches. "
+            "Run IntegrativeConformalDetector.compute_p_values(...) first."
+        )
+
+    metadata = result.metadata["integrative"]
+    if not isinstance(metadata, dict) or metadata.get("strategy") != "split":
+        raise ValueError(
+            "integrative_false_discovery_control currently supports only split "
+            "integrative results."
+        )
+
+    required = [
+        "u0_test_scores",
+        "u1_test_scores",
+        "u0_inlier_calib_scores",
+        "u0_outlier_calib_scores",
+        "u1_inlier_calib_scores",
+        "u1_outlier_calib_scores",
+    ]
+    missing = [name for name in required if name not in metadata]
+    if missing:
+        raise ValueError(
+            "result.metadata['integrative'] is missing required split caches: "
+            + ", ".join(missing)
+        )
+
+    from nonconform.integrative._core import SplitState
+
+    split_state = SplitState(
+        x_in_train=np.empty((1, 1), dtype=float),
+        x_in_calib=np.zeros(
+            (
+                np.asarray(metadata["u0_inlier_calib_scores"], dtype=float).shape[1],
+                1,
+            ),
+            dtype=float,
+        ),
+        x_out_train=np.empty((1, 1), dtype=float),
+        x_out_calib=np.zeros(
+            (
+                np.asarray(metadata["u0_outlier_calib_scores"], dtype=float).shape[1],
+                1,
+            ),
+            dtype=float,
+        ),
+        u0_models=[],
+        u1_models=[],
+        u0_inlier_calib_scores=np.asarray(
+            metadata["u0_inlier_calib_scores"], dtype=float
+        ),
+        u0_outlier_calib_scores=np.asarray(
+            metadata["u0_outlier_calib_scores"], dtype=float
+        ),
+        u1_inlier_calib_scores=np.asarray(
+            metadata["u1_inlier_calib_scores"], dtype=float
+        ),
+        u1_outlier_calib_scores=np.asarray(
+            metadata["u1_outlier_calib_scores"], dtype=float
+        ),
+    )
+
+    # The split helper needs model names only for debug metadata.
+    split_state.u0_models = [
+        type("_ModelRef", (), {"name": name})() for name in metadata["u0_model_names"]
+    ]
+    split_state.u1_models = [
+        type("_ModelRef", (), {"name": name})() for name in metadata["u1_model_names"]
+    ]
+
+    p_values = np.asarray(result.p_values, dtype=float)
+    _validate_p_values(p_values)
+    u0_test_scores = np.asarray(metadata["u0_test_scores"], dtype=float)
+    u1_test_scores = np.asarray(metadata["u1_test_scores"], dtype=float)
+    if u0_test_scores.ndim != 2 or u1_test_scores.ndim != 2:
+        raise ValueError("integrative split score caches must be 2D arrays.")
+    n_test = len(p_values)
+    if u0_test_scores.shape[1] != n_test or u1_test_scores.shape[1] != n_test:
+        raise ValueError(
+            "integrative split score caches must align with result.p_values length."
+        )
+
+    r_tilde = np.zeros(n_test, dtype=int)
+    for i in range(n_test):
+        approximate = np.empty(n_test, dtype=float)
+        approximate[i] = 0.0
+        for j in range(n_test):
+            if i == j:
+                continue
+            approximate[j], _, _, _ = compute_split_single(
+                split_state,
+                u0_test_scores=u0_test_scores,
+                u1_test_scores=u1_test_scores,
+                target_idx=j,
+                extra_inlier_test_indices=(i,),
+            )
+        r_tilde[i] = bh_rejection_count(approximate, alpha)
+
+    thresholds = alpha * r_tilde / n_test
+    preliminary = np.flatnonzero(p_values <= thresholds)
+    if len(preliminary) == 0:
+        return np.zeros(n_test, dtype=bool)
+
+    r_plus = len(preliminary)
+    if np.all(r_plus >= r_tilde[preliminary]):
+        final = preliminary
+    else:
+        rng = np.random.default_rng(seed)
+        final = prune_integrative_selection(preliminary, r_tilde, rng)
+
+    mask = np.zeros(n_test, dtype=bool)
+    mask[final] = True
+    return mask
+
+
 __all__ = [
     "Pruning",
+    "integrative_false_discovery_control",
     "weighted_false_discovery_control",
     "weighted_false_discovery_control_from_arrays",
 ]
