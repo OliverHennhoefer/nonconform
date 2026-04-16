@@ -86,3 +86,13 @@ def test_metrics_module_exports_expected_symbols():
     assert callable(aggregate)
     assert callable(false_discovery_rate)
     assert callable(statistical_power)
+
+
+def test_conditional_empirical_import_contract():
+    namespace: dict[str, object] = {}
+    exec("from nonconform.scoring import ConditionalEmpirical", namespace)
+    assert callable(namespace["ConditionalEmpirical"])
+    assert not hasattr(nonconform, "ConditionalEmpirical")
+
+    with pytest.raises(ImportError, match="ConditionalEmpirical"):
+        exec("from nonconform import ConditionalEmpirical", {})

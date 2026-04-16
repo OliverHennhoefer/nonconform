@@ -93,3 +93,103 @@ def test_conditional_calibration_rejects_boolean_n_calibration() -> None:
             delta=0.1,
             method="dkwm",
         )
+
+
+def test_conditional_empirical_mc_cache_key_and_seed_reset(monkeypatch) -> None:
+    from nonconform._internal import conditional_calibration
+
+    calls: list[tuple[float, int]] = []
+
+    def _counting_fs_correction(
+        delta: float,
+        n_calibration: int,
+        *,
+        n_mc: int = 10_000,
+        rng=None,
+    ) -> float:
+        del n_mc, rng
+        calls.append((delta, n_calibration))
+        return 0.02
+
+    monkeypatch.setattr(
+        conditional_calibration,
+        "estimate_fs_correction",
+        _counting_fs_correction,
+    )
+
+    scores = np.array([0.7, -0.2, -1.1], dtype=float)
+    calibration_20 = np.linspace(-2.0, 2.0, 20, dtype=float)
+    calibration_21 = np.linspace(-2.0, 2.0, 21, dtype=float)
+
+    estimation = ConditionalEmpirical(method="mc", tie_break="classical", delta=0.1)
+
+    estimation.compute_p_values(scores, calibration_20)
+    estimation.compute_p_values(scores, calibration_20)
+    assert calls == [(0.1, 20)]
+
+    estimation.compute_p_values(scores, calibration_21)
+    assert calls == [(0.1, 20), (0.1, 21)]
+
+    estimation.set_seed(123)
+    estimation.compute_p_values(scores, calibration_20)
+    assert calls == [(0.1, 20), (0.1, 21), (0.1, 20)]
+
+
+def test_conditional_empirical_boundary_at_min_asymptotic_n_calibration(
+    monkeypatch,
+) -> None:
+    from nonconform._internal import conditional_calibration
+
+    def _fixed_fs_correction(
+        delta: float,
+        n_calibration: int,
+        *,
+        n_mc: int = 10_000,
+        rng=None,
+    ) -> float:
+        del delta, n_calibration, n_mc, rng
+        return 0.02
+
+    monkeypatch.setattr(
+        conditional_calibration,
+        "estimate_fs_correction",
+        _fixed_fs_correction,
+    )
+
+    scores = np.array([-1.5, -0.1, 0.7], dtype=float)
+    calibration_16 = np.linspace(-2.0, 2.0, 16, dtype=float)
+    calibration_17 = np.linspace(-2.0, 2.0, 17, dtype=float)
+
+    mc = ConditionalEmpirical(method="mc", tie_break="classical", delta=0.1)
+    asymptotic = ConditionalEmpirical(
+        method="asymptotic",
+        tie_break="classical",
+        delta=0.1,
+    )
+    dkwm = ConditionalEmpirical(method="dkwm", tie_break="classical", delta=0.1)
+
+    np.testing.assert_allclose(
+        mc.compute_p_values(scores, calibration_16),
+        dkwm.compute_p_values(scores, calibration_16),
+        rtol=0.0,
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        asymptotic.compute_p_values(scores, calibration_16),
+        dkwm.compute_p_values(scores, calibration_16),
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+    assert not np.allclose(
+        mc.compute_p_values(scores, calibration_17),
+        dkwm.compute_p_values(scores, calibration_17),
+        rtol=0.0,
+        atol=1e-12,
+    )
+    assert not np.allclose(
+        asymptotic.compute_p_values(scores, calibration_17),
+        dkwm.compute_p_values(scores, calibration_17),
+        rtol=0.0,
+        atol=1e-12,
+    )
