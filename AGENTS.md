@@ -1,10 +1,4 @@
-# Global Rules (Must Follow)
-
-Your motto is:
-
-> **Every mission assigned is delivered with 100% quality and state-of-the-art execution - no hacks, no workarounds, no partial deliverables and no mock-driven confidence. Mocks/stubs may exist in unit tests for I/O boundaries, but final validation must rely on real integration and end-to-end tests.**
-
-## TEMPORARY: Pre-1.0 Break-First Policy (REMOVE AT v1.0.0)
+# Pre-1.0 Break-First Policy
 
 This project is pre-release. Backward compatibility is currently **not** a constraint.
 
@@ -15,7 +9,7 @@ This project is pre-release. Backward compatibility is currently **not** a const
 
 At `v1.0.0`, remove this section and switch to strict backward-compatibility policy.
 
-## Decision Hierarchy
+# Decision Hierarchy
 
 1. Statistical correctness and validity claims.
 2. User intent and acceptance criteria.
@@ -23,37 +17,36 @@ At `v1.0.0`, remove this section and switch to strict backward-compatibility pol
 4. Maintainability and readability.
 5. Performance.
 
-## Execution Defaults
+# Execution Defaults
 
-- Operate autonomously; do not ask to proceed unless truly blocked.
 - Ask questions only for contradictions, missing critical requirements, or destructive/irreversible risk.
 - Enforce strict no-scope-creep: do only what is requested and directly necessary.
 - Assume declared dependencies are available; do not redesign around hypothetical missing dependencies.
 - Do not run `uv update` lightly; it can override intentionally pinned security patch versions in this repository.
 - Treat current CI trigger and test-run cadence as intentional; do not suggest changing it unless explicitly requested by the user.
 
-## Statistical-Core Change Guardrail
+# Statistical-Core Change Guardrail
 
 Statistical-core means any logic that computes statistics or affects statistical validity/interpretation (for example p-values, FDR control, weighting, calibration, aggregation, or related quantities).
 
 - Do **not** change statistical-core behavior unless the user request explicitly asks for it or it is an unavoidable implication of the requested change.
-- Statistical-core behavior changes should be rare at this stage.
+- Statistical-core behavior changes should be rare.
 - If such a change is needed, provide explicit before/after rationale in the final report.
 
-## Regression Policy
+# Regression Policy
 
 - Target zero regressions by default.
 - Any intentional regression/tradeoff is allowed only when directly requested or logically required by the task.
 - Every intentional tradeoff must be called out explicitly with rationale.
 
-## Validation Policy
+# Validation Policy
 
 No substantial task is complete without validation evidence.
 
 - Run `uv run pytest` when changes touch `nonconform/**` or `tests/**`.
 - Skip full `pytest` when changes are limited to:
   - Markdown-only (`*.md`) files, or
-  - Python files outside `nonconform/**` and `tests/**` (for example `examples/**`).
+  - Python files outside `nonconform/**` and `tests/**` (e.g. `examples/**`).
 - Run `uv run ruff format .` for every task.
 - Run `uv run ruff check . --fix` for every task.
 - Run `uv run mkdocs build -f docs/mkdocs.yml` whenever documentation changes under `docs/**`.
@@ -70,7 +63,7 @@ uv run pytest
 uv run mkdocs build -f docs/mkdocs.yml
 ```
 
-## Codebase Topology
+# Codebase Topology
 
 - `nonconform/`: public library code.
 - `nonconform/_internal/`: private internals, not user API.
@@ -78,21 +71,20 @@ uv run mkdocs build -f docs/mkdocs.yml
 - `examples/`: user-facing executable usage.
 - `docs/` + `docs/source/`: canonical documentation.
 
-## API and Architecture Discipline
+# API and Architecture Discipline
 
 - Keep boundaries explicit across detector interfacing, strategy, estimation, weighting, FDR, and metrics.
 - Avoid hidden coupling and dead abstractions.
 - Make API surface changes explicit and intentional.
 - Keep `_internal` out of user-facing docs/examples.
 
-## Documentation and Examples Coupling
+# Documentation and Examples 
 
-- Code changes require corresponding tests.
 - Behavioral/API changes require documentation updates.
-- User-facing changes require example updates or additions.
+- User-facing changes require example updates.
 - Do not leave docs/examples stale relative to implementation.
 
-## Definition of Done
+# Definition of Done
 
 A task is done only when all are true:
 
@@ -102,7 +94,7 @@ A task is done only when all are true:
 - Docs/examples/tests are aligned with the final behavior.
 - Scope remained constrained to the requested task.
 
-## Final Report Contract
+# Final Report Contract
 
 For substantial tasks, always include:
 
