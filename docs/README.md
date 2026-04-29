@@ -112,9 +112,13 @@ Martingale Setup for Sequential Monitoring:
 ```python
 from nonconform.martingales import AlarmConfig, PowerMartingale
 
+alpha = 0.01
 martingale = PowerMartingale(
     epsilon=0.5,
-    alarm_config=AlarmConfig(ville_threshold=100.0),
+    alarm_config=AlarmConfig(
+        ville_threshold=1 / alpha,
+        restarted_ville_threshold=1 / alpha,
+    ),
 )
 
 state = martingale.update(p_t)
@@ -122,7 +126,12 @@ states = martingale.update_many(p_values_chunk)
 ```
 
 > **Note:** `update(...)` already validates and normalizes numeric scalar p-values, so an explicit `float(...)` cast is optional.
-> Martingale alarms monitor evidence over time; they do not replace cross-hypothesis FDR control.
+> Use `ville_threshold` or `restarted_ville_threshold` when you need an anytime
+> false-alarm bound for a monitored stream. CUSUM and Shiryaev-Roberts thresholds
+> are change-evidence triggers for diagnosing possible stream changes; they need
+> separate calibration and do not replace cross-hypothesis FDR control. See
+> [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
+> for threshold interpretation details.
 
 ## Beyond Static Data
 

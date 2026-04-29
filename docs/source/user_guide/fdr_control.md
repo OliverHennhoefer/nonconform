@@ -393,9 +393,10 @@ for batch in data_batches:
 For dynamic settings with streaming data batches, the optional `online-fdr` package provides methods that adapt to temporal dependencies while maintaining FDR control.
 
 Do not conflate this with martingale alarm thresholds such as
-`ville_threshold` in [Exchangeability Martingales](exchangeability_martingales.md):
-those provide anytime false-alarm control on evidence processes, not FDR
-control across multiple tested hypotheses.
+`ville_threshold` or `restarted_ville_threshold` in
+[Exchangeability Martingales](exchangeability_martingales.md): those provide
+anytime false-alarm control on evidence processes, not FDR control across
+multiple tested hypotheses.
 
 ### Installation and Basic Usage
 

@@ -89,15 +89,32 @@ def _power_log_increment(p_value: float, epsilon: float) -> float:
     return float(np.log(epsilon) + (epsilon - 1.0) * np.log(p_value))
 
 
+def _log_harmonic_restart_weight(step: int) -> float:
+    """Return log pi_t for the harmonic restart prior."""
+    return float(-np.log(step) - np.log(step + 1))
+
+
+def _log_harmonic_restart_tail(step: int) -> float:
+    """Return log tail mass after ``step`` for the harmonic restart prior."""
+    return float(-np.log(step + 1))
+
+
 @dataclass(slots=True, frozen=True)
 class AlarmConfig:
     """Optional alarm thresholds for martingale evidence statistics.
 
     Thresholds are disabled when set to ``None``. Each threshold compares
     against a running statistic in :class:`MartingaleState`.
+
+    ``ville_threshold`` and ``restarted_ville_threshold`` are Ville thresholds
+    for e-processes. ``cusum_threshold`` and ``shiryaev_roberts_threshold`` are
+    change-evidence thresholds and should not be interpreted as
+    probability-of-ever-crossing Ville thresholds without a separate theorem for
+    the exact statistic.
     """
 
     ville_threshold: float | None = None
+    restarted_ville_threshold: float | None = None
     cusum_threshold: float | None = None
     shiryaev_roberts_threshold: float | None = None
 
@@ -107,6 +124,13 @@ class AlarmConfig:
             self,
             "ville_threshold",
             _validate_positive_threshold("ville_threshold", self.ville_threshold),
+        )
+        object.__setattr__(
+            self,
+            "restarted_ville_threshold",
+            _validate_positive_threshold(
+                "restarted_ville_threshold", self.restarted_ville_threshold
+            ),
         )
         object.__setattr__(
             self,
@@ -131,6 +155,8 @@ class MartingaleState:
     p_value: float
     log_martingale: float
     martingale: float
+    log_restarted_martingale: float
+    restarted_martingale: float
     log_cusum: float
     cusum: float
     log_shiryaev_roberts: float
@@ -155,6 +181,8 @@ class BaseMartingale(ABC):
         self._step = 0
         self._last_p_value = float("nan")
         self._log_martingale = 0.0
+        self._log_active_restarted_mass = float("-inf")
+        self._log_restarted_martingale = 0.0
         # CUSUM/SR start at 0 on linear scale -> -inf in log space.
         self._log_cusum = float("-inf")
         self._log_shiryaev_roberts = float("-inf")
@@ -176,6 +204,19 @@ class BaseMartingale(ABC):
         self._step += 1
         self._last_p_value = p_value_validated
         self._log_martingale += log_increment
+        self._log_active_restarted_mass = float(
+            log_increment
+            + np.logaddexp(
+                self._log_active_restarted_mass,
+                _log_harmonic_restart_weight(self._step),
+            )
+        )
+        self._log_restarted_martingale = float(
+            np.logaddexp(
+                self._log_active_restarted_mass,
+                _log_harmonic_restart_tail(self._step),
+            )
+        )
         self._log_cusum = float(log_increment + max(self._log_cusum, 0.0))
         self._log_shiryaev_roberts = float(
             log_increment + np.logaddexp(0.0, self._log_shiryaev_roberts)
@@ -197,6 +238,8 @@ class BaseMartingale(ABC):
             p_value=self._last_p_value,
             log_martingale=self._log_martingale,
             martingale=_linear_from_log(self._log_martingale),
+            log_restarted_martingale=self._log_restarted_martingale,
+            restarted_martingale=_linear_from_log(self._log_restarted_martingale),
             log_cusum=self._log_cusum,
             cusum=_linear_from_log(self._log_cusum),
             log_shiryaev_roberts=self._log_shiryaev_roberts,
@@ -212,6 +255,12 @@ class BaseMartingale(ABC):
             and self._log_martingale >= np.log(self._alarm_config.ville_threshold)
         ):
             alarms.append("ville")
+        if (
+            self._alarm_config.restarted_ville_threshold is not None
+            and self._log_restarted_martingale
+            >= np.log(self._alarm_config.restarted_ville_threshold)
+        ):
+            alarms.append("restarted_ville")
         if self._alarm_config.cusum_threshold is not None and self._log_cusum >= np.log(
             self._alarm_config.cusum_threshold
         ):

@@ -13,16 +13,22 @@ from nonconform.martingales import (
     PowerMartingale,
     SimpleJumperMartingale,
     SimpleMixtureMartingale,
+    _log_harmonic_restart_tail,
+    _log_harmonic_restart_weight,
 )
 
 
 class SequenceIncrementMartingale(BaseMartingale):
     """Test helper that emits a fixed sequence of log increments."""
 
-    def __init__(self, log_increments: list[float]) -> None:
+    def __init__(
+        self,
+        log_increments: list[float],
+        alarm_config: AlarmConfig | None = None,
+    ) -> None:
         self._initial_log_increments = log_increments.copy()
         self._log_increments = log_increments.copy()
-        super().__init__()
+        super().__init__(alarm_config=alarm_config)
 
     def _reset_method_state(self) -> None:
         self._log_increments = self._initial_log_increments.copy()
@@ -40,6 +46,10 @@ def _assert_state_close(left, right):
     np.testing.assert_allclose(left.p_value, right.p_value)
     np.testing.assert_allclose(left.log_martingale, right.log_martingale)
     np.testing.assert_allclose(left.martingale, right.martingale)
+    np.testing.assert_allclose(
+        left.log_restarted_martingale, right.log_restarted_martingale
+    )
+    np.testing.assert_allclose(left.restarted_martingale, right.restarted_martingale)
     np.testing.assert_allclose(left.log_cusum, right.log_cusum)
     np.testing.assert_allclose(left.cusum, right.cusum)
     np.testing.assert_allclose(left.log_shiryaev_roberts, right.log_shiryaev_roberts)
@@ -73,10 +83,18 @@ class TestValidation:
     def test_alarm_config_rejects_non_positive(self):
         with pytest.raises(ValueError, match="ville_threshold"):
             AlarmConfig(ville_threshold=0.0)
+        with pytest.raises(ValueError, match="restarted_ville_threshold"):
+            AlarmConfig(restarted_ville_threshold=float("nan"))
         with pytest.raises(ValueError, match="cusum_threshold"):
             AlarmConfig(cusum_threshold=-1.0)
         with pytest.raises(ValueError, match="shiryaev_roberts_threshold"):
             AlarmConfig(shiryaev_roberts_threshold=float("inf"))
+
+    def test_ville_thresholds_do_not_alias_cusum_threshold(self):
+        config = AlarmConfig(ville_threshold=2.0, restarted_ville_threshold=2.0)
+
+        assert config.cusum_threshold is None
+        assert config.shiryaev_roberts_threshold is None
 
     def test_invalid_p_values_raise(self):
         martingale = PowerMartingale(epsilon=0.5)
@@ -104,6 +122,8 @@ class TestInitialState:
         assert state.step == 0
         assert np.isnan(state.p_value)
         assert state.martingale == pytest.approx(1.0)
+        assert state.restarted_martingale == pytest.approx(1.0)
+        assert state.log_restarted_martingale == pytest.approx(0.0)
         assert state.cusum == pytest.approx(0.0)
         assert state.shiryaev_roberts == pytest.approx(0.0)
         assert state.triggered_alarms == ()
@@ -175,6 +195,66 @@ class TestAlarmRecursions:
             assert state.cusum == pytest.approx(gamma)
             assert state.shiryaev_roberts == pytest.approx(sr)
 
+    def test_harmonic_restart_prior_accounting(self):
+        steps = np.arange(1, 501, dtype=float)
+        weights = 1.0 / (steps * (steps + 1.0))
+
+        for step in (1, 2, 5, 50, 500):
+            pi_t = 1.0 / (step * (step + 1.0))
+            tail_previous = 1.0 / step
+            tail_current = 1.0 / (step + 1.0)
+            assert np.exp(_log_harmonic_restart_weight(step)) == pytest.approx(pi_t)
+            assert np.exp(_log_harmonic_restart_tail(step)) == pytest.approx(
+                tail_current
+            )
+            assert pi_t + tail_current == pytest.approx(tail_previous)
+
+        assert float(np.sum(weights) + (1.0 / 501.0)) == pytest.approx(1.0)
+
+    def test_restarted_mixture_matches_linear_recursion(self):
+        ratios = np.array([2.0, 0.5, 3.0, 0.2], dtype=float)
+        log_ratios = list(np.log(ratios))
+        martingale = SequenceIncrementMartingale(log_increments=log_ratios)
+
+        active = 0.0
+        for step, ratio in enumerate(ratios, start=1):
+            pi_t = 1.0 / (step * (step + 1.0))
+            tail_t = 1.0 / (step + 1.0)
+            active = ratio * (active + pi_t)
+            restarted = active + tail_t
+
+            state = martingale.update(0.5)
+            assert state.restarted_martingale == pytest.approx(restarted)
+            assert state.log_restarted_martingale == pytest.approx(np.log(restarted))
+
+    def test_restarted_mixture_stays_one_for_unit_e_values(self):
+        martingale = SequenceIncrementMartingale(log_increments=[0.0] * 20)
+
+        for _ in range(20):
+            state = martingale.update(0.5)
+            assert state.restarted_martingale == pytest.approx(1.0)
+            assert state.log_restarted_martingale == pytest.approx(0.0)
+
+    def test_infinite_evidence_propagates_to_restarted_mixture(self):
+        martingale = PowerMartingale(epsilon=0.5)
+        state = martingale.update(0.0)
+
+        assert math.isinf(state.restarted_martingale)
+        assert state.log_restarted_martingale == float("inf")
+
+    def test_restarted_ville_alarm_is_independent_from_cusum_alarm(self):
+        martingale = SequenceIncrementMartingale(
+            log_increments=[0.0],
+            alarm_config=AlarmConfig(
+                restarted_ville_threshold=1.0,
+                cusum_threshold=2.0,
+            ),
+        )
+
+        state = martingale.update(0.5)
+
+        assert state.triggered_alarms == ("restarted_ville",)
+
     def test_shiryaev_roberts_log_recursion_stays_finite_for_large_values(self):
         martingale = SequenceIncrementMartingale(log_increments=[400.0, 400.0, 400.0])
         states = martingale.update_many(np.array([0.5, 0.5, 0.5], dtype=float))
@@ -236,6 +316,7 @@ class TestUtilityBehavior:
         states = martingale.update_many(p_values)
         final = states[-1]
         assert np.isfinite(final.log_martingale)
+        assert np.isfinite(final.log_restarted_martingale)
         assert np.isfinite(final.log_cusum)
         assert np.isfinite(final.log_shiryaev_roberts)
 
@@ -244,9 +325,15 @@ class TestUtilityBehavior:
             epsilon=0.5,
             alarm_config=AlarmConfig(
                 ville_threshold=2.0,
+                restarted_ville_threshold=1.5,
                 cusum_threshold=2.0,
                 shiryaev_roberts_threshold=2.0,
             ),
         )
         state = martingale.update(0.04)  # increment = 2.5
-        assert set(state.triggered_alarms) == {"ville", "cusum", "shiryaev_roberts"}
+        assert set(state.triggered_alarms) == {
+            "ville",
+            "restarted_ville",
+            "cusum",
+            "shiryaev_roberts",
+        }

@@ -7,6 +7,7 @@ Monitor streaming conformal p-values for evidence against exchangeability.
 `nonconform.martingales` consumes sequential p-values and maintains:
 
 - Martingale evidence (`M_n`)
+- Restarted mixture e-process evidence for late-change sensitivity
 - CUSUM statistic (cumulative-sum change evidence)
 - Shiryaev-Roberts statistic (sequential evidence accumulator)
 - Optional alarm triggers from configurable thresholds
@@ -49,14 +50,20 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 martingale = SimpleJumperMartingale(
-    alarm_config=AlarmConfig(ville_threshold=100.0)
+    alarm_config=AlarmConfig(
+        ville_threshold=100.0,
+        restarted_ville_threshold=100.0,
+    )
 )
 
 for x_t in x_stream:
     p_t = detector.compute_p_values(x_t.reshape(1, -1))[0]
     state = martingale.update(p_t)
-    if "ville" in state.triggered_alarms:
-        print(f"Ville alarm at step={state.step}, M={state.martingale:.2f}")
+    if "restarted_ville" in state.triggered_alarms:
+        print(
+            "Restarted Ville alarm "
+            f"at step={state.step}, M={state.restarted_martingale:.2f}"
+        )
         break
 ```
 
@@ -121,11 +128,14 @@ Alarms are disabled by default.
 Set thresholds with `AlarmConfig`:
 
 - `ville_threshold`: threshold on martingale `M_n`
-- `cusum_threshold`: threshold on CUSUM statistic
-- `shiryaev_roberts_threshold`: threshold on Shiryaev-Roberts statistic
+- `restarted_ville_threshold`: threshold on the restarted mixture e-process
+- `cusum_threshold`: threshold on the CUSUM/e-CUSUM evidence statistic
+- `shiryaev_roberts_threshold`: threshold on the Shiryaev-Roberts evidence
+  statistic
 
 `MartingaleState.triggered_alarms` is a tuple of alarm names (for example,
-`("ville", "cusum")`) indicating which thresholds are currently exceeded.
+`("ville", "restarted_ville")`) indicating which thresholds are currently
+exceeded.
 It can be empty when no alarms are active.
 
 ### Interpreting `ville_threshold`
@@ -145,9 +155,46 @@ Example mappings:
 - `ville_threshold = 20` -> false alarm probability at most `0.05`
 - `ville_threshold = 100` -> false alarm probability at most `0.01`
 
+### Interpreting `restarted_ville_threshold`
+
+`restarted_ville_threshold` applies to a restarted mixture e-process. It uses a
+proper weighted sum over possible restart times rather than the raw CUSUM
+maximum. This gives CUSUM-like sensitivity to late changes while preserving the
+same Ville-style anytime false-alarm probability control as the product
+martingale.
+
+Use the same threshold mapping:
+
+```python
+alpha = 0.01
+alarm_config = AlarmConfig(
+    ville_threshold=1 / alpha,
+    restarted_ville_threshold=1 / alpha,
+    cusum_threshold=None,
+)
+```
+
+The restarted mixture uses the harmonic restart prior
+`pi_t = 1 / (t * (t + 1))` with tail mass `1 / (t + 1)`. The tail mass is part
+of the e-process accounting and keeps the process initialized at 1.
+
+### Interpreting CUSUM and Shiryaev-Roberts Thresholds
+
+`cusum_threshold` applies to the CUSUM/e-CUSUM statistic. It is useful as a
+changepoint evidence statistic, but it is not a Ville threshold. Interpret it
+through ARL/FAR guarantees or empirical calibration unless a separate theorem is
+provided for the exact implementation.
+
+`shiryaev_roberts_threshold` applies to the SR/e-SR statistic. Depending on the
+procedure, SR variants can have ARL/e-detector interpretations, but this
+threshold should not be documented as a probability-of-ever-crossing Ville
+control unless the implemented statistic is itself an e-process.
+
 Scope of this guarantee:
 
-- Ville thresholds provide anytime false-alarm control per stream (single null).
+- `ville_threshold` and `restarted_ville_threshold` provide anytime false-alarm
+  control per stream (single null) when the input e-values are conditionally
+  valid.
 - FDR control across many simultaneous hypotheses or streams requires separate
   multiple-testing procedures; see [FDR Control](fdr_control.md).
 

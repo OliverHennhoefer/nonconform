@@ -44,9 +44,11 @@ def test_detector_streaming_p_values_feed_martingale():
         state = martingale.update(p_value)
         assert 0.0 <= p_value <= 1.0
         assert state.step == i
+        assert state.restarted_martingale > 0.0
 
     assert martingale.state.step == len(x_stream)
     assert np.isfinite(martingale.state.log_martingale)
+    assert np.isfinite(martingale.state.log_restarted_martingale)
 
 
 def test_shifted_stream_tends_to_increase_power_martingale_evidence():

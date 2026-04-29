@@ -47,7 +47,13 @@ $$
 $$
 
 **In nonconform**: `AlarmConfig(ville_threshold=lambda)` uses this style of
-anytime alarm thresholding for exchangeability martingales.
+anytime alarm thresholding for the product exchangeability martingale.
+`AlarmConfig(restarted_ville_threshold=lambda)` applies the same Ville threshold
+to a restarted mixture e-process (evidence process) with better sensitivity to
+changes that begin later in the monitored stream. The restart prior is the
+weighting over possible restart times; see
+[Exchangeability Martingales](exchangeability_martingales.md#interpreting-restarted_ville_threshold)
+for the documented default.
 
 This guarantee applies to false alarms over time on a single stream. For
 multiple testing settings across many hypotheses or streams, use dedicated FDR
@@ -105,6 +111,7 @@ and [FDR Control](fdr_control.md).
 | **p-value** | False positive rate (per test) | Calibration set size, detector quality |
 | **FDR** | False positives among discoveries | p-value validity, number of tests |
 | **Ville threshold** | Anytime false alarm probability (per stream) | Martingale validity, threshold choice |
+| **Restarted Ville threshold** | Anytime false alarm probability with better sensitivity to changes later in the stream | e-process validity, restart prior |
 | **Power** | True positive rate | FDR threshold, detector quality |
 | **Exchangeability** | p-value validity | Data collection process, distribution shift |
 
