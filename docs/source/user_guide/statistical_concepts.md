@@ -8,9 +8,9 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **What it is**: A number between 0 and 1 indicating how "extreme" an observation is compared to a reference distribution.
 
-**In nonconform**: The p-value tells you the probability of seeing an anomaly score at least as extreme as this observation, assuming it's normal. Lower p-values = more likely to be an anomaly.
+**In nonconform**: A conformal p-value measures how extreme an anomaly score is relative to calibration scores, assuming the point is normal and the relevant exchangeability or covariate-shift assumptions hold. Lower p-values = more evidence of anomaly.
 
-**Example**: A p-value of 0.02 means only 2% of normal observations would have a score this extreme.
+**Example**: A p-value of 0.02 means the point is more extreme than almost all calibration examples. Under the null assumptions, conformal p-values are super-uniform: $\Pr(p \le 0.02) \le 0.02$.
 
 **Classical vs. Randomized**:
 
@@ -30,7 +30,7 @@ A quick reference for the key statistical terms used throughout nonconform. For 
 
 **What it is**: The expected proportion of false positives among all points you flag as anomalies.
 
-**Why it matters**: When you test many observations, some will look anomalous by chance. FDR control ensures that at most (say) 5% of your "discoveries" are actually false positives.
+**Why it matters**: When you test many observations, some will look anomalous by chance. FDR control targets the expected false-positive proportion among discoveries, for example at most 5% in expectation when the assumptions hold.
 
 **In nonconform**: Prefer `detector.select(X_test, alpha=...)` for default FDR-controlled decisions. Use `scipy.stats.false_discovery_control(...)` when you intentionally need manual p-value post-processing.
 
@@ -66,7 +66,7 @@ and [FDR Control](fdr_control.md).
 
 **What it is**: Data points are exchangeable if shuffling their order doesn't change their statistical properties.
 
-**Why it matters**: This is the key assumption for conformal prediction guarantees. If your calibration and test data are exchangeable, the p-values are valid.
+**Why it matters**: This is the key assumption for standard conformal prediction guarantees. If your calibration and test data are exchangeable, split conformal p-values are marginally valid.
 
 **When it holds**: Training and test data from the same source, collected the same way, without systematic changes over time.
 
@@ -100,7 +100,7 @@ and [FDR Control](fdr_control.md).
 
 **Example**: Training on data from Sensor A, testing on data from Sensor B (different readings, same underlying physics).
 
-**Solution**: Use weighted conformal prediction to adjust for the distribution difference. See [Weighted Conformal](weighted_conformal.md).
+**Solution**: Use weighted conformal prediction only when the shift is plausibly covariate shift with sufficient support overlap and reliable weights. See [Weighted Conformal](weighted_conformal.md).
 
 ---
 
@@ -108,8 +108,8 @@ and [FDR Control](fdr_control.md).
 
 | Concept | Controls | Affected by |
 |---------|----------|-------------|
-| **p-value** | False positive rate (per test) | Calibration set size, detector quality |
-| **FDR** | False positives among discoveries | p-value validity, number of tests |
+| **p-value** | Per-test false-positive probability under null assumptions | Calibration set size, detector quality |
+| **FDR** | Expected false-positive proportion among discoveries | p-value validity, number of tests |
 | **Ville threshold** | Anytime false alarm probability (per stream) | Martingale validity, threshold choice |
 | **Restarted Ville threshold** | Anytime false alarm probability with better sensitivity to changes later in the stream | e-process validity, restart prior |
 | **Power** | True positive rate | FDR threshold, detector quality |
@@ -123,4 +123,4 @@ For full mathematical foundations and proofs:
 
 - [Understanding Conformal Inference](conformal_inference.md) – Complete theory guide
 - [FDR Control](fdr_control.md) – Multiple testing in detail
-- [Weighted Conformal](weighted_conformal.md) – Handling distribution shift
+- [Weighted Conformal](weighted_conformal.md) – Covariate-shift workflows

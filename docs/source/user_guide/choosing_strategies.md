@@ -4,17 +4,23 @@ This guide helps you select the optimal calibration strategy for your conformal 
 
 ## Strategy Overview
 
-nonconform provides four calibration strategies, each with distinct trade-offs:
+nonconform provides one simple split baseline and a family of resampling
+strategies for cases where a holdout calibration split would waste too much
+data:
 
 | Strategy | Speed | Accuracy | Data Efficiency | Best For |
 |----------|-------|----------|-----------------|----------|
 | **Split** | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | Large datasets, real-time |
-| **Jackknife+** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | General purpose, balanced |
-| **Cross-Validation** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Small datasets, maximum accuracy |
-| **JackknifeBootstrap (JaB+)** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | Uncertainty quantification |
+| **CV+** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | Practical small-data default |
+| **Jackknife+** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Very small datasets |
+| **JackknifeBootstrap (JaB+)** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | Bootstrap stability |
 
-> **Guarantee note:** Strict finite-sample/theoretical guarantees are tied to `"plus"` variants (for example `CV+`, `Jackknife+`, `JaB+`).  
-> Non-plus (`mode="single_model"`) variants can be close in practice and lighter at inference time, but they do not provide the same strict guarantees.
+> **Guarantee note:** Split conformal is the cleanest strict finite-sample
+> baseline. Resampling strategies such as cross-conformal, CV+, Jackknife+, and
+> JaB+ use data more efficiently and often work well in practice, but their
+> guarantees are weaker, approximate, asymptotic, or looser depending on the
+> method. `mode="plus"` is the validity-oriented default for these families;
+> `mode="single_model"` is lighter but weakens the validity story further.
 
 ## Detailed Strategy Characteristics
 
@@ -48,104 +54,49 @@ strategy = Split(n_calib=0.2)  # Use 20% for calibration
 strategy = Split(n_calib=2000)  # Use exactly 2000 samples
 ```
 
-### Jackknife+ Conformal
+### Data-Efficient Resampling
 
 **When to use:**
-- Medium-sized datasets (1,000-10,000 samples)
-- When you need good accuracy without excessive computation
-- Production systems with moderate performance requirements
-- General-purpose applications
+- Small to medium datasets where a fixed calibration holdout is too costly
+- Applications where every observation should help train at least one model
+- Research workflows where you can spend extra computation for smoother results
+- Production workflows where the memory and latency costs are acceptable
 
 **Advantages:**
-- Uses all training data efficiently
-- Provides theoretical finite-sample guarantees
-- Good balance of speed and accuracy
-- Automatic calibration set sizing
+- Avoids permanently reserving a calibration-only subset
+- Lets each observation contribute through folds, leave-one-out fits, or
+  bootstrap out-of-bag structure
+- Often improves practical power when data is scarce
+- `mode="plus"` gives the most defensible resampling option in this package
 
 **Disadvantages:**
 - More computationally expensive than Split
-- Memory usage scales with training set size
-- Cannot easily parallelize calibration
+- Memory usage can grow with folds, leave-one-out models, or bootstraps
+- Guarantees are weaker, approximate, asymptotic, or looser than the clean
+  split-conformal baseline, depending on the method
+- Method choice depends on dataset size and compute budget
 
-**Configuration example:**
+**Configuration examples:**
 ```python
-from nonconform import CrossValidation
+from nonconform import CrossValidation, JackknifeBootstrap
 
-# Standard Jackknife+ (recommended) - use factory method
-strategy = CrossValidation.jackknife(mode="plus")
-
-# Regular Jackknife (less conservative)
-strategy = CrossValidation.jackknife(mode="single_model")
-```
-
-### Cross-Validation Conformal
-
-**When to use:**
-- Small to medium datasets (<5,000 samples)
-- When maximum data efficiency is crucial
-- Research applications requiring robust results
-- When you have sufficient computational budget
-
-**Advantages:**
-- Most efficient use of available data
-- Provides robust calibration estimates
-- Works well with limited training data
-- Theoretical guarantees with finite-sample corrections
-
-**Disadvantages:**
-- Highest computational cost
-- Memory intensive for large datasets
-- Longer training times
-- Complex implementation
-
-**Configuration example:**
-```python
-from nonconform import CrossValidation
-
-# Standard 5-fold CV+ (recommended)
+# Practical default for limited data
 strategy = CrossValidation(k=5, mode="plus")
 
-# More folds for smaller datasets
-strategy = CrossValidation(k=10, mode="plus")
+# Leave-one-out variant for very small datasets
+strategy = CrossValidation.jackknife(mode="plus")
 
-# Faster alternative without plus correction
-strategy = CrossValidation(k=3, mode="single_model")
+# Bootstrap variant for stability analysis
+strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
 ```
 
-### Bootstrap Conformal
+**How to choose inside the family:**
 
-**When to use:**
-- When uncertainty quantification is critical
-- Research applications requiring statistical robustness
-- Noisy or heterogeneous training data
-- When computational cost is not a primary concern
-
-**Advantages:**
-- Most robust calibration under model uncertainty
-- Provides distribution of calibration estimates
-- Works well with complex data distributions
-- Best theoretical properties
-
-**Disadvantages:**
-- Highest computational cost
-- Requires careful tuning of bootstrap parameters
-- Memory intensive
-- Longest training times
-
-**Configuration example:**
-
-```python
-from nonconform import JackknifeBootstrap
-
-# Standard JaB+ (typically 100+ bootstraps)
-strategy = JackknifeBootstrap(n_bootstraps=100)
-
-# High-precision JaB+ for research
-strategy = JackknifeBootstrap(n_bootstraps=200)
-
-# Fast JaB+ for prototyping
-strategy = JackknifeBootstrap(n_bootstraps=50)
-```
+| Method | Good First Use | Watch Out For |
+|--------|----------------|---------------|
+| CV+ | Limited data with practical compute | More folds cost more model fits |
+| Jackknife+ | Very small data | Leave-one-out fitting can be expensive |
+| JaB+ | Bootstrap stability or noisy data | Too few bootstraps can be unstable |
 
 ## Decision Framework
 
@@ -207,7 +158,8 @@ strategy = JackknifeBootstrap(n_bootstraps=200)
 - Choose based on computational constraints
 
 **Non-exchangeable data (distribution shift):**
-- Consider weighted conformal detection
+- Consider weighted conformal detection only when the shift is plausibly
+  covariate shift with support overlap
 - JackknifeBootstrap strategy may provide additional robustness
 - Monitor calibration performance over time
 
@@ -245,7 +197,8 @@ If you observe degraded performance after strategy changes:
 
 1. **Check calibration set size:** Ensure adequate samples for reliable calibration
 2. **Validate data assumptions:** Verify exchangeability hasn't changed
-3. **Monitor drift:** Use weighted conformal if distribution shift detected
+3. **Monitor drift:** Use weighted conformal only when detected drift matches
+   the covariate-shift assumptions
 4. **Adjust parameters:** Tune strategy-specific parameters
 
 ## Common Pitfalls
@@ -255,20 +208,13 @@ If you observe degraded performance after strategy changes:
 - **Don't:** Use fixed small calibration sets with varying dataset sizes
 - **Do:** Use proportional calibration sizing for consistency
 
-### Jackknife+ Conformal
-- **Don't:** Use with extremely large datasets if memory is constrained
-- **Don't:** Forget that it requires n+1 model fits
-- **Do:** Enable parallel processing where available
-
-### Cross-Validation Conformal
+### Resampling Strategies
 - **Don't:** Use too many folds with small datasets (overfitting risk)
-- **Don't:** Use without plus correction in critical applications
-- **Do:** Balance n_folds with computational budget
-
-### JackknifeBootstrap (JaB+) Conformal
+- **Don't:** Treat `mode="single_model"` as equivalent to plus-style resampling
+- **Don't:** Forget that Jackknife+ requires one fit per observation
 - **Don't:** Use too few bootstraps (<20) for robust estimates
-- **Don't:** Ignore bootstrap variance in interpretation
-- **Do:** Monitor convergence of bootstrap estimates
+- **Do:** Balance folds, leave-one-out fits, or bootstraps against your compute budget
+- **Do:** Monitor bootstrap stability when using JaB+
 
 ## Benchmarking Your Choice
 
@@ -280,9 +226,10 @@ from nonconform.metrics import false_discovery_rate, statistical_power
 
 # Compare strategies on your data
 strategies = {
-    'Split': Split(n_calib=0.2),
-    'Jackknife+': CrossValidation.jackknife(mode="plus"),
-    'JaB+': JackknifeBootstrap(n_bootstraps=100)
+    "Split": Split(n_calib=0.2),
+    "CV+": CrossValidation(k=5, mode="plus"),
+    "Jackknife+": CrossValidation.jackknife(mode="plus"),
+    "JaB+": JackknifeBootstrap(n_bootstraps=100, mode="plus"),
 }
 
 for name, strategy in strategies.items():

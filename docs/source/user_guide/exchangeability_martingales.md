@@ -22,11 +22,14 @@ Implemented methods in this release:
 
 These martingales are conformal/exchangeability tests. Their validity relies on:
 
-- under exchangeability, conformal p-values are approximately i.i.d.
-  `Uniform(0, 1)` (independent and uniformly distributed)
+- under exchangeability, the sequential conformal p-values used by the
+  martingale are valid and, with proper randomized tie-breaking in the classical
+  construction, i.i.d. `Uniform(0, 1)`
 
-Raw anomaly scores do not satisfy this requirement directly. Use `ConformalDetector`
-to produce p-values first, then feed those p-values into a martingale.
+Raw anomaly scores do not satisfy this requirement directly. Use
+`ConformalDetector` to produce p-values first, then feed those p-values into a
+martingale. The martingale classes do not repair invalid p-values, temporal
+dependence, or detector retraining choices that break the conformal assumptions.
 
 ## Basic Usage
 
@@ -202,5 +205,9 @@ Scope of this guarantee:
 
 - Keep detector retraining logic outside the martingale classes in this release.
 - Interpret alarms as evidence signals, not automated retraining decisions.
+- Exact exchangeability-martingale validity follows the sequential conformal
+  setup in the paper. If you reuse a fixed calibration set to score a stream,
+  treat alarms as monitoring signals unless you have separately justified the
+  resulting p-value sequence.
 - If temporal dependence is strong, p-value validity can degrade; monitor model and
   data assumptions alongside evidence statistics.

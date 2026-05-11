@@ -11,10 +11,20 @@ Calibration strategies with trade-offs between efficiency and robustness.
 | Medium (500-5,000) | Any | `JackknifeBootstrap(n_bootstraps=100)` |
 | Small (<500) | Any | `CrossValidation.jackknife()` |
 
-For very small datasets, use `CrossValidation.jackknife()` when you need strict finite-sample guarantees.
-If you need smoother p-values, consider `Probabilistic()` (KDE-based), noting this trades strict finite-sample guarantees for asymptotic behavior.
-For CV/Jackknife/Bootstrap-style conformalization, strict finite-sample theoretical guarantees are tied to the `"plus"` variants (`CV+`, `Jackknife+`, `JaB+`).
-`mode="single_model"` can perform similarly in practice and is lighter at inference time, but it does not provide the same strict guarantees.
+Split conformal is the cleanest strict finite-sample baseline because the fitted
+model and calibration scores are separated. Resampling strategies
+(`CrossValidation`, Jackknife, Jackknife+, and JaB+) use data more efficiently
+and often give good error control in practice, but their guarantees are weaker,
+approximate, asymptotic, or looser depending on the method. For example,
+J+aB-style bounds can allow a larger failure rate than the nominal split
+conformal target. If you need smoother p-values, consider `Probabilistic()`
+(KDE-based), noting this trades finite-sample conformal guarantees for
+asymptotic behavior.
+
+For CV/Jackknife/Bootstrap-style conformalization, `mode="plus"` is the more
+defensible validity-oriented default. `mode="single_model"` can perform
+similarly in practice and is lighter at inference time, but it weakens the
+validity story further.
 
 For detailed guidance, see [Choosing Strategies](choosing_strategies.md).
 
@@ -122,7 +132,7 @@ strategy = CrossValidation.jackknife(mode="plus")
 
 ## Mode Semantics
 
-CrossValidation and JackknifeBootstrap strategies support `"plus"` mode for stronger conformal validity behavior in anomaly detection workflows [[Barber et al., 2021](#references)]:
+CrossValidation and JackknifeBootstrap strategies support `"plus"` mode for stronger conformal validity behavior in anomaly detection workflows [[Barber et al., 2021](#references); [Kim et al., 2020](#references)]:
 
 ```python
 # Enable plus mode for CV strategies
@@ -133,17 +143,17 @@ strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
 
 **`mode="plus"` provides:**
 - Higher statistical efficiency in theory [[Barber et al., 2021](#references)]
-- Better finite-sample properties
+- Better resampling-based validity behavior than `single_model`
 - Slightly higher computational cost
-- Strict finite-sample/theoretical guarantees for these strategy families
+- A more defensible approximation or looser guarantee, depending on the method
 
-The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined variant that is typically preferred when strict finite-sample validity is the priority.
+The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined variant that is typically preferred when validity is the priority, but it should not be read as equivalent to the strict split-conformal guarantee.
 
 **`mode="single_model"` provides:**
 - Lower inference-time memory footprint
 - One final detector trained on full data for inference
 - Can be close to `mode="plus"` in practice for some datasets
-- No strict finite-sample/theoretical guarantee comparable to `"plus"`
+- No validity guarantee comparable to `mode="plus"`
 
 ## Performance Comparison
 
@@ -179,11 +189,13 @@ detector = ConformalDetector(
 
 ## References
 
-- **Kim, B., Xu, C., & Barber, R. F. (2020)**. *Predictive Inference Is Free with the Jackknife+-after-Bootstrap.* Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method for bootstrap-based conformal calibration]
+- **Vovk, V. (2015)**. *Cross-conformal predictors*. Annals of Mathematics and Artificial Intelligence, 74(1-2), 9-28. [Cross-conformal prediction and empirical validity]
+
+- **Kim, B., Xu, C., & Barber, R. F. (2020)**. *Predictive Inference Is Free with the Jackknife+-after-Bootstrap.* Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method with looser coverage guarantees]
 
 - **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**. *Predictive Inference with the Jackknife+*. The Annals of Statistics, 49(1), 486-507. [Jackknife+ method with improved finite-sample efficiency]
 
-- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [Foundational work on conformal prediction and cross-conformal prediction]
+- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [Foundational work on conformal prediction]
 
 - **Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018)**. *Distribution-Free Predictive Inference for Regression*. Journal of the American Statistical Association, 113(523), 1094-1111. [Split conformal prediction with theoretical guarantees]
 

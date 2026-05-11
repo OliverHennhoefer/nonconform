@@ -6,30 +6,34 @@ When you test many observations for anomalies, some will look anomalous by
 chance even if they are truly normal. For example, testing 1,000 observations
 at significance level alpha = 0.05 yields about 50 false positives on average.
 
-**False Discovery Rate (FDR)** is the proportion of false positives among all the observations you flag as anomalies:
+The false discovery proportion in one realized batch is the fraction of false positives among all observations you flag as anomalies:
 
-$$\text{FDR} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
+$$\text{FDP} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
 
-An equivalent operational interpretation is:
+More precisely, that displayed fraction is the realized false discovery
+proportion; FDR is its expectation.
+
+An equivalent operational interpretation of the expected proportion is:
 
 $$\text{FDR} \approx \frac{\text{Wasted Effort (chasing false positives)}}{\text{Total Investigation Effort}}$$
 
-**FDR control** adjusts your threshold so that this proportion stays below a
-target level (for example, 5%). This differs from controlling false positives
-per individual test: FDR controls the error proportion among the points you
-actually flag.
+**False Discovery Rate (FDR)** is the expectation of that proportion over
+repeated data draws. FDR control adjusts your threshold so that this expected
+proportion stays below a target level (for example, 5%) when the assumptions
+hold. This differs from controlling false positives per individual test: FDR
+controls the average error proportion among the points you actually flag.
 
 !!! example "Example"
     Suppose your pipeline flags 100 observations as anomalies with
-    `alpha = 0.05` FDR control.
+    `alpha = 0.05` FDR control and the statistical assumptions hold.
 
-    - Expected false alarms: about 5
-    - Useful follow-ups: about 95
+    - Target: expected false discovery proportion at or below 5%
+    - Realized false alarms in one batch can be lower or higher
 
     Now compare this to an uncontrolled setup that flags 200 observations,
     where 50 are false positives:
 
-    - False positives: 50/200 = 25% FDR
+    - False positives: 50/200 = 25% realized FDP
     - This means 1 in 4 investigations is wasted effort
 
 ---
@@ -60,7 +64,8 @@ mask = detector.select(
 ```
 
 When you need raw p-values for custom downstream analysis (multi-alpha sweeps,
-combining detectors, etc.), use `compute_p_values(...)` plus SciPy BH:
+diagnostics, or a separately justified combination workflow), use
+`compute_p_values(...)` plus SciPy BH:
 
 ```python
 from scipy.stats import false_discovery_control
@@ -79,7 +84,7 @@ decisions = false_discovery_control(p_values, method="bh") <= 0.05
 
 ## Selection Entry Points
 
-**Primary (recommended):** `detector.select(X_test, alpha=...)` â€” dispatches
+**Primary (recommended):** `detector.select(X_test, alpha=...)` - dispatches
 automatically based on detector configuration; no manual result-bundle
 handling required.
 
@@ -109,6 +114,11 @@ BH-style selection applied to conformal p-values has guarantees that depend on:
 - how valid/calibrated those p-values are,
 - exchangeability (or the relevant data-shift assumptions for weighted methods),
 - and BH dependence assumptions (independence or PRDS).
+
+For standard split conformal outlier p-values, Bates et al. prove the PRDS
+property needed for BH under their assumptions. This does not mean arbitrary
+post-processing is safe: shared calibration data can make generic p-value
+combination procedures invalid without additional justification.
 
 In other words, the selection routine itself does not create validity from
 invalid inputs; it preserves guarantees under the assumptions above.
@@ -169,7 +179,7 @@ detector = ConformalDetector(
 
 detector.fit(X_train)
 
-# FDR-controlled selection at 5% â€” single call
+# FDR-controlled selection at 5% - single call
 discoveries = detector.select(X_test, alpha=0.05)
 
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
@@ -177,9 +187,10 @@ print(f"FDR-controlled discoveries: {discoveries.sum()}")
 
 ## Weighted Conformal Selection
 
-When calibration and test distributions differ, configure a `weight_estimator`
-and call `select()` â€” it automatically dispatches to Weighted Conformalized
-Selection (WCS):
+When calibration and test distributions differ in a way that matches the
+covariate-shift assumptions, configure a `weight_estimator` and call
+`select()` - it automatically dispatches to Weighted Conformalized Selection
+(WCS):
 
 ```python
 from nonconform import ConformalDetector, JackknifeBootstrap, logistic_weight_estimator
@@ -205,9 +216,10 @@ selected = detector.select(
 print(f"Selected points: {selected.sum()} / {len(selected)}")
 ```
 
-The ``pruning`` parameter controls tie handling. ``DETERMINISTIC`` uses a fixed
-rule. ``HOMOGENEOUS`` and ``HETEROGENEOUS`` use shared or independent
-randomness. Set ``seed`` for reproducible randomized pruning decisions.
+The ``pruning`` parameter controls the second-stage WCS pruning rule.
+``DETERMINISTIC`` uses a fixed rule. ``HOMOGENEOUS`` and ``HETEROGENEOUS`` use
+shared or independent randomness. Set ``seed`` for reproducible randomized
+pruning decisions.
 
 ## Available Methods
 
@@ -220,7 +232,8 @@ For direct BH control on conformal p-values, use
 - **Assumptions**: Independent tests, or tests satisfying positive regression
   dependence on subsets (PRDS). In plain terms, PRDS means small p-values tend
   to occur together in a positively dependent way; it is stricter than generic
-  "positive dependence."
+  "positive dependence." Standard split conformal outlier p-values satisfy
+  PRDS in the Bates et al. setting.
 - **Usage**: `false_discovery_control(p_values, method='bh')`
 
 ```python
@@ -270,7 +283,7 @@ for online settings (see [Online FDR Control for Streaming Data](#online-fdr-con
 
 ## Integration with Conformal Prediction
 
-`select()` dispatches automatically â€” standard or weighted â€” based on the
+`select()` dispatches automatically - standard or weighted - based on the
 detector's configuration:
 
 ```python

@@ -9,7 +9,7 @@
 
 ## Conformal Anomaly Detection
 
-Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees. **nonconform** wraps anomaly detectors (from [PyOD](https://pyod.readthedocs.io/en/latest/), scikit-learn, or custom implementations) and transforms their raw anomaly scores into statistically valid *p*-values. It applies principles from conformal prediction to one-class anomaly detection, enabling controlled false discovery rate (FDR) workflows with explicit statistical guarantees.
+Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees. **nonconform** wraps anomaly detectors (from [PyOD](https://pyod.readthedocs.io/en/latest/), scikit-learn, or custom implementations) and transforms their raw anomaly scores into conformal *p*-values. Under the assumptions of the selected method, these p-values support controlled false discovery rate (FDR) workflows with explicit, assumption-dependent guarantees.
 
 > **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables). The package is therefore not suited for spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
 

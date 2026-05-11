@@ -115,7 +115,6 @@ from scipy.stats import false_discovery_control
 from pyod.models.lof import LOF
 from pyod.models.iforest import IForest
 from pyod.models.ocsvm import OCSVM
-import numpy as np
 
 # Create multiple detectors
 detectors = {
@@ -139,10 +138,17 @@ for name, base_detector in detectors.items():
     p_values = conf_detector.compute_p_values(X_test)
     all_p_values[name] = p_values
 
-# Combine results (simple approach: use minimum p-value)
-ensemble_p_values = np.minimum.reduce(list(all_p_values.values()))
-ensemble_discoveries = false_discovery_control(ensemble_p_values, method='bh') < 0.05
+# Apply FDR control separately to each detector's conformal p-values
+discoveries_by_detector = {
+    name: false_discovery_control(p_values, method="bh") < 0.05
+    for name, p_values in all_p_values.items()
+}
 ```
+
+Do not combine conformal p-values by taking the minimum or by applying a generic
+combination test unless that combination has been justified for your calibration
+design. Shared calibration data induces dependence, so naive p-value ensembles
+can lose the guarantees you were trying to keep.
 
 ## Conformal Strategy Selection
 

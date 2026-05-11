@@ -3,17 +3,17 @@
 Learn the theoretical foundations of conformal inference for anomaly detection.
 
 !!! abstract "TL;DR"
-    **Conformal inference converts anomaly scores into p-values with statistical guarantees.**
+    **Conformal inference converts anomaly scores into calibrated p-values under clear assumptions.**
 
     - **The problem**: Traditional detectors output arbitrary scores with no principled threshold
     - **The solution**: Compare each test point's score against a calibration set to compute a p-value
-    - **The guarantee**: If a point is truly normal, its p-value is uniformly distributed—so a threshold of 0.05 gives exactly 5% false positives
+    - **The guarantee**: If a point is truly normal and exchangeable with calibration data, its p-value is super-uniform: $\Pr(p \le \alpha) \le \alpha$
     - **Key assumption**: Training and test data must be **exchangeable** (roughly: drawn from the same distribution)
-    - **For distribution shift**: Use weighted conformal prediction to adjust for differences between training and test distributions
+    - **For distribution shift**: Use weighted conformal only when the covariate-shift assumptions are appropriate
 
 ## What is Conformal Inference?
 
-Conformal inference is a framework for creating prediction intervals or hypothesis tests with finite-sample validity guarantees [[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In the context of anomaly detection, it transforms raw anomaly scores into statistically valid p-values [[Bates et al., 2023](#references)].
+Conformal inference is a framework for creating prediction intervals or hypothesis tests with assumption-lean validity guarantees [[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In the context of anomaly detection, split conformal methods transform raw anomaly scores into p-values that are marginally valid under exchangeability [[Bates et al., 2023](#references)].
 
 ### The Problem with Traditional Anomaly Detection
 
@@ -36,7 +36,7 @@ This approach has several issues:
 Conformal inference provides a principled way to convert scores to p-values:
 
 ```python
-# Conformal approach - statistically valid p-values
+# Conformal approach - calibrated p-values under exchangeability
 from nonconform import ConformalDetector, Split
 
 from scipy.stats import false_discovery_control
@@ -55,7 +55,7 @@ p_values = detector.fit(X_train).compute_p_values(X_test)
 
 # Apply Benjamini-Hochberg FDR control
 fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
-anomalies = fdr_corrected_pvals < 0.05  # Controls FDR at 5%
+anomalies = fdr_corrected_pvals < 0.05  # Controls FDR under the usual assumptions
 ```
 
 `fit(...)` remains the default one-call workflow: train + calibrate together.
@@ -75,6 +75,8 @@ where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
 **In plain English**: The p-value is the fraction of calibration points that have scores at least as extreme as the test point. If 5 out of 100 calibration points have higher scores than your test point, the p-value is (1+5)/(100+1) ≈ 0.06. The "+1" terms ensure the p-value is never exactly 0 and accounts for the test point itself.
 
+If your detector uses the opposite score direction (lower scores are more anomalous), reverse the inequality in the indicator. `nonconform` handles this through score polarity configuration.
+
 ### Statistical Validity
 
 !!! tip "Key Property"
@@ -87,7 +89,7 @@ where $\mathbf{1}\{\cdot\}$ is the indicator function.
 !!! warning "Statistical Assumption"
     This guarantee holds under the null hypothesis that $X_{test}$ comes from the same distribution as calibration data. For truly anomalous instances (not from the calibration distribution), this probability statement does not apply.
 
-This means that if we declare $X_{test}$ anomalous when $p_{classical}(X_{test}) \leq 0.05$, we'll have at most a 5% false positive rate **among normal instances**. The overall false positive rate in practice depends on the proportion of normal vs. anomalous instances in your test data.
+This is a marginal statement over the random calibration data and the new test point. It means that if we declare $X_{test}$ anomalous when $p_{classical}(X_{test}) \leq 0.05$, the false positive probability is at most 5% **among normal instances** under the assumptions. It does not promise exactly 5% false positives in every realized batch or for every fixed calibration set.
 
 ### Intuitive Understanding
 
@@ -99,7 +101,7 @@ The p-value answers: "If this instance were normal, what's the probability of a 
 
 ### Randomized/Smoothed P-values
 
-Building on the classical conformal framework, [[Jin & Candès, 2023](#references)] introduced randomized smoothing to handle ties in the calibration scores. The randomized conformal p-value is:
+Randomized tie-breaking is a standard conformal device for handling ties in the calibration scores and is also used in weighted conformal work [[Jin & Candès, 2023](#references)]. For the score direction above, the randomized conformal p-value is:
 
 $$p_{rand}(X_{test}) = \frac{|\{i: s(X_i) > s(X_{test})\}| + U \cdot (|\{i: s(X_i) = s(X_{test})\}| + 1)}{n+1}$$
 
@@ -124,7 +126,7 @@ estimation = Empirical(tie_break="randomized")
     - `None` is not a valid value
 
 !!! warning "Small Calibration Sets"
-    With small calibration sets, randomized smoothing can produce anti-conservative p-values that may work against the nominal FDR level. Consider using the classical formula or the `Probabilistic()` estimator in such cases.
+    With small calibration sets, all empirical conformal p-values have coarse resolution, and randomized smoothing adds run-to-run variability. Use the classical formula when you prefer deterministic conservative behavior.
 
 !!! tip "Alternative: Probabilistic Estimation"
     The `Probabilistic()` estimator uses kernel density estimation (KDE) to produce continuous p-values. This addresses both the resolution collapse of classical discrete p-values and the potential variance increase from randomized smoothing. Note that this trades the finite-sample guarantee of conformal p-values for an asymptotic guarantee.
@@ -148,8 +150,8 @@ calibration behavior than standard marginal conformal p-values.
   `asymptotic` maps).
 
 **Expected benefits and tradeoffs**
-- Benefit: more conservative, conditionally calibrated p-values that can
-  improve stability of downstream selection.
+- Benefit: more conservative p-values designed to be valid conditional on the
+  realized calibration set with high probability.
 - Tradeoff: fewer discoveries are common, and `method="mc"` adds Monte Carlo
   computation.
 
@@ -162,6 +164,12 @@ $$
 
 where $p_j$ is the empirical conformal p-value and
 $C_{n_{\text{cal}}, \delta}$ is a finite-sample calibration map.
+
+The goal is different from ordinary marginal validity: with probability at
+least $1-\delta$ over the calibration set, future null p-values should be
+super-uniform conditional on that calibration set. This stronger target is useful
+when one fixed calibration set will be reused for many decisions, but it usually
+costs power.
 
 Available maps are:
 
@@ -228,9 +236,9 @@ Under exchangeability assumptions:
 
 | Method | Calibration map type | Practical guarantee scope |
 |---|---|---|
-| `dkwm` | Finite-sample concentration bound | Finite-sample style calibration map |
-| `simes` | Finite-sample sequence-based map | Finite-sample style calibration map |
-| `mc` | Monte Carlo-calibrated finite-sample map | Finite-sample style map with MC-estimated correction |
+| `dkwm` | Finite-sample concentration bound | Finite-sample conditional calibration map |
+| `simes` | Finite-sample sequence-based map | Finite-sample conditional calibration map |
+| `mc` | Monte Carlo-calibrated finite-sample map | Finite-sample map with simulation-estimated correction |
 | `asymptotic` | Iterated-log asymptotic map | Asymptotic approximation, not finite-sample exact |
 
 #### Choosing a calibration `method`
@@ -276,7 +284,7 @@ $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(
 - Same measurement conditions and feature distributions
 - No covariate shift between calibration and test phases
 
-Under exchangeability, standard conformal p-values provide exact finite-sample false positive rate control: for any significance level $\alpha$, the probability that a normal instance receives a p-value ≤ $\alpha$ is at most $\alpha$. This enables principled anomaly detection with known error rates and valid FDR control procedures.
+Under exchangeability, split conformal p-values provide finite-sample marginal false positive rate control: for any significance level $\alpha$, the probability that a normal instance receives a p-value ≤ $\alpha$ is at most $\alpha$. For many simultaneous tests, BH-style FDR control also needs the relevant dependence assumptions; Bates et al. show the standard marginal conformal p-values have the PRDS property needed for BH in their outlier-detection setting.
 
 ### When Exchangeability is Violated
 
@@ -288,13 +296,13 @@ Under exchangeability, standard conformal p-values provide exact finite-sample f
 
 **Statistical consequence**: When exchangeability fails, standard conformal p-values lose their coverage guarantees and may become systematically miscalibrated.
 
-**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data, restoring validity under certain covariate shifts [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key limitations**:
+**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data and can restore validity under certain covariate shifts [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key limitations**:
 
 1. **Assumption**: Requires that P(Y|X) remains constant while only P(X) changes
 2. **Density ratio estimation errors**: Inaccurate weight estimation can degrade or even worsen performance
 3. **High-dimensional challenges**: Density ratio estimation becomes unreliable in high dimensions or with limited data
 4. **Distribution support**: Requires sufficient overlap between calibration and test distributions
-5. **No guarantee**: Unlike standard conformal prediction, weighted methods may not maintain exact finite-sample guarantees when assumptions are violated
+5. **No automatic guarantee under misspecification**: When the covariate-shift assumptions fail, the stated guarantees no longer apply
 
 The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success depends on both valid covariate shift assumptions and accurate density ratio estimation.
 
@@ -675,13 +683,13 @@ p_values = predict_in_batches(detector, X_test_large)
 
 ### Conformal Anomaly Detection
 
-- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Application of conformal prediction to anomaly detection with finite-sample guarantees]
+- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Conformal outlier p-values, marginal validity, and BH/PRDS behavior]
 
 - **Angelopoulos, A. N., & Bates, S. (2023)**. *Conformal Prediction: A Gentle Introduction*. Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive modern introduction to conformal prediction]
 
 ### Weighted Conformal Inference
 
-- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal methods for handling distribution shift]
+- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal methods and WCS under covariate shift]
 
 - **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with covariate shift]
 
@@ -694,7 +702,7 @@ p_values = predict_in_batches(detector, X_test_large)
 ## Next Steps
 
 - Learn about [different conformalization strategies](conformalization_strategies.md) in detail
-- Understand [weighted conformal p-values](weighted_conformal.md) for handling distribution shift
+- Understand [weighted conformal p-values](weighted_conformal.md) for covariate-shift settings
 - Explore [FDR control](fdr_control.md) for multiple testing scenarios
 - Check out [best practices](best_practices.md) for production deployment
 - Review the [troubleshooting guide](troubleshooting.md) for common issues

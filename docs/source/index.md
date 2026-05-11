@@ -1,6 +1,6 @@
 # nonconform
 
-**Turn anomaly scores into statistically valid decisions.**
+**Turn anomaly scores into calibrated decisions under explicit assumptions.**
 
 Traditional anomaly detectors output scores and require arbitrary thresholds.
 nonconform converts raw scores to conformal p-values and supports principled
@@ -35,7 +35,7 @@ discoveries = detector.select(X_test, alpha=0.05)
 
 Use this library when you need:
 
-- Statistical guarantees on anomaly decisions
+- Statistical guarantees with clearly stated assumptions
 - Principled thresholds instead of ad hoc cutoffs
 - Multiple testing correction
 - Calibrated uncertainty for downstream workflows
@@ -51,9 +51,9 @@ Use this library when you need:
 
 ## Key Features
 
-- Conformal inference with finite-sample guarantees
+- Split conformal inference with finite-sample marginal guarantees
 - Detector agnostic design (PyOD, scikit-learn, custom detectors)
-- Multiple calibration strategies (Split, CV, Jackknife+ variants)
+- Multiple calibration strategies, including data-efficient resampling variants
 - FDR and weighted FDR workflows
 - Covariate-shift handling via weighted conformal methods
 

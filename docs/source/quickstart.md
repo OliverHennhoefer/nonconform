@@ -6,7 +6,7 @@ Get started with nonconform in minutes.
 
 By the end of this guide, you'll know how to:
 
-1. Wrap anomaly detectors to get statistically valid p-values
+1. Wrap anomaly detectors to get calibrated conformal p-values
 2. Use FDR control to make principled anomaly decisions
 3. Use `detector.last_result` for downstream workflows
 4. Choose between a minimal core path and an anomaly-ready path

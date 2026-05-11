@@ -1,9 +1,10 @@
 # Weighted Conformal P-values
 
-Handle distribution shift between training and test data while maintaining statistical guarantees.
+Handle covariate shift between calibration and test data when the weighted
+conformal assumptions are appropriate.
 
 !!! abstract "Executive Summary"
-    **When to use**: Your test data comes from a different distribution than your training data (e.g., different time period, different sensor, different domain).
+    **When to use**: Your test data comes from a different feature distribution than your calibration data, while the anomaly mechanism is still stable.
 
     **How it works**: Weighted conformal prediction estimates how much the distributions differ and reweights the calibration data accordingly.
 
@@ -19,11 +20,13 @@ Handle distribution shift between training and test data while maintaining stati
     )
     ```
 
-    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same. You also need sufficient feature-support overlap between calibration and test data; if distributions are too far apart, weighting can become unstable and guarantees can degrade.
+    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same. You also need independence, sufficient feature-support overlap, and good enough weights; if distributions are too far apart, weighting can become unstable and guarantees can degrade.
 
 ## Overview
 
-Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) – the relationship between features and anomaly status – remains constant. This assumption is crucial for the validity of weighted conformal inference. A second practical requirement is sufficient support overlap between calibration and test feature distributions; when shift is too extreme, estimated density ratios become unstable and weighted conformal adjustment may fail. When assumptions hold you can pair the p-values with Weighted Conformal Selection (WCS) to obtain rigorous False Discovery Rate control under distribution shift [[Jin & Candès, 2023](#references)].
+Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) - the relationship between features and anomaly status - remains constant. This assumption is crucial for weighted conformal inference. You also need independent calibration/test samples and sufficient support overlap between calibration and test feature distributions; when shift is too extreme, estimated density ratios become unstable and weighted conformal adjustment may fail.
+
+The weighted p-values provide per-hypothesis calibration under the paper's assumptions. For multiple simultaneous anomaly decisions, pair them with Weighted Conformalized Selection (WCS); this is the documented finite-sample FDR path under covariate shift [[Jin & Candès, 2023](#references)]. If the weights are learned rather than known, exactness depends on weight quality and the paper's estimated-weight bounds should be read as potential FDR inflation rather than an automatic exact guarantee.
 
 The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
 
@@ -183,7 +186,7 @@ print(f"Weighted conformal detections: {weighted_mask.sum()}")
 
 ## Different Aggregation Strategies
 
-The choice of aggregation method can affect performance under distribution shift:
+The choice of aggregation method can affect performance under covariate shift:
 
 ```python
 # Compare different aggregation methods
@@ -236,7 +239,7 @@ detector = ConformalDetector(
 ```
 
 **When to use**:
-- Linear or moderately complex distribution shifts
+- Linear or moderately complex covariate shifts
 - High-dimensional data where interpretability matters
 - Fast weight estimation is needed
 - Default choice for most applications
@@ -264,7 +267,7 @@ detector = ConformalDetector(
 ```
 
 **When to use**:
-- Complex, non-linear distribution shifts
+- Complex, non-linear covariate shifts
 - Feature interactions are important
 - More robust to outliers in feature space
 - When you have sufficient calibration data (hundreds+ samples)
@@ -366,7 +369,7 @@ Every instance receives exactly n_bootstraps weight estimates, ensuring symmetri
    - Fraud detection with limited transactions
    - Safety-critical systems
 
-3. **Severe distribution shift**: When base estimators produce extreme weights
+3. **Severe covariate shift**: When base estimators produce extreme weights
 
 **DO NOT use for:**
 
@@ -524,7 +527,11 @@ cv_detector = ConformalDetector(
 
 ## Weighted Conformal Selection
 
-Weighted conformal p-values are valid on their own. To obtain finite-sample FDR control under covariate shift, combine them with Weighted Conformal Selection (WCS) [[Jin & Candès, 2023](#references)]:
+Weighted conformal p-values provide per-hypothesis calibration under covariate
+shift assumptions. To obtain finite-sample FDR control across many test points,
+combine them with Weighted Conformal Selection (WCS) under the independence,
+support-overlap, and weight-quality assumptions in Jin & Candès [[Jin & Candès,
+2023](#references)]:
 
 ```python
 from nonconform.enums import Pruning
@@ -586,7 +593,8 @@ wcs_empirical = weighted_false_discovery_control_from_arrays(
 
 ### Pruning Modes
 
-The `pruning` parameter controls how ties and randomization are handled in the WCS procedure [[Jin & Candès, 2023](#references)]:
+The `pruning` parameter controls the second-stage WCS pruning rule [[Jin &
+Candès, 2023](#references)]:
 
 #### Pruning.DETERMINISTIC
 
@@ -599,7 +607,7 @@ wcs_mask = weighted_detector.select(
 )
 ```
 
-**Behavior**: Uses a deterministic threshold without randomization. When there are tied p-values at the threshold, includes all or none based on deterministic rule.
+**Behavior**: Uses the deterministic WCS pruning rule without additional randomization.
 
 **When to use**:
 - Reproducibility is critical
@@ -619,11 +627,11 @@ wcs_mask = weighted_detector.select(
 )
 ```
 
-**Behavior**: Draws a single uniform random variable and applies the same randomized threshold to all test instances. Handles ties by probabilistically including tied instances.
+**Behavior**: Draws a single uniform random variable and applies the same pruning randomization across test instances.
 
 **When to use**:
 - Default randomized method
-- Want exact FDR control in expectation
+- Want randomized WCS pruning under the method's assumptions
 - Acceptable to have some randomness
 
 **Trade-off**: Less conservative than DETERMINISTIC, but results vary across random seeds.
@@ -639,14 +647,13 @@ wcs_mask = weighted_detector.select(
 )
 ```
 
-**Behavior**: Draws independent uniform random variables for each test instance. Provides the most flexible randomization.
+**Behavior**: Draws independent uniform random variables for each test instance. Provides the most flexible pruning randomization.
 
 **When to use**:
-- Maximum power (fewer false negatives)
-- Most aggressive FDR control
-- Research settings where slight variance is acceptable
+- You want the less conservative randomized pruning option
+- Research settings where run-to-run variance is acceptable
 
-**Trade-off**: Highest variance across random seeds, but best expected power.
+**Trade-off**: Highest variance across random seeds, and often less conservative than deterministic pruning.
 
 ### Comparison of Pruning Methods
 
@@ -670,7 +677,9 @@ for pruning_method in pruning_methods:
     print(f"{pruning_method.name}: {wcs_mask.sum()} detections")
 ```
 
-**Expected relationship**: Typically HETEROGENEOUS ≥ HOMOGENEOUS ≥ DETERMINISTIC in terms of number of detections, though this can vary with data.
+**Expected relationship**: Deterministic pruning is contained in both randomized
+variants in the WCS theory, so it is usually the most conservative. The two
+randomized variants can differ by data set and seed.
 
 
 ## Performance Considerations
@@ -715,15 +724,16 @@ For large datasets, consider:
 
 ## Best Practices
 
-### 1. Validate Distribution Shift
-Always check if distribution shift is actually present:
+### 1. Validate Covariate Shift
+Always check whether a feature-distribution shift is actually present, and then
+separately decide whether the anomaly mechanism is still stable:
 
 ```python
 # Use statistical tests to detect shift
 from scipy.stats import ks_2samp
 
 def detect_feature_shift(X_train, X_test):
-    """Detect distribution shift in individual features."""
+    """Detect feature-distribution shift in individual features."""
     shift_detected = []
     p_values = []
 
@@ -806,11 +816,16 @@ for domain in domains:
     print(f"{domain}: {wcs_mask.sum()} discoveries")
 ```
 
-### Online Adaptation
+### Illustrative Online Reweighting Pattern
+
+The following is an engineering pattern for repeated batch processing. The WCS
+guarantee still applies only to batches that satisfy the covariate-shift,
+independence, support-overlap, and weight-quality assumptions.
+
 ```python
 from nonconform.enums import Pruning
 
-# Adapt to gradual distribution shift over time
+# Refit weights on each incoming batch when assumptions are plausible
 def online_weighted_detection(detector, data_stream, window_size=1000):
     """Online weighted conformal detection with sliding window."""
     detections = []
@@ -849,7 +864,7 @@ def online_weighted_detection(detector, data_stream, window_size=1000):
 
 2. **Extreme P-values**
    - All p-values near 0 or 1
-   - Solution: Check for severe distribution shift or model mismatch
+   - Solution: Check for severe covariate shift, poor support overlap, or model mismatch
 
 3. **Inconsistent Results**
    - High variance in detection counts

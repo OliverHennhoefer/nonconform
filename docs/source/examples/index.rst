@@ -6,8 +6,6 @@ Examples
    :caption: Contents:
 
    classical_conformal
+   resampling_conformal
    weighted_conformal
    fdr_control
-   bootstrap_conformal
-   cross_val_conformal
-   jackknife_conformal

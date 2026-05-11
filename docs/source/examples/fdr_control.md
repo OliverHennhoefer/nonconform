@@ -188,31 +188,6 @@ for name, p_vals in all_p_values.items():
     print(f"{name:<10} {raw_detections:<12} {fdr_discoveries.sum():<12} {empirical_fdr:<12.3f} {power:<10.3f}")
 ```
 
-## Ensemble with FDR Control
-
-```python
-# Combine p-values from multiple detectors and apply FDR control
-# Using Fisher's method for combining p-values
-from scipy.stats import combine_pvalues
-
-# Combine p-values using Fisher's method
-p_values_list = list(all_p_values.values())
-combined_stats, combined_p_values = combine_pvalues(np.array(p_values_list).T, method='fisher')
-
-# Apply FDR control to combined p-values
-adj_combined_p_vals = false_discovery_control(combined_p_values, method='bh')
-combined_discoveries = adj_combined_p_vals < 0.05
-
-# Evaluate ensemble performance using nonconform metrics
-ensemble_fdr = false_discovery_rate(y_test, combined_discoveries)
-ensemble_power = statistical_power(y_test, combined_discoveries)
-
-print(f"\nEnsemble with FDR Control:")
-print(f"Discoveries: {combined_discoveries.sum()}")
-print(f"Empirical FDR: {ensemble_fdr:.3f}")
-print(f"Statistical Power: {ensemble_power:.3f}")
-```
-
 ## Visualization
 
 ```python
@@ -308,4 +283,4 @@ for alpha, power in power_results.items():
 
 - Try [classical conformal detection](classical_conformal.md) for standard scenarios
 - Learn about [weighted conformal detection](weighted_conformal.md) for handling distribution shift
-- Explore [bootstrap-based detection](bootstrap_conformal.md) for uncertainty estimation
+- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly

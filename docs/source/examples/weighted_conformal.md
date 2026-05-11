@@ -1,6 +1,7 @@
 # Weighted Conformal Anomaly Detection
 
-Use weighted conformal prediction to handle distribution shift in anomaly detection.
+Use weighted conformal prediction for anomaly detection when the shift is
+plausibly covariate shift with support overlap and reliable weights.
 
 ## Setup
 
@@ -58,10 +59,10 @@ print(f"Discoveries with WCS (FDR control): {discoveries.sum()}")
 `aggregation` accepts: `"mean"`, `"median"`, `"minimum"`, `"maximum"`.
 Invalid values raise `ValueError`.
 
-## Handling Distribution Shift
+## Handling Covariate Shift
 
 ```python
-# Simulate distribution shift by adding noise
+# Simulate a simple feature-distribution change for illustration
 np.random.seed(42)
 X_shifted = X + np.random.normal(0, 0.1, X.shape)
 
@@ -115,10 +116,11 @@ print(f"Standard conformal discoveries (BH): {standard_disc.sum()}")
 print(f"Weighted conformal discoveries (WCS): {discoveries_shifted.sum()}")
 ```
 
-## Severe Distribution Shift Example
+## Benchmark Shift Example
 
 ```python
-# SHUTTLE dataset naturally exhibits covariate shift between train/test
+# This benchmark can be useful for comparing behavior under train/test
+# differences, but real guarantees still depend on covariate-shift assumptions.
 # X contains normal training data, X_test contains test data with anomalies
 
 # Standard conformal detector
@@ -272,4 +274,4 @@ print(f"Statistical Power: {statistical_power(y=y_test, y_hat=jab_discoveries):.
 
 - Try [classical conformal detection](classical_conformal.md) for standard scenarios
 - Learn about [FDR control](fdr_control.md) for multiple testing
-- Explore [bootstrap-based detection](bootstrap_conformal.md) for uncertainty estimation
+- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly

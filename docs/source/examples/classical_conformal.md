@@ -126,4 +126,4 @@ plt.show()
 
 - Try [weighted conformal detection](weighted_conformal.md) for handling distribution shift
 - Learn about [FDR control](fdr_control.md) for multiple testing
-- Explore [bootstrap-based detection](bootstrap_conformal.md) for uncertainty estimation
+- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly

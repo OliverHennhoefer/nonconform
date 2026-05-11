@@ -74,9 +74,7 @@ nav:
     - examples/index.md
     - Classical Conformal: examples/classical_conformal.md
     - Conditional Conformal: examples/conditional_conformal.md
-    - Bootstrap Conformal: examples/bootstrap_conformal.md
-    - Cross-Validation Conformal: examples/cross_val_conformal.md
-    - Jackknife Conformal: examples/jackknife_conformal.md
+    - Data-Efficient Resampling: examples/resampling_conformal.md
     - Weighted Conformal: examples/weighted_conformal.md
     - FDR Control: examples/fdr_control.md
   - API Reference:
