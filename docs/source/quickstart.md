@@ -2,6 +2,9 @@
 
 Get started with nonconform in minutes.
 
+This guide shows the default practitioner workflow: train a detector, calibrate
+its scores, and call `select(...)` to get FDR-controlled anomaly decisions.
+
 ## What You'll Learn
 
 By the end of this guide, you'll know how to:
@@ -12,6 +15,12 @@ By the end of this guide, you'll know how to:
 4. Choose between a minimal core path and an anomaly-ready path
 
 **Prerequisites**: Familiarity with Python and basic anomaly detection concepts.
+
+!!! note "Guarantee scope"
+    The examples assume that the normal training/calibration data and normal
+    test points are exchangeable. If deployment data is shifted, start with
+    [Weighted Conformal](user_guide/weighted_conformal.md) before relying on
+    the same validity claims.
 
 ---
 

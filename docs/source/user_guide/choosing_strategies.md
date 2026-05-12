@@ -1,6 +1,8 @@
 # Choosing Calibration Strategies
 
-This guide helps you select the optimal calibration strategy for your conformal anomaly detection task based on dataset characteristics, computational constraints, and accuracy requirements.
+This guide helps you choose a calibration strategy based on data size, runtime,
+memory, and how clean a validity story you need. The recommendations are
+starting points, not universal optima.
 
 ## Strategy Overview
 
@@ -8,12 +10,12 @@ nonconform provides one simple split baseline and a family of resampling
 strategies for cases where a holdout calibration split would waste too much
 data:
 
-| Strategy | Speed | Accuracy | Data Efficiency | Best For |
-|----------|-------|----------|-----------------|----------|
-| **Split** | ⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ | Large datasets, real-time |
-| **CV+** | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | Practical small-data default |
-| **Jackknife+** | ⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Very small datasets |
-| **JackknifeBootstrap (JaB+)** | ⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | Bootstrap stability |
+| Strategy | Speed | Data Efficiency | Validity Story | Best For |
+|---|---|---|---|---|
+| **Split** | High | Medium | Cleanest | Large datasets, production baselines |
+| **CV+** | Medium | High | Resampling-based | Practical small-data default |
+| **Jackknife+** | Low | Very high | Resampling-based | Very small datasets |
+| **JackknifeBootstrap (JaB+)** | Low | High | Looser resampling bound | Bootstrap stability |
 
 > **Guarantee note:** Split conformal is the cleanest strict finite-sample
 > baseline. Resampling strategies such as cross-conformal, CV+, Jackknife+, and
@@ -100,6 +102,9 @@ strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
 
 ## Decision Framework
 
+The thresholds below are practical defaults. Use labeled validation data when
+available and compare strategies on empirical FDR, power, runtime, and memory.
+
 ### 1. Dataset Size Considerations
 
 **Large datasets (>10,000 samples):**
@@ -143,9 +148,9 @@ strategy = Split(n_calib=1000)  # Fixed size for predictable performance
 strategy = JackknifeBootstrap(n_bootstraps=100)
 ```
 
-**Maximum accuracy (research/critical applications):**
+**Maximum robustness checks (research/high-rigor applications):**
 ```python
-# Most robust but slower
+# More resampling stability, but slower
 strategy = JackknifeBootstrap(n_bootstraps=200)
 ```
 
@@ -188,7 +193,8 @@ strategy = JackknifeBootstrap(n_bootstraps=200)
 
 1. **Development phase:** Use JackknifeBootstrap for robust results
 2. **Validation phase:** Compare with Jackknife+ for speed assessment
-3. **Production phase:** Deploy with Split for optimal performance
+3. **Production phase:** Deploy with Split when latency, memory, and simple
+   validation are the priorities
 4. **Monitoring phase:** Validate that Split maintains required accuracy
 
 ### Handling Performance Degradation
@@ -248,4 +254,11 @@ for name, strategy in strategies.items():
     print(f"{name}: FDR={fdr:.3f}, Power={power:.3f}")
 ```
 
-Choose the strategy that best meets your specific requirements for FDR control, statistical power, and computational performance.
+Choose the strategy that best meets your requirements for FDR control,
+statistical power, runtime, and memory. When in doubt, keep Split as a baseline:
+it is easier to reason about, and it makes assumption failures easier to spot.
+
+## References
+
+For the statistical background behind these recommendations, see
+[Conformalization Strategies](conformalization_strategies.md#references).

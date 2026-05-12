@@ -364,14 +364,16 @@ for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
     # Apply FDR control through select()
     decisions = detector.select(x_batch, alpha=0.05)
 
-    # Calculate controlled FDR
+    # Calculate empirical FDR on labeled evaluation data
     fdr = false_discovery_rate(y_batch, decisions)
     power = statistical_power(y_batch, decisions)
 
-    print(f"Batch {i+1}: Controlled FDR={fdr:.3f}, Power={power:.3f}")
+    print(f"Batch {i+1}: Empirical FDR={fdr:.3f}, Power={power:.3f}")
 
     if i >= 4:  # Stop after 5 batches
         break
 ```
 
-This batch evaluation approach provides systematic, reproducible testing for conformal anomaly detection with precise contamination control and statistical guarantees.
+This batch evaluation approach provides systematic, reproducible testing with
+precise contamination control. Statistical guarantees still depend on the
+conformal/FDR workflow and its assumptions.

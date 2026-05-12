@@ -654,18 +654,20 @@ for X_batch in stream:
     print(f"Detected {discoveries.sum()} anomalies in batch of {len(X_batch)}")
 ```
 
-**When to use this approach**:
+**When to consider this approach**:
 - Calibration set >1000 samples, test batches <50 samples (40:1 ratio or higher)
 - Missing anomalies is very costly (safety/security/medical critical)
-- Can afford 20-50x computational overhead for premium quality
-- Achieves near-perfect detection (100% recall) with controlled FDR
+- Can afford 20-50x computational overhead for weight-stability checks
+- You have labeled validation data showing that the added cost improves recall
+  without unacceptable false discoveries
 
-**Performance (1000 calib vs 25 test)**:
+**Illustrative benchmark (1000 calib vs 25 test)**:
 - Standard logistic_weight_estimator: 6.7% recall, 0.14s
-- Bootstrap Bagged Forest: **100% recall**, 6.4s (46x slower but perfect detection)
-- Eliminates all extreme weights, 48% better weight stability
+- Bootstrap Bagged Forest: 100% recall on this benchmark, 6.4s (46x slower)
+- Removed extreme weights and improved weight stability in this benchmark
 
 **Trade-offs**:
 - **Cost**: 6-7 seconds per prediction (vs 0.14s for base estimator)
-- **Quality**: Perfect anomaly detection, zero extreme weights
-- **Applicability**: Only beneficial for extreme imbalance; standard estimators sufficient for balanced sets
+- **Quality**: Potentially better weight stability under extreme imbalance
+- **Applicability**: Only consider for extreme imbalance; standard estimators are
+  often sufficient for balanced sets

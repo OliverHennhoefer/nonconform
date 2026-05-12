@@ -4,9 +4,12 @@ Handle covariate shift between calibration and test data when the weighted
 conformal assumptions are appropriate.
 
 !!! abstract "Executive Summary"
-    **When to use**: Your test data comes from a different feature distribution than your calibration data, while the anomaly mechanism is still stable.
+    **When to use**: Your test data comes from a different feature distribution
+    than your calibration data, while the anomaly mechanism is still stable.
 
-    **How it works**: Weighted conformal prediction estimates how much the distributions differ and reweights the calibration data accordingly.
+    **How it works**: Weighted conformal prediction estimates how much the
+    feature distributions differ and reweights the calibration evidence
+    accordingly.
 
     **Quick start**:
     ```python
@@ -20,15 +23,27 @@ conformal assumptions are appropriate.
     )
     ```
 
-    **Key assumption**: Only the feature distribution P(X) changes—the relationship between features and anomaly status P(Y|X) must stay the same. You also need independence, sufficient feature-support overlap, and good enough weights; if distributions are too far apart, weighting can become unstable and guarantees can degrade.
+    **Key assumption**: Only the feature distribution `P(X)` changes. The
+    relationship between features and anomaly status, `P(Y | X)`, must stay
+    stable. You also need independent samples, enough feature-support overlap,
+    and good enough weights. If distributions are too far apart, weighting can
+    become unstable and guarantees can degrade.
 
 ## Overview
 
-Weighted conformal p-values extend classical conformal prediction to handle covariate shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key assumption**: the marginal distribution P(X) may change between calibration and test data, while the conditional distribution P(Y|X) - the relationship between features and anomaly status - remains constant. This assumption is crucial for weighted conformal inference. You also need independent calibration/test samples and sufficient support overlap between calibration and test feature distributions; when shift is too extreme, estimated density ratios become unstable and weighted conformal adjustment may fail.
+Weighted conformal p-values extend classical conformal prediction to covariate
+shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al.,
+2019](#references)]. The marginal feature distribution `P(X)` may change between
+calibration and test data, but the conditional relationship `P(Y | X)` must stay
+stable. You also need independent calibration/test samples and enough support
+overlap between feature distributions; when shift is too extreme, estimated
+density ratios become unstable and weighted conformal adjustment may fail.
 
 The weighted p-values provide per-hypothesis calibration under the paper's assumptions. For multiple simultaneous anomaly decisions, pair them with Weighted Conformalized Selection (WCS); this is the documented finite-sample FDR path under covariate shift [[Jin & Candès, 2023](#references)]. If the weights are learned rather than known, exactness depends on weight quality and the paper's estimated-weight bounds should be read as potential FDR inflation rather than an automatic exact guarantee.
 
-The `ConformalDetector` with a `weight_estimator` parameter automatically estimates importance weights to distinguish between calibration and test samples, then uses these weights to compute adjusted p-values.
+`ConformalDetector(weight_estimator=...)` estimates importance weights by
+distinguishing calibration samples from the current test batch, then uses those
+weights to compute weighted p-values and WCS selections.
 
 ## Basic Usage
 
@@ -112,7 +127,13 @@ def weighted_p_value(test_score, calibration_scores, calibration_weights, test_w
 ```
 
 !!! info "Classical vs. Randomized"
-    By default, `Empirical()` uses `tie_break="classical"` (non-randomized formula). Valid values are `"classical"` and `"randomized"` (or `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`). `None` is not valid. For randomized smoothing as shown above, use `Empirical(tie_break="randomized")`. Note that with small calibration sets, randomized smoothing can produce anti-conservative p-values.
+    By default, `Empirical()` uses `tie_break="classical"` (non-randomized
+    formula). Valid values are `"classical"` and `"randomized"` (or
+    `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`). `None` is not valid.
+    For randomized smoothing as shown above, use
+    `Empirical(tie_break="randomized")`. With small calibration sets,
+    randomized smoothing is less conservative than the classical formula and
+    adds run-to-run variability; set a seed when reproducibility matters.
 
 ## When to Use Weighted Conformal
 
@@ -347,14 +368,15 @@ Bootstrap bagging creates an ensemble of weight estimators:
 1. **For each bootstrap iteration** (n_bootstraps times):
    - Resample both calibration and test sets to balanced size
    - Fit the base estimator on the bootstrap sample
-   - Score ALL original instances (perfect coverage)
+   - Score all original instances in that batch
    - Store log-weights for each instance
 
 2. **After all iterations**:
    - Aggregate using geometric mean (exp of mean log-weights)
    - Apply clipping to maintain bounded weights
 
-Every instance receives exactly n_bootstraps weight estimates, ensuring symmetric coverage regardless of set size ratios.
+Every instance receives exactly `n_bootstraps` weight estimates, ensuring
+symmetric scoring coverage regardless of calibration/test set size ratios.
 
 #### When to Use
 
@@ -379,7 +401,9 @@ Every instance receives exactly n_bootstraps weight estimates, ensuring symmetri
 
 #### Performance Benchmarks
 
-Empirical testing shows context-dependent value:
+The numbers below are illustrative development benchmarks for the estimator
+configuration shown here. They are not statistical guarantees and should not be
+carried over to a new dataset without local validation.
 
 ##### Balanced Scenario (1000 calib vs 1000 test)
 | Metric | Base | Bagged-50 | Improvement |
@@ -402,11 +426,12 @@ Empirical testing shows context-dependent value:
 |--------|-------------|------------------|-------------|
 | Weight Std | 0.153 | 0.259 | Slightly higher but stable |
 | Extreme Weights | 599 | **0** | **100% elimination** |
-| Recall | 0.333 | **1.000** | **Perfect detection** |
+| Recall | 0.333 | **1.000** | Better in this benchmark |
 | FDR | 0.000 | 0.190 | Acceptable trade-off |
 | Time | 0.24s | 6.4s | 27x slower |
 
-**Verdict**: **Strongly recommended** for extreme imbalance. Best combination: `forest_weight_estimator + Bagging`.
+**Verdict**: Consider for extreme imbalance when the added runtime is acceptable.
+Validate on your own labeled data before adopting it as a default.
 
 #### Configuration Parameters
 
@@ -468,7 +493,7 @@ for X_batch in stream_data(batch_size=25):
 | Logistic (Base) | 0.14s | Baseline | Standard balanced scenarios |
 | Logistic + Bagging(50) | 0.34s | +48% weight stability | Moderate imbalance, quality focus |
 | Forest (Base) | 0.24s | Good for non-linear | Standard scenarios |
-| **Forest + Bagging(50)** | **6.4s** | **Perfect detection** | **Extreme imbalance, premium quality** |
+| **Forest + Bagging(50)** | **6.4s** | **Best in this benchmark** | **Extreme imbalance, quality focus** |
 
 **Recommendation**: Use `forest_weight_estimator + BootstrapBaggedWeightEstimator` when:
 - Calibration set is 40x larger than test batch (e.g., 1000:25)
@@ -486,7 +511,7 @@ for X_batch in stream_data(batch_size=25):
 ├─ YES → BootstrapBaggedWeightEstimator(
 │         forest_weight_estimator(50), n_bootstraps=50
 │       )
-│       Cost: High (6-7s), Quality: Best (perfect detection)
+│       Cost: High (6-7s), Quality: Best in the illustrative benchmark
 │
 └─ NO → Standard weight estimators
     │
@@ -496,6 +521,9 @@ for X_batch in stream_data(batch_size=25):
     └─ Complex/non-linear shift → forest_weight_estimator(50)
                                    Cost: Medium (0.24s), Quality: Better
 ```
+
+Treat the cost and quality labels above as examples from one benchmark, not
+portable promises.
 
 ## Strategy Selection
 
@@ -909,11 +937,20 @@ debug_weighted_conformal(weighted_detector, X_train, X_test_shifted)
 
 ## References
 
-- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Foundational paper on weighted conformal inference and WCS procedure]
+- **Jin, Y., & Candès, E. J. (2023)**.
+  *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
+  Biometrika, 110(4), 1090-1106. [Foundational paper on weighted conformal
+  inference and WCS procedure]
 
-- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with covariate shift]
+- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**.
+  *[Conformal Prediction Under Covariate Shift](https://papers.nips.cc/paper_files/paper/2019/hash/8fb21ee7a2207526da55a679f0332de2-Abstract.html)*.
+  Advances in Neural Information Processing Systems, 32. [Early work on
+  conformal prediction with covariate shift]
 
-- **Genovese, C. R., Roeder, K., & Wasserman, L. (2006)**. *False Discovery Control with p-value Weighting*. Biometrika, 93(3), 509-524. [Theoretical foundation for weighted FDR control]
+- **Genovese, C. R., Roeder, K., & Wasserman, L. (2006)**.
+  *[False Discovery Control with p-value Weighting](https://www.stat.cmu.edu/tr/tr811/tr811.pdf)*.
+  Biometrika, 93(3), 509-524. [Theoretical foundation for weighted FDR
+  control]
 
 ## Next Steps
 

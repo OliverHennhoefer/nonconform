@@ -551,8 +551,10 @@ print(f"Total anomalies: {sum(all_labels)}")
 ## Best Practices
 
 1. **Use appropriate n_instances**: Set based on your evaluation requirements and computational constraints
-2. **Monitor global proportion**: The generator guarantees exact proportions mathematically
-3. **Apply proper FDR control**: Use batch-wise FDR control for streaming scenarios
+2. **Monitor global proportion**: Check that generated labels match the planned
+   evaluation proportion
+3. **Apply proper FDR control**: Use online FDR methods for sequential
+   decisions, or batch FDR only for fixed batches you analyze after collection
 4. **Track performance metrics**: Monitor latency and throughput for operational insights
 5. **Reset for reproducibility**: Use reset() when repeating experiments
 6. **Consider concept drift**: Monitor performance changes over time windows
@@ -565,4 +567,6 @@ The online generator is designed for efficiency:
 - **Deterministic behavior**: Reproducible results with proper seed management
 - **Automatic validation**: Built-in parameter and proportion checking
 
-This streaming evaluation approach enables rigorous online testing of conformal anomaly detection with exact statistical control and efficient resource utilization.
+This streaming evaluation approach enables reproducible online testing with
+controlled label proportions. Statistical error control still comes from the
+conformal/FDR procedure you apply and the assumptions it requires.

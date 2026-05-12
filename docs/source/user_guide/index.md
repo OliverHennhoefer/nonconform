@@ -1,15 +1,19 @@
 # User Guide
 
-This guide covers everything you need to know to use nonconform effectively, from the underlying theory to production deployment.
+This guide is written for practitioners who need calibrated anomaly decisions
+without working through the full conformal-inference literature first.
+
+Start with the task you have, then read only the theory needed to understand the
+assumptions behind that task.
 
 ## Getting Started
 
-If you're new to conformal prediction, start here:
+If you are new to conformal prediction, start here:
 
 | Page | Description |
 |------|-------------|
-| [Statistical Concepts](statistical_concepts.md) | Quick reference for key statistical terms (p-values, FDR, exchangeability) |
-| [Conformal Inference](conformal_inference.md) | Deep dive into how conformal prediction works and why it provides guarantees |
+| [Statistical Concepts](statistical_concepts.md) | Plain-language reference for p-values, FDR, exchangeability, power, and shift |
+| [Conformal Inference](conformal_inference.md) | Practitioner-level explanation of what the guarantees mean and when they apply |
 
 ## Core Concepts
 
@@ -44,3 +48,16 @@ If you're new to conformal prediction, start here:
 2. **Choosing a strategy?** Read [Choosing Strategies](choosing_strategies.md)
 3. **Going to production?** Review [Best Practices](best_practices.md) and [Troubleshooting](troubleshooting.md)
 4. **Dealing with distribution shift?** Study [Weighted Conformal](weighted_conformal.md)
+
+## Validity Checklist
+
+Before relying on a statistical guarantee, confirm:
+
+- The calibration data is representative of normal data for the target
+  workflow.
+- The detector score direction is configured correctly.
+- Multiple anomaly decisions go through `select(...)` or another documented FDR
+  procedure.
+- Distribution shift is handled explicitly instead of ignored.
+- Any reported empirical FDR or power uses labels that were not used for
+  training, calibration, or threshold selection.

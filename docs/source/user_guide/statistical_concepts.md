@@ -1,16 +1,29 @@
-# Statistical Concepts Quick Reference
+# Statistical Concepts
 
-A quick reference for the key statistical terms used throughout nonconform. For detailed explanations and mathematical foundations, see [Understanding Conformal Inference](conformal_inference.md).
+A practitioner reference for the statistical terms used throughout nonconform.
+Each entry says what the term means, how it shows up in the library, and what
+can go wrong in practice.
+
+For more detail, see [Understanding Conformal Inference](conformal_inference.md).
 
 ---
 
 ## P-values
 
-**What it is**: A number between 0 and 1 indicating how "extreme" an observation is compared to a reference distribution.
+**What it is**: A number between 0 and 1 that summarizes how extreme an
+observation looks compared with a reference distribution.
 
-**In nonconform**: A conformal p-value measures how extreme an anomaly score is relative to calibration scores, assuming the point is normal and the relevant exchangeability or covariate-shift assumptions hold. Lower p-values = more evidence of anomaly.
+**In nonconform**: A conformal p-value compares a test score with calibration
+scores. Smaller values mean stronger evidence that the point does not look like
+the calibration data.
 
-**Example**: A p-value of 0.02 means the point is more extreme than almost all calibration examples. Under the null assumptions, conformal p-values are super-uniform: $\Pr(p \le 0.02) \le 0.02$.
+**Guarantee**: Under the null assumptions, conformal p-values are
+super-uniform: $\Pr(p \le a) \le a$. For example, a valid null p-value should
+fall below 0.02 with probability at most 2%.
+
+**Common mistake**: A small p-value is not a probability that the point is an
+anomaly. It is evidence against the point behaving like the calibration
+reference population.
 
 **Classical vs. Randomized**:
 
@@ -18,19 +31,22 @@ A quick reference for the key statistical terms used throughout nonconform. For 
   p-values in steps of $1/(n+1)$.
 - Valid `tie_break` values are `"classical"` and `"randomized"` (or
   `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid.
-- For smoother (continuous) p-values, use
-  `Empirical(tie_break="randomized")`.
+- For smoother p-values, use `Empirical(tie_break="randomized")`.
 - `Probabilistic()` also gives continuous p-values through KDE. It trades
-  finite-sample guarantees for asymptotic guarantees (guarantees that become
-  accurate as sample size grows).
+  exact finite-sample conformal validity for model-based/asymptotic behavior;
+  validate it on your task before treating its p-values as calibrated.
 
 ---
 
 ## False Discovery Rate (FDR)
 
-**What it is**: The expected proportion of false positives among all points you flag as anomalies.
+**What it is**: The expected proportion of false positives among the points you
+flag as anomalies.
 
-**Why it matters**: When you test many observations, some will look anomalous by chance. FDR control targets the expected false-positive proportion among discoveries, for example at most 5% in expectation when the assumptions hold.
+**Why it matters**: When you test many observations, some normal points will
+look anomalous by chance. FDR control targets the expected false-positive
+proportion among discoveries, for example at most 5% in expectation when the
+assumptions hold.
 
 **In nonconform**: Prefer `detector.select(X_test, alpha=...)` for default FDR-controlled decisions. Use `scipy.stats.false_discovery_control(...)` when you intentionally need manual p-value post-processing.
 
@@ -64,11 +80,15 @@ and [FDR Control](fdr_control.md).
 
 ## Exchangeability
 
-**What it is**: Data points are exchangeable if shuffling their order doesn't change their statistical properties.
+**What it is**: Data points are exchangeable if shuffling their order does not
+change their joint distribution. For many practical workflows, "same population,
+same measurement process, no systematic time/order effect" is the operational
+check.
 
 **Why it matters**: This is the key assumption for standard conformal prediction guarantees. If your calibration and test data are exchangeable, split conformal p-values are marginally valid.
 
-**When it holds**: Training and test data from the same source, collected the same way, without systematic changes over time.
+**When it holds**: Training/calibration and test data come from the same source,
+collected the same way, without systematic changes over time or sampling rules.
 
 **When it's violated**: Distribution shift, temporal drift, or different data collection procedures between training and test.
 
@@ -80,7 +100,11 @@ and [FDR Control](fdr_control.md).
 
 **Why it matters**: The calibration set provides the "baseline" for computing p-values. Test scores are compared against calibration scores.
 
-**How big should it be**: Generally 100+ samples for reliable p-values. Larger is better, but diminishing returns after ~1000.
+**How big should it be**: Empirical conformal p-values move in steps of
+$1/(n+1)$ with `n` calibration samples. Small calibration sets give coarse
+p-values and can make FDR selection conservative or powerless. Treat 50-100
+calibration samples as a usability floor, not a theorem; larger calibration
+sets usually give better p-value resolution.
 
 ---
 
@@ -90,7 +114,9 @@ and [FDR Control](fdr_control.md).
 
 **In nonconform**: Use `statistical_power(y_true, predictions)` to measure this.
 
-**Trade-off**: Higher power (detecting more anomalies) often means higher FDR (more false positives). Choose your FDR threshold based on the cost of false positives vs. missed anomalies.
+**Trade-off**: Higher power often requires accepting more false positives.
+Choose the FDR level from the operational cost of false alarms versus missed
+anomalies.
 
 ---
 
@@ -100,7 +126,10 @@ and [FDR Control](fdr_control.md).
 
 **Example**: Training on data from Sensor A, testing on data from Sensor B (different readings, same underlying physics).
 
-**Solution**: Use weighted conformal prediction only when the shift is plausibly covariate shift with sufficient support overlap and reliable weights. See [Weighted Conformal](weighted_conformal.md).
+**Solution**: Use weighted conformal prediction only when the shift is plausibly
+covariate shift with sufficient support overlap and reliable weights. If the
+anomaly mechanism changes, weighting alone does not restore the guarantees. See
+[Weighted Conformal](weighted_conformal.md).
 
 ---
 
@@ -119,8 +148,20 @@ and [FDR Control](fdr_control.md).
 
 ## References
 
-For full mathematical foundations and proofs:
+For mathematical foundations and implementation context:
 
-- [Understanding Conformal Inference](conformal_inference.md) – Complete theory guide
-- [FDR Control](fdr_control.md) – Multiple testing in detail
-- [Weighted Conformal](weighted_conformal.md) – Covariate-shift workflows
+- [Understanding Conformal Inference](conformal_inference.md) - conformal
+  p-values and exchangeability assumptions.
+- [FDR Control](fdr_control.md) - multiple testing, BH selection, and dependence
+  assumptions.
+- [Weighted Conformal](weighted_conformal.md) - covariate-shift workflows.
+- [Shafer & Vovk (2008)](https://jmlr.org/papers/v9/shafer08a.html) -
+  conformal prediction tutorial.
+- [Bates et al. (2023)](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short) -
+  conformal p-values for outlier testing.
+- [Benjamini & Hochberg (1995)](https://www.math.tau.ac.il/~ybenja/MyPapers/benjamini_hochberg1995.pdf) -
+  the original FDR procedure.
+- [Jin & Candès (2023)](https://arxiv.org/abs/2307.09291) -
+  weighted conformal p-values and WCS.
+- [Ramdas et al. (2023)](https://arxiv.org/abs/2210.01948) - anytime-valid
+  inference with e-values and martingales.

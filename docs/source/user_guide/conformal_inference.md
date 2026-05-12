@@ -1,19 +1,31 @@
 # Understanding Conformal Inference
 
-Learn the theoretical foundations of conformal inference for anomaly detection.
+Learn what conformal inference adds to anomaly detection, what it can guarantee,
+and where the guarantees stop.
 
 !!! abstract "TL;DR"
     **Conformal inference converts anomaly scores into calibrated p-values under clear assumptions.**
 
-    - **The problem**: Traditional detectors output arbitrary scores with no principled threshold
-    - **The solution**: Compare each test point's score against a calibration set to compute a p-value
-    - **The guarantee**: If a point is truly normal and exchangeable with calibration data, its p-value is super-uniform: $\Pr(p \le \alpha) \le \alpha$
-    - **Key assumption**: Training and test data must be **exchangeable** (roughly: drawn from the same distribution)
-    - **For distribution shift**: Use weighted conformal only when the covariate-shift assumptions are appropriate
+    - **Use it for**: Replacing ad hoc anomaly-score thresholds with calibrated p-values.
+    - **Main guarantee**: If a point is normal and exchangeable with calibration data, its p-value is super-uniform: $\Pr(p \le \alpha) \le \alpha$.
+    - **Main limitation**: This is not a guarantee for anomalous points, shifted data, reused/adapted calibration data, or arbitrary post-processing.
+    - **Multiple decisions**: Use FDR control, usually through `detector.select(...)`.
+    - **Distribution shift**: Use weighted conformal only when the covariate-shift assumptions are plausible.
+
+!!! note "Practitioner reading path"
+    You do not need every proof to use nonconform. You do need to know which
+    assumption supports each claim. Read this page as an assumption checklist:
+    calibration data, score direction, exchangeability, multiple testing, and
+    distribution shift.
 
 ## What is Conformal Inference?
 
-Conformal inference is a framework for creating prediction intervals or hypothesis tests with assumption-lean validity guarantees [[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In the context of anomaly detection, split conformal methods transform raw anomaly scores into p-values that are marginally valid under exchangeability [[Bates et al., 2023](#references)].
+Conformal inference is a framework for creating prediction intervals or
+hypothesis tests with assumption-lean validity guarantees
+[[Vovk et al., 2005](#references); [Shafer & Vovk, 2008](#references)]. In
+anomaly detection, split conformal methods transform raw anomaly scores into
+p-values that are marginally valid under exchangeability
+[[Bates et al., 2023](#references)].
 
 ### The Problem with Traditional Anomaly Detection
 
@@ -33,7 +45,8 @@ This approach has several issues:
 
 ### The Conformal Solution
 
-Conformal inference provides a principled way to convert scores to p-values:
+Conformal inference provides a principled way to convert scores to p-values and
+then apply FDR control for multiple anomaly decisions:
 
 ```python
 # Conformal approach - calibrated p-values under exchangeability
@@ -53,9 +66,15 @@ detector = ConformalDetector(
 # Fit on training data (includes automatic calibration) and get p-values
 p_values = detector.fit(X_train).compute_p_values(X_test)
 
-# Apply Benjamini-Hochberg FDR control
+# Apply Benjamini-Hochberg FDR control to the conformal p-values
 fdr_corrected_pvals = false_discovery_control(p_values, method='bh')
-anomalies = fdr_corrected_pvals < 0.05  # Controls FDR under the usual assumptions
+anomalies = fdr_corrected_pvals < 0.05  # Valid under the documented assumptions
+```
+
+In day-to-day use, prefer the single-call workflow:
+
+```python
+anomalies = detector.fit(X_train).select(X_test, alpha=0.05)
 ```
 
 `fit(...)` remains the default one-call workflow: train + calibrate together.
@@ -73,7 +92,11 @@ $$p_{classical}(X_{test}) = \frac{1 + \sum_{i=1}^{n} \mathbf{1}\{s(X_i) \geq s(X
 
 where $\mathbf{1}\{\cdot\}$ is the indicator function.
 
-**In plain English**: The p-value is the fraction of calibration points that have scores at least as extreme as the test point. If 5 out of 100 calibration points have higher scores than your test point, the p-value is (1+5)/(100+1) ≈ 0.06. The "+1" terms ensure the p-value is never exactly 0 and accounts for the test point itself.
+**In plain English**: The p-value is the fraction of calibration points that
+have scores at least as extreme as the test point. If 5 out of 100 calibration
+points have higher scores than your test point, the p-value is
+`(1 + 5) / (100 + 1)`, about 0.06. The `+1` terms ensure the p-value is never
+exactly 0 and account for the test point itself.
 
 If your detector uses the opposite score direction (lower scores are more anomalous), reverse the inequality in the indicator. `nonconform` handles this through score polarity configuration.
 
@@ -126,10 +149,16 @@ estimation = Empirical(tie_break="randomized")
     - `None` is not a valid value
 
 !!! warning "Small Calibration Sets"
-    With small calibration sets, all empirical conformal p-values have coarse resolution, and randomized smoothing adds run-to-run variability. Use the classical formula when you prefer deterministic conservative behavior.
+    With small calibration sets, all empirical conformal p-values have coarse
+    resolution, and randomized smoothing adds run-to-run variability. Use the
+    classical formula when you prefer deterministic conservative behavior.
 
 !!! tip "Alternative: Probabilistic Estimation"
-    The `Probabilistic()` estimator uses kernel density estimation (KDE) to produce continuous p-values. This addresses both the resolution collapse of classical discrete p-values and the potential variance increase from randomized smoothing. Note that this trades the finite-sample guarantee of conformal p-values for an asymptotic guarantee.
+    The `Probabilistic()` estimator uses kernel density estimation (KDE) to
+    produce continuous p-values. This can reduce the resolution issues of
+    empirical p-values, but it does not inherit the exact finite-sample
+    conformal guarantee. Treat it as model-based/asymptotic and validate it on
+    your task.
 
 ### Conditionally Calibrated Conformal P-values
 
@@ -266,17 +295,27 @@ defined.
 
 ### What is Exchangeability?
 
-Exchangeability is weaker than the i.i.d. assumption [[Vovk et al., 2005](#references)]. A sequence of random variables $(X_1, X_2, \ldots, X_n)$ is exchangeable if their joint distribution is invariant to permutations. Formally, for any permutation $\pi$ of $\{1, 2, \ldots, n\}$:
+Exchangeability is weaker than the i.i.d. assumption
+[[Vovk et al., 2005](#references)]. A sequence of random variables
+$(X_1, X_2, \ldots, X_n)$ is exchangeable if its joint distribution is
+invariant to permutations. Formally, for any permutation $\pi$ of
+$\{1, 2, \ldots, n\}$:
 
 $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(n)} \leq x_n)$$
 
-**In plain English**: Exchangeability means "the order doesn't matter." If you shuffled your data points randomly, the statistical properties would be the same. This is weaker than requiring the data to be independent—it just requires that no observation is systematically different from the others.
+**In plain English**: Exchangeability means "the order does not matter." If you
+shuffled your data points randomly, the statistical properties would be the
+same. This is weaker than requiring independence, but it still rules out
+systematic differences between earlier/later observations, data sources, or
+collection rules.
 
 **Key insight for conformal prediction**: Under exchangeability, if we add a new observation $X_{n+1}$ from the same distribution, then $(X_1, \ldots, X_n, X_{n+1})$ remains exchangeable [[Angelopoulos & Bates, 2023](#references)]. This means that $X_{n+1}$ is equally likely to have the $k$-th largest value among all $n+1$ observations for any $k \in \{1, \ldots, n+1\}$.
 
 ### When Exchangeability Holds
 
-**Practical insight**: Exchangeability means observation order doesn't matter—no systematic differences between earlier and later observations.
+**Practical insight**: Exchangeability means observation order does not matter;
+there should be no systematic differences between earlier and later
+observations.
 
 **Conditions for validity**:
 - Training and test data come from the same source/process
@@ -284,7 +323,13 @@ $$P(X_1 \leq x_1, \ldots, X_n \leq x_n) = P(X_{\pi(1)} \leq x_1, \ldots, X_{\pi(
 - Same measurement conditions and feature distributions
 - No covariate shift between calibration and test phases
 
-Under exchangeability, split conformal p-values provide finite-sample marginal false positive rate control: for any significance level $\alpha$, the probability that a normal instance receives a p-value ≤ $\alpha$ is at most $\alpha$. For many simultaneous tests, BH-style FDR control also needs the relevant dependence assumptions; Bates et al. show the standard marginal conformal p-values have the PRDS property needed for BH in their outlier-detection setting.
+Under exchangeability, split conformal p-values provide finite-sample marginal
+false-positive control: for any significance level $\alpha$, the probability
+that a normal instance receives a p-value at or below $\alpha$ is at most
+$\alpha$. For many simultaneous tests, BH-style FDR control also needs the
+relevant dependence assumptions; Bates et al. show the standard marginal
+conformal p-values have the PRDS property needed for BH in their outlier-testing
+setting.
 
 ### When Exchangeability is Violated
 
@@ -296,7 +341,10 @@ Under exchangeability, split conformal p-values provide finite-sample marginal f
 
 **Statistical consequence**: When exchangeability fails, standard conformal p-values lose their coverage guarantees and may become systematically miscalibrated.
 
-**Solution**: Weighted conformal prediction uses density ratio estimation to reweight calibration data and can restore validity under certain covariate shifts [[Jin & Candès, 2023](#references); [Tibshirani et al., 2019](#references)]. **Key limitations**:
+**Solution**: Weighted conformal prediction uses density-ratio information to
+reweight calibration data and can restore validity under certain covariate
+shifts [[Jin & Candès, 2023](#references); [Tibshirani et al.,
+2019](#references)]. **Key limitations**:
 
 1. **Assumption**: Requires that P(Y|X) remains constant while only P(X) changes
 2. **Density ratio estimation errors**: Inaccurate weight estimation can degrade or even worsen performance
@@ -304,7 +352,9 @@ Under exchangeability, split conformal p-values provide finite-sample marginal f
 4. **Distribution support**: Requires sufficient overlap between calibration and test distributions
 5. **No automatic guarantee under misspecification**: When the covariate-shift assumptions fail, the stated guarantees no longer apply
 
-The method estimates dP_test(X)/dP_calib(X) and reweights accordingly. Success depends on both valid covariate shift assumptions and accurate density ratio estimation.
+The method estimates or uses a ratio like `dP_test(X) / dP_calib(X)` and
+reweights accordingly. Success depends on both valid covariate-shift assumptions
+and accurate enough density-ratio estimates.
 
 ## Practical Implementation
 
@@ -366,13 +416,13 @@ from scipy.stats import false_discovery_control
 # p-values are between 0 and 1
 print(f"P-values range: [{p_values.min():.4f}, {p_values.max():.4f}]")
 
-# For actual anomaly detection, always apply FDR control
+# For multiple anomaly decisions, apply FDR control
 adjusted_p_values = false_discovery_control(p_values, method='bh')
 discoveries = adjusted_p_values < 0.05
 print(f"FDR-controlled discoveries: {discoveries.sum()}")
 
 # Individual p-value interpretation (for understanding, not decision-making)
-# Note: Use FDR-controlled decisions for actual anomaly detection
+# Note: Use FDR-controlled decisions for multiple-test anomaly decisions
 for i, p_val in enumerate(p_values[:5]):
     if p_val < 0.01:
         print(f"Instance {i}: p={p_val:.4f} - Strong evidence of anomaly")
@@ -481,14 +531,20 @@ detector = ConformalDetector(
 - **Detection**: Monitor p-value distributions for systematic bias
 
 ### 4. Multiple Testing
-- **Problem**: Testing many instances inflates false positive rate
-- **Solution**: Apply Benjamini-Hochberg FDR control instead of raw thresholding
-- **Best practice**: Always use `scipy.stats.false_discovery_control` for multiple comparisons
+- **Problem**: Testing many instances creates more chances for false positives.
+- **Solution**: Use `detector.select(...)` or apply a documented FDR procedure
+  to valid p-values.
+- **Best practice**: Prefer `detector.select(...)`; use
+  `scipy.stats.false_discovery_control` only when you intentionally need manual
+  p-value post-processing.
 
 ### 5. Improper Thresholding
-- **Problem**: Using simple p-value thresholds without FDR control
-- **Solution**: Apply proper multiple testing correction for all anomaly detection scenarios
-- **Implementation**: Use `false_discovery_control(p_values, method='bh')` before thresholding
+- **Problem**: Thresholding raw p-values point-by-point does not control FDR
+  across a batch.
+- **Solution**: Apply the appropriate multiple-testing correction for the group
+  of decisions you report.
+- **Implementation**: For standard unweighted workflows, use
+  `false_discovery_control(p_values, method='bh')` before thresholding.
 
 ## Advanced Topics
 
@@ -677,27 +733,51 @@ p_values = predict_in_batches(detector, X_test_large)
 
 ### Foundational Conformal Prediction
 
-- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [The foundational book on conformal prediction theory and exchangeability]
+- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**.
+  *[Algorithmic Learning in a Random World](https://link.springer.com/book/10.1007/978-3-031-06649-8)*.
+  Springer. [Foundational book on conformal prediction theory and
+  exchangeability]
 
-- **Shafer, G., & Vovk, V. (2008)**. *A Tutorial on Conformal Prediction*. Journal of Machine Learning Research, 9, 371-421. [Accessible introduction to conformal prediction]
+- **Shafer, G., & Vovk, V. (2008)**.
+  *[A Tutorial on Conformal Prediction](https://jmlr.org/papers/v9/shafer08a.html)*.
+  Journal of Machine Learning Research, 9, 371-421. [Accessible introduction to
+  conformal prediction]
 
 ### Conformal Anomaly Detection
 
-- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**. *Testing for Outliers with Conformal p-values*. The Annals of Statistics, 51(1), 149-178. [Conformal outlier p-values, marginal validity, and BH/PRDS behavior]
+- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**.
+  *[Testing for Outliers with Conformal p-values](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short)*.
+  The Annals of Statistics, 51(1), 149-178. [Conformal outlier p-values,
+  marginal validity, and BH/PRDS behavior]
 
-- **Angelopoulos, A. N., & Bates, S. (2023)**. *Conformal Prediction: A Gentle Introduction*. Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive modern introduction to conformal prediction]
+- **Angelopoulos, A. N., & Bates, S. (2023)**.
+  *[Conformal Prediction: A Gentle Introduction](https://www.nowpublishers.com/article/Details/MAL-101)*.
+  Foundations and Trends in Machine Learning, 16(4), 494-591. [Comprehensive
+  modern introduction to conformal prediction]
 
 ### Weighted Conformal Inference
 
-- **Jin, Y., & Candès, E. J. (2023)**. *Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values*. Biometrika, 110(4), 1090-1106. arXiv:2307.09291. [Weighted conformal methods and WCS under covariate shift]
+- **Jin, Y., & Candès, E. J. (2023)**.
+  *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
+  Biometrika, 110(4), 1090-1106. [Weighted conformal methods and WCS under
+  covariate shift]
 
-- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**. *Conformal Prediction Under Covariate Shift*. Advances in Neural Information Processing Systems, 32. arXiv:1904.06019. [Early work on conformal prediction with covariate shift]
+- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**.
+  *[Conformal Prediction Under Covariate Shift](https://papers.nips.cc/paper_files/paper/2019/hash/8fb21ee7a2207526da55a679f0332de2-Abstract.html)*.
+  Advances in Neural Information Processing Systems, 32. [Early work on
+  conformal prediction with covariate shift]
 
 ### Additional Resources
 
-- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**. *Predictive Inference with the Jackknife+*. The Annals of Statistics, 49(1), 486-507. [Jackknife+ method for efficient conformal prediction]
+- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**.
+  *[Predictive Inference with the Jackknife+](https://arxiv.org/abs/1905.02928)*.
+  The Annals of Statistics, 49(1), 486-507. [Jackknife+ method for efficient
+  conformal prediction]
 
-- **Benjamini, Y., & Hochberg, Y. (1995)**. *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing*. Journal of the Royal Statistical Society: Series B, 57(1), 289-300. [FDR control methodology used in multiple testing]
+- **Benjamini, Y., & Hochberg, Y. (1995)**.
+  *[Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing](https://www.math.tau.ac.il/~ybenja/MyPapers/benjamini_hochberg1995.pdf)*.
+  Journal of the Royal Statistical Society: Series B, 57(1), 289-300. [FDR
+  control methodology used in multiple testing]
 
 ## Next Steps
 

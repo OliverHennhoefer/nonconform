@@ -1,6 +1,7 @@
 # Exchangeability Martingales
 
 Monitor streaming conformal p-values for evidence against exchangeability.
+Use these alarms as evidence signals, not as FDR-controlled anomaly decisions.
 
 ## What This Feature Does
 
@@ -30,6 +31,12 @@ Raw anomaly scores do not satisfy this requirement directly. Use
 `ConformalDetector` to produce p-values first, then feed those p-values into a
 martingale. The martingale classes do not repair invalid p-values, temporal
 dependence, or detector retraining choices that break the conformal assumptions.
+
+!!! warning "Do not mix up alarm types"
+    `ville_threshold` and `restarted_ville_threshold` provide anytime
+    false-alarm control for a single valid stream. They do not control FDR
+    across many simultaneous hypotheses or many streams. For that, use the
+    methods in [FDR Control](fdr_control.md).
 
 ## Basic Usage
 
@@ -74,20 +81,21 @@ for x_t in x_stream:
 
 A runnable notebook example is available at:
 
-- `examples/martingale_streaming.ipynb`
+- `examples/exchangeability_martingale.ipynb`
 
 Open it with Jupyter:
 
 ```bash
-jupyter notebook examples/martingale_streaming.ipynb
+jupyter notebook examples/exchangeability_martingale.ipynb
 ```
 
 It uses:
 
-- `sklearn.datasets.load_iris`
+- `oddball` credit-card fraud data
 - `IsolationForest` for base anomaly scoring
 - `ConformalDetector` to produce streaming p-values
-- `PowerMartingale` for online evidence updates
+- `PowerMartingale`, `SimpleMixtureMartingale`, and `SimpleJumperMartingale`
+  for online evidence updates
 
 The example trains on a subset and processes the remaining data in a streaming
 loop while logging p-values and evidence statistics step by step.
@@ -211,3 +219,16 @@ Scope of this guarantee:
   resulting p-value sequence.
 - If temporal dependence is strong, p-value validity can degrade; monitor model and
   data assumptions alongside evidence statistics.
+
+## References
+
+- **Vovk, V., Petej, I., Nouretdinov, I., Ahlberg, E., Carlsson, L., &
+  Gammerman, A. (2021)**.
+  *[Retrain or not retrain: conformal test martingales for change-point detection](https://proceedings.mlr.press/v152/vovk21b.html)*.
+  Proceedings of Machine Learning Research, 152, 191-210.
+- **Ramdas, A., Grünwald, P., Vovk, V., & Shafer, G. (2023)**.
+  *[Game-theoretic statistics and safe anytime-valid inference](https://arxiv.org/abs/2210.01948)*.
+  Statistical Science, 38(4), 576-601.
+- **Shafer, G., & Vovk, V. (2008)**.
+  *[A Tutorial on Conformal Prediction](https://jmlr.org/papers/v9/shafer08a.html)*.
+  Journal of Machine Learning Research, 9, 371-421.

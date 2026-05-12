@@ -14,6 +14,12 @@ Thresholds for anomaly detection are often arbitrary and lack theoretical guaran
 
 > **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables). The package is therefore not suited for spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
 
+**Guarantee scope:** nonconform calibrates detector scores; it does not make an
+unsuitable detector or mismatched calibration set valid. Standard conformal
+claims require exchangeability. Weighted workflows require plausible covariate
+shift, support overlap, and reliable weights. FDR claims require valid p-values
+and the relevant multiple-testing assumptions.
+
 ## Feature Overview
 
 | Need | nonconform Functionality | Start Here |

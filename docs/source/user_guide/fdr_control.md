@@ -1,27 +1,32 @@
 # False Discovery Rate Control
 
+FDR control is the decision layer for batch anomaly detection. Use it when you
+turn many conformal p-values into many anomaly flags and want to control the
+expected fraction of false flags among the points you investigate.
+
 ## What is FDR and Why Does It Matter?
 
 When you test many observations for anomalies, some will look anomalous by
-chance even if they are truly normal. For example, testing 1,000 observations
-at significance level alpha = 0.05 yields about 50 false positives on average.
+chance even if they are truly normal. If you tested 1,000 truly normal,
+well-calibrated p-values one by one at alpha = 0.05, you would expect about 50
+false positives before any multiple-testing correction.
 
 The false discovery proportion in one realized batch is the fraction of false positives among all observations you flag as anomalies:
 
 $$\text{FDP} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
 
 More precisely, that displayed fraction is the realized false discovery
-proportion; FDR is its expectation.
+proportion (FDP); FDR is the expected FDP over repeated data draws.
 
 An equivalent operational interpretation of the expected proportion is:
 
 $$\text{FDR} \approx \frac{\text{Wasted Effort (chasing false positives)}}{\text{Total Investigation Effort}}$$
 
-**False Discovery Rate (FDR)** is the expectation of that proportion over
-repeated data draws. FDR control adjusts your threshold so that this expected
-proportion stays below a target level (for example, 5%) when the assumptions
-hold. This differs from controlling false positives per individual test: FDR
-controls the average error proportion among the points you actually flag.
+**False Discovery Rate (FDR)** control adjusts the selection threshold so that
+the expected false-positive proportion among discoveries stays below a target
+level, such as 5%, when the p-values and dependence assumptions are valid. This
+differs from controlling false positives per individual test: FDR controls the
+average error proportion among the points you actually flag.
 
 !!! example "Example"
     Suppose your pipeline flags 100 observations as anomalies with
@@ -122,6 +127,13 @@ combination procedures invalid without additional justification.
 
 In other words, the selection routine itself does not create validity from
 invalid inputs; it preserves guarantees under the assumptions above.
+
+| Input situation | Recommended path |
+|---|---|
+| Standard exchangeable conformal p-values | `detector.select(...)` or SciPy BH on `compute_p_values(...)` |
+| Weighted covariate-shift workflow | `detector.select(...)` with a `weight_estimator` so WCS is used |
+| Arbitrary dependent or post-processed p-values | Do not assume BH validity without a separate justification |
+| Streaming decisions over time | Use an online FDR method, not a fixed-batch BH shortcut |
 
 !!! warning "Strict validation for weighted inputs"
     Weighted FDR routines fail fast on invalid inputs.
@@ -224,7 +236,9 @@ pruning decisions.
 ## Available Methods
 
 For direct BH control on conformal p-values, use
-`scipy.stats.false_discovery_control`:
+`scipy.stats.false_discovery_control`. SciPy documents `method="bh"` for
+Benjamini-Hochberg and `method="by"` for the more conservative
+Benjamini-Yekutieli dependency-robust adjustment.
 
 ### Benjamini-Hochberg (BH)
 - **Method**: `'bh'`
@@ -364,6 +378,8 @@ print(f"Statistical Power: {results['power']:.3f}")
 ### 2. Method Selection
 - Use **`detector.select(...)`** for most conformal workflows
 - Use **BH** via SciPy for manual p-value thresholding workflows
+- Use **BY** only when you need a conservative fallback for dependence that is
+  not covered by the BH assumptions and you accept reduced power
 
 ### 3. Combine with Domain Knowledge
 ```python
@@ -472,6 +488,23 @@ for t, (batch, p_values) in enumerate(stream_with_pvalues):
 - Non-stationary data streams requiring model retraining
 
 **Best practice**: Combine with windowed model retraining and exchangeability monitoring for robust streaming anomaly detection.
+
+## References
+
+- **Benjamini, Y., & Hochberg, Y. (1995)**.
+  *[Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing](https://www.math.tau.ac.il/~ybenja/MyPapers/benjamini_hochberg1995.pdf)*.
+  Journal of the Royal Statistical Society: Series B, 57(1), 289-300.
+- **Benjamini, Y., & Yekutieli, D. (2001)**.
+  *[The Control of the False Discovery Rate in Multiple Testing under Dependency](https://projecteuclid.org/journals/annals-of-statistics/volume-29/issue-4/The-control-of-the-false-discovery-rate-in-multiple-testing-under/10.1214/aos/1013699998.full)*.
+  The Annals of Statistics, 29(4), 1165-1188.
+- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**.
+  *[Testing for Outliers with Conformal p-values](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short)*.
+  The Annals of Statistics, 51(1), 149-178.
+- **Jin, Y., & Candès, E. J. (2023)**.
+  *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
+  Biometrika, 110(4), 1090-1106.
+- **SciPy documentation**.
+  [`scipy.stats.false_discovery_control`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html).
 
 ## Next Steps
 

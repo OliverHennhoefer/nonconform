@@ -1,25 +1,28 @@
 # Conformalization Strategies
 
-Calibration strategies with trade-offs between efficiency and robustness.
+Calibration strategies trade data efficiency, runtime, memory, and validity
+story. Start with the simplest strategy that fits your data size and operational
+constraints.
 
 ## Quick Decision Guide
 
-| Dataset Size | Speed Priority | Recommendation |
-|-------------|----------------|----------------|
-| Large (>5,000) | Yes | `Split(n_calib=0.2)` |
-| Large (>5,000) | No | `JackknifeBootstrap(n_bootstraps=100)` |
-| Medium (500-5,000) | Any | `JackknifeBootstrap(n_bootstraps=100)` |
-| Small (<500) | Any | `CrossValidation.jackknife()` |
+| Situation | Recommended starting point | Why |
+|---|---|---|
+| Large data, speed matters | `Split(n_calib=0.2)` | Cleanest validity story and low runtime |
+| Large data, speed is secondary | `JackknifeBootstrap(n_bootstraps=100)` | More resampling stability |
+| Medium data | `JackknifeBootstrap(n_bootstraps=100)` | Avoids spending a large fixed holdout |
+| Small data | `CrossValidation.jackknife()` | Uses nearly all observations for fitting/calibration |
 
 Split conformal is the cleanest strict finite-sample baseline because the fitted
 model and calibration scores are separated. Resampling strategies
 (`CrossValidation`, Jackknife, Jackknife+, and JaB+) use data more efficiently
-and often give good error control in practice, but their guarantees are weaker,
-approximate, asymptotic, or looser depending on the method. For example,
-J+aB-style bounds can allow a larger failure rate than the nominal split
-conformal target. If you need smoother p-values, consider `Probabilistic()`
-(KDE-based), noting this trades finite-sample conformal guarantees for
-asymptotic behavior.
+and often work well in practice, but their guarantees are not interchangeable
+with the split-conformal guarantee. For example, J+aB-style bounds can allow a
+larger failure rate than the nominal split target.
+
+If you need smoother p-values, consider `Probabilistic()` (KDE-based), but treat
+that as model-based/asymptotic behavior rather than exact split-conformal
+finite-sample validity.
 
 For CV/Jackknife/Bootstrap-style conformalization, `mode="plus"` is the more
 defensible validity-oriented default. `mode="single_model"` can perform
@@ -51,6 +54,7 @@ strategy = Split(n_calib=1000)
 - **Simplest** implementation
 - **Least robust** for small datasets
 - **Memory efficient**
+- **Best validity story** when calibration and test points are exchangeable
 
 ### Cross-Validation Strategy
 
@@ -75,10 +79,11 @@ strategy = CrossValidation(k=5, mode="plus")
     - `mode="single_model"` can weaken conformal validity; use `mode="plus"` when validity is the priority
 
 **Characteristics:**
-- **Most robust** calibration
-- **Uses all data** for both training and calibration
-- **Higher computational cost**
+- **Uses data efficiently** through folds
+- **Higher computational cost** than Split
 - **Useful alternative** when deterministic fold-based calibration is preferred
+- **Validity story depends on mode**; prefer `mode="plus"` when validity is the
+  priority
 
 ### JaB+ Strategy (Jackknife+-after-Bootstrap)
 
@@ -96,10 +101,10 @@ strategy = JackknifeBootstrap(n_bootstraps=200)
 
 **Characteristics:**
 - **Flexible ensemble** size
-- **Uncertainty quantification**
-- **Robust to outliers**
+- **Useful stability check** for noisy/small data
 - **Configurable computational cost**
 - **Typically recommended:** 100+ bootstraps for stable behavior
+- **Looser guarantee** than split conformal in the J+aB theory
 
 ### Jackknife Strategy
 
@@ -119,7 +124,7 @@ strategy = CrossValidation.jackknife(mode="plus")
 - **Maximum data utilization**
 - **Computationally intensive**
 - **Best for very small datasets**
-- **Provides individual sample influence**
+- **Can be infeasible** when one model fit per observation is too expensive
 
 ## Strategy Selection Guide
 
@@ -157,12 +162,12 @@ The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined variant that is ty
 
 ## Performance Comparison
 
-| Strategy | Training Time | Memory Usage | Calibration Quality |
-|----------|---------------|--------------|-------------------|
-| Split | Fast | Low | Good |
-| CrossValidation | Medium | Medium | Excellent |
-| JackknifeBootstrap | Medium-High | Medium-High | Excellent |
-| Jackknife (LOO) | Slow | High | Excellent |
+| Strategy | Training Time | Memory Usage | Practical Calibration Stability |
+|---|---|---|---|
+| Split | Fast | Low | Good with enough calibration data |
+| CrossValidation | Medium | Medium | Good for limited data |
+| JackknifeBootstrap | Medium-High | Medium-High | Good for noisy or scarce data |
+| Jackknife (LOO) | Slow | High | Good for very small data |
 
 ## Integration with Detectors
 
@@ -189,15 +194,29 @@ detector = ConformalDetector(
 
 ## References
 
-- **Vovk, V. (2015)**. *Cross-conformal predictors*. Annals of Mathematics and Artificial Intelligence, 74(1-2), 9-28. [Cross-conformal prediction and empirical validity]
+- **Vovk, V. (2015)**.
+  *[Cross-conformal predictors](https://link.springer.com/article/10.1007/s10472-013-9368-4)*.
+  Annals of Mathematics and Artificial Intelligence, 74(1-2), 9-28.
+  [Cross-conformal prediction and empirical validity]
 
-- **Kim, B., Xu, C., & Barber, R. F. (2020)**. *Predictive Inference Is Free with the Jackknife+-after-Bootstrap.* Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method with looser coverage guarantees]
+- **Kim, B., Xu, C., & Barber, R. F. (2020)**.
+  *[Predictive Inference Is Free with the Jackknife+-after-Bootstrap](https://proceedings.neurips.cc/paper_files/paper/2020/hash/2b346a0aa375a07f5a90a344a61416c4-Abstract.html)*.
+  Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method
+  with looser coverage guarantees]
 
-- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**. *Predictive Inference with the Jackknife+*. The Annals of Statistics, 49(1), 486-507. [Jackknife+ method with improved finite-sample efficiency]
+- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**.
+  *[Predictive Inference with the Jackknife+](https://arxiv.org/abs/1905.02928)*.
+  The Annals of Statistics, 49(1), 486-507. [Jackknife+ method with improved
+  finite-sample efficiency]
 
-- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**. *Algorithmic Learning in a Random World*. Springer. [Foundational work on conformal prediction]
+- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**.
+  *[Algorithmic Learning in a Random World](https://link.springer.com/book/10.1007/978-3-031-06649-8)*.
+  Springer. [Foundational work on conformal prediction]
 
-- **Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018)**. *Distribution-Free Predictive Inference for Regression*. Journal of the American Statistical Association, 113(523), 1094-1111. [Split conformal prediction with theoretical guarantees]
+- **Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018)**.
+  *[Distribution-Free Predictive Inference for Regression](https://arxiv.org/abs/1604.04173)*.
+  Journal of the American Statistical Association, 113(523), 1094-1111. [Split
+  conformal prediction with theoretical guarantees]
 
 ## Next Steps
 

@@ -6,6 +6,16 @@ Traditional anomaly detectors output scores and require arbitrary thresholds.
 nonconform converts raw scores to conformal p-values and supports principled
 False Discovery Rate (FDR) control for final decisions.
 
+The short version for practitioners:
+
+- Use `ConformalDetector.select(...)` when you need anomaly decisions, not just
+  scores.
+- Treat every guarantee as conditional on its assumptions: exchangeability for
+  standard conformal workflows, and covariate-shift assumptions plus reliable
+  weights for weighted workflows.
+- Use the docs to check whether your data collection process matches those
+  assumptions before relying on the error-control claims.
+
 ## The Problem
 
 ```python
@@ -39,6 +49,19 @@ Use this library when you need:
 - Principled thresholds instead of ad hoc cutoffs
 - Multiple testing correction
 - Calibrated uncertainty for downstream workflows
+
+## Guarantee Scope
+
+nonconform does not make a weak detector "correct." It calibrates detector
+scores against reference data. The calibration can control false positives only
+when the reference data, test data, and selection procedure match the documented
+assumptions.
+
+| Workflow | Main assumption | Practical check |
+|---|---|---|
+| Standard conformal | Calibration and test points are exchangeable | Same population, same measurement process, no systematic time/order effect |
+| FDR selection | Input p-values are valid and satisfy the method's dependence assumptions | Prefer `select(...)`; avoid unsupported p-value post-processing |
+| Weighted conformal | Feature distribution may shift, but the anomaly mechanism is stable and supports overlap | Inspect shift, weights, and domain plausibility before trusting WCS results |
 
 ## Quick Links
 
