@@ -159,7 +159,7 @@ class MyDetector:
     def set_params(self, **params) -> Self: ...
 ```
 
-For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the pre-release default behavior. Use `score_polarity="auto"` only when you want strict detector-family validation.
+For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the default score-polarity policy. Use `score_polarity="auto"` only when you want strict detector-family validation.
 
 For strict inductive conformal/FDR pipelines, avoid batch-adaptive PyOD
 detectors with non-frozen score maps (for example `ECOD` and `COPOD`, which are

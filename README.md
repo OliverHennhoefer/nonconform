@@ -160,7 +160,7 @@ class MyDetector:
     def set_params(self, **params) -> Self: ...
 ```
 
-For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the pre-release default behavior. Use `score_polarity="auto"` only when you want strict detector-family validation.
+For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the default score-polarity policy. Use `score_polarity="auto"` only when you want strict detector-family validation.
 
 See [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
 

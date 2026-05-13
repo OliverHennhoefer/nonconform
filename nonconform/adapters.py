@@ -145,7 +145,7 @@ def _is_known_sklearn_normality_detector(detector: Any) -> bool:
 def resolve_implicit_score_polarity(detector: Any) -> ScorePolarity:
     """Resolve score polarity when users omit score_polarity.
 
-    This pre-release default favors low-friction custom detector onboarding while
+    The default favors low-friction custom detector onboarding while
     preserving safe behavior for known detector families:
     - Known sklearn normality detectors -> HIGHER_IS_NORMAL
     - PyOD detectors -> HIGHER_IS_ANOMALOUS

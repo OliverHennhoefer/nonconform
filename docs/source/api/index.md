@@ -7,6 +7,9 @@ Complete API documentation for all nonconform modules and classes.
 If you are looking for task-oriented call sequences, start with
 [Common Workflows](common_workflows.md).
 
+For the v1 public compatibility contract, see
+[API Stability](stability.md).
+
 ## Detector
 
 ::: nonconform.detector
