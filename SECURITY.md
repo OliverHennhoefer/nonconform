@@ -1,22 +1,25 @@
 # Security Policy
 
-## Reporting a Vulnerability
-If you discover a security issue, please report it responsibly.
-
-- **Contact:** [oliver.hennhoefer@mail.de]
-- **Response Time:** We aim to acknowledge reports within 14 days.
-
 ## Supported Versions
-Security updates are provided for the latest release only.
+
+Security fixes target the latest released version.
 
 | Version | Supported |
-|----------|------------|
-| latest   | ✅ |
-| older    | ❌ |
+| --- | --- |
+| Latest release | Yes |
+| Older releases | No |
 
-## Disclosure Policy
-- Do not publicly disclose vulnerabilities before a fix is released.
-- Provide enough detail to reproduce the issue safely.
+## Reporting a Vulnerability
 
-## Additional Notes
-This project currently has limited security review. Use at your own risk.
+Report security issues by email: <oliver.hennhoefer@mail.de>.
+
+Include enough detail to reproduce the issue safely. Do not disclose the issue
+publicly until a fix is available or disclosure has been coordinated.
+
+Expected response: acknowledgement within 14 days.
+
+## Scope
+
+This project is a scientific Python library. Security review is limited. Reports
+about dependency-chain exposure, unsafe deserialization, arbitrary code
+execution, credential leakage, or packaging/release integrity are in scope.

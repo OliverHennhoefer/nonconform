@@ -50,6 +50,23 @@ Use this library when you need:
 - Multiple testing correction
 - Calibrated uncertainty for downstream workflows
 
+## Citation
+
+If you use **nonconform** in academic work, reports, or other published
+material, please cite the accompanying paper:
+
+```bibtex
+@misc{hennhöfer2026conformalanomalydetectionpython,
+      title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
+      author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
+      year={2026},
+      eprint={2605.13642},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/2605.13642},
+}
+```
+
 ## Guarantee Scope
 
 nonconform does not make a weak detector "correct." It calibrates detector

@@ -79,6 +79,7 @@ nav:
     - FDR Control: examples/fdr_control.md
   - API Reference:
     - Overview: api/index.md
+    - Stability Contract: api/stability.md
     - Common Workflows: api/common_workflows.md
   - Contributing: contributing.md
 

@@ -1,147 +1,70 @@
-# Contributing to nonconform
+# Contributing
 
-We welcome contributions to nonconform! This guide will help you get started.
+Contributions should improve the library's correctness, scope, usability,
+documentation, or interoperability.
 
-## Types of Contributions
+Useful contributions include focused bug fixes, tests, documentation
+corrections, detector compatibility notes, examples, and new methods or
+approaches for conformal anomaly detection, conformal inference, FDR control,
+covariate-shift workflows, or related detector interfaces.
 
-### Bug Reports
-- Use the GitHub issue tracker
-- Include minimal reproducible examples
-- Specify your environment (Python version, OS, etc.)
+## Setup
 
-### Feature Requests
-- Describe the use case clearly
-- Explain how it fits with the project's goals
-- Consider proposing an implementation approach
+```bash
+git clone https://github.com/OliverHennhoefer/nonconform.git
+cd nonconform
+uv sync --group dev
+uv pip install -e ".[all]"
+```
 
-### Code Contributions
-- Bug fixes
-- New conformalization strategies
-- Performance improvements
-- Documentation improvements
+Optional pre-commit hooks:
 
-### Documentation
-- Fix typos or unclear explanations
-- Add examples or tutorials
-- Improve API documentation
+```bash
+uv run pre-commit install
+```
 
-## Development Setup
+## Checks
 
-### Prerequisites
-- Python 3.12 or higher
-- Git
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
+Run the checks that match the change:
 
-### Setup Instructions
+```bash
+uv run ruff format .
+uv run ruff check . --fix
+uv run pytest
+```
 
-1. **Fork and clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/nonconform.git
-   cd nonconform
-   ```
+For documentation changes:
 
-2. **Install dependencies and setup development environment**
-   ```bash
-   # Install project + development dependencies
-   uv sync --group dev
-   ```
+```bash
+uv run mkdocs build -f docs/mkdocs.yml
+```
 
-3. **Setup pre-commit hooks**
-   ```bash
-   uv run pre-commit install
-   ```
+## Pull Requests
 
-4. **Run tests to verify setup**
-   ```bash
-   uv run pytest
-   ```
+Keep pull requests focused and include:
 
-## Development Workflow
+- what changed and why
+- exact validation commands run
+- public API impact, if any
+- statistical-core impact, if any
+- relevant papers, detector libraries, or implementation references when useful
 
-### Before Making Changes
+Changes to p-values, FDR control, weighting, calibration, aggregation, metrics,
+or validity claims need tests and an explicit before/after rationale.
 
-1. **Create a new branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/issue-description
-   ```
+## API Stability
 
-2. **Sync with upstream**
-   ```bash
-   git remote add upstream https://github.com/original/nonconform.git
-   git fetch upstream
-   git rebase upstream/main
-   ```
+nonconform is a v1 project. Public APIs should remain stable unless a breaking
+change is intentional and documented.
 
-### Making Changes
+Public contracts include root exports, public module `__all__` exports,
+documented constructor arguments, methods, properties, enum values, and
+dataclass fields. `nonconform._internal` is private.
 
-1. **Write tests first** (TDD approach recommended)
-   ```bash
-   # Add tests in tests/ and run a focused subset while iterating
-   uv run pytest tests/unit/test_your_feature.py -q
-   ```
+## Issues
 
-2. **Implement your changes**
-   - Follow the existing code style
-   - Add docstrings to new functions/classes
-   - Keep commits atomic and well-described
+Bug reports should include a minimal reproducible example, expected and actual
+behavior, environment details, and tracebacks or warnings when relevant.
 
-3. **Run the full test suite**
-   ```bash
-   uv run pytest
-   ```
-
-4. **Check code quality**
-   ```bash
-   # Format code and fix linting issues
-   uv run ruff format .
-   uv run ruff check . --fix
-
-   # Or run all pre-commit hooks
-   uv run pre-commit run --all-files
-   ```
-
-### Documentation
-
-1. **Update docstrings**
-   - Use Google style docstrings
-   - Include examples where helpful
-   - Document all parameters and return values
-
-2. **Update user documentation**
-   - Add new features to appropriate guides
-   - Update examples if needed
-   - Test documentation builds locally
-
-3. **Build documentation locally**
-   ```bash
-   uv run mkdocs serve -f docs/mkdocs.yml
-   # Open http://127.0.0.1:8000 in browser
-   ```
-
-### Submitting Changes
-
-1. **Commit your changes**
-   ```bash
-   git add .
-   git commit -m "feat: add weighted conformal p-values for covariate shift"
-   ```
-
-2. **Push to your fork**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-3. **Create a pull request**
-   - Use a clear, descriptive title
-   - Explain what changes you made and why
-   - Reference any related issues
-   - Include tests and documentation updates
-
-## Code Style Guidelines
-
-### Python Code Style
-- Follow PEP 8
-- Use Ruff for formatting and linting (replaces Black, isort, flake8)
-- Use Google-style docstrings
+Feature requests should describe the workflow, proposed method or approach,
+statistical or API impact, and relevant prior work when applicable.

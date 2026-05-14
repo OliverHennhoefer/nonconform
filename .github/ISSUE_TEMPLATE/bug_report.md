@@ -1,38 +1,36 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+about: Report incorrect behavior, errors, or documentation problems
+title: ""
+labels: bug
+assignees: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Summary
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- What is wrong? -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Minimal Reproduction
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+```python
+# Smallest code example that reproduces the issue
+```
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## Expected Behavior
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+<!-- What should happen? -->
 
-**Additional context**
-Add any other context about the problem here.
+## Actual Behavior
+
+<!-- Include the full traceback or warning text when relevant. -->
+
+## Environment
+
+- nonconform version:
+- Python version:
+- OS:
+- Relevant dependencies, detectors, or optional extras:
+
+## Context
+
+<!-- Data assumptions, detector family, score polarity, calibration strategy, or links to related work if relevant. -->

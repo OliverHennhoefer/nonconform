@@ -30,6 +30,23 @@ and the relevant multiple-testing assumptions.
 | Sequential monitoring | Exchangeability martingales (`PowerMartingale`, `SimpleMixtureMartingale`, `SimpleJumperMartingale`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Custom detector integration | Support for protocol-compliant detectors (with strict-inductive caveats for blocked PyOD models) | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
+## Citation
+
+If you use **nonconform** in academic work, reports, or other published
+material, please cite the accompanying paper:
+
+```bibtex
+@misc{hennhöfer2026conformalanomalydetectionpython,
+      title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
+      author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
+      year={2026},
+      eprint={2605.13642},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML},
+      url={https://arxiv.org/abs/2605.13642},
+}
+```
+
 ## Getting Started
 
 Installation via [PyPI](https://pypi.org/project/nonconform/):
@@ -159,7 +176,7 @@ class MyDetector:
     def set_params(self, **params) -> Self: ...
 ```
 
-For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the pre-release default behavior. Use `score_polarity="auto"` only when you want strict detector-family validation.
+For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the default score-polarity policy. Use `score_polarity="auto"` only when you want strict detector-family validation.
 
 For strict inductive conformal/FDR pipelines, avoid batch-adaptive PyOD
 detectors with non-frozen score maps (for example `ECOD` and `COPOD`, which are

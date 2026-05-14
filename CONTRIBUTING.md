@@ -1,95 +1,82 @@
 # Contributing
 
-Thank you for your interest in contributing to this project! We welcome contributions from the community.
+Contributions are useful when they improve the library's correctness, scope,
+usability, documentation, or interoperability.
 
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management and [ruff](https://docs.astral.sh/ruff/) for formatting and linting.
-
-## Getting Started
-
-1. Fork the repository on GitHub
-2. Clone your fork locally:
-   ```bash
-   git clone https://github.com/OliverHennhoefer/nonconform.git
-   cd nonconform
-   ```
-3. Create a new branch for your changes:
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
+Project-relevant contributions include bug reports, focused fixes, tests,
+documentation corrections, detector compatibility notes, examples, and new
+methods or approaches for conformal anomaly detection (CAD), conformal
+inference, FDR control, covariate-shift workflows, or related detector
+interfaces.
 
 ## Development Setup
 
-1. Install [uv](https://docs.astral.sh/uv/) if you haven't already:
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh  # On Windows: irm https://astral.sh/uv/install.ps1 | iex
-   ```
+Prerequisites:
 
-2. Sync the project and install dependencies:
-   ```bash
-   uv sync
-   ```
+- Python 3.12 or newer
+- Git
+- [uv](https://docs.astral.sh/uv/)
 
-3. The virtual environment will be automatically created and managed by uv
+Clone and install:
 
-4. Install ``nonconform`` from the local repository.
-   ```bash
-    uv pip install -e .[all] --upgrade
-   ```
+```bash
+git clone https://github.com/OliverHennhoefer/nonconform.git
+cd nonconform
+uv sync --group dev
+uv pip install -e ".[all]"
+```
 
-## Making Changes
+Optional pre-commit setup:
 
-1. Make your changes in your feature branch
-2. Add tests for any new functionality
-3. Ensure all tests pass:
-   ```bash
-   uv run pytest
-   ```
-4. Format and check code style:
-   ```bash
-   uv run ruff format .
-   uv run ruff check .
-   ```
+```bash
+uv run pre-commit install
+```
 
-## Code Style
+## Before Opening a Pull Request
 
-- Follow [PEP 8](https://pep8.org/) style guidelines (enforced by ruff)
-- Use meaningful variable and function names
-- Add docstrings to functions and classes
-- Keep functions focused and concise
-- Write clear commit messages
-- Run `uv run ruff format .` before committing to ensure consistent formatting
+Keep changes focused. A pull request should have one clear purpose.
 
-## Testing
+Run the checks that match your change:
 
-- Write tests for new features and bug fixes
-- Ensure all existing tests pass before submitting with `uv run pytest`
-- Aim for good test coverage of your changes
-- Run `uv run pytest --cov` to check coverage (if configured)
+```bash
+uv run ruff format .
+uv run ruff check . --fix
+uv run pytest
+```
 
-## Submitting a Pull Request
+If documentation under `docs/` changed, also run:
 
-1. Push your changes to your fork:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
+```bash
+uv run mkdocs build -f docs/mkdocs.yml
+```
 
-2. Open a pull request on GitHub with:
-   - A clear title and description
-   - Reference to any related issues
-   - Summary of changes made
-   - Any breaking changes highlighted
+When changes affect p-values, FDR control, weighting, calibration,
+aggregation, metrics, or validity claims, include tests that cover the
+statistical behavior and explain the before/after rationale in the pull request.
 
-3. Wait for review and address any feedback
+## API Compatibility
 
-## Reporting Issues
+nonconform is a v1 project. Public APIs should remain stable unless a breaking
+change is intentional and explicitly justified.
 
-When reporting issues, please include:
-- A clear description of the problem
-- Steps to reproduce the issue
-- Expected vs actual behavior
-- Your environment (Python version, OS, etc.)
-- Any relevant error messages or logs
+Treat these as public contracts:
 
-## Questions?
+- root exports in `nonconform.__all__`
+- public module `__all__` exports
+- documented constructor arguments, methods, properties, enum values, and
+  dataclass fields
 
-Feel free to open an issue for questions or discussions about contributions.
+Implementation details under `nonconform._internal` are private.
+
+## Issues
+
+Bug reports should include:
+
+- a minimal reproducible example
+- expected and actual behavior
+- Python, operating system, and dependency versions
+- full traceback or warning text when relevant
+
+Feature requests should describe the use case, the proposed method or approach,
+the statistical or API impact, and any relevant literature or detector family
+when applicable.

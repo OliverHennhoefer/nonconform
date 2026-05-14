@@ -1,13 +1,16 @@
-# Pre-1.0 Break-First Policy
+# v1 Compatibility Policy
 
-This project is pre-release. Backward compatibility is currently **not** a constraint.
+This project has reached `v1.0.0`. Backward compatibility is now a constraint
+for documented public APIs and statistical validity claims.
 
-- Prefer clean-break solutions over compatibility layers.
-- Prefer structural refactors over incremental patching when they improve long-term design.
-- Remove obsolete APIs instead of maintaining transitional shims.
-- Document intentional breaking changes explicitly.
-
-At `v1.0.0`, remove this section and switch to strict backward-compatibility policy.
+- Prefer additive public APIs over changing or removing existing public APIs.
+- Treat `nonconform.__all__` and public module `__all__` exports as compatibility
+  contracts.
+- Keep `nonconform._internal` private and out of user-facing docs/examples.
+- Breaking public API changes require a major-version plan, migration notes, and
+  explicit release documentation.
+- Statistical-core behavior changes require explicit before/after rationale and
+  validation evidence.
 
 # Decision Hierarchy
 
