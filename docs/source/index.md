@@ -1,15 +1,14 @@
 # nonconform
 
-**Turn anomaly scores into calibrated decisions under explicit assumptions.**
+**Turn anomaly scores into calibrated decisions.**
 
 Traditional anomaly detectors output scores and require arbitrary thresholds.
-nonconform converts raw scores to conformal p-values and supports principled
-False Discovery Rate (FDR) control for final decisions.
+`nonconform` converts raw scores to conformal p-values and supports principled
+False Discovery Rate (FDR) control for rigorous decision-making.
 
 The short version for practitioners:
 
-- Use `ConformalDetector.select(...)` when you need anomaly decisions, not just
-  scores.
+- Use `ConformalDetector.select(...)` when you need decisions, not just scores.
 - Treat every guarantee as conditional on its assumptions: exchangeability for
   standard conformal workflows, and covariate-shift assumptions plus reliable
   weights for weighted workflows.
