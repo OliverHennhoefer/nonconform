@@ -93,26 +93,10 @@ Statistical Power: 0.99
 
 ## Advanced Methods
 
-nonconform includes advanced workflows for practitioners who need more power or robustness:
+nonconform includes advanced workflows for practitioners:
 
-- **Probabilistic Conformal Estimation** (`Probabilistic`): uses KDE-based modeling of calibration scores to produce continuous *p*-values instead of purely empirical stepwise values.
 - **Weighted Conformal Prediction** (`weight_estimator=...`): reweights calibration evidence for covariate shift settings where test and calibration distributions differ, assuming enough support overlap between calibration and test features.
 - **Exchangeability Martingales** (`nonconform.martingales`): sequential evidence monitoring over conformal *p*-value streams.
-
-Probabilistic Conformal Setup:
-
-```python
-from pyod.models.iforest import IForest
-
-from nonconform import ConformalDetector, Probabilistic, Split
-
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=1_000),
-    estimation=Probabilistic(n_trials=10),
-    seed=42,
-)
-```
 
 Weighted Conformal Setup:
 
@@ -188,7 +172,7 @@ _For additional features, you might need optional dependencies:_
 - `pip install nonconform[pyod]` - Includes PyOD anomaly detection library
 - `pip install nonconform[data]` - Includes oddball for loading benchmark datasets
 - `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[probabilistic]` - Includes KDEpy and Optuna for probabilistic estimation/tuning
+- `pip install nonconform[probabilistic]` - Includes KDEpy and Optuna for probabilistic approximation
 - `pip install nonconform[all]` - Includes all optional dependencies
 
 _Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
