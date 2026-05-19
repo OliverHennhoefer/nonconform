@@ -36,7 +36,7 @@ If you use **nonconform** in academic work, reports, or other published
 material, please cite the accompanying paper:
 
 ```bibtex
-@misc{hennhöfer2026conformalanomalydetectionpython,
+@misc{hennhoefer2026,
       title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
       author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
       year={2026},
