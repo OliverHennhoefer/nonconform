@@ -78,9 +78,12 @@ No substantial task is complete without validation evidence.
 
 # Changelog Policy
 
-- Keep root `CHANGELOG.md` updated for notable user-facing, API, behavior,
-  dependency/security, release, deprecation, and removal changes.
-- Add changelog entries only for changes to `nonconform/**`.
+- Keep root `CHANGELOG.md` limited to release-relevant changes for package
+  users: public API, behavior, statistical claims, packaging/distribution,
+  dependencies/security, deprecations, and removals.
+- Do not add changelog entries for changes limited to docs, examples, tests,
+  CI, tooling, or repository maintenance unless they affect the released
+  package.
 - Follow Keep a Changelog categories, keep `[Unreleased]` first, avoid raw
   git-log dumps, and use `Security` for vulnerability/security dependency fixes.
 
