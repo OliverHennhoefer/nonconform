@@ -2,6 +2,7 @@
   Local SEO/accessibility override for the repository link.
 -#}
 <a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" aria-label="{{ lang.t('source') }}: {{ config.repo_name }}" class="md-source" data-md-component="source" rel="noopener noreferrer">
+  <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">{{ lang.t("source") }}: {{ config.repo_name }}</span>
   <div class="md-source__icon md-icon">
     {% set icon = config.theme.icon.repo or "fontawesome/brands/git-alt" %}
     {% include ".icons/" ~ icon ~ ".svg" %}

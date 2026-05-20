@@ -20,6 +20,7 @@
           <a href="javascript:void(0)" class="md-search__icon md-icon" title="{{ lang.t('search.share') }}" aria-label="{{ lang.t('search.share') }}" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
             {% set icon = config.theme.icon.share or "material/share-variant" %}
             {% include ".icons/" ~ icon ~ ".svg" %}
+            <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">{{ lang.t("search.share") }}</span>
           </a>
         {% endif %}
         <button type="reset" class="md-search__icon md-icon" title="{{ lang.t('search.reset') }}" aria-label="{{ lang.t('search.reset') }}" tabindex="-1">

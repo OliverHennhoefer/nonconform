@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 
+{% block htmltitle %}
+  {% if page and page.is_homepage and page.meta and page.meta.title %}
+    <title>{{ page.meta.title }}</title>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
+
 {% block extrahead %}
   {{ super() }}
   {% set site_url = config.site_url.rstrip("/") %}
@@ -7,6 +15,8 @@
   {% set page_description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
   {% set page_url = page.canonical_url if page and page.canonical_url else site_url ~ "/" %}
   {% set social_image = site_url ~ "/img/social-card.png" %}
+  <meta name="keywords" content="conformal anomaly detection, conformal inference, anomaly detection, p-values, false discovery rate, FDR control, Python">
+  <link rel="sitemap" type="application/xml" href="{{ site_url }}/sitemap.xml">
   <meta property="og:type" content="{% if page and page.is_homepage %}website{% else %}article{% endif %}">
   <meta property="og:site_name" content="{{ config.site_name }}">
   <meta property="og:title" content="{{ page_title }}">

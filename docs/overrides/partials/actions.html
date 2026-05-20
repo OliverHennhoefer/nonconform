@@ -6,6 +6,7 @@
     <a href="{{ page.edit_url }}" title="{{ lang.t('action.edit') }}" aria-label="{{ lang.t('action.edit') }}" class="md-content__button md-icon" rel="noopener noreferrer">
       {% set icon = config.theme.icon.edit or "material/file-edit-outline" %}
       {% include ".icons/" ~ icon ~ ".svg" %}
+      <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">{{ lang.t("action.edit") }}</span>
     </a>
   {% endif %}
   {% if "content.action.view" in features %}
@@ -17,6 +18,7 @@
     <a href="{{ page.edit_url | replace(part, 'raw') }}" title="{{ lang.t('action.view') }}" aria-label="{{ lang.t('action.view') }}" class="md-content__button md-icon" rel="noopener noreferrer">
       {% set icon = config.theme.icon.view or "material/file-eye-outline" %}
       {% include ".icons/" ~ icon ~ ".svg" %}
+      <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">{{ lang.t("action.view") }}</span>
     </a>
   {% endif %}
 {% endif %}
