@@ -54,17 +54,6 @@ No substantial task is complete without validation evidence.
 - Run `uv run ruff check . --fix` for every task.
 - Run `uv run mkdocs build -f docs/mkdocs.yml` whenever documentation changes under `docs/**`.
 - Run narrower tests while iterating, then finish with full `pytest`.
-- For statistical-core changes, also run relevant integration and e2e coverage.
-
-Preferred commands:
-
-```bash
-uv run ruff format .
-uv run ruff check . --fix
-uv run pytest
-# If docs changed under docs/**:
-uv run mkdocs build -f docs/mkdocs.yml
-```
 
 # Codebase Topology
 
@@ -86,6 +75,13 @@ uv run mkdocs build -f docs/mkdocs.yml
 - Behavioral/API changes require documentation updates.
 - User-facing changes require example updates.
 - Do not leave docs/examples stale relative to implementation.
+
+# Changelog Policy
+
+- Keep root `CHANGELOG.md` updated for notable user-facing, API, behavior,
+  dependency/security, release, deprecation, and removal changes.
+- Follow Keep a Changelog categories, keep `[Unreleased]` first, avoid raw
+  git-log dumps, and use `Security` for vulnerability/security dependency fixes.
 
 # Definition of Done
 

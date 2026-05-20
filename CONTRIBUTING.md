@@ -5,9 +5,7 @@ usability, documentation, or interoperability.
 
 Project-relevant contributions include bug reports, focused fixes, tests,
 documentation corrections, detector compatibility notes, examples, and new
-methods or approaches for conformal anomaly detection (CAD), conformal
-inference, FDR control, covariate-shift workflows, or related detector
-interfaces.
+methods or approaches for conformal anomaly detection.
 
 ## Development Setup
 
