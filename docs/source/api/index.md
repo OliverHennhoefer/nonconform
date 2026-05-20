@@ -1,3 +1,7 @@
+---
+description: "Public API reference for nonconform detectors, calibration strategies, p-value scoring, weighting, FDR control, and metrics."
+---
+
 # API Reference
 
 Complete API documentation for all nonconform modules and classes.

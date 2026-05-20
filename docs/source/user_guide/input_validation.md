@@ -1,3 +1,7 @@
+---
+description: "Handle nonconform input validation errors, calibration resolution limits, weight issues, and parameter constraints."
+---
+
 # Input Validation and Error Handling
 
 This guide explains parameter constraints, validation rules, and error handling in nonconform. Understanding these constraints will help you avoid common pitfalls and debug issues more effectively.

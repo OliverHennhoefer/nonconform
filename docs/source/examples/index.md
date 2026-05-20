@@ -1,3 +1,7 @@
+---
+description: "Runnable nonconform examples for classical, weighted, conditional, resampling, and FDR-controlled anomaly detection."
+---
+
 # Examples
 
 Practical examples demonstrating different conformal anomaly detection approaches.

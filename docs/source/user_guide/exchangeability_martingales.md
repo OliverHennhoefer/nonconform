@@ -1,3 +1,7 @@
+---
+description: "Monitor exchangeability and distribution shift in streams using conformal martingales and nonconform utilities."
+---
+
 # Exchangeability Martingales
 
 Monitor streaming conformal p-values for evidence against exchangeability.

@@ -1,3 +1,7 @@
+---
+description: "Use weighted conformal p-values in nonconform for covariate shift, weight estimation, diagnostics, and WCS selection."
+---
+
 # Weighted Conformal P-values
 
 Handle covariate shift between calibration and test data when the weighted

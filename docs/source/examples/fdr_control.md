@@ -1,3 +1,7 @@
+---
+description: "Example workflows for FDR-controlled anomaly decisions, weighted selection, detector comparisons, and power analysis."
+---
+
 # FDR Control for Multiple Testing
 
 Use `detector.select(...)` for default FDR-controlled anomaly decisions, and

@@ -1,3 +1,7 @@
+---
+description: "Task-oriented nonconform API workflows for fitting, calibration, p-values, FDR selection, and pre-trained detectors."
+---
+
 # Common API Workflows
 
 Task-first API map for common nonconform usage patterns.

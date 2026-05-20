@@ -1,3 +1,8 @@
+---
+title: "nonconform: Conformal Anomaly Detection in Python"
+description: "Python package for conformal anomaly detection with calibrated p-values, principled thresholds, and FDR-controlled decisions."
+---
+
 # nonconform
 
 **Turn anomaly scores into calibrated decisions.**

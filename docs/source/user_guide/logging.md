@@ -1,3 +1,7 @@
+---
+description: "Configure nonconform logging and progress output for development, production, debugging, and long-running workflows."
+---
+
 # Logging and Progress Control
 
 `nonconform` uses Python logging for strategy-level progress and warnings.

@@ -1,3 +1,7 @@
+---
+description: "Example conditional conformal selection workflow for anomaly detection with group-aware calibration behavior."
+---
+
 # Conditional Conformal Selection
 
 This example shows how to use conditionally calibrated conformal p-values with

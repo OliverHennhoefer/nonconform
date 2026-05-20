@@ -1,3 +1,7 @@
+---
+description: "Choose nonconform calibration strategies based on data size, compute budget, robustness needs, and statistical trade-offs."
+---
+
 # Choosing Calibration Strategies
 
 This guide helps you choose a calibration strategy based on data size, runtime,

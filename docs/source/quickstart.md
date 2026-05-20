@@ -1,3 +1,7 @@
+---
+description: "Calibrate anomaly detector scores with nonconform and select FDR-controlled discoveries in a minimal Python workflow."
+---
+
 # Quick Start
 
 Get started with nonconform in minutes.

@@ -1,3 +1,7 @@
+---
+description: "Review statistical concepts behind nonconform, including p-values, FDR, exchangeability, calibration, and covariate shift."
+---
+
 # Statistical Concepts
 
 A practitioner reference for the statistical terms used throughout nonconform.

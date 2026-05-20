@@ -1,3 +1,7 @@
+---
+description: "Practical guidance for calibration data, detector choice, FDR-controlled decisions, production use, and statistical assumptions."
+---
+
 # Best Practices Guide
 
 Recommendations for using nonconform effectively.

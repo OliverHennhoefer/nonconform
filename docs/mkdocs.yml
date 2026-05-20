@@ -1,5 +1,5 @@
 site_name: Nonconform
-site_description: Conformal Anomaly Detection
+site_description: Python package for conformal anomaly detection with calibrated p-values, principled thresholds, and FDR-controlled decisions.
 site_author: Oliver Hennhöfer
 site_url: https://oliverhennhoefer.github.io/nonconform
 repo_url: https://github.com/OliverHennhoefer/nonconform
@@ -13,6 +13,7 @@ site_dir: site
 
 theme:
   name: material
+  custom_dir: overrides
   favicon: img/flavicon.png
   icon:
     repo: fontawesome/brands/github
@@ -135,8 +136,11 @@ hooks:
 extra:
   social:
     - icon: fontawesome/brands/github
+      name: Oliver Hennhoefer on GitHub
       link: https://github.com/OliverHennhoefer
     - icon: fontawesome/brands/linkedin
+      name: Oliver Hennhoefer on LinkedIn
       link: https://www.linkedin.com/in/oliver-hennhoefer
     - icon: fontawesome/brands/x-twitter
+      name: Oliver Hennhoefer on X
       link: https://twitter.com/OHennhoefer

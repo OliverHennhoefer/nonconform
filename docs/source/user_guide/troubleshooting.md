@@ -1,3 +1,7 @@
+---
+description: "Troubleshoot nonconform p-values, FDR results, detector speed, aggregation, logging, memory, and calibration issues."
+---
+
 # Troubleshooting Guide
 
 Common issues and solutions for nonconform.

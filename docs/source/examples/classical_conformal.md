@@ -1,3 +1,7 @@
+---
+description: "Example workflow for split and cross-validation conformal anomaly detection with calibrated p-values and FDR selection."
+---
+
 # Classical Conformal Anomaly Detection
 
 This example demonstrates how to use classical conformal prediction for anomaly detection.

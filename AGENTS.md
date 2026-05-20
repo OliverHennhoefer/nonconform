@@ -80,6 +80,7 @@ No substantial task is complete without validation evidence.
 
 - Keep root `CHANGELOG.md` updated for notable user-facing, API, behavior,
   dependency/security, release, deprecation, and removal changes.
+- Add changelog entries only for changes to `nonconform/**`.
 - Follow Keep a Changelog categories, keep `[Unreleased]` first, avoid raw
   git-log dumps, and use `Security` for vulnerability/security dependency fixes.
 

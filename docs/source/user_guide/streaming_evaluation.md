@@ -1,3 +1,7 @@
+---
+description: "Evaluate nonconform on streaming anomaly data with online generators, drift monitoring, and online or batch FDR control."
+---
+
 # Streaming Evaluation
 
 Generate single instances for online anomaly detection evaluation with exact global anomaly proportion control.

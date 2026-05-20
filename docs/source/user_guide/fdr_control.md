@@ -1,3 +1,7 @@
+---
+description: "Use false discovery rate control with conformal p-values, weighted selection, and online FDR workflows in nonconform."
+---
+
 # False Discovery Rate Control
 
 FDR control is the decision layer for batch anomaly detection. Use it when you

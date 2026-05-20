@@ -1,3 +1,7 @@
+---
+description: "Install nonconform with pip or uv and choose optional extras for PyOD, FDR, probabilistic weighting, and data workflows."
+---
+
 # Installation
 
 ## Prerequisites

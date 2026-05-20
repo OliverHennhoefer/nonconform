@@ -1,3 +1,7 @@
+---
+description: "Set up development tools, run checks, and contribute changes to the nonconform Python package."
+---
+
 # Contributing
 
 Contributions should improve the library's correctness, scope, usability,

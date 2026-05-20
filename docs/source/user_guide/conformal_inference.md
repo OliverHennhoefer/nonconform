@@ -1,3 +1,7 @@
+---
+description: "Understand conformal p-values for anomaly detection, assumptions, calibration, aggregation, and FDR-controlled decisions."
+---
+
 # Understanding Conformal Inference
 
 Learn what conformal inference adds to anomaly detection, what it can guarantee,

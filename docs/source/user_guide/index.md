@@ -1,3 +1,7 @@
+---
+description: "Guide to nonconform concepts, calibration strategies, weighted conformal methods, FDR control, evaluation, and troubleshooting."
+---
+
 # User Guide
 
 This guide is written for practitioners who need calibrated anomaly decisions

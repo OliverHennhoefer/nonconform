@@ -1,3 +1,7 @@
+---
+description: "Evaluate nonconform anomaly detection on generated batches with controlled contamination, reproducibility, and FDR metrics."
+---
+
 # Batch Evaluation
 
 Generate evaluation batches with precise anomaly contamination control for systematic anomaly detection testing.

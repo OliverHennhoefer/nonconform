@@ -1,4 +1,8 @@
-﻿# Detector Compatibility Guide
+---
+description: "Use scikit-learn, PyOD, and custom anomaly detectors with nonconform while handling score polarity and interfaces."
+---
+
+# Detector Compatibility Guide
 
 Most detectors implementing `AnomalyDetector` work with nonconform: PyOD,
 scikit-learn, or custom implementations.

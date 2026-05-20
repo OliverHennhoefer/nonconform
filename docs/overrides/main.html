@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% set site_url = config.site_url.rstrip("/") %}
+  {% set page_title = page.meta.title if page and page.meta and page.meta.title else page.title if page and page.title else config.site_name %}
+  {% set page_description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
+  {% set page_url = page.canonical_url if page and page.canonical_url else site_url ~ "/" %}
+  {% set social_image = site_url ~ "/img/social-card.png" %}
+  <meta property="og:type" content="{% if page and page.is_homepage %}website{% else %}article{% endif %}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+  <meta property="og:title" content="{{ page_title }}">
+  <meta property="og:description" content="{{ page_description }}">
+  <meta property="og:url" content="{{ page_url }}">
+  <meta property="og:image" content="{{ social_image }}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="nonconform documentation preview">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ page_title }}">
+  <meta name="twitter:description" content="{{ page_description }}">
+  <meta name="twitter:image" content="{{ social_image }}">
+  <meta name="twitter:image:alt" content="nonconform documentation preview">
+  <script type="application/ld+json">
+  {% if page and page.is_homepage %}
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": {{ (site_url ~ "/#website") | tojson }},
+        "url": {{ (site_url ~ "/") | tojson }},
+        "name": {{ config.site_name | tojson }},
+        "description": {{ page_description | tojson }},
+        "publisher": {
+          "@type": "Person",
+          "name": {{ config.site_author | tojson }}
+        }
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "@id": {{ (site_url ~ "/#software") | tojson }},
+        "name": "nonconform",
+        "description": {{ page_description | tojson }},
+        "url": {{ page_url | tojson }},
+        "codeRepository": {{ config.repo_url | tojson }},
+        "programmingLanguage": "Python",
+        "runtimePlatform": "Python 3.12+",
+        "license": {{ (config.repo_url ~ "/blob/main/LICENSE") | tojson }},
+        "isPartOf": {
+          "@id": {{ (site_url ~ "/#website") | tojson }}
+        }
+      }
+    ]
+  }
+  {% else %}
+  {
+    "@context": "https://schema.org",
+    "@type": ["TechArticle", "WebPage"],
+    "headline": {{ page_title | tojson }},
+    "description": {{ page_description | tojson }},
+    "url": {{ page_url | tojson }},
+    "author": {
+      "@type": "Person",
+      "name": {{ config.site_author | tojson }}
+    },
+    "isPartOf": {
+      "@type": "WebSite",
+      "@id": {{ (site_url ~ "/#website") | tojson }},
+      "name": {{ config.site_name | tojson }},
+      "url": {{ (site_url ~ "/") | tojson }}
+    },
+    "about": {
+      "@type": "SoftwareSourceCode",
+      "@id": {{ (site_url ~ "/#software") | tojson }},
+      "name": "nonconform",
+      "codeRepository": {{ config.repo_url | tojson }}
+    }
+  }
+  {% endif %}
+  </script>
+{% endblock %}

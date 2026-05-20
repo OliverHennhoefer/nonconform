@@ -1,3 +1,7 @@
+---
+description: "Compare split, cross-validation, jackknife, and bootstrap calibration strategies for conformal anomaly detection."
+---
+
 # Conformalization Strategies
 
 Calibration strategies trade data efficiency, runtime, memory, and validity

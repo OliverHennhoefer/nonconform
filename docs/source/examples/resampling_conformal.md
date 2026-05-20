@@ -1,3 +1,7 @@
+---
+description: "Example data-efficient conformal anomaly detection with cross-validation, jackknife, and bootstrap calibration strategies."
+---
+
 # Data-Efficient Resampling Conformal Detection
 
 Split conformal is the clearest baseline: fit on one subset, calibrate on

@@ -1,3 +1,7 @@
+---
+description: "Example weighted conformal anomaly detection under covariate shift with importance weights and FDR-controlled selection."
+---
+
 # Weighted Conformal Anomaly Detection
 
 Use weighted conformal prediction for anomaly detection when the shift is

@@ -1,0 +1,34 @@
+# nonconform
+
+> Python package for conformal anomaly detection with calibrated p-values, principled thresholds, and FDR-controlled decisions.
+
+This file is a concise, AI-readable map of the public documentation for nonconform.
+
+## Documentation
+
+- [Home](https://oliverhennhoefer.github.io/nonconform/) - Project overview, citation, guarantee scope, and installation links.
+- [Installation](https://oliverhennhoefer.github.io/nonconform/installation/) - Package installation and optional extras.
+- [Quick Start](https://oliverhennhoefer.github.io/nonconform/quickstart/) - Minimal conformal anomaly detection workflow.
+- [User Guide](https://oliverhennhoefer.github.io/nonconform/user_guide/) - Concepts, strategies, weighting, FDR control, evaluation, and troubleshooting.
+- [API Reference](https://oliverhennhoefer.github.io/nonconform/api/) - Public API modules and compatibility contract.
+- [Examples](https://oliverhennhoefer.github.io/nonconform/examples/) - Classical, conditional, resampling, weighted, and FDR examples.
+
+## Key Topic Pages
+
+- [Understanding Conformal Inference](https://oliverhennhoefer.github.io/nonconform/user_guide/conformal_inference/) - Conformal p-values, calibration assumptions, and interpretation.
+- [Choosing Calibration Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/choosing_strategies/) - Split, cross-validation, jackknife, and bootstrap trade-offs.
+- [Weighted Conformal P-values](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) - Covariate shift, importance weighting, diagnostics, and WCS selection.
+- [False Discovery Rate Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) - FDR-controlled anomaly decisions and online FDR workflows.
+- [API Stability](https://oliverhennhoefer.github.io/nonconform/api/stability/) - v1 public API and statistical validity compatibility policy.
+
+## Project Links
+
+- [Source repository](https://github.com/OliverHennhoefer/nonconform)
+- [Python package](https://pypi.org/project/nonconform/)
+- [Paper](https://arxiv.org/abs/2605.13642)
+
+## Notes for AI Assistants
+
+- Treat documented statistical guarantees as conditional on the assumptions stated in the relevant guide pages.
+- Prefer `ConformalDetector.select(...)` for anomaly decisions that need FDR control.
+- Keep `nonconform._internal` private; it is not user-facing API.

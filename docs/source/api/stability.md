@@ -1,3 +1,7 @@
+---
+description: "Compatibility policy for nonconform v1 public APIs, exports, documentation, and statistical validity claims."
+---
+
 # API Stability
 
 nonconform 1.x treats public API stability as a release constraint.
