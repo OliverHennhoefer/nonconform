@@ -7,11 +7,7 @@
     {% if "mastodon" in social.icon %}
       {% set rel = rel ~ " me" %}
     {% endif %}
-    {% set title = social.name %}
-    {% if not title and "//" in social.link %}
-      {% set _, url = social.link.split("//") %}
-      {% set title  = url.split("/")[0] %}
-    {% endif %}
+    {% set title = social.name or social.link %}
     <a href="{{ social.link }}" target="_blank" rel="{{ rel }}" title="{{ title | e }}" aria-label="{{ title | e }}" class="md-social__link">
       {% include ".icons/" ~ social.icon ~ ".svg" %}
       <span style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">{{ title | e }}</span>

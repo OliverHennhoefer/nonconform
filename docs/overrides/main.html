@@ -10,7 +10,7 @@
 
 {% block extrahead %}
   {{ super() }}
-  {% set site_url = config.site_url.rstrip("/") %}
+  {% set site_url = config.site_url %}
   {% set page_title = page.meta.title if page and page.meta and page.meta.title else page.title if page and page.title else config.site_name %}
   {% set page_description = page.meta.description if page and page.meta and page.meta.description else config.site_description %}
   {% set page_url = page.canonical_url if page and page.canonical_url else site_url ~ "/" %}
