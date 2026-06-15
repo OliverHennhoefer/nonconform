@@ -16,7 +16,7 @@
 uv run ruff format .
 uv run ruff check . --fix
 uv run pytest
-uv run mkdocs build -f docs/mkdocs.yml
+uv run zensical build --clean --strict -f docs/mkdocs.yml
 -->
 
 ## References

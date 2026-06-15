@@ -3,7 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 #
-# Note: MkDocs is the canonical docs build/deploy path for this project
+# Note: Zensical is the canonical docs build/deploy path for this project
 # (see docs/mkdocs.yml and .github/workflows/docs.yml). This Sphinx
 # configuration is retained for local/legacy workflows.
 

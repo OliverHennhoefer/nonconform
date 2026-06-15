@@ -10,9 +10,10 @@ copyright: Copyright © 2025 Oliver Hennhöfer
 
 docs_dir: source
 site_dir: site
+use_directory_urls: true
 
 theme:
-  name: material
+  variant: classic
   custom_dir: overrides
   favicon: img/flavicon.png
   font: false
@@ -107,7 +108,14 @@ plugins:
             filters:
               - "!^_"  # Exclude internal functions starting with underscore
 
+validation:
+  # Existing citation prose uses nested brackets, which Zensical's regex-based
+  # unresolved-reference validation currently reports as false positives.
+  unresolved_references: false
+
 markdown_extensions:
+  # Compatibility bridge for Zensical 0.0.45 + current mkdocstrings.
+  - docs.zensical_mkdocs_autorefs
   - admonition
   - pymdownx.details
   - pymdownx.superfences
@@ -130,9 +138,6 @@ markdown_extensions:
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
-
-hooks:
-  - hooks/pygments_filename_none_fix.py
 
 extra:
   social:
