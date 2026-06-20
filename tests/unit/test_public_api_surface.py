@@ -51,6 +51,11 @@ PUBLIC_MODULE_EXPORTS = {
         "resolve_implicit_score_polarity",
         "resolve_score_polarity",
     ],
+    "nonconform.cleaning": [
+        "LabelTrimResult",
+        "apply_label_trim",
+        "select_label_trim_candidates",
+    ],
     "nonconform.detector": [
         "BaseConformalDetector",
         "ConformalDetector",

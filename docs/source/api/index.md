@@ -35,6 +35,14 @@ For the v1 public compatibility contract, see
       show_root_heading: true
       heading_level: 3
 
+## Calibration Cleaning
+
+Score-level Label-Trim helpers for contaminated calibration/reference data.
+::: nonconform.cleaning
+    options:
+      show_root_heading: true
+      heading_level: 3
+
 ## Weight Estimation
 
 ::: nonconform.weighting

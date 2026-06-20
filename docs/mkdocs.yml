@@ -62,6 +62,7 @@ nav:
     - Conformalization Strategies: user_guide/conformalization_strategies.md
     - Choosing Strategies: user_guide/choosing_strategies.md
     - Detector Compatibility: user_guide/detector_compatibility.md
+    - Calibration Cleaning: user_guide/calibration_cleaning.md
     - Weighted Conformal: user_guide/weighted_conformal.md
     - FDR Control: user_guide/fdr_control.md
     - Batch Evaluation: user_guide/batch_evaluation.md

@@ -233,21 +233,25 @@ def choose_calibration_strategy(n_samples):
 
 - Ensure calibration data is representative of normal class
 - Avoid using contaminated data for calibration
+- If mild contamination is unavoidable, use an explicit audit/cleaning workflow
+  such as [Calibration Cleaning](calibration_cleaning.md)
 - Consider stratified sampling for balanced calibration
 
 ```python
-def validate_calibration_data(X_train, contamination_rate=0.05):
-    """Validate that calibration data is clean."""
-    # Use a simple detector to identify potential anomalies in training data
-    temp_detector = IForest(contamination=contamination_rate)
-    temp_detector.fit(X_train)
-    anomaly_scores = temp_detector.decision_function(X_train)
+from nonconform.cleaning import apply_label_trim, select_label_trim_candidates
 
-    # Keep only the most normal samples for calibration
-    normal_threshold = np.percentile(anomaly_scores, (1 - contamination_rate) * 100)
-    clean_indices = anomaly_scores >= normal_threshold
 
-    return X_train[clean_indices]
+def clean_calibration_scores(calibration_scores, candidate_labels, label_budget=50):
+    """Apply Label-Trim after auditing high-score calibration candidates."""
+    candidate_indices = select_label_trim_candidates(
+        calibration_scores,
+        label_budget=label_budget,
+    )
+    return apply_label_trim(
+        calibration_scores,
+        candidate_indices,
+        candidate_labels,
+    )
 ```
 
 ## FDR Control Best Practices

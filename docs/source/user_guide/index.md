@@ -26,6 +26,7 @@ If you are new to conformal prediction, start here:
 | [Conformalization Strategies](conformalization_strategies.md) | Split, Cross-Validation, Jackknife+, and Bootstrap strategies explained |
 | [Choosing Strategies](choosing_strategies.md) | Decision framework: which strategy to use for your dataset and requirements |
 | [Detector Compatibility](detector_compatibility.md) | How to use PyOD, scikit-learn, or your own custom detectors |
+| [Calibration Cleaning](calibration_cleaning.md) | Label-Trim helpers for contaminated calibration/reference data |
 
 ## Advanced Topics
 
@@ -58,7 +59,8 @@ If you are new to conformal prediction, start here:
 Before relying on a statistical guarantee, confirm:
 
 - The calibration data is representative of normal data for the target
-  workflow.
+  workflow, or contaminated reference data is handled by an explicit cleaning
+  step.
 - The detector score direction is configured correctly.
 - Multiple anomaly decisions go through `select(...)` or another documented FDR
   procedure.
