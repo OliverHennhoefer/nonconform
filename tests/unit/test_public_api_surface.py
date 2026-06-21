@@ -64,7 +64,10 @@ PUBLIC_MODULE_EXPORTS = {
         "TieBreakMode",
     ],
     "nonconform.fdr": [
+        "FDPBoundResult",
         "Pruning",
+        "conformal_fdp_upper_bound",
+        "conformal_fdp_upper_bound_from_result",
         "weighted_false_discovery_control",
         "weighted_false_discovery_control_from_arrays",
     ],

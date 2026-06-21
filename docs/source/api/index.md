@@ -44,7 +44,8 @@ For the v1 public compatibility contract, see
 
 ## FDR Control
 
-Includes weighted low-level expert APIs (`weighted_false_discovery_control`).
+Includes post-hoc FDP bounds and weighted low-level expert APIs
+(`weighted_false_discovery_control`).
 For standard workflows, prefer `ConformalDetector.select(...)`.
 ::: nonconform.fdr
     options:
