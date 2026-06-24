@@ -7,9 +7,11 @@ This module provides explicit entry points for:
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 from nonconform.structures import ConformalResult
@@ -17,7 +19,9 @@ from nonconform.structures import ConformalResult
 from ._internal import Pruning, get_logger
 
 _KDE_MONOTONICITY_TOL = 1e-12
-_SUPPORTED_FDP_METHOD = "mc_thc"
+_FDP_BOUND_METHOD = "mc_thc"
+_FDP_BOUND_METHODS = frozenset({"mc_thc", "mc_hc", "mc_ks", "ks", "mc_bj"})
+_RESULT_SCOPE_METADATA_KEY = "nonconform"
 
 
 def _validate_alpha(alpha: float) -> None:
@@ -116,16 +120,25 @@ def _validate_probability(name: str, value: float) -> float:
     return scalar
 
 
-def _validate_method(method: str) -> str:
-    """Normalize and validate the FDP-bound method name."""
+def _validate_positive_finite(name: str, value: float) -> float:
+    """Validate a positive finite scalar."""
+    try:
+        scalar = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a positive finite value.") from exc
+    if not np.isfinite(scalar) or scalar <= 0.0:
+        raise ValueError(f"{name} must be a positive finite value.")
+    return scalar
+
+
+def _validate_fdp_method(method: str) -> str:
+    """Normalize and validate the FDP-bound envelope method."""
     if not isinstance(method, str):
         raise TypeError("method must be a string.")
-    normalized = method.lower().replace("-", "_")
-    if normalized != _SUPPORTED_FDP_METHOD:
-        raise ValueError(
-            "method must be 'mc_thc'. "
-            "Only the Monte Carlo truncated higher-criticism bound is supported."
-        )
+    normalized = "_".join(method.strip().lower().replace("-", " ").split())
+    if normalized not in _FDP_BOUND_METHODS:
+        supported = ", ".join(sorted(_FDP_BOUND_METHODS))
+        raise ValueError(f"method must be one of {{{supported}}}.")
     return normalized
 
 
@@ -137,12 +150,7 @@ def _validate_truncation(
     upper_value = _validate_probability("upper", upper)
     if lower_value >= upper_value:
         raise ValueError("lower must be strictly smaller than upper.")
-    try:
-        beta_value = float(beta)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("beta must be a positive finite value.") from exc
-    if not np.isfinite(beta_value) or beta_value <= 0.0:
-        raise ValueError("beta must be a positive finite value.")
+    beta_value = _validate_positive_finite("beta", beta)
     return lower_value, upper_value, beta_value
 
 
@@ -181,6 +189,40 @@ def _as_threshold_query(threshold: float | np.ndarray) -> tuple[np.ndarray, bool
     return np.clip(arr, 0.0, 1.0), scalar_input
 
 
+def _validate_fdp_result_scope(result: ConformalResult) -> None:
+    """Reject cached result scopes known to fall outside the FDP-bound guarantee."""
+    metadata = result.metadata if isinstance(result.metadata, dict) else {}
+    if "kde" in metadata:
+        raise ValueError(
+            "conformal_fdp_upper_bound_from_result() supports empirical conformal "
+            "p-values, not probabilistic/KDE p-values."
+        )
+
+    scope = metadata.get(_RESULT_SCOPE_METADATA_KEY)
+    if scope is None:
+        return
+    if not isinstance(scope, dict):
+        raise ValueError("result.metadata['nonconform'] must be a dictionary.")
+
+    strategy = scope.get("strategy")
+    estimation = scope.get("estimation")
+    if scope.get("weighted"):
+        raise ValueError(
+            "conformal_fdp_upper_bound_from_result() supports only unweighted "
+            "conformal p-values in this release."
+        )
+    if strategy != "Split":
+        raise ValueError(
+            "conformal_fdp_upper_bound_from_result() supports split or detached "
+            "calibration results only."
+        )
+    if estimation != "Empirical":
+        raise ValueError(
+            "conformal_fdp_upper_bound_from_result() supports empirical conformal "
+            "p-values only."
+        )
+
+
 def _custom_quantile(values: np.ndarray, q: float) -> float:
     """Return the Monte Carlo quantile used by Song, Jin, and Candes."""
     n = len(values)
@@ -208,14 +250,14 @@ def _sample_conformal_null_p_values(
     return (cell_indices + rng.random(n_test)) / (n_calibration + 1)
 
 
-def _truncated_higher_criticism_statistic(
+def _higher_criticism_statistic(
     p_values: np.ndarray,
     *,
-    lower: float,
-    upper: float,
-    beta: float,
+    lower: float = 0.0,
+    upper: float = 1.0,
+    beta: float = 0.5,
 ) -> float:
-    """Compute the truncated higher-criticism summary statistic."""
+    """Compute the higher-criticism summary statistic."""
     n_test = len(p_values)
     sorted_p_values = np.sort(p_values)
     eps = np.finfo(float).eps
@@ -228,27 +270,115 @@ def _truncated_higher_criticism_statistic(
 
     lower_idx = int(np.count_nonzero(p_values <= lower))
     upper_idx = int(np.count_nonzero(p_values <= upper))
-    lower_term = (lower_idx / n_test - lower) / np.power(
-        lower * (1.0 - lower),
-        beta,
-    )
+    lower_term = 0.0
+    if lower > 0.0:
+        lower_term = (lower_idx / n_test - lower) / np.power(
+            lower * (1.0 - lower),
+            beta,
+        )
     if lower_idx < upper_idx:
         return float(max(np.max(scaled_diffs[lower_idx:upper_idx]), lower_term))
     return float(lower_term)
 
 
-def _mc_thc_summary_quantile(
+def _ks_statistic(p_values: np.ndarray) -> float:
+    """Compute the one-sided KS summary statistic."""
+    n_test = len(p_values)
+    sorted_p_values = np.sort(p_values)
+    grid = np.arange(1, n_test + 1, dtype=float) / n_test
+    return float(np.max(grid - sorted_p_values))
+
+
+def _bernoulli_kl(p0: np.ndarray, p1: np.ndarray) -> np.ndarray:
+    """Compute Bernoulli KL divergence with endpoint-safe probabilities."""
+    eps = np.finfo(float).eps
+    p0_safe = np.clip(p0, eps, 1.0 - eps)
+    p1_safe = np.clip(p1, eps, 1.0 - eps)
+    return p0_safe * np.log(p0_safe / p1_safe) + (1.0 - p0_safe) * np.log(
+        (1.0 - p0_safe) / (1.0 - p1_safe)
+    )
+
+
+def _berk_jones_statistic(p_values: np.ndarray) -> float:
+    """Compute the Berk-Jones summary statistic."""
+    n_test = len(p_values)
+    half = n_test // 2
+    if half == 0:
+        return 0.0
+    sorted_p_values = np.sort(p_values)
+    grid = np.arange(1, half + 1, dtype=float) / n_test
+    return float(n_test * np.max(_bernoulli_kl(sorted_p_values[:half], grid)))
+
+
+def _solve_bernoulli_kl_lower_bounds(
+    targets: np.ndarray,
+    statistic: float,
+    *,
+    n_test: int,
+    precision: float,
+) -> np.ndarray:
+    """Solve KL(x, target) = statistic / n_test below each target."""
+    target_level = statistic / n_test
+    solutions = np.zeros_like(targets, dtype=float)
+    for i, target in enumerate(targets):
+        lower = 0.0
+        upper = float(target)
+        while upper - lower > precision:
+            midpoint = (lower + upper) / 2.0
+            divergence = float(
+                _bernoulli_kl(
+                    np.array([midpoint], dtype=float),
+                    np.array([target], dtype=float),
+                )[0]
+            )
+            if divergence < target_level:
+                upper = midpoint
+            else:
+                lower = midpoint
+        solutions[i] = (lower + upper) / 2.0
+    return solutions
+
+
+def _dkw_tau(n_calibration: int, n_test: int) -> float:
+    """Return the transductive DKW effective sample size."""
+    return n_test * n_calibration / (n_test + n_calibration)
+
+
+def _dkw_psi(x: float, *, n_calibration: int, n_test: int, delta: float) -> float:
+    """Return one DKW fixed-point update."""
+    tau = _dkw_tau(n_calibration, n_test)
+    numerator = np.log(1.0 / delta) + np.log(
+        1.0 + np.sqrt(2.0 * np.pi) * 2.0 * x * tau / np.sqrt(n_calibration + n_test)
+    )
+    return float(min(1.0, np.sqrt(numerator / (2.0 * tau))))
+
+
+def _dkw_lambda(
+    *, n_calibration: int, n_test: int, confidence: float, iterations: int = 1000
+) -> float:
+    """Compute the deterministic KS envelope offset from the author code."""
+    delta = 1.0 - confidence
+    value = 1.0
+    for _ in range(iterations):
+        value = _dkw_psi(
+            value,
+            n_calibration=n_calibration,
+            n_test=n_test,
+            delta=delta,
+        )
+    return value
+
+
+def _mc_summary_quantile(
     *,
     n_calibration: int,
     n_test: int,
     confidence: float,
     n_resamples: int,
     seed: int | None,
-    lower: float,
-    upper: float,
-    beta: float,
+    statistic: Callable[[np.ndarray], float],
 ) -> float:
-    """Estimate the MC-THC envelope cutoff from conformal null samples."""
+    """Estimate an envelope cutoff from conformal null samples."""
     rng = np.random.default_rng(seed)
     summary_stats = np.empty(n_resamples, dtype=float)
     for i in range(n_resamples):
@@ -257,16 +387,21 @@ def _mc_thc_summary_quantile(
             n_test=n_test,
             rng=rng,
         )
-        summary_stats[i] = _truncated_higher_criticism_statistic(
-            sampled,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-        )
+        summary_stats[i] = statistic(sampled)
     return _custom_quantile(summary_stats, confidence)
 
 
-def _mc_thc_ecdf_upper_bound(
+def _hc_ecdf_upper_bound(x: np.ndarray, *, summary_quantile: float) -> np.ndarray:
+    """Evaluate the HC upper envelope for the null p-value ECDF."""
+    x_arr = np.asarray(x, dtype=float)
+    return np.clip(
+        x_arr + np.sqrt(np.clip(x_arr * (1.0 - x_arr), 0.0, None)) * summary_quantile,
+        0.0,
+        1.0,
+    )
+
+
+def _thc_ecdf_upper_bound(
     x: np.ndarray,
     *,
     summary_quantile: float,
@@ -297,14 +432,130 @@ def _mc_thc_ecdf_upper_bound(
     return np.clip(out, 0.0, 1.0)
 
 
-def _evaluate_fdp_upper_bound(
-    p_values: np.ndarray,
-    thresholds: np.ndarray,
+def _ks_ecdf_upper_bound(x: np.ndarray, *, summary_quantile: float) -> np.ndarray:
+    """Evaluate a KS-style upper envelope for the null p-value ECDF."""
+    x_arr = np.asarray(x, dtype=float)
+    return np.clip(x_arr + summary_quantile, 0.0, 1.0)
+
+
+def _bj_ecdf_upper_bound(
+    x: np.ndarray, *, lower_bounds: np.ndarray, n_test: int
+) -> np.ndarray:
+    """Evaluate the Berk-Jones upper envelope for the null p-value ECDF."""
+    x_arr = np.asarray(x, dtype=float)
+    if lower_bounds.size == 0:
+        return np.ones_like(x_arr, dtype=float)
+    indices = np.searchsorted(lower_bounds, x_arr, side="left")
+    return np.where(indices == lower_bounds.size, 1.0, indices / n_test)
+
+
+def _ecdf_upper_bound_from_params(
+    x: np.ndarray,
     *,
+    method: str,
     summary_quantile: float,
     lower: float,
     upper: float,
     beta: float,
+    bj_lower_bounds: np.ndarray | None,
+    n_test: int,
+) -> np.ndarray:
+    """Evaluate the configured ECDF upper envelope."""
+    if method == "mc_thc":
+        return _thc_ecdf_upper_bound(
+            x,
+            summary_quantile=summary_quantile,
+            lower=lower,
+            upper=upper,
+            beta=beta,
+        )
+    if method == "mc_hc":
+        return _hc_ecdf_upper_bound(x, summary_quantile=summary_quantile)
+    if method in {"mc_ks", "ks"}:
+        return _ks_ecdf_upper_bound(x, summary_quantile=summary_quantile)
+    if method == "mc_bj":
+        if bj_lower_bounds is None:
+            raise RuntimeError("Internal error: missing Berk-Jones lower bounds.")
+        return _bj_ecdf_upper_bound(x, lower_bounds=bj_lower_bounds, n_test=n_test)
+    raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
+
+
+def _build_ecdf_upper_bound(
+    *,
+    method: str,
+    n_calibration: int,
+    n_test: int,
+    confidence: float,
+    n_resamples: int,
+    seed: int | None,
+    lower: float,
+    upper: float,
+    beta: float,
+    precision: float,
+) -> tuple[float, np.ndarray | None]:
+    """Build method-specific ECDF envelope state."""
+    bj_lower_bounds = None
+    if method == "mc_thc":
+        summary_quantile = _mc_summary_quantile(
+            n_calibration=n_calibration,
+            n_test=n_test,
+            confidence=confidence,
+            n_resamples=n_resamples,
+            seed=seed,
+            statistic=lambda sampled: _higher_criticism_statistic(
+                sampled, lower=lower, upper=upper, beta=beta
+            ),
+        )
+    elif method == "mc_hc":
+        summary_quantile = _mc_summary_quantile(
+            n_calibration=n_calibration,
+            n_test=n_test,
+            confidence=confidence,
+            n_resamples=n_resamples,
+            seed=seed,
+            statistic=_higher_criticism_statistic,
+        )
+    elif method == "mc_ks":
+        summary_quantile = _mc_summary_quantile(
+            n_calibration=n_calibration,
+            n_test=n_test,
+            confidence=confidence,
+            n_resamples=n_resamples,
+            seed=seed,
+            statistic=_ks_statistic,
+        )
+    elif method == "ks":
+        summary_quantile = _dkw_lambda(
+            n_calibration=n_calibration,
+            n_test=n_test,
+            confidence=confidence,
+        )
+    elif method == "mc_bj":
+        summary_quantile = _mc_summary_quantile(
+            n_calibration=n_calibration,
+            n_test=n_test,
+            confidence=confidence,
+            n_resamples=n_resamples,
+            seed=seed,
+            statistic=_berk_jones_statistic,
+        )
+        targets = np.arange(1, n_test // 2 + 1, dtype=float) / n_test
+        bj_lower_bounds = _solve_bernoulli_kl_lower_bounds(
+            targets,
+            summary_quantile,
+            n_test=n_test,
+            precision=precision,
+        )
+    else:
+        raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
+    return summary_quantile, bj_lower_bounds
+
+
+def _evaluate_fdp_upper_bound(
+    p_values: np.ndarray,
+    thresholds: np.ndarray,
+    *,
+    ecdf_upper_bound: Callable[[np.ndarray], np.ndarray],
     boost: bool,
 ) -> np.ndarray:
     """Evaluate simultaneous FDP upper bounds at thresholds."""
@@ -321,15 +572,7 @@ def _evaluate_fdp_upper_bound(
                 max_p_under_threshold[mask],
                 p_value,
             )
-            ecdf_bound = float(
-                _mc_thc_ecdf_upper_bound(
-                    np.array([p_value], dtype=float),
-                    summary_quantile=summary_quantile,
-                    lower=lower,
-                    upper=upper,
-                    beta=beta,
-                )[0]
-            )
+            ecdf_bound = float(ecdf_upper_bound(np.array([p_value], dtype=float))[0])
             second_term = n_test * ecdf_bound - np.count_nonzero(
                 sorted_p_values <= p_value
             )
@@ -341,13 +584,7 @@ def _evaluate_fdp_upper_bound(
             side="right",
         )
     else:
-        numerator = n_test * _mc_thc_ecdf_upper_bound(
-            thresholds,
-            summary_quantile=summary_quantile,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-        )
+        numerator = n_test * ecdf_upper_bound(thresholds)
 
     denominator = np.searchsorted(sorted_p_values, thresholds, side="right")
     raw = np.divide(
@@ -384,6 +621,9 @@ class FDPBoundResult:
     _lower: float = field(repr=False)
     _upper: float = field(repr=False)
     _beta: float = field(repr=False)
+    _precision: float = field(repr=False)
+    _bj_lower_bounds: np.ndarray | None = field(default=None, repr=False)
+    precision_lower_bounds: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         """Copy array fields so the result is independent of caller inputs."""
@@ -391,6 +631,24 @@ class FDPBoundResult:
         self.thresholds = np.asarray(self.thresholds, dtype=float).copy()
         self.rejection_counts = np.asarray(self.rejection_counts, dtype=int).copy()
         self.fdp_upper_bounds = np.asarray(self.fdp_upper_bounds, dtype=float).copy()
+        if self._bj_lower_bounds is not None:
+            self._bj_lower_bounds = np.asarray(
+                self._bj_lower_bounds, dtype=float
+            ).copy()
+        self.precision_lower_bounds = 1.0 - self.fdp_upper_bounds
+
+    def _ecdf_upper_bound(self, x: np.ndarray) -> np.ndarray:
+        """Evaluate this result's ECDF envelope."""
+        return _ecdf_upper_bound_from_params(
+            x,
+            method=self.method,
+            summary_quantile=self._summary_quantile,
+            lower=self._lower,
+            upper=self._upper,
+            beta=self._beta,
+            bj_lower_bounds=self._bj_lower_bounds,
+            n_test=self.n_test,
+        )
 
     def bound_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
         """Evaluate the FDP upper bound at one or more thresholds."""
@@ -398,15 +656,41 @@ class FDPBoundResult:
         bounds = _evaluate_fdp_upper_bound(
             self.p_values,
             threshold_arr,
-            summary_quantile=self._summary_quantile,
-            lower=self._lower,
-            upper=self._upper,
-            beta=self._beta,
+            ecdf_upper_bound=self._ecdf_upper_bound,
             boost=self.boost,
         )
         if scalar_input:
             return float(bounds[0])
         return bounds
+
+    def precision_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
+        """Evaluate the certified precision lower bound at thresholds."""
+        bounds = self.bound_at(threshold)
+        return 1.0 - bounds
+
+    def to_frame(self, thresholds: np.ndarray | None = None) -> pd.DataFrame:
+        """Return threshold-level FDP certificates as a DataFrame."""
+        if thresholds is None:
+            threshold_arr = self.thresholds
+            fdp_bounds = self.fdp_upper_bounds
+            precision_bounds = self.precision_lower_bounds
+        else:
+            threshold_arr = _as_thresholds(thresholds, self.p_values)
+            fdp_bounds = self.bound_at(threshold_arr)
+            precision_bounds = 1.0 - fdp_bounds
+        rejection_counts = np.searchsorted(
+            np.sort(self.p_values),
+            threshold_arr,
+            side="right",
+        )
+        return pd.DataFrame(
+            {
+                "threshold": threshold_arr,
+                "discoveries": rejection_counts,
+                "fdp_upper_bound": fdp_bounds,
+                "precision_lower_bound": precision_bounds,
+            }
+        )
 
     def select(self, threshold: float) -> np.ndarray:
         """Return the selection mask induced by ``p_values <= threshold``."""
@@ -422,34 +706,37 @@ def conformal_fdp_upper_bound(
     n_calibration: int,
     confidence: float = 0.95,
     n_resamples: int = 1000,
-    method: str = _SUPPORTED_FDP_METHOD,
+    method: str = _FDP_BOUND_METHOD,
     seed: int | None = None,
     boost: bool = True,
     lower: float = 0.01,
     upper: float = 0.99,
     beta: float = 0.5,
+    precision: float = 1e-8,
     thresholds: np.ndarray | None = None,
 ) -> FDPBoundResult:
     """Compute post-hoc simultaneous FDP upper bounds for conformal p-values.
 
-    This implements the Monte Carlo truncated higher-criticism FDP envelope from
-    Song, Jin, and Candes for unweighted conformal p-values from a fixed scoring
-    map. The returned certificate is valid for threshold exploration under that
-    scope; it does not cover detector/model selection or weighted conformal
-    p-values.
+    This implements simultaneous FDP envelopes from Song, Jin, and Candes for
+    unweighted conformal p-values from a fixed scoring map. Choose ``method``
+    before inspecting the resulting curve. The returned certificate is valid
+    for threshold exploration under that scope; it does not cover detector/model
+    selection or weighted conformal p-values.
     """
     p_values_arr = _as_p_values("p_values", p_values)
     n_calibration = _validate_positive_integer("n_calibration", n_calibration)
     n_resamples = _validate_positive_integer("n_resamples", n_resamples)
     confidence = _validate_probability("confidence", confidence)
-    method = _validate_method(method)
+    method = _validate_fdp_method(method)
     seed = _validate_seed(seed)
     if not isinstance(boost, bool):
         raise TypeError("boost must be a boolean value.")
     lower, upper, beta = _validate_truncation(lower, upper, beta)
+    precision = _validate_positive_finite("precision", precision)
 
     evaluated_thresholds = _as_thresholds(thresholds, p_values_arr)
-    summary_quantile = _mc_thc_summary_quantile(
+    summary_quantile, bj_lower_bounds = _build_ecdf_upper_bound(
+        method=method,
         n_calibration=n_calibration,
         n_test=p_values_arr.size,
         confidence=confidence,
@@ -458,14 +745,25 @@ def conformal_fdp_upper_bound(
         lower=lower,
         upper=upper,
         beta=beta,
+        precision=precision,
     )
+
+    def ecdf_upper_bound(x: np.ndarray) -> np.ndarray:
+        return _ecdf_upper_bound_from_params(
+            x,
+            method=method,
+            summary_quantile=summary_quantile,
+            lower=lower,
+            upper=upper,
+            beta=beta,
+            bj_lower_bounds=bj_lower_bounds,
+            n_test=p_values_arr.size,
+        )
+
     fdp_bounds = _evaluate_fdp_upper_bound(
         p_values_arr,
         evaluated_thresholds,
-        summary_quantile=summary_quantile,
-        lower=lower,
-        upper=upper,
-        beta=beta,
+        ecdf_upper_bound=ecdf_upper_bound,
         boost=boost,
     )
     sorted_p_values = np.sort(p_values_arr)
@@ -491,6 +789,8 @@ def conformal_fdp_upper_bound(
         _lower=lower,
         _upper=upper,
         _beta=beta,
+        _precision=precision,
+        _bj_lower_bounds=bj_lower_bounds,
     )
 
 
@@ -499,12 +799,13 @@ def conformal_fdp_upper_bound_from_result(
     *,
     confidence: float = 0.95,
     n_resamples: int = 1000,
-    method: str = _SUPPORTED_FDP_METHOD,
+    method: str = _FDP_BOUND_METHOD,
     seed: int | None = None,
     boost: bool = True,
     lower: float = 0.01,
     upper: float = 0.99,
     beta: float = 0.5,
+    precision: float = 1e-8,
     thresholds: np.ndarray | None = None,
 ) -> FDPBoundResult:
     """Compute simultaneous FDP bounds from a ``ConformalResult`` bundle."""
@@ -527,6 +828,7 @@ def conformal_fdp_upper_bound_from_result(
             "conformal_fdp_upper_bound_from_result() supports only unweighted "
             "conformal p-values in this release."
         )
+    _validate_fdp_result_scope(result)
 
     calib_scores = _as_1d_numeric("result.calib_scores", result.calib_scores)
     if calib_scores.size == 0:
@@ -543,6 +845,7 @@ def conformal_fdp_upper_bound_from_result(
         lower=lower,
         upper=upper,
         beta=beta,
+        precision=precision,
         thresholds=thresholds,
     )
 

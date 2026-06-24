@@ -73,18 +73,15 @@ from nonconform.fdr import conformal_fdp_upper_bound_from_result
 p_values = detector.compute_p_values(X_test)
 bounds = conformal_fdp_upper_bound_from_result(
     detector.last_result,
+    method="mc_thc",
     seed=42,
     thresholds=np.array([0.01, 0.05, 0.1]),
 )
 
-print(f"{'Threshold':<10} {'Discoveries':<12} {'FDP bound':<10}")
-for threshold, discoveries, fdp_bound in zip(
-    bounds.thresholds,
-    bounds.rejection_counts,
-    bounds.fdp_upper_bounds,
-    strict=True,
-):
-    print(f"{threshold:<10.2f} {discoveries:<12} {fdp_bound:<10.3f}")
+print(bounds.to_frame().to_string(index=False))
+
+# Optional dense threshold grid for plotting or downstream filtering
+curve = bounds.to_frame(thresholds=np.linspace(0.0, 0.2, 101))
 ```
 
 ## Weighted Conformal Selection (Covariate Shift)

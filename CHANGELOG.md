@@ -10,7 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added post-hoc FDP upper bounds for unweighted conformal p-values via
-  `nonconform.fdr.conformal_fdp_upper_bound`.
+  `nonconform.fdr.conformal_fdp_upper_bound`, including certified precision
+  lower bounds and envelope methods `mc_thc`, `mc_hc`, `mc_ks`, `ks`, and
+  `mc_bj`.
+
+### Changed
+
+- Restricted cached-result FDP certificates to known supported empirical split
+  conformal scopes.
 
 ## [1.0.1] - 2026-05-20
 
