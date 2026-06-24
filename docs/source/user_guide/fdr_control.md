@@ -91,6 +91,57 @@ decisions = false_discovery_control(p_values, method="bh") <= 0.05
 
 ---
 
+## Post-Hoc FDP Bounds
+
+Classical FDR control is a fixed-level, average-over-repeated-runs guarantee. If
+you inspect p-values and then choose a more convenient threshold, you should not
+report the result as if that threshold had been fixed upfront.
+
+For exploratory threshold choice on already-valid unweighted conformal
+p-values, `nonconform.fdr.conformal_fdp_upper_bound_from_result(...)` provides
+a simultaneous upper bound on realized false discovery proportion (FDP) across
+thresholds:
+
+```python
+from nonconform.fdr import conformal_fdp_upper_bound_from_result
+
+p_values = detector.compute_p_values(X_test)
+bounds = conformal_fdp_upper_bound_from_result(
+    detector.last_result,
+    confidence=0.95,
+    method="mc_thc",
+    seed=42,
+)
+
+threshold = 0.05
+selected = bounds.select(threshold)
+fdp_bound = bounds.bound_at(threshold)
+precision_floor = bounds.precision_at(threshold)
+table = bounds.to_frame()
+```
+
+Interpretation: after choosing `threshold`, report the attached FDP certificate,
+for example "at threshold 0.05, the 95% FDP upper bound is 0.18, so certified
+precision is at least 0.82." This is a different claim from "BH controls FDR at
+0.18."
+
+Supported envelope methods are `mc_thc` (default), `mc_hc`, `mc_ks`, `ks`, and
+`mc_bj`. Choose the method before inspecting the curve; comparing methods after
+seeing the data and reporting only the best-looking certificate is result
+tuning. `ks` is simple and often conservative. `mc_bj` can be useful for sharp
+left-tail behavior, but it is numerically heavier and uses the `precision`
+parameter.
+
+!!! warning "Guarantee scope"
+    This first implementation is intended for unweighted empirical split or
+    detached conformal p-values from a fixed scoring map. It does not cover
+    weighted p-values, probabilistic/conditional p-value estimators,
+    cross-validation/jackknife aggregation, detector or feature selection,
+    threshold-dependent preprocessing, or repeated attempts to pick the
+    best-looking pipeline.
+
+---
+
 ## Selection Entry Points
 
 **Primary (recommended):** `detector.select(X_test, alpha=...)` - dispatches
@@ -101,6 +152,8 @@ handling required.
 
 - Standard (exchangeable): apply BH directly via
   `scipy.stats.false_discovery_control(...)` to conformal p-values.
+- Post-hoc FDP certificates:
+  `conformal_fdp_upper_bound_from_result(result=...)`.
 - Weighted (covariate shift with importance weights):
   `weighted_false_discovery_control(result=...)` or
   `weighted_false_discovery_control_from_arrays(...)`.

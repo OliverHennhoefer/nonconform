@@ -858,11 +858,17 @@ class ConformalDetector(BaseConformalDetector):
             estimates, self._calibration_set, weights
         )
 
-        metadata: dict[str, Any] = {}
+        metadata: dict[str, Any] = {
+            "nonconform": {
+                "strategy": type(self.strategy).__name__,
+                "estimation": type(self.estimation).__name__,
+                "weighted": self._is_weighted_mode,
+            }
+        }
         if hasattr(self.estimation, "get_metadata"):
             meta = self.estimation.get_metadata()
             if meta:
-                metadata = dict(meta)
+                metadata.update(meta)
 
         self._last_result = ConformalResult(
             p_values=p_values.copy(),

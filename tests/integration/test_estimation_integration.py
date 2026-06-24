@@ -95,4 +95,4 @@ def test_weighted_estimation_populates_metadata(shifted_dataset, name, factory):
         assert "kde" in result.metadata
         assert "eval_grid" in result.metadata["kde"]
     else:
-        assert result.metadata == {}
+        assert "kde" not in result.metadata

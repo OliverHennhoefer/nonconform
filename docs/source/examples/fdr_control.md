@@ -65,6 +65,25 @@ no_adjustment = (p_values < 0.05).sum()
 print(f"No adjustment: {no_adjustment} detections")
 ```
 
+## Post-Hoc FDP Bounds
+
+```python
+from nonconform.fdr import conformal_fdp_upper_bound_from_result
+
+p_values = detector.compute_p_values(X_test)
+bounds = conformal_fdp_upper_bound_from_result(
+    detector.last_result,
+    method="mc_thc",
+    seed=42,
+    thresholds=np.array([0.01, 0.05, 0.1]),
+)
+
+print(bounds.to_frame().to_string(index=False))
+
+# Optional dense threshold grid for plotting or downstream filtering
+curve = bounds.to_frame(thresholds=np.linspace(0.0, 0.2, 101))
+```
+
 ## Weighted Conformal Selection (Covariate Shift)
 
 ```python
