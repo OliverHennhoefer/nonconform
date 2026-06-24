@@ -25,6 +25,7 @@ and the relevant multiple-testing assumptions.
 | Need | nonconform Functionality | Start Here |
 | --- | --- | --- |
 | Principled anomaly decisions | `ConformalDetector.select(...)` combines conformal *p*-values with FDR-controlled selection | [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
+| Post-hoc threshold certificates | `conformal_fdp_upper_bound_from_result(...)` attaches FDP and precision bounds to raw conformal *p*-value thresholds | [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
 | Flexible calibration strategies | `Split`, `CrossValidation`, and `JackknifeBootstrap` for different data/compute tradeoffs | [Conformalization Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
 | Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
