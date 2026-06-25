@@ -9,3 +9,4 @@ Examples
    resampling_conformal
    weighted_conformal
    fdr_control
+   derandomized_e_values

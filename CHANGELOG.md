@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `nonconform.fdr.conformal_fdp_upper_bound`, including certified precision
   lower bounds and envelope methods `mc_thc`, `mc_hc`, `mc_ks`, `ks`, and
   `mc_bj`.
+- Added derandomized conformal e-value selection via
+  `nonconform.fdr.conformal_e_value_selection` and e-BH utilities for stable
+  repeated split-conformal anomaly decisions.
 
 ### Changed
 

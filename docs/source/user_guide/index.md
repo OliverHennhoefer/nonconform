@@ -32,6 +32,7 @@ If you are new to conformal prediction, start here:
 | Page | Description |
 |------|-------------|
 | [FDR Control](fdr_control.md) | Control false discovery rates when testing many observations |
+| [Derandomized E-Values](fdr_control.md#derandomized-conformal-e-values) | Stabilize repeated split-conformal decisions with e-BH |
 | [Weighted Conformal](weighted_conformal.md) | Handle distribution shift between training and test data |
 
 ## Practical Usage

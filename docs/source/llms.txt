@@ -11,7 +11,7 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 - [Quick Start](https://oliverhennhoefer.github.io/nonconform/quickstart/) - Minimal conformal anomaly detection workflow.
 - [User Guide](https://oliverhennhoefer.github.io/nonconform/user_guide/) - Concepts, strategies, weighting, FDR control, evaluation, and troubleshooting.
 - [API Reference](https://oliverhennhoefer.github.io/nonconform/api/) - Public API modules and compatibility contract.
-- [Examples](https://oliverhennhoefer.github.io/nonconform/examples/) - Classical, conditional, resampling, weighted, and FDR examples.
+- [Examples](https://oliverhennhoefer.github.io/nonconform/examples/) - Classical, conditional, resampling, weighted, derandomized e-value, and FDR examples.
 
 ## Key Topic Pages
 
@@ -19,6 +19,7 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 - [Choosing Calibration Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/choosing_strategies/) - Split, cross-validation, jackknife, and bootstrap trade-offs.
 - [Weighted Conformal P-values](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) - Covariate shift, importance weighting, diagnostics, and WCS selection.
 - [False Discovery Rate Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) - FDR-controlled anomaly decisions and online FDR workflows.
+- [Derandomized E-Values](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#derandomized-conformal-e-values) - Stable repeated split-conformal decisions with e-BH.
 - [API Stability](https://oliverhennhoefer.github.io/nonconform/api/stability/) - v1 public API and statistical validity compatibility policy.
 
 ## Project Links

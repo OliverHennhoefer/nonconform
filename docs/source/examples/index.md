@@ -25,6 +25,7 @@ Practical examples demonstrating different conformal anomaly detection approache
 |---------|------------|-------------------|
 | [Weighted Conformal](weighted_conformal.md) | Advanced | Handling distribution shift between training and test data |
 | [FDR Control](fdr_control.md) | Intermediate | Multiple testing correction, Benjamini-Hochberg procedure |
+| [Derandomized E-Values](derandomized_e_values.md) | Advanced | Stable repeated split-conformal decisions with e-BH selection |
 
 ## What Each Example Covers
 
@@ -37,6 +38,8 @@ Practical examples demonstrating different conformal anomaly detection approache
 **[Weighted Conformal](weighted_conformal.md)** - Handle covariate shift scenarios where your test data comes from a different distribution than your training data. Essential for real-world deployment.
 
 **[FDR Control](fdr_control.md)** - Deep dive into False Discovery Rate control. Understand when to use BH vs weighted methods and how to evaluate FDR performance.
+
+**[Derandomized E-Values](derandomized_e_values.md)** - Repeat split conformal scoring, aggregate conformal e-values, and apply e-BH when split randomness makes ordinary decisions unstable.
 
 ## Prerequisites
 
