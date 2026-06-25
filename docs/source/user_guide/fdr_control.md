@@ -142,6 +142,79 @@ parameter.
 
 ---
 
+## Derandomized Conformal E-Values
+
+Split conformal decisions can vary when the random training/calibration split
+changes. Repeating the split and voting on discoveries is tempting, but generic
+post-processing of conformal p-values or BH masks does not automatically preserve
+FDR control.
+
+`nonconform.fdr.conformal_e_value_selection(...)` provides an expert path for
+this setting, following Bashari et al.'s
+[Derandomized Novelty Detection with FDR Control via Conformal E-values](https://arxiv.org/abs/2302.07294)
+and their [author implementation](https://github.com/Meshiba/derandomized-novelty-detection).
+It consumes repeated split-conformal score arrays, constructs conformal
+e-values for each split, averages them uniformly, and applies e-BH.
+
+```python
+import numpy as np
+from pyod.models.iforest import IForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformal_e_value_selection
+
+alpha = 0.1
+test_scores = []
+calib_scores = []
+
+for seed in range(5):
+    detector = ConformalDetector(
+        detector=IForest(random_state=seed),
+        strategy=Split(n_calib=0.2),
+        seed=seed,
+    )
+    detector.fit(X_train)
+    detector.score_samples(X_test)
+
+    result = detector.last_result
+    test_scores.append(result.test_scores)
+    calib_scores.append(result.calib_scores)
+
+e_result = conformal_e_value_selection(
+    np.vstack(test_scores),
+    np.vstack(calib_scores),
+    alpha=alpha,
+)
+discoveries = e_result.selected
+```
+
+Use this when:
+
+- ordinary split-conformal decisions are unstable across seeds,
+- the same fixed test batch is analyzed by repeated valid split-conformal score
+  maps,
+- you want a batch FDR decision rule based on aggregated evidence.
+
+Do not use this as a drop-in replacement for every `select(...)` call. E-values
+can be more stable, but e-BH can be conservative, especially when signals are
+weak or few discoveries are expected.
+
+The helper uses `alpha_bh=alpha / 10` by default, matching the conservative
+choice in Bashari et al. You can pass `alpha_bh=...` explicitly when you have a
+task-specific reason to tune the inner threshold.
+
+!!! warning "Guarantee scope"
+    Derandomized e-values assume exchangeability of the normal reference data
+    and null test points, fixed anomaly-score orientation, repeated valid
+    split-conformal score maps, and one final e-BH application. This release
+    uses uniform aggregation only; adaptive weighting from the paper is not yet
+    implemented.
+
+See [Derandomized Conformal E-Values](../examples/derandomized_e_values.md) for
+a complete runnable example.
+
+---
+
 ## Selection Entry Points
 
 **Primary (recommended):** `detector.select(X_test, alpha=...)` - dispatches
@@ -154,6 +227,8 @@ handling required.
   `scipy.stats.false_discovery_control(...)` to conformal p-values.
 - Post-hoc FDP certificates:
   `conformal_fdp_upper_bound_from_result(result=...)`.
+- Stable repeated split-conformal decisions:
+  `conformal_e_value_selection(test_scores, calib_scores, alpha=...)`.
 - Weighted (covariate shift with importance weights):
   `weighted_false_discovery_control(result=...)` or
   `weighted_false_discovery_control_from_arrays(...)`.
@@ -557,6 +632,9 @@ for t, (batch, p_values) in enumerate(stream_with_pvalues):
 - **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**.
   *[Testing for Outliers with Conformal p-values](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short)*.
   The Annals of Statistics, 51(1), 149-178.
+- **Bashari, M., Epstein, A., Romano, Y., & Sesia, M. (2023)**.
+  *[Derandomized Novelty Detection with FDR Control via Conformal E-values](https://arxiv.org/abs/2302.07294)*.
+  arXiv:2302.07294.
 - **Jin, Y., & Candès, E. J. (2023)**.
   *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
   Biometrika, 110(4), 1090-1106.

@@ -79,6 +79,7 @@ nav:
     - Data-Efficient Resampling: examples/resampling_conformal.md
     - Weighted Conformal: examples/weighted_conformal.md
     - FDR Control: examples/fdr_control.md
+    - Derandomized E-Values: examples/derandomized_e_values.md
   - API Reference:
     - Overview: api/index.md
     - Stability Contract: api/stability.md

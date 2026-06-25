@@ -58,7 +58,49 @@ Use this when you want calibrated scoring artifacts without applying FDR control
 
 ---
 
-## 3. Weighted Conformal + Weighted FDR Control
+## 3. Stable Repeated Split Selection with E-Values
+
+When a single split-conformal run is too sensitive to the random calibration
+split, collect score bundles from repeated `Split` runs and apply e-BH to
+conformal e-values:
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformal_e_value_selection
+
+test_scores = []
+calib_scores = []
+
+for seed in range(5):
+    detector = ConformalDetector(
+        detector=IsolationForest(random_state=seed),
+        strategy=Split(n_calib=0.3),
+        score_polarity="auto",
+        seed=seed,
+    )
+    detector.fit(X_train)
+    detector.score_samples(X_test)
+    result = detector.last_result
+    test_scores.append(result.test_scores)
+    calib_scores.append(result.calib_scores)
+
+e_result = conformal_e_value_selection(
+    np.vstack(test_scores),
+    np.vstack(calib_scores),
+    alpha=0.05,
+)
+mask = e_result.selected
+```
+
+Use this as an expert stability workflow, not as a replacement for the default
+`select(...)` path.
+
+---
+
+## 4. Weighted Conformal + Weighted FDR Control
 
 `select()` automatically dispatches to weighted FDR control when a
 `weight_estimator` is configured:
@@ -88,7 +130,7 @@ mask = detector.select(
 
 ---
 
-## 4. Explicit Weight Preparation (Weighted Mode)
+## 5. Explicit Weight Preparation (Weighted Mode)
 
 ```python
 detector.fit(X_train)
@@ -100,7 +142,7 @@ Use this when you need explicit state transitions for batched or exploratory wor
 
 ---
 
-## 5. Pre-Trained Detector + Detached Calibration (Split Strategy)
+## 6. Pre-Trained Detector + Detached Calibration (Split Strategy)
 
 ```python
 from sklearn.ensemble import IsolationForest
@@ -127,7 +169,7 @@ p_values = detector.compute_p_values(X_test)
 
 ---
 
-## 6. Conditional Conformal P-Values + `select()`
+## 7. Conditional Conformal P-Values + `select()`
 
 ```python
 from sklearn.ensemble import IsolationForest

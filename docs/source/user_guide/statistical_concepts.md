@@ -42,6 +42,28 @@ reference population.
 
 ---
 
+## E-values
+
+**What it is**: A non-negative evidence value where larger values indicate
+stronger evidence against a null hypothesis. Unlike p-values, e-values are
+designed to be averaged across certain dependent analyses when their validity
+conditions hold.
+
+**In nonconform**: `conformal_e_value_selection(...)` builds conformal e-values
+from repeated split-conformal score arrays and applies e-BH for batch FDR
+control. Use it when split randomness makes ordinary `Split` decisions unstable.
+
+**Guarantee**: The derandomized conformal e-values target an average validity
+condition that is sufficient for e-BH FDR control under the method assumptions:
+exchangeable inliers/null test points, valid repeated split-conformal score
+maps, and one final e-BH filtering step.
+
+**Common mistake**: Do not treat e-values as p-values or threshold them at
+ordinary p-value cutoffs. Use `e_value_false_discovery_control(...)` or
+`conformal_e_value_selection(...)` for FDR decisions.
+
+---
+
 ## False Discovery Rate (FDR)
 
 **What it is**: The expected proportion of false positives among the points you
