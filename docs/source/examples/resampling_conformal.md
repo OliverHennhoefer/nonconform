@@ -29,6 +29,7 @@ from sklearn.datasets import load_breast_cancer
 
 from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
+from sklearn.model_selection import train_test_split
 
 data = load_breast_cancer()
 X = data.data
@@ -36,6 +37,18 @@ y = data.target
 
 # In this dataset, target=0 is malignant and target=1 is benign.
 y_anomaly = 1 - y
+X_normal = X[y_anomaly == 0]
+X_anomaly = X[y_anomaly == 1]
+X_fit, X_normal_eval = train_test_split(
+    X_normal,
+    test_size=0.3,
+    random_state=42,
+)
+X_eval = np.vstack([X_normal_eval, X_anomaly])
+y_eval = np.hstack([
+    np.zeros(len(X_normal_eval), dtype=int),
+    np.ones(len(X_anomaly), dtype=int),
+])
 base_detector = LOF()
 ```
 
@@ -63,12 +76,12 @@ cv_detector = ConformalDetector(
     seed=42,
 )
 
-cv_detector.fit(X)
-cv_discoveries = cv_detector.select(X, alpha=0.05)
+cv_detector.fit(X_fit)
+cv_discoveries = cv_detector.select(X_eval, alpha=0.05)
 
 print(f"CV+ discoveries: {cv_discoveries.sum()}")
-print(f"Empirical FDR: {false_discovery_rate(y_anomaly, cv_discoveries):.3f}")
-print(f"Power: {statistical_power(y_anomaly, cv_discoveries):.3f}")
+print(f"Empirical FDR: {false_discovery_rate(y_eval, cv_discoveries):.3f}")
+print(f"Power: {statistical_power(y_eval, cv_discoveries):.3f}")
 ```
 
 For smaller datasets, increase `k` if compute allows:
@@ -81,8 +94,8 @@ for k in [3, 5, 10]:
         aggregation="median",
         seed=42,
     )
-    detector.fit(X)
-    discoveries = detector.select(X, alpha=0.05)
+    detector.fit(X_fit)
+    discoveries = detector.select(X_eval, alpha=0.05)
     print(f"{k}-fold CV+: {discoveries.sum()} discoveries")
 ```
 
@@ -98,8 +111,8 @@ jackknife_detector = ConformalDetector(
     seed=42,
 )
 
-jackknife_detector.fit(X)
-jackknife_discoveries = jackknife_detector.select(X, alpha=0.05)
+jackknife_detector.fit(X_fit)
+jackknife_discoveries = jackknife_detector.select(X_eval, alpha=0.05)
 
 print(f"Jackknife+ discoveries: {jackknife_discoveries.sum()}")
 ```
@@ -120,8 +133,8 @@ jab_detector = ConformalDetector(
     seed=42,
 )
 
-jab_detector.fit(X)
-jab_discoveries = jab_detector.select(X, alpha=0.05)
+jab_detector.fit(X_fit)
+jab_discoveries = jab_detector.select(X_eval, alpha=0.05)
 
 print(f"JaB+ discoveries: {jab_discoveries.sum()}")
 ```
@@ -136,8 +149,8 @@ for n_bootstraps in [50, 100, 200]:
         aggregation="median",
         seed=42,
     )
-    detector.fit(X)
-    discoveries = detector.select(X, alpha=0.05)
+    detector.fit(X_fit)
+    discoveries = detector.select(X_eval, alpha=0.05)
     print(f"JaB+ with {n_bootstraps} bootstraps: {discoveries.sum()} discoveries")
 ```
 
@@ -162,14 +175,14 @@ for name, strategy in strategies.items():
         aggregation="median",
         seed=42,
     )
-    detector.fit(X)
-    p_values = detector.compute_p_values(X)
-    discoveries = detector.select(X, alpha=0.05)
+    detector.fit(X_fit)
+    p_values = detector.compute_p_values(X_eval)
+    discoveries = detector.select(X_eval, alpha=0.05)
     results[name] = {
         "discoveries": discoveries.sum(),
         "mean_p": p_values.mean(),
-        "empirical_fdr": false_discovery_rate(y_anomaly, discoveries),
-        "power": statistical_power(y_anomaly, discoveries),
+        "empirical_fdr": false_discovery_rate(y_eval, discoveries),
+        "power": statistical_power(y_eval, discoveries),
     }
 
 print("\nStrategy comparison:")

@@ -476,7 +476,11 @@ for batch in data_batches:
 
 ## Online FDR Control for Streaming Data
 
-For dynamic settings with streaming data batches, the optional `online-fdr` package provides methods that adapt to temporal dependencies while maintaining FDR control.
+For dynamic settings with streaming data batches, the optional `online-fdr`
+package provides procedures that make decisions as p-values arrive. Their FDR
+guarantees remain conditional on the assumptions of the chosen procedure (often
+independence and monotonicity); the package does not by itself make temporally
+dependent conformal p-values valid.
 
 Do not conflate this with martingale alarm thresholds such as
 `ville_threshold` or `restarted_ville_threshold` in
@@ -490,7 +494,7 @@ multiple tested hypotheses.
 # Install FDR dependencies
 # pip install nonconform[fdr]
 
-from online_fdr.investing.alpha.alpha import Gai
+from online_fdr import Gai
 
 # Example with streaming conformal p-values
 def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
@@ -517,7 +521,7 @@ def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
 ### LORD (Levels based On Recent Discovery) Method
 
 ```python
-from online_fdr.investing.lord.three import LordThree
+from online_fdr import LordThree
 
 # LORD 3: alpha allocation adapts over the testing stream
 lord_fdr = LordThree(alpha=0.05, wealth=0.04, reward=0.05)

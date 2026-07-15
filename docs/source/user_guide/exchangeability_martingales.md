@@ -44,6 +44,13 @@ dependence, or detector retraining choices that break the conformal assumptions.
 
 ## Basic Usage
 
+!!! warning "Guarantee scope for this example"
+    This example uses a fixed `Split` calibration set. It demonstrates the API
+    and a monitoring pattern, but it is not the sequential inductive-conformity
+    construction behind the IID-Uniform theorem. Treat alarms as monitoring
+    evidence unless you separately justify the resulting p-value sequence.
+
+
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest

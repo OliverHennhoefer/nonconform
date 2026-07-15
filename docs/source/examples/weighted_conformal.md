@@ -65,6 +65,12 @@ Invalid values raise `ValueError`.
 
 ## Handling Covariate Shift
 
+!!! warning "Illustrative shift only"
+    The perturbation below reuses the training rows, so the shifted sample is
+    dependent on the calibration source. Use independently sampled deployment
+    data when assessing the covariate-shift validity conditions; this block is
+    only a stress-test pattern.
+
 ```python
 # Simulate a simple feature-distribution change for illustration
 np.random.seed(42)

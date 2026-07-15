@@ -151,7 +151,8 @@ strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
 ```
 
 **`mode="plus"` provides:**
-- Higher statistical efficiency in theory [[Barber et al., 2021](#references)]
+- The plus-style aggregation analyzed for the corresponding resampling method
+  (not a universal efficiency guarantee)
 - Better resampling-based validity behavior than `single_model`
 - Slightly higher computational cost
 - A more defensible approximation or looser guarantee, depending on the method

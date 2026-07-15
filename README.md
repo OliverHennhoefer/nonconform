@@ -40,7 +40,7 @@ material, please cite the accompanying paper:
 ```bibtex
 @misc{hennhoefer2026,
       title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
-      author={Oliver HennhÃ¶fer and Maximilian Kirsch and Christine Preisach},
+      author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
       year={2026},
       eprint={2605.13642},
       archivePrefix={arXiv},
@@ -144,7 +144,7 @@ states = martingale.update_many(p_values_chunk)
 
 ## Beyond Static Data
 
-While primarily designed for static (single-batch) workflows, optional `onlinefdr` integration supports [streaming FDR procedures](https://oliverhennhoefer.github.io/nonconform/user_guide/streaming_evaluation/).
+While primarily designed for static (single-batch) workflows, optional `online-fdr` integration supports [streaming FDR procedures](https://oliverhennhoefer.github.io/nonconform/user_guide/streaming_evaluation/).
 
 ## Custom Detectors
 

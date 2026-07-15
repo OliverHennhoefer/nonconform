@@ -6,6 +6,8 @@ description: "Evaluate nonconform anomaly detection on generated batches with co
 
 Generate evaluation batches with precise anomaly contamination control for systematic anomaly detection testing.
 
+These examples use `BatchGenerator` from `oddball.generator` and therefore require the optional `oddball` package (and matching dataset extras) to be installed before execution.
+
 ## Overview
 
 The `BatchGenerator` creates evaluation batches with configurable anomaly proportion control. It supports two modes:
@@ -319,13 +321,13 @@ except ValueError as e:
     print(f"Proportion error: {e}")
 
 try:
-    # Probabilistic mode without max_batches
+    # Probabilistic mode without n_batches
     BatchGenerator(
         load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
         batch_size=100,
         anomaly_proportion=0.1,
-        anomaly_mode="probabilistic"
-        # Missing max_batches parameter
+        anomaly_mode="probabilistic",
+        # Missing n_batches parameter
     )
 except ValueError as e:
     print(f"Mode error: {e}")

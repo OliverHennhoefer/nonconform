@@ -102,7 +102,6 @@ Useful logger namespaces:
 - `nonconform.weighting.*`
 - `nonconform.fdr`
 - `nonconform.adapters`
-- `nonconform._internal.*`
 
 Configure specific namespaces if you want different levels per subsystem.
 

@@ -107,11 +107,17 @@ training state (for example `IForest`, `KNN`, `LOF`, `HBOS`, `PCA`, `OCSVM`,
 
 ### Automatic Configuration
 
-nonconform automatically adjusts PyOD detector parameters for one-class classification:
+`ConformalDetector` applies a standard parameter normalization step during
+construction for supported detectors. It attempts to:
 
-- `contamination` -> set to minimal value
-- `n_jobs` -> set to `-1` (use all cores)
-- `random_state` -> set to provided `seed`
+- set `contamination` to a minimal value when that parameter exists
+- set `n_jobs`/`n_threads`/`num_workers` to `-1` when available (use all cores)
+- set a seed parameter (`random_state`/`seed`/`random_seed`) from `seed` when supported
+
+If a parameter is not available on your estimator, the request is skipped
+rather than failing initialization. Unsupported contamination and parallelism
+parameters are logged at debug level; if no supported seed parameter is
+available, the configuration step emits a warning.
 
 ## Custom Detectors
 

@@ -6,6 +6,10 @@ description: "Evaluate nonconform on streaming anomaly data with online generato
 
 Generate single instances for online anomaly detection evaluation with exact global anomaly proportion control.
 
+These examples use `OnlineGenerator` from `oddball.generator` and therefore require the optional `oddball` package (with dataset extras) before execution.
+
+They also rely on `online_fdr` for streaming FDR methods when those sections are run.
+
 ## Overview
 
 The `OnlineGenerator` creates deterministic streams of single instances with precise anomaly contamination. It ensures exact global proportion over a specified number of instances, making it ideal for online and streaming evaluation scenarios.
@@ -34,7 +38,7 @@ online_gen = OnlineGenerator(
 x_train = online_gen.get_training_data()
 print(f"Training data shape: {x_train.shape}")
 
-# Generate stream - exactly 20 anomalies in 1000 instances guaranteed
+# Generate stream with exactly int(0.02 * 1000) = 20 anomalies in 1000 instances
 anomaly_count = 0
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     if i < 5:  # Show first few instances
@@ -73,7 +77,7 @@ for prop in proportions:
 
 ```python
 from pyod.models.iforest import IForest
-from onlinefdr import Alpha_investing
+from online_fdr import Gai
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
@@ -97,7 +101,7 @@ detector.fit(x_train)
 # Streaming evaluation with online FDR control
 import numpy as np
 
-online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
+online_fdr = Gai(alpha=0.05, wealth=0.05)
 decisions = []
 labels = []
 running_metrics = []
@@ -107,7 +111,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000))
     p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
 
     # Online FDR-controlled decision
-    decision = online_fdr.run_single(p_value)
+    decision = online_fdr.test_one(p_value)
     decisions.append(decision)
     labels.append(y_label)
 
@@ -229,7 +233,7 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Online FDR controller for streaming
-online_fdr = Alpha_investing(alpha=0.05, w0=0.05)
+online_fdr = Gai(alpha=0.05, wealth=0.05)
 
 # Measure streaming performance
 latencies = []
@@ -240,7 +244,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
 
     # Process instance with online FDR control
     p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
-    decision = online_fdr.run_single(p_value)
+    decision = online_fdr.test_one(p_value)
 
     instance_end = time.time()
     latencies.append(instance_end - instance_start)
@@ -363,13 +367,13 @@ detector = ConformalDetector(
 detector.fit(x_train)
 
 # Online evaluation with online FDR control
-online_fdr_ctrl = Alpha_investing(alpha=0.05, w0=0.05)
+online_fdr_ctrl = Gai(alpha=0.05, wealth=0.05)
 online_decisions = []
 online_labels = []
 
 for x_instance, y_label in online_gen.generate(n_instances=600):
     p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
-    decision = online_fdr_ctrl.run_single(p_value)
+    decision = online_fdr_ctrl.test_one(p_value)
     online_decisions.append(decision)
     online_labels.append(y_label)
 
@@ -488,6 +492,13 @@ print(f"Sequence identical: {first_run_labels == second_run_labels}")
 ```
 
 ## FDR Control in Streaming
+
+!!! warning "Online-FDR assumptions still apply"
+    The examples below use p-values from a detector with a fixed split
+    calibration set. `online-fdr` does not repair temporal dependence or make
+    those p-values valid automatically; formal online-FDR guarantees require
+    the assumptions of the selected procedure.
+
 
 Apply FDR control to streaming p-values:
 

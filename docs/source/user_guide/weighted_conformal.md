@@ -662,7 +662,7 @@ wcs_mask = weighted_detector.select(
 **Behavior**: Draws a single uniform random variable and applies the same pruning randomization across test instances.
 
 **When to use**:
-- Default randomized method
+- Randomized option with one shared draw across the batch
 - Want randomized WCS pruning under the method's assumptions
 - Acceptable to have some randomness
 

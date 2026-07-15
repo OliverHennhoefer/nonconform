@@ -90,7 +90,7 @@ curve = bounds.to_frame(thresholds=np.linspace(0.0, 0.2, 101))
 from nonconform import JackknifeBootstrap, logistic_weight_estimator
 from pyod.models.iforest import IForest
 
-# Load a dataset that exhibits covariate shift between calibration and test sets
+# Load a dataset for which train/test shift should be assessed empirically
 x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
 weighted_detector = ConformalDetector(

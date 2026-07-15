@@ -183,13 +183,17 @@ strategy = JackknifeBootstrap(n_bootstraps=200)
 - Split: O(n_calib) memory usage
 - Jackknife+: O(n_train) memory usage
 - Cross-Validation: O(k × n_test) inference peak; O(k) stored models + O(n_train) calibration scores
-- JackknifeBootstrap: O(n_train x n_bootstraps) memory usage (includes permanent `_oob_mask` storage)
+- JackknifeBootstrap: O(n_train x n_bootstraps) out-of-bag bookkeeping, plus
+  the retained bootstrap models
 
 **CPU considerations:**
 - Split: Single model training
-- Jackknife+: n_train + 1 model trainings
-- Cross-Validation: n_folds model trainings
-- JackknifeBootstrap: n_bootstraps model trainings
+- Jackknife+: `n_train` model trainings in `mode="plus"`; `mode="single_model"`
+  adds one final full-data fit
+- Cross-Validation: `n_folds` model trainings; `mode="single_model"` adds one
+  final full-data fit
+- JackknifeBootstrap: `n_bootstraps` model trainings; `mode="single_model"`
+  adds one final full-data fit
 
 ## Strategy Transition Guide
 

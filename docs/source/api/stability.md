@@ -18,7 +18,7 @@ The compatibility contract is defined by:
 - Public constructor parameters, public methods and properties, dataclass
   fields, enum members, and documented string literal values.
 
-Symbols under `nonconform._internal` are private implementation details and are
+Internal implementation symbols are private details and are
 not covered by the compatibility contract.
 
 ## Change Policy

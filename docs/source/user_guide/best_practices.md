@@ -235,6 +235,13 @@ def choose_calibration_strategy(n_samples):
 - Avoid using contaminated data for calibration
 - Consider stratified sampling for balanced calibration
 
+!!! warning "Heuristic cleaning is not a validity guarantee"
+    The filtering example below is a data-quality heuristic: the detector used
+    to filter the samples is trained on the same data being filtered. That
+    selection can change the calibration distribution and invalidate a formal
+    conformal guarantee. For strict validity, use an independently obtained or
+    otherwise fixed calibration set and document any data-selection step.
+
 ```python
 def validate_calibration_data(X_train, contamination_rate=0.05):
     """Validate that calibration data is clean."""
@@ -245,7 +252,7 @@ def validate_calibration_data(X_train, contamination_rate=0.05):
 
     # Keep only the most normal samples for calibration
     normal_threshold = np.percentile(anomaly_scores, (1 - contamination_rate) * 100)
-    clean_indices = anomaly_scores >= normal_threshold
+    clean_indices = anomaly_scores <= normal_threshold
 
     return X_train[clean_indices]
 ```

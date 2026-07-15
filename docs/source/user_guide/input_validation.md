@@ -43,12 +43,14 @@ $$\text{Possible p-values} = \left\{\frac{1}{n+1}, \frac{2}{n+1}, \ldots, \frac{
 
 **Practical Guidelines**:
 - **Minimum recommended**: 50-100 samples for reasonable p-value resolution
-- **For FDR control at α=0.05**: Consider `n_calib >= 100` for at least 20 distinct p-values below threshold
+- **For FDR control at alpha=0.05**: Consider `n_calib >= 400` for at least 20 distinct p-values at or below the threshold
 - **For precise control**: Use `n_calib >= 1000` for fine-grained p-value resolution
 
 #### Validation Example
 
 ```python
+import math
+
 def validate_calibration_size(X_train, n_calib):
     """Validate calibration set size parameter."""
     n_train = len(X_train)
@@ -59,7 +61,7 @@ def validate_calibration_size(X_train, n_calib):
             raise ValueError(
                 f"Proportional n_calib must be in (0, 1), got {n_calib}"
             )
-        n_calib_abs = int(n_calib * n_train)
+        n_calib_abs = math.ceil(n_calib * n_train)
     elif isinstance(n_calib, int):
         if not (1 <= n_calib < n_train):
             raise ValueError(
@@ -178,8 +180,8 @@ p_values = detector.compute_p_values(X_test)
 ```
 
 **Behavior**:
-- All test scores ≥ calibration scores → p-value = 1.0 (treated as normal)
-- All test scores < calibration scores → p-value = 1/(n+1) (treated as anomalous)
+- All test scores above all calibration scores -> p-value = 1/(n+1) (treated as anomalous)
+- All test scores below all calibration scores -> p-value = 1.0 (treated as normal)
 - Binary classification with no gradation
 
 **Detection**:
@@ -213,7 +215,10 @@ test_score = -100.0  # Far below min calibration score
 ```
 
 **Behavior**:
-- Conformal p-values are **bounded**: always in [1/(n+1), 1]
+- In default `Empirical` mode (`tie_break="classical"`), conformal p-values are
+  bounded in `[1/(n+1), 1]`.
+- With randomized tie-breaking, the lower bound becomes approximate and can be
+  very close to zero for extreme scores.
 - Extreme test scores saturate at boundary values
 - This is correct behavior - conformal prediction provides conservative guarantees
 
@@ -272,15 +277,22 @@ detector = ConformalDetector(
 ```
 
 **Constraints**:
-- Weight estimator must have `fit()` and `predict_proba()` methods
-- Must be compatible with binary classification (calibration vs. test)
-- Output probabilities should be in (0, 1)
+- Weight estimator must implement `fit(calibration_samples, test_samples)` and
+  `get_weights()`
+- `get_weights()` must return `(calib_weights, test_weights)` arrays matching
+  input lengths and containing non-negative finite values.
+- Built-in helpers (`logistic_weight_estimator`, `forest_weight_estimator`) are
+  based on binary classification for calibration-vs-test discrimination, but
+  custom estimators need only follow the `BaseWeightEstimator` interface.
 
 **Common issues**:
 ```python
 # Issue 1: Weights too extreme (near 0 or infinity)
-weights = weight_est.predict_proba(X_test)[:, 1] / (1 - weight_est.predict_proba(X_calib).mean())
-if np.any(weights > 1000) or np.any(weights < 0.001):
+weight_est.fit(X_calib, X_test)
+_, test_weights = weight_est.get_weights()
+if np.any(np.isinf(test_weights)) or np.any(~np.isfinite(test_weights)):
+    raise ValueError("Weight estimator returned non-finite weights.")
+if np.any(test_weights > 1000) or np.any(test_weights < 0.001):
     import warnings
     warnings.warn("Extreme weight values detected. Covariate shift may be too severe.")
 

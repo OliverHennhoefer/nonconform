@@ -104,13 +104,16 @@ def validate_p_values(p_values):
     print(f"P-value mean: {p_values.mean():.4f}")
     print(f"P-value std: {p_values.std():.4f}")
 
-    # Check for uniform distribution (expected under null hypothesis)
-    from scipy.stats import kstest
-    ks_stat, ks_p = kstest(p_values, 'uniform')
-    print(f"KS test for uniformity: stat={ks_stat:.4f}, p={ks_p:.4f}")
+    # Conformal null p-values should be super-uniform, not necessarily
+    # continuous Uniform(0, 1); classical values are discrete and conservative.
+    for level in (0.01, 0.05, 0.10):
+        lower_tail_rate = np.mean(p_values <= level)
+        print(
+            f"P <= {level:.2f}: {lower_tail_rate:.4f} "
+            f"(super-uniform benchmark: <= {level:.2f})"
+        )
 
-    if ks_p < 0.05:
-        print("WARNING: P-values may not be well-calibrated")
+    print("These rates are diagnostics, not a formal validity test.")
 ```
 
 ### 6. High False Discovery Rate
@@ -497,6 +500,5 @@ nonconform uses the following logger hierarchy:
 - `nonconform.weighting.*`: Weight-estimation logging
 - `nonconform.fdr`: Weighted FDR control logging
 - `nonconform.adapters`: Detector adapter and score-polarity logging
-- `nonconform._internal.*`: Internal utility logging
 
 You can configure specific loggers for fine-grained control over output.

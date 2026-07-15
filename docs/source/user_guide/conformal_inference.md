@@ -608,10 +608,10 @@ for agg_method in aggregation_methods:
     # Apply FDR control before counting discoveries
     adjusted = false_discovery_control(p_values, method='bh')
     discoveries = (adjusted < 0.05).sum()
-    print(f"{agg_method.value}: {discoveries} discoveries")
+    print(f"{agg_method}: {discoveries} discoveries")
 ```
 
-**Note**: Aggregation is applied to the raw anomaly scores coming from each fold/bootstrapped detector, and the combined score is then converted to a single conformal p-value. It does *not* merge already-computed p-values. Validity is preserved because every aggregated score still comes from the same exchangeable procedure.
+**Note**: Aggregation is applied to the raw anomaly scores coming from each fold/bootstrapped detector, and the combined score is then converted to a single conformal p-value. It does *not* merge already-computed p-values. This aggregation step does not by itself establish the strict split-conformal guarantee: validity remains conditional on the selected strategy, mode, score map, and exchangeability assumptions. See [Conformalization Strategies](conformalization_strategies.md) for the method-specific validity trade-offs.
 
 ### Custom Scoring Functions
 
