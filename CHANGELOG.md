@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-01
+
 ### Added
 
+- Added `ConformalDetector.compute_p_value` for explicit single-observation
+  p-value computation in standard conformal streaming workflows.
 - Added post-hoc FDP upper bounds for unweighted conformal p-values via
   `nonconform.fdr.conformal_fdp_upper_bound`, including certified precision
   lower bounds and envelope methods `mc_thc`, `mc_hc`, `mc_ks`, `ks`, and
@@ -26,5 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped indirect dependency `idna` from `3.10` to `3.15`.
 - Bumped indirect dependency `pymdown-extensions` from `10.16.1` to `10.21.3`.
 
-[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.0...v1.0.1

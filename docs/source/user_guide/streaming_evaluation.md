@@ -75,6 +75,10 @@ for prop in proportions:
 
 ## Integration with Conformal Detection
 
+For standard conformal detectors, `compute_p_value()` accepts one 1-D feature
+vector and returns a Python `float`. Weighted conformal inference requires a
+representative test batch and must continue to use `compute_p_values()`.
+
 ```python
 from pyod.models.iforest import IForest
 from online_fdr import Gai
@@ -108,7 +112,7 @@ running_metrics = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000)):
     # Get p-value for instance
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
 
     # Online FDR-controlled decision
     decision = online_fdr.test_one(p_value)
@@ -167,7 +171,7 @@ window_results = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
     # Get prediction
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
 
     # Add to current window
     window_predictions.append(p_value)
@@ -243,7 +247,7 @@ for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000))
     instance_start = time.time()
 
     # Process instance with online FDR control
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
     decision = online_fdr.test_one(p_value)
 
     instance_end = time.time()
@@ -294,7 +298,7 @@ current_block_preds = []
 current_block_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500)):
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
 
     current_block_preds.append(p_value)
     current_block_labels.append(y_label)
@@ -372,7 +376,7 @@ online_decisions = []
 online_labels = []
 
 for x_instance, y_label in online_gen.generate(n_instances=600):
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
     decision = online_fdr_ctrl.test_one(p_value)
     online_decisions.append(decision)
     online_labels.append(y_label)
@@ -528,7 +532,7 @@ current_batch_p = []
 current_batch_labels = []
 
 for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=500)):
-    p_value = detector.compute_p_values(x_instance.reshape(1, -1))[0]
+    p_value = detector.compute_p_value(x_instance)
 
     current_batch_p.append(p_value)
     current_batch_labels.append(y_label)

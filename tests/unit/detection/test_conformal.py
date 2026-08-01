@@ -445,6 +445,7 @@ class TestConformalDetectorCalibrate:
         p_values = detector.compute_p_values(x_test)
         assert len(p_values) == len(x_test)
         assert np.all((0 <= p_values) & (p_values <= 1))
+        assert detector.compute_p_value(x_test[0]) == float(p_values[0])
 
     def test_calibrate_weighted_mode_stores_calibration_samples(self, sample_data):
         x_train, x_calib, x_test = sample_data
@@ -482,6 +483,8 @@ class TestConformalDetectorPredict:
         )
         with pytest.raises(NotFittedError, match="not fitted"):
             detector.compute_p_values(np.array([[1, 2, 3, 4, 5]]))
+        with pytest.raises(NotFittedError, match="not fitted"):
+            detector.compute_p_value(np.array([1, 2, 3, 4, 5]))
 
     def test_predict_returns_p_values(self, fitted_detector):
         """compute_p_values() returns p-values."""
@@ -499,6 +502,36 @@ class TestConformalDetectorPredict:
         p_values_2 = fitted_detector.compute_p_values(X_test)
         assert len(p_values_2) == 10
         np.testing.assert_array_equal(p_values_1, p_values_2)
+
+    def test_compute_p_value_matches_one_row_batch(self, fitted_detector):
+        """compute_p_value() returns the equivalent one-row batch value."""
+        x = pd.Series(np.arange(5, dtype=float))
+
+        expected = float(fitted_detector.compute_p_values(x.to_numpy()[None, :])[0])
+        actual = fitted_detector.compute_p_value(x)
+
+        assert isinstance(actual, float)
+        assert actual == expected
+        assert fitted_detector.last_result is not None
+        assert fitted_detector.last_result.p_values.shape == (1,)
+
+    @pytest.mark.parametrize(
+        "x",
+        [
+            np.array(1.0),
+            np.zeros((1, 5)),
+            np.zeros((2, 5)),
+        ],
+    )
+    def test_compute_p_value_rejects_non_vector_input(self, fitted_detector, x):
+        """compute_p_value() accepts only one-dimensional feature vectors."""
+        with pytest.raises(ValueError, match="one-dimensional feature vector"):
+            fitted_detector.compute_p_value(x)
+
+    def test_compute_p_value_rejects_wrong_feature_count(self, fitted_detector):
+        """compute_p_value() validates the fitted feature count."""
+        with pytest.raises(ValueError, match=r"4 features.*5 features"):
+            fitted_detector.compute_p_value(np.zeros(4))
 
     def test_score_samples_returns_scores(self, fitted_detector):
         """score_samples() returns raw scores."""
@@ -754,6 +787,23 @@ class TestConformalDetectorWeightedPreparation:
 
         with pytest.raises(RuntimeError, match="Weights are not prepared"):
             detector.compute_p_values(x_test, refit_weights=False)
+
+    def test_compute_p_value_rejects_weighted_mode(self, sample_data):
+        """Single-observation inference must not fit unstable density ratios."""
+        x_train, x_test = sample_data
+        rng = np.random.default_rng(42)
+        weight_estimator = CountingWeightEstimator()
+        detector = ConformalDetector(
+            detector=MockDetector(rng.standard_normal(100)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=weight_estimator,
+            seed=42,
+        )
+        detector.fit(x_train)
+
+        with pytest.raises(RuntimeError, match="representative test batch"):
+            detector.compute_p_value(x_test[0])
+        assert weight_estimator.fit_calls == 0
 
     def test_prepare_then_predict_without_refit(self, sample_data):
         """Prepared weights are reused when refit_weights=False."""

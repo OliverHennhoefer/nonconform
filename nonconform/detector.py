@@ -324,6 +324,7 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
+        self._n_features_in: int | None = None
         self._prepared_weight_batch_size: int | None = None
         self._prepared_weight_batch_signature: (
             tuple[tuple[int, ...], str, str] | None
@@ -542,6 +543,7 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             **fit_kwargs
         )
+        self._n_features_in = int(x.shape[1])
 
         if (
             self._is_weighted_mode
@@ -614,6 +616,7 @@ class ConformalDetector(BaseConformalDetector):
 
         self._detector_set = [self.detector]
         self._calibration_set = calibration_set
+        self._n_features_in = int(x.shape[1])
         if self._is_weighted_mode:
             self._calibration_samples = x.copy()
         else:
@@ -832,6 +835,64 @@ class ConformalDetector(BaseConformalDetector):
         if index is not None:
             return pd.Series(estimates, index=index, name="score")
         return estimates
+
+    def compute_p_value(self, x: pd.Series | np.ndarray) -> float:
+        """Return a conformal p-value for one observation in standard mode.
+
+        This is a single-sample convenience wrapper around
+        :meth:`compute_p_values`. It updates :attr:`last_result` with the
+        corresponding one-row result and does not update the calibration set.
+
+        Args:
+            x: One-dimensional feature vector with the same number of features
+                used during fitting or detached calibration.
+
+        Returns:
+            The observation's conformal p-value as a Python float.
+
+        Raises:
+            NotFittedError: If the detector has not been fitted or calibrated.
+            RuntimeError: If weighted conformal mode is enabled. Density-ratio
+                estimation requires a representative test batch.
+            ValueError: If ``x`` is not one-dimensional or its feature count does
+                not match the fitted data.
+
+        Note:
+            Repeated single-sample calls are batch-equivalent only when detector
+            scoring and p-value estimation are sample-wise and deterministic.
+            Randomized tie-breaking can produce different values from one batch
+            call.
+        """
+        if not self.is_fitted:
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
+        if self._is_weighted_mode:
+            raise RuntimeError(
+                "compute_p_value() is unavailable in weighted mode because "
+                "density-ratio estimation requires a representative test batch. "
+                "Use compute_p_values() with that batch instead."
+            )
+
+        x_array = np.asarray(x)
+        if x_array.ndim != 1:
+            raise ValueError(
+                "x must be a one-dimensional feature vector; "
+                f"got shape {x_array.shape}."
+            )
+
+        expected_features = self._n_features_in
+        if expected_features is None:
+            raise RuntimeError(
+                "Fitted feature count is unavailable. Refit or recalibrate the "
+                "detector before calling compute_p_value()."
+            )
+        if x_array.shape[0] != expected_features:
+            raise ValueError(
+                f"x has {x_array.shape[0]} features, but this ConformalDetector "
+                f"was fitted with {expected_features} features."
+            )
+
+        p_values = self.compute_p_values(x_array[np.newaxis, :])
+        return float(np.asarray(p_values).item())
 
     def compute_p_values(
         self,

@@ -40,7 +40,7 @@ def test_detector_streaming_p_values_feed_martingale():
 
     martingale = SimpleJumperMartingale()
     for i, x in enumerate(x_stream, start=1):
-        p_value = float(detector.compute_p_values(x.reshape(1, -1))[0])
+        p_value = detector.compute_p_value(x)
         state = martingale.update(p_value)
         assert 0.0 <= p_value <= 1.0
         assert state.step == i
