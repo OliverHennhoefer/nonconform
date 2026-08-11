@@ -29,7 +29,7 @@ and the relevant multiple-testing assumptions.
 | Flexible calibration strategies | `Split`, `CrossValidation`, and `JackknifeBootstrap` for different data/compute tradeoffs | [Conformalization Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
 | Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
-| Sequential monitoring | Exchangeability martingales (`PowerMartingale`, `SimpleMixtureMartingale`, `SimpleJumperMartingale`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
+| Sequential monitoring | Randomized sequential ranks with exchangeability martingales (`ExchangeabilityMonitor`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Custom detector integration | Support for any detector implementing the `AnomalyDetector` protocol | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
 ## Citation
@@ -40,7 +40,7 @@ material, please cite the accompanying paper:
 ```bibtex
 @misc{hennhoefer2026,
       title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
-      author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
+      author={Oliver HennhÃ¶fer and Maximilian Kirsch and Christine Preisach},
       year={2026},
       eprint={2605.13642},
       archivePrefix={arXiv},
@@ -97,7 +97,7 @@ Statistical Power: 0.99
 nonconform includes advanced workflows for practitioners:
 
 - **Weighted Conformal Prediction** (`weight_estimator=...`): reweights calibration evidence for covariate shift settings where test and calibration distributions differ, assuming enough support overlap between calibration and test features.
-- **Exchangeability Martingales** (`nonconform.martingales`): sequential evidence monitoring over conformal *p*-value streams.
+- **Exchangeability Monitoring** (`nonconform.monitoring` + `nonconform.martingales`): randomized sequential conformal ranks and anytime evidence monitoring over streams.
 
 Weighted Conformal Setup:
 
@@ -116,25 +116,42 @@ detector = ConformalDetector(
 
 > **Note:** In weighted mode, `ConformalDetector.select(...)` dispatches weighted FDR control automatically.
 
-Martingale Setup for Sequential Monitoring:
+Rigorous Sequential Monitoring from an Existing Split Detector:
 
 ```python
-from nonconform.martingales import AlarmConfig, PowerMartingale
+import numpy as np
+from pyod.models.iforest import IForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+rng = np.random.default_rng(42)
+x_train = rng.normal(size=(2_000, 5))
+x_t = rng.normal(size=5)
+x_stream_chunk = rng.normal(size=(10, 5))
 
 alpha = 0.01
-martingale = PowerMartingale(
-    epsilon=0.5,
-    alarm_config=AlarmConfig(
-        ville_threshold=1 / alpha,
-        restarted_ville_threshold=1 / alpha,
+split_detector = ConformalDetector(
+    detector=IForest(),
+    strategy=Split(n_calib=1_000),
+    seed=42,
+).fit(x_train)
+monitor = ExchangeabilityMonitor.from_split_detector(
+    split_detector,
+    martingale=SimpleJumperMartingale(
+        alarm_config=AlarmConfig(restarted_ville_threshold=1 / alpha)
     ),
+    seed=42,
 )
 
-state = martingale.update(p_t)
-states = martingale.update_many(p_values_chunk)
+state = monitor.update(x_t)
+states = monitor.update_many(x_stream_chunk)
 ```
 
-> **Note:** `update(...)` already validates and normalizes numeric scalar p-values, so an explicit `float(...)` cast is optional.
+> **Note:** `from_split_detector(...)` preserves the fitted split detector and
+> primes sequential rank history from its calibration scores. Existing
+> `ConformalDetector.compute_p_value(...)` behavior remains unchanged.
 > Use `ville_threshold` or `restarted_ville_threshold` when you need an anytime
 > false-alarm bound for a monitored stream. CUSUM and Shiryaev-Roberts thresholds
 > are change-evidence triggers for diagnosing possible stream changes; they need

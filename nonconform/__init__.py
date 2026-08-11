@@ -9,7 +9,8 @@ Main Components:
     - Calibration strategies for different data scenarios
     - Weighted conformal detection for covariate shift
     - Statistical utilities and FDR control
-    - Sequential evidence monitoring via ``nonconform.martingales``
+    - Sequential conformal monitoring via ``nonconform.monitoring`` and
+      ``nonconform.martingales``
 
 Logging Control:
     By default, INFO level messages and above are shown.
@@ -42,7 +43,7 @@ Examples:
     ... )
 """
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

@@ -9,7 +9,9 @@ Use these alarms as evidence signals, not as FDR-controlled anomaly decisions.
 
 ## What This Feature Does
 
-`nonconform.martingales` consumes sequential p-values and maintains:
+`nonconform.monitoring` constructs randomized sequential conformal p-values
+from a frozen anomaly scorer. `nonconform.martingales` consumes those p-values
+and maintains:
 
 - Martingale evidence (`M_n`)
 - Restarted mixture e-process evidence for late-change sensitivity
@@ -31,8 +33,10 @@ These martingales are conformal/exchangeability tests. Their validity relies on:
   martingale are valid and, with proper randomized tie-breaking in the classical
   construction, i.i.d. `Uniform(0, 1)`
 
-Raw anomaly scores do not satisfy this requirement directly. Use
-`ConformalDetector` to produce p-values first, then feed those p-values into a
+Raw anomaly scores do not satisfy this requirement directly. Neither does
+repeatedly comparing stream observations with one fixed split-calibration ECDF:
+those p-values are marginally valid but share calibration-induced dependence.
+Use `ExchangeabilityMonitor` to apply randomized sequential ranks before the
 martingale. The martingale classes do not repair invalid p-values, temporal
 dependence, or detector retraining choices that break the conformal assumptions.
 
@@ -42,14 +46,7 @@ dependence, or detector retraining choices that break the conformal assumptions.
     across many simultaneous hypotheses or many streams. For that, use the
     methods in [FDR Control](fdr_control.md).
 
-## Basic Usage
-
-!!! warning "Guarantee scope for this example"
-    This example uses a fixed `Split` calibration set. It demonstrates the API
-    and a monitoring pattern, but it is not the sequential inductive-conformity
-    construction behind the IID-Uniform theorem. Treat alarms as monitoring
-    evidence unless you separately justify the resulting p-value sequence.
-
+## Rigorous Basic Usage
 
 ```python
 import numpy as np
@@ -57,9 +54,11 @@ from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
 from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
 
 rng = np.random.default_rng(42)
 x_train = rng.standard_normal((300, 5))
+x_reference = rng.standard_normal((100, 5))
 x_stream = rng.standard_normal((100, 5))
 
 detector = ConformalDetector(
@@ -70,23 +69,61 @@ detector = ConformalDetector(
 )
 detector.fit(x_train)
 
-martingale = SimpleJumperMartingale(
-    alarm_config=AlarmConfig(
-        ville_threshold=100.0,
-        restarted_ville_threshold=100.0,
-    )
+monitor = ExchangeabilityMonitor.from_split_detector(
+    detector,
+    martingale=SimpleJumperMartingale(
+        alarm_config=AlarmConfig(restarted_ville_threshold=100.0)
+    ),
+    seed=42,
 )
 
 for x_t in x_stream:
-    p_t = detector.compute_p_value(x_t)
-    state = martingale.update(p_t)
+    state = monitor.update(x_t)
     if "restarted_ville" in state.triggered_alarms:
         print(
             "Restarted Ville alarm "
-            f"at step={state.step}, M={state.restarted_martingale:.2f}"
+            f"at step={state.evidence_step}, "
+            f"M={state.restarted_martingale:.2f}"
         )
         break
 ```
+
+`from_split_detector(...)` copies the fitted scoring model and primes the
+sequential rank history with its calibration scores. Martingale capital remains
+at one until the first monitored observation. The original detector and its
+fixed-calibration behavior are unchanged.
+
+Alternatively, fit a monitor directly and supply a separate reference set:
+
+```python
+monitor = ExchangeabilityMonitor(
+    IsolationForest(random_state=42),
+    score_polarity="auto",
+    seed=42,
+).fit(x_train)
+monitor.prime(x_reference)
+state = monitor.update(x_stream[0])
+```
+
+The training data must not also appear in `x_reference`. Reference-set length
+and membership should be fixed without inspecting monitoring evidence.
+
+### Published fixed-split demonstration remains supported
+
+The fixed-split code shown in the accompanying nonconform paper remains valid
+API usage and continues to run unchanged:
+
+```python
+for x_t in data_stream:
+    p_t = detector.compute_p_value(x_t)
+    state = martingale.update(p_t)
+```
+
+This is an illustrative evidence path, not the sequential randomized-rank
+construction. `compute_p_value()` intentionally keeps its documented
+fixed-calibration, pointwise semantics. Do not attach a Ville anytime guarantee
+to this path unless the resulting p-value sequence has a separate conditional
+validity argument.
 
 ## Minimal Example Notebook
 
@@ -104,7 +141,7 @@ It uses:
 
 - `oddball` credit-card fraud data
 - `IsolationForest` for base anomaly scoring
-- `ConformalDetector` to produce streaming p-values
+- `ExchangeabilityMonitor` to produce sequential randomized-rank p-values
 - `PowerMartingale`, `SimpleMixtureMartingale`, and `SimpleJumperMartingale`
   for online evidence updates
 
@@ -160,6 +197,10 @@ Set thresholds with `AlarmConfig`:
 exceeded.
 It can be empty when no alarms are active.
 
+`MartingaleState.e_value` and `MartingaleState.log_e_value` expose the current
+betting factor $e_n=M_n/M_{n-1}$ in linear and log scale. `MonitorState` also
+exposes these values directly.
+
 ### Interpreting `ville_threshold`
 
 For a valid nonnegative martingale started at 1 under the null (exchangeability),
@@ -181,16 +222,16 @@ Example mappings:
 
 `restarted_ville_threshold` applies to a restarted mixture e-process. It uses a
 proper weighted sum over possible restart times rather than the raw CUSUM
-maximum. This gives CUSUM-like sensitivity to late changes while preserving the
-same Ville-style anytime false-alarm probability control as the product
-martingale.
+maximum. This can improve sensitivity to later changes while preserving the same
+Ville-style anytime false-alarm probability control as the product martingale.
+It is not uniformly more powerful: later restart times receive progressively
+smaller prior mass.
 
 Use the same threshold mapping:
 
 ```python
 alpha = 0.01
 alarm_config = AlarmConfig(
-    ville_threshold=1 / alpha,
     restarted_ville_threshold=1 / alpha,
     cusum_threshold=None,
 )
@@ -219,20 +260,30 @@ Scope of this guarantee:
   valid.
 - FDR control across many simultaneous hypotheses or streams requires separate
   multiple-testing procedures; see [FDR Control](fdr_control.md).
+- If ordinary and restarted Ville alarms are both enabled and action is taken
+  when either fires, allocate error across them or apply a union bound. Giving
+  each alarm threshold `1 / alpha` does not make their union an `alpha` test.
+- Resetting or retraining starts a new monitoring episode. Repeated episodes
+  require alpha spending or another repeated-testing guarantee for lifetime
+  false-alarm control.
 
 ## Practical Notes
 
-- Keep detector retraining logic outside the martingale classes in this release.
+- Keep detector retraining logic outside the martingale classes.
 - Interpret alarms as evidence signals, not automated retraining decisions.
 - Exact exchangeability-martingale validity follows the sequential conformal
-  setup in the paper. If you reuse a fixed calibration set to score a stream,
-  treat alarms as monitoring signals unless you have separately justified the
-  resulting p-value sequence.
+  setup implemented by `SequentialRankConformalizer`. If you reuse a fixed
+  calibration ECDF to score a stream, treat alarms as monitoring signals unless
+  you have separately justified the resulting p-value sequence.
 - If temporal dependence is strong, p-value validity can degrade; monitor model and
   data assumptions alongside evidence statistics.
 
 ## References
 
+- **Volkhonskiy, D., Burnaev, E., Nouretdinov, I., Gammerman, A., &
+  Vovk, V. (2017)**.
+  *[Inductive Conformal Martingales for Change-Point Detection](https://proceedings.mlr.press/v60/volkhonskiy17a.html)*.
+  Proceedings of Machine Learning Research, 60, 132-153.
 - **Vovk, V., Petej, I., Nouretdinov, I., Ahlberg, E., Carlsson, L., &
   Gammerman, A. (2021)**.
   *[Retrain or not retrain: conformal test martingales for change-point detection](https://proceedings.mlr.press/v152/vovk21b.html)*.

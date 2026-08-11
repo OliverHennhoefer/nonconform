@@ -13,8 +13,8 @@ The compatibility contract is defined by:
 - `nonconform.__all__`, the intentionally small root import surface.
 - `__all__` in public modules such as `nonconform.scoring`,
   `nonconform.resampling`, `nonconform.weighting`, `nonconform.fdr`,
-  `nonconform.metrics`, `nonconform.martingales`, `nonconform.structures`,
-  `nonconform.adapters`, and `nonconform.enums`.
+  `nonconform.metrics`, `nonconform.martingales`, `nonconform.monitoring`,
+  `nonconform.structures`, `nonconform.adapters`, and `nonconform.enums`.
 - Public constructor parameters, public methods and properties, dataclass
   fields, enum members, and documented string literal values.
 

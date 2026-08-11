@@ -1,5 +1,5 @@
 ---
-description: "Task-oriented nonconform API workflows for fitting, calibration, p-values, FDR selection, and pre-trained detectors."
+description: "Task-oriented nonconform API workflows for fitting, calibration, p-values, FDR selection, pre-trained detectors, and sequential monitoring."
 ---
 
 # Common API Workflows
@@ -146,6 +146,39 @@ detector.fit(X_train)
 
 mask = detector.select(X_test, alpha=0.05)
 ```
+
+---
+
+## 7. Rigorous Sequential Exchangeability Monitoring
+
+Reuse a fitted unweighted `Split` detector without changing its pointwise or
+batch p-value behavior:
+
+```python
+import numpy as np
+
+from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+monitor = ExchangeabilityMonitor.from_split_detector(
+    detector,
+    martingale=SimpleJumperMartingale(
+        alarm_config=AlarmConfig(restarted_ville_threshold=100.0)
+    ),
+    seed=42,
+)
+
+for x_t in np.asarray(X_stream):
+    state = monitor.update(x_t)
+    if "restarted_ville" in state.triggered_alarms:
+        break
+```
+
+The bridge copies the fitted scoring model, uses its calibration scores as
+sequential rank history, and starts evidence at one. It does not call or alter
+`detector.compute_p_value(...)`. `update(...)` accepts one observation as a
+one-dimensional feature vector with shape `(n_features,)`; normalizing the
+stream before iteration prevents a pandas DataFrame from yielding column names.
 
 ---
 

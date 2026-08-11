@@ -41,7 +41,7 @@ If you are new to conformal prediction, start here:
 | [Input Validation](input_validation.md) | Parameter constraints and what error messages mean |
 | [Batch Evaluation](batch_evaluation.md) | Evaluate performance on labeled test sets |
 | [Streaming Evaluation](streaming_evaluation.md) | Online evaluation for real-time detection |
-| [Exchangeability Martingales](exchangeability_martingales.md) | Sequential evidence monitoring on streaming conformal p-values |
+| [Exchangeability Martingales](exchangeability_martingales.md) | Rigorous randomized-rank conformal monitoring and sequential evidence |
 | [Best Practices](best_practices.md) | Production patterns, data preparation, and model selection |
 | [Logging](logging.md) | Configure progress bars and debug output |
 | [Troubleshooting](troubleshooting.md) | Solutions to common issues |
@@ -65,3 +65,6 @@ Before relying on a statistical guarantee, confirm:
 - Distribution shift is handled explicitly instead of ignored.
 - Any reported empirical FDR or power uses labels that were not used for
   training, calibration, or threshold selection.
+- Any Ville guarantee uses sequential randomized-rank p-values or another
+  conditionally valid p-value sequence, rather than a repeatedly reused fixed
+  calibration ECDF.
