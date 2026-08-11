@@ -162,6 +162,8 @@ class MartingaleState:
     log_shiryaev_roberts: float
     shiryaev_roberts: float
     triggered_alarms: tuple[str, ...]
+    log_e_value: float = 0.0
+    e_value: float = 1.0
 
 
 class BaseMartingale(ABC):
@@ -180,6 +182,7 @@ class BaseMartingale(ABC):
         """Reset martingale and alarm statistics to initial values."""
         self._step = 0
         self._last_p_value = float("nan")
+        self._last_log_increment = 0.0
         self._log_martingale = 0.0
         self._log_active_restarted_mass = float("-inf")
         self._log_restarted_martingale = 0.0
@@ -203,6 +206,7 @@ class BaseMartingale(ABC):
 
         self._step += 1
         self._last_p_value = p_value_validated
+        self._last_log_increment = log_increment
         self._log_martingale += log_increment
         self._log_active_restarted_mass = float(
             log_increment
@@ -245,6 +249,8 @@ class BaseMartingale(ABC):
             log_shiryaev_roberts=self._log_shiryaev_roberts,
             shiryaev_roberts=_linear_from_log(self._log_shiryaev_roberts),
             triggered_alarms=self._triggered_alarms(),
+            log_e_value=self._last_log_increment,
+            e_value=_linear_from_log(self._last_log_increment),
         )
 
     def _triggered_alarms(self) -> tuple[str, ...]:

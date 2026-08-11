@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-11
+
+### Added
+
+- Added `nonconform.monitoring` with `SequentialRankConformalizer`,
+  `ExchangeabilityMonitor`, and `MonitorState` for frozen-score sequential
+  conformal ranks and end-to-end exchangeability monitoring with privately
+  owned sequential state and atomic reference priming.
+- Added `ExchangeabilityMonitor.from_split_detector(...)` as an additive bridge
+  from existing fitted, unweighted `Split` detectors without changing their
+  fixed-calibration p-value behavior.
+- Added stepwise `e_value` and `log_e_value` fields to `MartingaleState`.
+
 ## [1.0.2] - 2026-08-01
 
 ### Added
@@ -30,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped indirect dependency `idna` from `3.10` to `3.15`.
 - Bumped indirect dependency `pymdown-extensions` from `10.16.1` to `10.21.3`.
 
-[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.0...v1.0.1

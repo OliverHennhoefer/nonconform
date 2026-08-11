@@ -59,6 +59,13 @@ For standard workflows, prefer `ConformalDetector.select(...)`.
       show_root_heading: true
       heading_level: 3
 
+## Sequential Monitoring
+
+::: nonconform.monitoring
+    options:
+      show_root_heading: true
+      heading_level: 3
+
 ## Data Structures
 
 ::: nonconform.structures

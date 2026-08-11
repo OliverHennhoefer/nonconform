@@ -79,6 +79,11 @@ PUBLIC_MODULE_EXPORTS = {
         "SimpleJumperMartingale",
         "SimpleMixtureMartingale",
     ],
+    "nonconform.monitoring": [
+        "ExchangeabilityMonitor",
+        "MonitorState",
+        "SequentialRankConformalizer",
+    ],
     "nonconform.metrics": [
         "aggregate",
         "false_discovery_rate",

@@ -66,11 +66,15 @@ $$
 \Pr\left(\sup_t M_t \ge \lambda\right) \le \frac{1}{\lambda}.
 $$
 
-**In nonconform**: `AlarmConfig(ville_threshold=lambda)` uses this style of
-anytime alarm thresholding for the product exchangeability martingale.
+**In nonconform**: `ExchangeabilityMonitor` supplies randomized sequential-rank
+p-values to the configured martingale. `AlarmConfig(ville_threshold=lambda)`
+uses this style of anytime alarm thresholding for the product exchangeability
+martingale.
 `AlarmConfig(restarted_ville_threshold=lambda)` applies the same Ville threshold
-to a restarted mixture e-process (evidence process) with better sensitivity to
-changes that begin later in the monitored stream. The restart prior is the
+to a restarted mixture e-process (evidence process) designed for sensitivity to
+changes that begin later in the monitored stream. This is not a uniform power
+improvement because later restart times receive less prior mass. The restart
+prior is the
 weighting over possible restart times; see
 [Exchangeability Martingales](exchangeability_martingales.md#interpreting-restarted_ville_threshold)
 for the documented default.
@@ -79,6 +83,11 @@ This guarantee applies to false alarms over time on a single stream. For
 multiple testing settings across many hypotheses or streams, use dedicated FDR
 procedures; see [Exchangeability Martingales](exchangeability_martingales.md)
 and [FDR Control](fdr_control.md).
+
+Repeatedly calling `ConformalDetector.compute_p_value()` uses one fixed
+calibration ECDF and does not by itself supply the conditional sequential
+validity needed here. Enabling both ordinary and restarted Ville alarms also
+requires error allocation if action is taken when either alarm fires.
 
 ---
 
@@ -144,7 +153,7 @@ anomaly mechanism changes, weighting alone does not restore the guarantees. See
 | **p-value** | Per-test false-positive probability under null assumptions | Calibration set size, detector quality |
 | **FDR** | Expected false-positive proportion among discoveries | p-value validity, number of tests |
 | **Ville threshold** | Anytime false alarm probability (per stream) | Martingale validity, threshold choice |
-| **Restarted Ville threshold** | Anytime false alarm probability with better sensitivity to changes later in the stream | e-process validity, restart prior |
+| **Restarted Ville threshold** | Anytime false alarm probability for a restart mixture designed for later changes | e-process validity, restart prior |
 | **Power** | True positive rate | FDR threshold, detector quality |
 | **Exchangeability** | p-value validity | Data collection process, distribution shift |
 
