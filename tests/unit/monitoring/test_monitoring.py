@@ -5,7 +5,7 @@ import pytest
 from sklearn.base import BaseEstimator
 from sklearn.exceptions import NotFittedError
 
-from nonconform import ConformalDetector, Split
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
 from nonconform.martingales import PowerMartingale
 from nonconform.monitoring import (
     ExchangeabilityMonitor,
@@ -24,6 +24,33 @@ class DistanceFromMeanDetector(BaseEstimator):
 
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         return np.linalg.norm(X - self.center_, axis=1)
+
+
+class FailingScoreDetector(BaseEstimator):
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> FailingScoreDetector:
+        _ = X, y
+        return self
+
+    def decision_function(self, X: np.ndarray) -> np.ndarray:
+        return np.asarray([np.nan if row[0] > 0 else 0.0 for row in X])
+
+
+class NonCopyableConformalizer(SequentialRankConformalizer):
+    def __deepcopy__(self, memo):
+        _ = memo
+        raise RuntimeError("copy disabled")
+
+
+class NonCopyableDetector(DistanceFromMeanDetector):
+    def __deepcopy__(self, memo):
+        _ = memo
+        raise RuntimeError("copy disabled")
+
+
+class NonCopyableMartingale(PowerMartingale):
+    def __deepcopy__(self, memo):
+        _ = memo
+        raise RuntimeError("copy disabled")
 
 
 class TestSequentialRankConformalizer:
@@ -67,6 +94,60 @@ class TestSequentialRankConformalizer:
         assert returned is conformalizer
         assert p_value == pytest.approx((1.0 + expected_uniform) / 3.0)
         assert conformalizer.count == 3
+
+    def test_prime_many_merges_with_existing_history(self):
+        conformalizer = SequentialRankConformalizer().prime_many([1.0, 3.0])
+
+        returned = conformalizer.prime_many([3.0, 2.0, 1.0])
+
+        assert returned is conformalizer
+        np.testing.assert_array_equal(conformalizer.scores, [1.0, 1.0, 2.0, 3.0, 3.0])
+
+    def test_bulk_priming_preserves_seeded_sequence_with_ties_and_history(self):
+        seed = 31
+        existing = [0.0, 2.0]
+        additional = [2.0, 1.0, 0.0]
+        stream = [2.0, 0.5, 2.0]
+        bulk = SequentialRankConformalizer(seed=seed).prime_many(existing)
+        iterative = SequentialRankConformalizer(seed=seed).prime_many(existing)
+
+        bulk.prime_many(additional)
+        for score in additional:
+            iterative.prime(score)
+
+        np.testing.assert_allclose(
+            bulk.update_many(stream), iterative.update_many(stream)
+        )
+        np.testing.assert_array_equal(bulk.scores, iterative.scores)
+
+    def test_prime_many_validates_entire_batch_before_mutation(self):
+        conformalizer = SequentialRankConformalizer().prime_many([1.0, 2.0])
+        scores_before = conformalizer.scores
+
+        with pytest.raises(ValueError, match="finite numeric sequence"):
+            conformalizer.prime_many([3.0, "bad"])
+
+        np.testing.assert_array_equal(conformalizer.scores, scores_before)
+
+    def test_update_many_validates_entire_batch_before_mutation(self):
+        seed = 37
+        conformalizer = SequentialRankConformalizer(seed=seed).prime_many([0.2, 0.8])
+        expected = SequentialRankConformalizer(seed=seed).prime_many([0.2, 0.8])
+
+        with pytest.raises(ValueError, match="finite numeric sequence"):
+            conformalizer.update_many([0.4, "bad"])
+
+        np.testing.assert_array_equal(conformalizer.scores, expected.scores)
+        assert conformalizer.update(0.4) == pytest.approx(expected.update(0.4))
+
+    def test_numeric_object_scores_are_normalized(self):
+        conformalizer = SequentialRankConformalizer(seed=43)
+        conformalizer.prime_many(np.array(["2.0", 1], dtype=object))
+
+        actual = conformalizer.update_many(np.array(["1.5", 3], dtype=object))
+
+        assert actual.shape == (2,)
+        np.testing.assert_array_equal(conformalizer.scores, [1.0, 1.5, 2.0, 3.0])
 
     def test_reset_restores_history_and_rng(self):
         conformalizer = SequentialRankConformalizer(seed=23)
@@ -161,6 +242,63 @@ class TestExchangeabilityMonitor:
             [state.martingale for state in iterative],
         )
 
+    def test_monitor_owns_copies_of_supplied_components(self, data):
+        x_train, x_reference, x_stream = data
+        detector = DistanceFromMeanDetector()
+        conformalizer = SequentialRankConformalizer(seed=47)
+        martingale = PowerMartingale(epsilon=0.6)
+        monitor = ExchangeabilityMonitor(
+            detector,
+            conformalizer=conformalizer,
+            martingale=martingale,
+            score_polarity="higher_is_anomalous",
+        ).fit(x_train)
+
+        monitor.reset()
+        monitor.prime(x_reference)
+        assert conformalizer.count == 0
+        assert martingale.state.step == 0
+        conformalizer.prime(123.0)
+        external_state = martingale.update(0.5)
+        state = monitor.update(x_stream[0])
+
+        assert not hasattr(detector, "center_")
+        assert conformalizer.count == 1
+        assert external_state.step == 1
+        assert state.rank_step == len(x_reference) + 1
+        assert state.evidence_step == 1
+        assert not hasattr(monitor, "detector")
+        assert not hasattr(monitor, "conformalizer")
+        assert not hasattr(monitor, "martingale")
+
+    @pytest.mark.parametrize(
+        ("component_name", "detector", "kwargs"),
+        [
+            ("detector", NonCopyableDetector(), {}),
+            (
+                "conformalizer",
+                DistanceFromMeanDetector(),
+                {"conformalizer": NonCopyableConformalizer()},
+            ),
+            (
+                "martingale",
+                DistanceFromMeanDetector(),
+                {"martingale": NonCopyableMartingale()},
+            ),
+        ],
+    )
+    def test_noncopyable_component_raises_clear_error(
+        self, component_name, detector, kwargs
+    ):
+        with pytest.raises(
+            TypeError, match=f"{component_name} must support deep copying"
+        ):
+            ExchangeabilityMonitor(
+                detector,
+                score_polarity="higher_is_anomalous",
+                **kwargs,
+            )
+
     def test_prime_after_monitoring_starts_raises(self, data):
         x_train, x_reference, x_stream = data
         monitor = ExchangeabilityMonitor(
@@ -240,6 +378,20 @@ class TestExchangeabilityMonitor:
         with pytest.raises(ValueError, match="finite numeric feature matrix"):
             monitor.fit(np.array([["bad", "input"]], dtype=object))
 
+    def test_prime_failure_does_not_commit_partial_reference_history(self):
+        monitor = ExchangeabilityMonitor(
+            FailingScoreDetector(),
+            score_polarity="higher_is_anomalous",
+            seed=53,
+        ).fit(np.array([[-2.0, 0.0], [-1.0, 0.0]]))
+
+        with pytest.raises(ValueError, match="score must be finite"):
+            monitor.prime(np.array([[-1.0, 0.0], [1.0, 0.0]]))
+
+        state = monitor.update(np.array([-0.5, 0.0]))
+        assert state.rank_step == 1
+        assert state.evidence_step == 1
+
     def test_rejects_nonempty_components(self):
         conformalizer = SequentialRankConformalizer().prime(1.0)
         with pytest.raises(ValueError, match="empty history"):
@@ -268,6 +420,7 @@ class TestSplitDetectorBridge:
     ):
         detector, x_stream = fitted_split_detector
         calibration_before = detector.calibration_set
+        scorer_center_before = detector.detector_set[0].center_.copy()
 
         monitor = ExchangeabilityMonitor.from_split_detector(
             detector,
@@ -280,6 +433,24 @@ class TestSplitDetectorBridge:
         assert state.rank_step == len(calibration_before) + 1
         assert state.evidence_step == 1
         np.testing.assert_array_equal(detector.calibration_set, calibration_before)
+        np.testing.assert_array_equal(
+            detector.detector_set[0].center_, scorer_center_before
+        )
+
+    def test_bridge_owns_supplied_martingale(self, fitted_split_detector):
+        detector, x_stream = fitted_split_detector
+        martingale = PowerMartingale(epsilon=0.5)
+        monitor = ExchangeabilityMonitor.from_split_detector(
+            detector,
+            martingale=martingale,
+            seed=59,
+        )
+
+        martingale.update(0.5)
+        state = monitor.update(x_stream[0])
+
+        assert martingale.state.step == 1
+        assert state.evidence_step == 1
 
     def test_paper_fixed_split_code_remains_executable(self, fitted_split_detector):
         detector, x_stream = fitted_split_detector
@@ -309,3 +480,28 @@ class TestSplitDetectorBridge:
         ).fit(rng.normal(size=(10, 2)))
         with pytest.raises(ValueError, match="Split"):
             ExchangeabilityMonitor.from_split_detector(cross_validated)
+
+        with pytest.raises(TypeError, match="ConformalDetector"):
+            ExchangeabilityMonitor.from_split_detector(base)  # type: ignore[arg-type]
+
+        weighted = ConformalDetector(
+            detector=DistanceFromMeanDetector(),
+            strategy=Split(n_calib=2),
+            weight_estimator=logistic_weight_estimator(),
+            score_polarity="higher_is_anomalous",
+            seed=3,
+        ).fit(rng.normal(size=(10, 2)))
+        with pytest.raises(ValueError, match="weighted mode"):
+            ExchangeabilityMonitor.from_split_detector(weighted)
+
+    def test_bridge_rejects_inconsistent_fitted_state(self, fitted_split_detector):
+        detector, _ = fitted_split_detector
+        detector._detector_set.append(detector._detector_set[0])
+
+        with pytest.raises(ValueError, match="exactly one fitted model"):
+            ExchangeabilityMonitor.from_split_detector(detector)
+
+        detector._detector_set.pop()
+        detector._n_features_in = None
+        with pytest.raises(RuntimeError, match="feature count is unavailable"):
+            ExchangeabilityMonitor.from_split_detector(detector)

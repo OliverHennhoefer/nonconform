@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `nonconform.monitoring` with `SequentialRankConformalizer`,
   `ExchangeabilityMonitor`, and `MonitorState` for frozen-score sequential
-  conformal ranks and end-to-end exchangeability monitoring.
+  conformal ranks and end-to-end exchangeability monitoring with privately
+  owned sequential state and atomic reference priming.
 - Added `ExchangeabilityMonitor.from_split_detector(...)` as an additive bridge
   from existing fitted, unweighted `Split` detectors without changing their
   fixed-calibration p-value behavior.

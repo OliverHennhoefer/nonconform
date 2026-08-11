@@ -1,3 +1,6 @@
+<!-- GitHub-rendered README. Keep shared content aligned with docs/README.md,
+which is intentionally maintained separately for PyPI's rendering engine. -->
+
 ![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
 ![Logo](./docs/img/banner_light.png#gh-light-mode-only)
 
@@ -151,7 +154,9 @@ states = monitor.update_many(x_stream_chunk)
 
 > **Note:** `from_split_detector(...)` preserves the fitted split detector and
 > primes sequential rank history from its calibration scores. Existing
-> `ConformalDetector.compute_p_value(...)` behavior remains unchanged.
+> `ConformalDetector.compute_p_value(...)` behavior remains unchanged. Supplied
+> conformalizers and martingales are copied so later caller mutations cannot
+> alter monitor state.
 > Use `ville_threshold` or `restarted_ville_threshold` when you need an anytime
 > false-alarm bound for a monitored stream. CUSUM and Shiryaev-Roberts thresholds
 > are change-evidence triggers for diagnosing possible stream changes; they need

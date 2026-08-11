@@ -107,6 +107,10 @@ state = monitor.update(x_stream[0])
 
 The training data must not also appear in `x_reference`. Reference-set length
 and membership should be fixed without inspecting monitoring evidence.
+The monitor deep-copies explicitly supplied conformalizers and martingales as
+configuration prototypes, so later mutations to the caller's objects cannot
+alter the monitored evidence sequence. Reference batches are scored and
+validated completely before any scores are committed to rank history.
 
 ### Published fixed-split demonstration remains supported
 

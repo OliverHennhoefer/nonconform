@@ -15,6 +15,7 @@ from __future__ import annotations
 from bisect import bisect_left, bisect_right, insort_right
 from copy import deepcopy
 from dataclasses import dataclass
+from heapq import merge
 from typing import Any, Literal, Self
 
 import numpy as np
@@ -22,6 +23,7 @@ import pandas as pd
 from sklearn.exceptions import NotFittedError
 
 from nonconform._internal import set_params
+from nonconform._internal.monitoring import _snapshot_split_detector
 from nonconform.adapters import (
     adapt,
     apply_score_polarity,
@@ -35,7 +37,6 @@ from nonconform.martingales import (
     MartingaleState,
     SimpleJumperMartingale,
 )
-from nonconform.resampling import Split
 from nonconform.structures import AnomalyDetector
 
 Tail = Literal["upper", "lower"]
@@ -57,11 +58,32 @@ def _validate_score(score: float) -> float:
     """Return a finite scalar score."""
     try:
         value = float(score)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("score must be a numeric scalar.") from exc
     if not np.isfinite(value):
         raise ValueError("score must be finite.")
     return value
+
+
+def _as_1d_scores(scores: Any) -> np.ndarray:
+    """Normalize scores into a finite one-dimensional numeric array."""
+    try:
+        array = np.asarray(scores, dtype=float)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("scores must be a finite numeric sequence.") from exc
+    if array.ndim != 1:
+        raise ValueError("scores must be a one-dimensional sequence.")
+    if not np.all(np.isfinite(array)):
+        raise ValueError("scores must be finite.")
+    return array
+
+
+def _copy_component(name: str, component: Any) -> Any:
+    """Return an exclusively owned component copy with a public-facing error."""
+    try:
+        return deepcopy(component)
+    except Exception as exc:
+        raise TypeError(f"{name} must support deep copying.") from exc
 
 
 def _as_2d_array(name: str, values: Any) -> np.ndarray:
@@ -127,16 +149,18 @@ class SequentialRankConformalizer:
 
     def prime_many(self, scores: Any) -> Self:
         """Add scores to rank history without consuming RNG draws."""
-        array = np.asarray(scores)
-        if array.ndim != 1:
-            raise ValueError("scores must be a one-dimensional sequence.")
-        for score in array:
-            self.prime(float(score))
+        array = _as_1d_scores(scores)
+        if array.size:
+            sorted_new_scores = np.sort(array).tolist()
+            self._sorted_scores = list(merge(self._sorted_scores, sorted_new_scores))
         return self
 
     def update(self, score: float) -> float:
         """Insert one score and return its randomized sequential p-value."""
-        value = _validate_score(score)
+        return self._update_validated(_validate_score(score))
+
+    def _update_validated(self, value: float) -> float:
+        """Update from a score already validated by the public boundary."""
         n_previous = len(self._sorted_scores)
         left = bisect_left(self._sorted_scores, value)
         right = bisect_right(self._sorted_scores, value)
@@ -155,10 +179,10 @@ class SequentialRankConformalizer:
 
     def update_many(self, scores: Any) -> np.ndarray:
         """Process a one-dimensional score sequence in order."""
-        array = np.asarray(scores)
-        if array.ndim != 1:
-            raise ValueError("scores must be a one-dimensional sequence.")
-        return np.asarray([self.update(float(score)) for score in array], dtype=float)
+        array = _as_1d_scores(scores)
+        return np.asarray(
+            [self._update_validated(float(score)) for score in array], dtype=float
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -222,6 +246,10 @@ class ExchangeabilityMonitor:
             :class:`nonconform.ConformalDetector` semantics.
         seed: Seed propagated to the scorer and default conformalizer.
 
+    Supplied conformalizers and martingales are treated as configuration
+    prototypes and deep-copied. The monitor exclusively owns and mutates its
+    scorer, rank history, and evidence process.
+
     Notes:
         Exact validity requires the priming and monitored scores to be
         exchangeable under the null, conditional on a fixed training-only
@@ -244,23 +272,55 @@ class ExchangeabilityMonitor:
         else:
             resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
         normalized_detector = apply_score_polarity(adapted_detector, resolved_polarity)
-        self.detector: AnomalyDetector = set_params(
-            deepcopy(normalized_detector), self.seed
+        owned_detector: AnomalyDetector = set_params(
+            _copy_component("detector", normalized_detector), self.seed
         )
-        self.conformalizer = (
-            conformalizer
-            if conformalizer is not None
-            else SequentialRankConformalizer(seed=self.seed)
+        self._initialize_owned(
+            detector=owned_detector,
+            conformalizer=conformalizer,
+            martingale=martingale,
+            seed=self.seed,
+            is_fitted=False,
+            n_features_in=None,
         )
-        self.martingale = (
-            martingale if martingale is not None else SimpleJumperMartingale()
+
+    def _initialize_owned(
+        self,
+        *,
+        detector: AnomalyDetector,
+        conformalizer: SequentialRankConformalizer | None,
+        martingale: BaseMartingale | None,
+        seed: int | None,
+        is_fitted: bool,
+        n_features_in: int | None,
+    ) -> None:
+        """Initialize one exclusively owned monitoring pipeline."""
+        if conformalizer is not None and not isinstance(
+            conformalizer, SequentialRankConformalizer
+        ):
+            raise TypeError("conformalizer must be a SequentialRankConformalizer.")
+        if martingale is not None and not isinstance(martingale, BaseMartingale):
+            raise TypeError("martingale must be a BaseMartingale.")
+
+        self.seed = _validate_seed(seed)
+        self._detector = detector
+        self._conformalizer = (
+            SequentialRankConformalizer(seed=self.seed)
+            if conformalizer is None
+            else _copy_component("conformalizer", conformalizer)
         )
-        if self.conformalizer.count != 0:
+        self._martingale = (
+            SimpleJumperMartingale()
+            if martingale is None
+            else _copy_component("martingale", martingale)
+        )
+        if self._conformalizer.count != 0:
             raise ValueError("conformalizer must have empty history at construction.")
-        if self.martingale.state.step != 0:
+        if self._martingale.state.step != 0:
             raise ValueError("martingale must be reset at construction.")
-        self._is_fitted = False
-        self._n_features_in: int | None = None
+        self._is_fitted = is_fitted
+        self._n_features_in = n_features_in
+        self._last_state: MonitorState | None = None
 
     @classmethod
     def from_split_detector(
@@ -277,37 +337,17 @@ class ExchangeabilityMonitor:
         scores initialize sequential rank history; they are not reused as a
         fixed empirical CDF and do not contribute to martingale capital.
         """
-        if not isinstance(detector, ConformalDetector):
-            raise TypeError("detector must be a ConformalDetector instance.")
-        if not detector.is_fitted:
-            raise NotFittedError("ConformalDetector must be fitted first.")
-        if not isinstance(detector.strategy, Split):
-            raise ValueError("from_split_detector requires a Split strategy.")
-        if detector._is_weighted_mode:
-            raise ValueError("from_split_detector does not support weighted mode.")
-        fitted_models = detector.detector_set
-        if len(fitted_models) != 1:
-            raise ValueError("from_split_detector requires exactly one fitted model.")
-
-        resolved_conformalizer = (
-            conformalizer
-            if conformalizer is not None
-            else SequentialRankConformalizer(seed=seed)
-        )
-        monitor = cls(
-            fitted_models[0],
-            conformalizer=resolved_conformalizer,
+        snapshot = _snapshot_split_detector(detector)
+        monitor = cls.__new__(cls)
+        monitor._initialize_owned(
+            detector=snapshot.detector,
+            conformalizer=conformalizer,
             martingale=martingale,
-            score_polarity="higher_is_anomalous",
-            seed=None,
+            seed=seed,
+            is_fitted=True,
+            n_features_in=snapshot.n_features_in,
         )
-        # Preserve the fitted scorer exactly. The regular constructor configures
-        # unfitted estimators for training, which must not be repeated here.
-        monitor.detector = deepcopy(fitted_models[0])
-        monitor.seed = _validate_seed(seed)
-        monitor._is_fitted = True
-        monitor._n_features_in = detector._n_features_in
-        monitor.conformalizer.prime_many(detector.calibration_set)
+        monitor._conformalizer.prime_many(snapshot.calibration_scores)
         return monitor
 
     @property
@@ -318,12 +358,12 @@ class ExchangeabilityMonitor:
     @property
     def state(self) -> MonitorState | None:
         """Return the latest monitoring state, or None before the first update."""
-        return getattr(self, "_last_state", None)
+        return self._last_state
 
     def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
         """Fit the scoring rule once on a proper training set."""
         x_array = _as_2d_array("x", x)
-        self.detector.fit(x_array)
+        self._detector.fit(x_array)
         self._is_fitted = True
         self._n_features_in = int(x_array.shape[1])
         self.reset()
@@ -336,20 +376,20 @@ class ExchangeabilityMonitor:
         own error-budget accounting if a lifetime false-alarm guarantee is
         required.
         """
-        self.conformalizer.reset()
-        self.martingale.reset()
-        self._last_state: MonitorState | None = None
+        self._conformalizer.reset()
+        self._martingale.reset()
+        self._last_state = None
 
     def prime(self, x: pd.DataFrame | np.ndarray) -> Self:
         """Score reference observations and add them only to rank history."""
         self._require_fitted()
-        if self.martingale.state.step != 0:
+        if self._martingale.state.step != 0:
             raise RuntimeError(
                 "prime() is unavailable after evidence monitoring starts."
             )
         x_array = self._validate_feature_batch("x", x)
-        for row in x_array:
-            self.conformalizer.prime(self._score_one(row))
+        scores = np.asarray([self._score_one(row) for row in x_array], dtype=float)
+        self._conformalizer.prime_many(scores)
         return self
 
     def update(self, x: pd.Series | np.ndarray) -> MonitorState:
@@ -363,10 +403,10 @@ class ExchangeabilityMonitor:
             raise ValueError("x must be a one-dimensional feature vector.")
         self._validate_feature_count(x_array)
         score = self._score_one(x_array)
-        p_value = self.conformalizer.update(score)
-        martingale_state = self.martingale.update(p_value)
+        p_value = self._conformalizer.update(score)
+        martingale_state = self._martingale.update(p_value)
         state = MonitorState(
-            rank_step=self.conformalizer.count,
+            rank_step=self._conformalizer.count,
             score=score,
             martingale_state=martingale_state,
         )
@@ -407,7 +447,7 @@ class ExchangeabilityMonitor:
     def _score_one(self, x: np.ndarray) -> float:
         """Apply the frozen scoring rule to exactly one observation."""
         scores = np.asarray(
-            self.detector.decision_function(np.asarray(x)[np.newaxis, :]),
+            self._detector.decision_function(np.asarray(x)[np.newaxis, :]),
             dtype=float,
         ).ravel()
         if scores.shape != (1,):
