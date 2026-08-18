@@ -138,6 +138,11 @@ def weighted_p_value(test_score, calibration_scores, calibration_weights, test_w
     `Empirical(tie_break="randomized")`. With small calibration sets,
     randomized smoothing is less conservative than the classical formula and
     adds run-to-run variability; set a seed when reproducibility matters.
+    With detectors that produce many exactly tied scores (e.g. histogram-based
+    methods), the classical formula's resolution can collapse toward the
+    randomized formula's: on the SHUTTLE/HBOS setup used in
+    `tests/e2e/test_weighted_empirical.py`, both give 0 discoveries at
+    `alpha=0.2`.
 
 ## When to Use Weighted Conformal
 
