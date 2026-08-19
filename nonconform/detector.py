@@ -45,6 +45,8 @@ if TYPE_CHECKING:
     from nonconform.resampling import BaseStrategy
     from nonconform.scoring import BaseEstimation
 
+_WCS_PRUNING_SEED_DOMAIN = 0x574353  # ASCII "WCS"
+
 
 def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
     """Return a copy of array or None if None."""
@@ -54,6 +56,14 @@ def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
 def _snapshot_param(value: Any) -> Any:
     """Return an immutable constructor-parameter snapshot."""
     return deepcopy(value)
+
+
+def _derive_wcs_pruning_seed(seed: int | None) -> int | None:
+    """Derive a deterministic WCS-pruning stream distinct from ``seed``."""
+    if seed is None:
+        return None
+    seed_sequence = np.random.SeedSequence([seed, _WCS_PRUNING_SEED_DOMAIN])
+    return int(seed_sequence.generate_state(1, dtype=np.uint64)[0])
 
 
 def _batch_signature(x: np.ndarray) -> tuple[tuple[int, ...], str, str]:
@@ -760,7 +770,7 @@ class ConformalDetector(BaseConformalDetector):
                 result=result,
                 alpha=alpha,
                 pruning=pruning,
-                seed=selection_seed,
+                seed=_derive_wcs_pruning_seed(selection_seed),
             )
         else:
             p_values = np.asarray(result.p_values, dtype=float)

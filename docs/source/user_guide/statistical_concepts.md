@@ -32,7 +32,8 @@ reference population.
 **Classical vs. Randomized**:
 
 - `Empirical()` defaults to `tie_break="classical"`, which gives discrete
-  p-values in steps of $1/(n+1)$.
+  p-values in steps of $1/(n+1)$ and includes calibration scores tied with the
+  test score, giving deterministic conservative behavior.
 - Valid `tie_break` values are `"classical"` and `"randomized"` (or
   `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid.
 - For smoother p-values, use `Empirical(tie_break="randomized")`.

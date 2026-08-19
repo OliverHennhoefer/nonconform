@@ -33,10 +33,10 @@ class TestWeightedEmpirical:
     """
 
     def test_split(self):
-        """Test WCS with split conformal on SHUTTLE dataset (non-randomized).
+        """Test WCS with split conformal on SHUTTLE (non-randomized).
 
-        Note: WCS may be conservative with limited calibration data,
-        resulting in fewer discoveries than standard BH.
+        HBOS produces heavily tied scores. Counting tied calibration mass makes
+        the classical p-values conservative, giving no discoveries here.
         """
         x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
 
@@ -51,10 +51,10 @@ class TestWeightedEmpirical:
         ce.fit(x_train)
         decisions = ce.select(x_test, alpha=0.2)
         assert false_discovery_rate(y=y_test, y_hat=decisions) == pytest.approx(
-            0.145454545455, rel=0.0, abs=METRIC_ATOL
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
         assert statistical_power(y=y_test, y_hat=decisions) == pytest.approx(
-            0.94, rel=0.0, abs=METRIC_ATOL
+            0.0, rel=0.0, abs=METRIC_ATOL
         )
 
     def test_split_randomized(self):

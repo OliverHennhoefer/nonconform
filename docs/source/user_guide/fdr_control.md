@@ -59,6 +59,12 @@ detector.fit(X_train)
 mask = detector.select(X_test, alpha=0.05)
 ```
 
+Weighted detectors use classical `Empirical()` by default. Classical weighted
+p-values include tied calibration mass and are accepted by `select()`.
+Randomized empirical p-values are explicit opt-in estimators with
+marginal/asymptotic validity. The published finite-sample WCS theorem uses
+strict primary and auxiliary comparisons.
+
 For the weighted case with custom pruning:
 
 ```python
@@ -289,6 +295,13 @@ The ``pruning`` parameter controls the second-stage WCS pruning rule.
 ``DETERMINISTIC`` uses a fixed rule. ``HOMOGENEOUS`` and ``HETEROGENEOUS`` use
 shared or independent randomness. Set ``seed`` for reproducible randomized
 pruning decisions.
+
+The Jin--Candès finite-sample WCS construction uses strict primary and
+auxiliary comparisons. Classical and strict primary formulas agree when no
+calibration score ties the test score. With exact ties, the implementation uses
+conservative classical primary p-values; that variant is outside the theorem's
+stated scope. Seeded randomized pruning uses a deterministic stream distinct
+from the estimator's random stream.
 
 ## Available Methods
 

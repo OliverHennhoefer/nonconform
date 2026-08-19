@@ -10,7 +10,9 @@ from sklearn.svm import OneClassSVM
 
 from nonconform import ConformalDetector as _ConformalDetector
 from nonconform import JackknifeBootstrap, Split
+from nonconform.detector import _derive_wcs_pruning_seed
 from nonconform.enums import Pruning, ScorePolarity
+from nonconform.scoring import Empirical, calculate_weighted_p_val
 from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator
 
@@ -148,6 +150,21 @@ class TestConformalDetectorInit:
         )
         assert detector is not None
         assert not detector.is_fitted
+
+    def test_empirical_default_is_classical_in_all_modes(self):
+        """Weighting does not change the public empirical default."""
+        weighted = ConformalDetector(
+            detector=MockDetector(),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=CountingWeightEstimator(),
+        )
+        unweighted = ConformalDetector(
+            detector=MockDetector(), strategy=Split(n_calib=0.2)
+        )
+
+        for detector in (weighted, unweighted):
+            assert isinstance(detector.estimation, Empirical)
+            assert detector.estimation._tie_break.value == "classical"
 
     def test_init_with_seed(self):
         """Initialization with seed sets random state."""
@@ -933,17 +950,35 @@ class TestConformalDetectorWeightedPreparation:
         assert len(selected) == len(x_test)
         assert call_args["alpha"] == 0.1
         assert call_args["pruning"] is Pruning.HETEROGENEOUS
-        assert call_args["seed"] == 7
+        assert call_args["seed"] == _derive_wcs_pruning_seed(7)
+
+    def test_select_accepts_classical_empirical_wcs(self, sample_data):
+        """Weighted select accepts classical empirical p-values."""
+        x_train, x_test = sample_data
+        detector = ConformalDetector(
+            detector=MockDetector(np.arange(100, dtype=float)),
+            strategy=Split(n_calib=0.2),
+            estimation=Empirical(tie_break="classical"),
+            weight_estimator=CountingWeightEstimator(),
+            seed=42,
+        )
+        detector.fit(x_train)
+
+        selected = detector.select(x_test, alpha=0.1)
+
+        assert selected.shape == (len(x_test),)
+        assert selected.dtype == bool
 
     def test_select_uses_detector_seed_by_default_in_weighted_mode(
         self, sample_data, monkeypatch
     ):
-        """Weighted select() defaults pruning seed to detector seed."""
+        """Weighted select derives a stable pruning stream from detector seed."""
         x_train, x_test = sample_data
         rng = np.random.default_rng(42)
         detector = ConformalDetector(
             detector=MockDetector(rng.standard_normal(100)),
             strategy=Split(n_calib=0.2),
+            estimation=Empirical(tie_break="randomized"),
             weight_estimator=CountingWeightEstimator(),
             seed=123,
         )
@@ -960,13 +995,23 @@ class TestConformalDetectorWeightedPreparation:
         ) -> np.ndarray:
             captured_seed["value"] = seed
             assert result is not None and result.p_values is not None
+            expected = calculate_weighted_p_val(
+                result.test_scores,
+                result.calib_scores,
+                result.test_weights,
+                result.calib_weights,
+                tie_break="randomized",
+                rng=np.random.default_rng(123),
+            )
+            np.testing.assert_allclose(result.p_values, expected)
             return np.zeros(len(result.p_values), dtype=bool)
 
         monkeypatch.setattr(
             "nonconform.fdr.weighted_false_discovery_control", fake_weighted_fdr
         )
         _ = detector.select(x_test, alpha=0.1, pruning=Pruning.HOMOGENEOUS)
-        assert captured_seed["value"] == 123
+        assert captured_seed["value"] == _derive_wcs_pruning_seed(123)
+        assert captured_seed["value"] != 123
 
 
 class TestConformalDetectorSklearnParams:
