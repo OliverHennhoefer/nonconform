@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-19
+
+### Changed
+
+- Classical weighted empirical p-values include calibration mass tied with
+  the test score, aligning deterministic weighted and unweighted empirical
+  p-values for discrete scores.
+- Seeded randomized WCS pruning uses a dedicated deterministic random stream
+  instead of replaying the empirical p-value stream.
+
 ## [1.1.0] - 2026-08-11
 
 ### Added
@@ -43,7 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped indirect dependency `idna` from `3.10` to `3.15`.
 - Bumped indirect dependency `pymdown-extensions` from `10.16.1` to `10.21.3`.
 
-[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.0...v1.0.1

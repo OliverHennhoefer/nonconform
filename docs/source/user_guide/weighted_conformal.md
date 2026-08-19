@@ -43,7 +43,20 @@ stable. You also need independent calibration/test samples and enough support
 overlap between feature distributions; when shift is too extreme, estimated
 density ratios become unstable and weighted conformal adjustment may fail.
 
-The weighted p-values provide per-hypothesis calibration under the paper's assumptions. For multiple simultaneous anomaly decisions, pair them with Weighted Conformalized Selection (WCS); this is the documented finite-sample FDR path under covariate shift [[Jin & Candès, 2023](#references)]. If the weights are learned rather than known, exactness depends on weight quality and the paper's estimated-weight bounds should be read as potential FDR inflation rather than an automatic exact guarantee.
+The weighted p-values provide per-hypothesis calibration under the relevant
+weighted-conformal assumptions. For multiple simultaneous decisions, pair them
+with Weighted Conformalized Selection (WCS). Jin & Candès (2023) prove
+finite-sample WCS control using strict primary and auxiliary score comparisons.
+The classical default agrees with the strict primary formula without relevant
+ties and is conservative when ties occur. The implementation accepts tied
+scores; this classical tied-score variant lies outside the theorem's stated
+scope. Randomized empirical estimation follows Eq. (4) and has
+marginal/asymptotic validity. The finite-sample WCS theorem uses the strict
+primary formula.
+
+If weights are learned rather than known, exactness depends on their quality.
+KDE/`Probabilistic` scoring is a model-based/asymptotic path, not the same
+finite-sample conformal result.
 
 `ConformalDetector(weight_estimator=...)` estimates importance weights by
 distinguishing calibration samples from the current test batch, then uses those
@@ -70,8 +83,8 @@ detector = ConformalDetector(
     seed=42,
 )
 
-# Fit on training data and get weighted p-values
-# By default, prediction refits the weight model for each batch
+# Fit on training data and get classical weighted empirical p-values.
+# By default, prediction refits the weight model for each batch.
 p_values = detector.fit(X_train).compute_p_values(X_test)
 ```
 
@@ -106,7 +119,24 @@ discipline, set `verify_prepared_batch_content=False` when constructing
 `ConformalDetector` to validate only batch size.
 
 ### 3. Weighted P-value Calculation
-The p-values are computed using weighted empirical distribution functions. By default, `nonconform` uses the classical (non-randomized) formula. The randomized variant [[Jin & Candès, 2023](#references)] handles ties more gracefully:
+The p-values are computed using weighted empirical distribution functions.
+Standalone `Empirical()` and `calculate_weighted_p_val()` use the deterministic
+classical formula by default, which includes calibration mass tied with the
+test score:
+
+```python
+# Classical deterministic discrete formula
+weighted_at_or_above = np.sum(
+    calibration_weights[calibration_scores >= test_score]
+)
+p_value = (weighted_at_or_above + test_weight) / (
+    np.sum(calibration_weights) + test_weight
+)
+```
+
+This is conservative for discrete scores and can have coarse resolution. The
+randomized variant [[Jin & Candès, 2023](#references)] handles ties and the
+test point's own mass by randomization:
 
 ```python
 # Randomized weighted p-value calculation (Jin & Candes 2023)
@@ -131,18 +161,21 @@ def weighted_p_value(test_score, calibration_scores, calibration_weights, test_w
 ```
 
 !!! info "Classical vs. Randomized"
-    By default, `Empirical()` uses `tie_break="classical"` (non-randomized
-    formula). Valid values are `"classical"` and `"randomized"` (or
-    `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`). `None` is not valid.
-    For randomized smoothing as shown above, use
-    `Empirical(tie_break="randomized")`. With small calibration sets,
-    randomized smoothing is less conservative than the classical formula and
-    adds run-to-run variability; set a seed when reproducibility matters.
-    With detectors that produce many exactly tied scores (e.g. histogram-based
-    methods), the classical formula's resolution can collapse toward the
-    randomized formula's: on the SHUTTLE/HBOS setup used in
-    `tests/e2e/test_weighted_empirical.py`, both give 0 discoveries at
-    `alpha=0.2`.
+    `Empirical()` defaults to `tie_break="classical"` in weighted and
+    unweighted workflows. Valid values are `"classical"` and `"randomized"`
+    (or their `TieBreakMode` members); `None` is invalid. Randomization
+    interpolates tied calibration mass and the test point's own mass even when
+    no calibration score ties the test score. It removes the classical
+    positive resolution floor but adds variability; set a seed for
+    reproducibility.
+
+!!! warning "Discrete WCS guarantee scope"
+    Published finite-sample WCS uses strict comparisons in both its primary and
+    leave-one-out auxiliary formulas. Classical primary p-values coincide with
+    that formula when no relevant ties exist. For exact ties, the implementation
+    uses conservative classical primary p-values outside the theorem's stated
+    scope. Randomized Eq. (4) provides marginal/asymptotic validity and is
+    available explicitly.
 
 ## When to Use Weighted Conformal
 
@@ -565,10 +598,10 @@ cv_detector = ConformalDetector(
 ## Weighted Conformal Selection
 
 Weighted conformal p-values provide per-hypothesis calibration under covariate
-shift assumptions. To obtain finite-sample FDR control across many test points,
-combine them with Weighted Conformal Selection (WCS) under the independence,
-support-overlap, and weight-quality assumptions in Jin & Candès [[Jin & Candès,
-2023](#references)]:
+shift assumptions. For score configurations covered by the strict published
+construction, Weighted Conformal Selection (WCS) provides finite-sample FDR
+control under the independence, support-overlap, and weight-quality assumptions
+in Jin & Candès [[Jin & Candès, 2023](#references)]:
 
 ```python
 from nonconform.enums import Pruning
