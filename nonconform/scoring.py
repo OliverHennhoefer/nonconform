@@ -97,8 +97,8 @@ class Empirical(BaseEstimation):
     """Classical empirical p-value estimation using discrete CDF.
 
     Computes p-values using deterministic tie handling by default. Optionally
-    supports randomized smoothing to eliminate the resolution floor caused by
-    discrete ties (Jin & Candes 2023).
+    supports randomized smoothing of tied calibration mass and the test point's
+    own mass, eliminating the classical resolution floor (Jin & Candes 2023).
 
     Args:
         tie_break: Tie-breaking strategy (`"classical"` or `"randomized"`).
@@ -309,7 +309,7 @@ def calculate_p_val(
     n_cal = len(calibration_set)
 
     if mode is TieBreakMode.CLASSICAL:
-        # Old formula: count >= (at or above)
+        # Deterministic discrete formula: count calibration scores >= score.
         ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
         return (1.0 + ranks) / (1.0 + n_cal)
 
@@ -336,9 +336,19 @@ def calculate_weighted_p_val(
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
 
-    Uses classical deterministic tie handling by default. Optionally supports
-    randomized smoothing to eliminate the resolution floor caused by discrete
-    ties (Jin & Candes 2023).
+    The default ``"classical"`` mode uses deterministic discrete tie handling:
+    calibration mass at or above the test score is included, together with the
+    test point's own weight. For calibration mass ``W_cal`` and test score
+    ``s`` with test weight ``w_test``, this is
+    ``(W_{>=}(s) + w_test) / (W_cal + w_test)``. This variant is conservative
+    for discrete scores and agrees with the unweighted classical formula when
+    all weights are one. Without calibration scores tied with ``s``, it equals
+    the strict deterministic formula used by Jin and Candes (2023).
+
+    The ``"randomized"`` mode uses the tie-safe weighted conformal formula
+    ``(W_{>}(s) + U * (W_{=}(s) + w_test)) / (W_cal + w_test)``, where
+    ``U`` is uniform on ``[0, 1]``. It avoids the discrete resolution floor and
+    interpolates both tied calibration mass and the test point's own mass.
 
     Args:
         scores: Test instance anomaly scores (1D array).
@@ -353,9 +363,10 @@ def calculate_weighted_p_val(
         Array of weighted p-values for each test instance.
 
     Note:
-        Including test_weights in the numerator/denominator implies a positive
-        lower bound of test_weights / (sum(calib_weights) + test_weights) when
-        there is no calibration mass above the test score.
+        Classical mode has the positive lower bound
+        ``test_weights / (sum(calib_weights) + test_weights)`` when no
+        calibration mass lies above the test score. Randomized mode has no such
+        positive floor because it multiplies the test point's mass by ``U``.
     """
     mode = _normalize_tie_break_mode(tie_break)
 
@@ -403,17 +414,17 @@ def calculate_weighted_p_val(
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
     if mode is TieBreakMode.CLASSICAL:
-        weighted_greater = total_weight - cumulative_weights[left_idx]
-        numerator = weighted_greater + w_scores
+        weighted_at_or_above = total_weight - cumulative_weights[left_idx]
+        numerator = weighted_at_or_above + w_scores
     else:
-        weighted_greater = total_weight - cumulative_weights[right_idx]
+        weighted_strictly_above = total_weight - cumulative_weights[right_idx]
         weighted_equal = cumulative_weights[right_idx] - cumulative_weights[left_idx]
 
         if rng is None:
             rng = np.random.default_rng()
         u = rng.uniform(size=len(scores))
 
-        numerator = weighted_greater + (weighted_equal + w_scores) * u
+        numerator = weighted_strictly_above + (weighted_equal + w_scores) * u
 
     denominator = total_weight + w_scores
     return numerator / denominator

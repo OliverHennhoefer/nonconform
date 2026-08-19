@@ -861,7 +861,12 @@ def _validate_pruning(pruning: Pruning) -> None:
 def _calib_weight_mass_strictly_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
-    """Compute weighted calibration mass strictly above each target score."""
+    """Compute WCS auxiliary calibration mass strictly above each target.
+
+    This strict comparison is part of WCS's leave-one-out self-consistency
+    construction. It is intentionally separate from the tie policy used for
+    the primary empirical p-values.
+    """
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
@@ -1110,6 +1115,8 @@ def _run_wcs(
     if include_self_weight:
         sorted_test_idx = np.argsort(test_scores_arr, kind="mergesort")
         sorted_scores = test_scores_arr[sorted_test_idx]
+        # WCS auxiliary self-weight uses a strict score ordering; tied test
+        # scores are intentionally excluded independently of primary p-values.
         lt_cutoffs = np.searchsorted(sorted_scores, test_scores_arr, side="left")
     logger = get_logger("fdr")
     j_iterator = (

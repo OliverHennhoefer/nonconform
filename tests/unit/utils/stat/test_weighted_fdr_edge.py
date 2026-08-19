@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from scipy.stats import false_discovery_control
 
+from nonconform.enums import Pruning
 from nonconform.fdr import (
+    _calib_weight_mass_strictly_above,
     weighted_false_discovery_control,
     weighted_false_discovery_control_from_arrays,
 )
@@ -32,6 +34,94 @@ def _wcs_from_empirical_scores(
         calib_weights=calib_weights,
         alpha=alpha,
     )
+
+
+class TestDiscreteTieBehavior:
+    def test_all_ties_contrast_classical_and_strict_primary_inputs(self):
+        n_calib = 19
+        n_test = 20
+        calib_scores = np.full(n_calib, 5.0)
+        test_scores = np.full(n_test, 5.0)
+        calib_weights = np.ones(n_calib)
+        test_weights = np.ones(n_test)
+
+        classical_p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="classical",
+        )
+        np.testing.assert_array_equal(classical_p_values, np.ones(n_test))
+
+        # The explicit-array API consumes precomputed p-values without
+        # provenance checks. Classical all-ties p-values equal one.
+        for pruning in Pruning:
+            classical_discoveries = weighted_false_discovery_control_from_arrays(
+                p_values=classical_p_values,
+                test_scores=test_scores,
+                calib_scores=calib_scores,
+                test_weights=test_weights,
+                calib_weights=calib_weights,
+                alpha=0.1,
+                pruning=pruning,
+                seed=42,
+            )
+            assert not np.any(classical_discoveries)
+
+        # A strict primary p-value is 1 / (n_calib + 1).
+        # In this all-null example it makes the current array-level WCS path
+        # select all test points, demonstrating why the classical formula must
+        # retain tied calibration mass.
+        strict_p_values = np.full(n_test, 1.0 / (n_calib + 1))
+        strict_discoveries = weighted_false_discovery_control_from_arrays(
+            p_values=strict_p_values,
+            test_scores=test_scores,
+            calib_scores=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            alpha=0.1,
+            pruning=Pruning.DETERMINISTIC,
+        )
+        assert np.all(strict_discoveries)
+
+    def test_wcs_auxiliary_mass_is_strictly_above(self):
+        calib_scores = np.array([1.0, 2.0, 2.0, 3.0])
+        calib_weights = np.array([1.0, 2.0, 3.0, 4.0])
+        targets = np.array([1.0, 2.0, 3.0])
+
+        mass = _calib_weight_mass_strictly_above(calib_scores, calib_weights, targets)
+
+        np.testing.assert_allclose(mass, [9.0, 4.0, 0.0])
+
+    def test_result_bundle_accepts_classical_empirical_policy(self, conformal_result):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "nonconform": {
+                "strategy": "Split",
+                "estimation": "Empirical",
+                "weighted": True,
+            },
+            "tie_break": "classical",
+        }
+
+        discoveries = weighted_false_discovery_control(result=result, alpha=0.1)
+        assert discoveries.shape == (5,)
+
+    def test_result_bundle_accepts_custom_estimator_without_tie_metadata(
+        self, conformal_result
+    ):
+        result = conformal_result(n_test=5, n_calib=20)
+        result.metadata = {
+            "nonconform": {
+                "strategy": "Split",
+                "estimation": "CustomEstimation",
+                "weighted": True,
+            },
+        }
+
+        discoveries = weighted_false_discovery_control(result=result, alpha=0.1)
+        assert discoveries.shape == (5,)
 
 
 class TestNoDiscoveries:
