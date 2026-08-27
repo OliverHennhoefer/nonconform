@@ -1,7 +1,12 @@
 """Core conformal anomaly detector implementation.
 
-This module provides the main ConformalDetector class that wraps any anomaly
-detector with conformal inference for valid p-values and FDR control.
+This module provides :class:`ConformalDetector`, which calibrates scores from a
+supported anomaly detector. The default empirical estimator returns rank-based
+conformal p-values; other estimators document their own interpretation. Weighted
+mode estimates density-ratio weights for covariate-shift workflows. Selection
+methods apply a multiple-testing procedure to a complete test batch. The
+resulting validity and false discovery rate guarantees depend on the assumptions
+documented for the chosen calibration and selection procedure.
 
 Classes:
     BaseConformalDetector: Abstract base class for conformal detectors.
@@ -106,8 +111,9 @@ class BaseConformalDetector(ABC):
        calibration scores
     2. **Detached calibration**: train detector externally, then call
        `calibrate()` on a separate calibration dataset
-    3. **Inference Phase**: `compute_p_values()` converts new data scores to valid
-       p-values, or `select()` for the combined p-value + FDR-control workflow
+    3. **Inference phase**: `compute_p_values()` applies the configured
+       estimation strategy, while `select()` combines estimation with the
+       configured batch selection procedure
 
     Subclasses must implement both abstract methods.
 
@@ -197,30 +203,36 @@ class BaseConformalDetector(ABC):
 
 
 class ConformalDetector(BaseConformalDetector):
-    """Unified conformal anomaly detector with optional covariate shift handling.
+    """Wrap an anomaly detector with conformal calibration and batch selection.
 
-    Provides distribution-free anomaly detection with valid p-values and False
-    Discovery Rate (FDR) control by wrapping any anomaly detector with conformal
-    inference. Supports PyOD detectors, sklearn-compatible detectors, and custom
-    detectors implementing the AnomalyDetector protocol.
+    The wrapped detector may be a recognized scikit-learn estimator, a PyOD
+    model, or a custom object implementing the
+    :class:`~nonconform.structures.AnomalyDetector` protocol.
 
-    When no weight estimator is provided (standard conformal prediction):
-    - Uses classical conformal inference for exchangeable data
-    - Provides optimal performance and memory usage
-    - Suitable when training and test data come from the same distribution
+    In standard mode, the fitted strategy supplies one or more fixed scoring
+    rules and calibration-score sets. With the default ``Empirical`` estimator,
+    ``compute_p_values()`` ranks each test score against those calibration
+    scores. The usual marginal p-value validity statement requires
+    exchangeability of the relevant null calibration and test examples.
+    ``select()`` then applies Benjamini-Hochberg to the full test family. Any FDR
+    guarantee additionally depends on the dependence assumptions of that
+    multiple-testing procedure. Other estimation strategies document their own
+    interpretation and assumptions.
 
-    When a weight estimator is provided (weighted conformal prediction):
-    - Handles distribution shift between calibration and test data
-    - Estimates importance weights to maintain statistical validity
-    - Slightly higher computational cost but robust to covariate shift
+    Supplying ``weight_estimator`` enables weighted mode. The estimator learns
+    density-ratio weights from calibration and test covariates, and ``select()``
+    uses weighted conformalized selection. Its validity requires the applicable
+    covariate-shift assumptions, support overlap, and adequate weights; the class
+    cannot verify those scientific assumptions from data alone.
 
     Args:
         detector: Anomaly detector (PyOD, sklearn-compatible, or custom).
         strategy: The conformal strategy for fitting and calibration.
         estimation: P-value estimation strategy. Defaults to Empirical().
         weight_estimator: Weight estimator for covariate shift. Defaults to None.
-        aggregation: Method for aggregating scores from multiple models.
-            Defaults to "median".
+        aggregation: Method for aggregating scores from multiple fitted models:
+            ``"mean"``, ``"median"``, ``"minimum"``, or ``"maximum"``.
+            Defaults to ``"median"``.
         score_polarity: Score direction convention. Use `"higher_is_anomalous"`
             when higher raw scores indicate more anomalous samples, and
             `"higher_is_normal"` when higher scores indicate more normal samples.
@@ -231,7 +243,8 @@ class ConformalDetector(BaseConformalDetector):
             known detector families are inferred, and unknown detectors raise.
             Defaults to None.
         seed: Random seed for reproducibility. Defaults to None.
-        verbose: If True, displays progress bars during prediction. Defaults to False.
+        verbose: If True, displays aggregation progress for multi-model
+            strategies. Defaults to False.
         verify_prepared_batch_content: If True (default), weighted reuse mode
             (``refit_weights=False``) verifies exact batch content identity via
             hashing. This adds O(n) overhead per checked batch. Set to False to
@@ -245,58 +258,83 @@ class ConformalDetector(BaseConformalDetector):
         score_polarity: Resolved score polarity used internally.
         seed: Random seed for reproducible results.
         verbose: Whether to display progress bars.
-        _detector_set: List of trained detector models (populated after fit).
-        _calibration_set: Calibration scores (populated after fit).
 
     Examples:
-        Standard conformal prediction — FDR-controlled selection in one call:
+        Standard conformal p-values and batch selection:
 
         ```python
-        from pyod.models.iforest import IForest
+        import numpy as np
+        from sklearn.ensemble import IsolationForest
+
         from nonconform import ConformalDetector, Split
 
+        rng = np.random.default_rng(42)
+        x_reference = rng.normal(size=(300, 2))
+        x_test = np.vstack([rng.normal(size=(38, 2)), rng.normal(loc=5.0, size=(2, 2))])
         detector = ConformalDetector(
-            detector=IForest(), strategy=Split(n_calib=0.2), seed=42
-        )
-        detector.fit(X_train)
-        mask = detector.select(X_test, alpha=0.05)
-        ```
-
-        Access raw p-values when needed:
-
-        ```python
-        detector.fit(X_train)
-        p_values = detector.compute_p_values(X_test)
-        ```
-
-        Weighted conformal prediction:
-
-        ```python
-        from nonconform import logistic_weight_estimator
-
-        detector = ConformalDetector(
-            detector=IForest(),
-            strategy=Split(n_calib=0.2),
-            weight_estimator=logistic_weight_estimator(),
+            detector=IsolationForest(random_state=42),
+            strategy=Split(n_calib=0.25),
+            score_polarity="higher_is_normal",
             seed=42,
         )
-        detector.fit(X_train)
-        mask = detector.select(X_test, alpha=0.05)
+        detector.fit(x_reference)
+        p_values = detector.compute_p_values(x_test)
+        selected = detector.select(x_test, alpha=0.10)
+        print(p_values.shape, np.flatnonzero(selected))
+        ```
+
+        Weighted conformal p-values under a simulated covariate shift:
+
+        ```python
+        import numpy as np
+        from sklearn.ensemble import IsolationForest
+
+        from nonconform import (
+            ConformalDetector,
+            Split,
+            logistic_weight_estimator,
+        )
+
+        rng = np.random.default_rng(7)
+        x_reference = rng.normal(size=(400, 2))
+        x_test = rng.normal(loc=0.5, size=(40, 2))
+        detector = ConformalDetector(
+            detector=IsolationForest(random_state=7),
+            strategy=Split(n_calib=0.25),
+            weight_estimator=logistic_weight_estimator(),
+            score_polarity="higher_is_normal",
+            seed=7,
+        )
+        detector.fit(x_reference)
+        p_values = detector.compute_p_values(x_test)
+        print(p_values.shape, p_values.min(), p_values.max())
         ```
 
         Detached calibration with a pre-trained model (Split strategy):
 
         ```python
-        base_detector.fit(X_fit)
+        import numpy as np
+        from sklearn.ensemble import IsolationForest
+
+        from nonconform import ConformalDetector, Split
+
+        rng = np.random.default_rng(11)
+        x_fit = rng.normal(size=(200, 2))
+        x_calibration = rng.normal(size=(100, 2))
+        x_test = rng.normal(size=(10, 2))
+        base_detector = IsolationForest(random_state=11).fit(x_fit)
         detector = ConformalDetector(
-            detector=base_detector, strategy=Split(n_calib=0.2)
+            detector=base_detector,
+            strategy=Split(n_calib=0.2),
+            score_polarity="higher_is_normal",
         )
-        detector.calibrate(X_calib)
-        p_values = detector.compute_p_values(X_test)
+        detector.calibrate(x_calibration)
+        p_values = detector.compute_p_values(x_test)
+        print(p_values)
         ```
 
     Note:
-        Strict inductive conformal/FDR workflows require a fixed training-only
+        Strict inductive conformal workflows require a fixed training-only
         score map at inference time. PyOD detectors known to violate this are:
         CD, COF, COPOD, ECOD, LMDD, LOCI, RGraph, SOD, SOS.
     """
@@ -700,17 +738,17 @@ class ConformalDetector(BaseConformalDetector):
         seed: int | None = None,
         refit_weights: bool = True,
     ) -> np.ndarray | pd.Series:
-        """Compute p-values and apply FDR-controlled selection in one step.
+        """Compute p-values or tail estimates and apply batch selection.
 
-        This is the recommended single-call workflow for most use cases. It
-        combines ``compute_p_values()`` and the appropriate selection procedure
-        (BH-style FDR selection for standard mode, weighted conformalized
-        selection for weighted mode) into one method, eliminating the need to
-        access ``last_result`` manually.
+        This is the single-call batch workflow. It combines
+        ``compute_p_values()`` with Benjamini-Hochberg in standard mode or
+        weighted conformalized selection in weighted mode. Validity still
+        depends on the assumptions of both the p-value construction and the
+        selected multiple-testing procedure.
 
         Args:
             x: New data instances for anomaly estimation.
-            alpha: Target FDR level in ``(0, 1)``. Defaults to ``0.05``.
+            alpha: Nominal FDR target in ``(0, 1)``. Defaults to ``0.05``.
             pruning: Pruning strategy for weighted FDR control. Ignored in
                 standard (unweighted) mode. Defaults to
                 ``Pruning.DETERMINISTIC``.
@@ -722,33 +760,57 @@ class ConformalDetector(BaseConformalDetector):
 
         Returns:
             Boolean selection mask of shape ``(n_test,)``. ``True`` entries are
-            the FDR-controlled anomaly discoveries. Returns a pandas Series when
-            the input is a DataFrame or Series.
+            the selected anomaly discoveries. Returns a pandas Series when the
+            input is a DataFrame or Series.
 
         Examples:
             Standard workflow (no weight estimator):
 
             ```python
-            detector.fit(X_train)
-            mask = detector.select(X_test, alpha=0.05)
-            print(f"Discoveries: {mask.sum()}")
+            import numpy as np
+            from sklearn.ensemble import IsolationForest
+
+            from nonconform import ConformalDetector, Split
+
+            rng = np.random.default_rng(42)
+            x_reference = rng.normal(size=(300, 2))
+            x_test = np.vstack(
+                [rng.normal(size=(38, 2)), rng.normal(loc=5.0, size=(2, 2))]
+            )
+            detector = ConformalDetector(
+                detector=IsolationForest(random_state=42),
+                strategy=Split(n_calib=0.25),
+                score_polarity="higher_is_normal",
+                seed=42,
+            ).fit(x_reference)
+            selected = detector.select(x_test, alpha=0.10)
+            print("Selected indices:", np.flatnonzero(selected))
             ```
 
             Weighted workflow:
 
             ```python
+            import numpy as np
+            from sklearn.ensemble import IsolationForest
+
+            from nonconform import (
+                ConformalDetector,
+                Split,
+                logistic_weight_estimator,
+            )
+
+            rng = np.random.default_rng(7)
+            x_reference = rng.normal(size=(400, 2))
+            x_test = rng.normal(loc=0.5, size=(40, 2))
             detector = ConformalDetector(
-                detector=IForest(),
-                strategy=Split(n_calib=0.2),
+                detector=IsolationForest(random_state=7),
+                strategy=Split(n_calib=0.25),
                 weight_estimator=logistic_weight_estimator(),
-            )
-            detector.fit(X_train)
-            mask = detector.select(
-                X_test,
-                alpha=0.1,
-                pruning=Pruning.HETEROGENEOUS,
-                seed=42,
-            )
+                score_polarity="higher_is_normal",
+                seed=7,
+            ).fit(x_reference)
+            selected = detector.select(x_test, alpha=0.10)
+            print("Number selected:", int(selected.sum()))
             ```
         """
         if not (0.0 < alpha < 1.0):
@@ -847,18 +909,21 @@ class ConformalDetector(BaseConformalDetector):
         return estimates
 
     def compute_p_value(self, x: pd.Series | np.ndarray) -> float:
-        """Return a conformal p-value for one observation in standard mode.
+        """Return one value from the configured estimation strategy.
 
         This is a single-sample convenience wrapper around
         :meth:`compute_p_values`. It updates :attr:`last_result` with the
         corresponding one-row result and does not update the calibration set.
+        With the default ``Empirical`` estimator, the returned value is a
+        rank-based conformal p-value. Other estimators define their own
+        interpretation and assumptions.
 
         Args:
             x: One-dimensional feature vector with the same number of features
                 used during fitting or detached calibration.
 
         Returns:
-            The observation's conformal p-value as a Python float.
+            The observation's p-value or score-tail estimate as a Python float.
 
         Raises:
             NotFittedError: If the detector has not been fitted or calibrated.
@@ -910,7 +975,7 @@ class ConformalDetector(BaseConformalDetector):
         *,
         refit_weights: bool = True,
     ) -> np.ndarray | pd.Series:
-        """Return conformal p-values for new data.
+        """Return values from the configured estimation strategy for new data.
 
         Args:
             x: New data instances for anomaly estimation.
@@ -918,7 +983,8 @@ class ConformalDetector(BaseConformalDetector):
                 in weighted mode. Defaults to True.
 
         Returns:
-            Conformal p-values.
+            P-values or score-tail estimates. Pandas input produces a Series
+            named ``"p_value"``; NumPy input produces an ndarray.
         """
         x_array, index = _as_numpy_with_index(x)
         estimates = self._aggregate_scores(x_array)

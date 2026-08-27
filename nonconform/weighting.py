@@ -1,15 +1,17 @@
-"""Weight estimation for covariate shift correction in weighted conformal prediction.
+"""Weight estimation for covariate-shift workflows in weighted conformal inference.
 
-This module provides weight estimators that compute importance weights to correct
-for covariate shift between calibration and test distributions. They estimate
-density ratios w(x) = p_test(x) / p_calib(x) which are used to reweight conformal
-scores for better coverage guarantees under distribution shift.
+These estimators approximate density ratios
+``w(x) = p_test(x) / p_calibration(x)`` from calibration and target covariates.
+Weighted conformal methods can use those ratios under a covariate-shift model,
+support overlap, and the method's other assumptions. Estimation, misspecification,
+and clipping can all affect the resulting validity; this module does not infer a
+distribution-shift guarantee merely by fitting a classifier.
 
 Classes:
     BaseWeightEstimator: Abstract base class for weight estimators.
     IdentityWeightEstimator: Returns uniform weights (no covariate shift).
-    SklearnWeightEstimator: Universal wrapper for sklearn probabilistic classifiers.
-    BootstrapBaggedWeightEstimator: Bootstrap-bagged wrapper for robust estimation.
+    SklearnWeightEstimator: Wrapper for sklearn probabilistic classifiers.
+    BootstrapBaggedWeightEstimator: Bootstrap-bagged, batch-specific estimator.
 
 Factory functions:
     logistic_weight_estimator: Create estimator using Logistic Regression.
@@ -73,12 +75,11 @@ class ProbabilisticClassifier(Protocol):
 
 
 class BaseWeightEstimator(ABC):
-    """Abstract base class for weight estimators in weighted conformal prediction.
+    """Abstract base class for weighted conformal density-ratio estimators.
 
-    Weight estimators compute importance weights to correct for covariate shift
-    between calibration and test distributions. They estimate density ratios
-    w(x) = p_test(x) / p_calib(x) which are used to reweight conformal scores
-    for better coverage guarantees under distribution shift.
+    Weight estimators approximate the relative density of target covariates with
+    respect to calibration covariates. A downstream statistical guarantee also
+    requires an appropriate shift model, overlap, and adequate ratios.
 
     Subclasses must implement fit(), _get_stored_weights(), and _score_new_data()
     to provide specific weight estimation strategies.
@@ -230,12 +231,14 @@ class BaseWeightEstimator(ABC):
 class IdentityWeightEstimator(BaseWeightEstimator):
     """Identity weight estimator that returns uniform weights.
 
-    This estimator assumes no covariate shift and returns weights of 1.0
-    for all samples. Useful as a baseline or when covariate shift is known
-    to be minimal.
+    This estimator assumes no covariate shift and returns weights of 1.0 for
+    all samples. It is a baseline that deliberately applies no density-ratio
+    correction.
 
-    This effectively makes weighted conformal prediction equivalent to
-    standard conformal prediction.
+    With ``Empirical``, unit weights reproduce the unweighted p-value formula.
+    Configuring this object as ``ConformalDetector.weight_estimator`` still puts
+    the detector in weighted mode, so ``select()`` uses weighted conformalized
+    selection rather than ordinary Benjamini-Hochberg.
     """
 
     def __init__(self) -> None:
@@ -270,10 +273,10 @@ class IdentityWeightEstimator(BaseWeightEstimator):
 
 
 class SklearnWeightEstimator(BaseWeightEstimator):
-    """Universal wrapper for any sklearn-compatible probabilistic classifier.
+    """Wrap an sklearn-compatible probabilistic binary classifier.
 
-    Adheres to the standard sklearn 'Meta-Estimator' pattern.
-    Accepts a configured estimator instance and clones it for cross-validation safety.
+    The configured estimator is cloned before fitting. It must expose
+    ``fit()``, ``predict_proba()``, and ``classes_`` after fitting.
 
     Args:
         base_estimator: Configured sklearn classifier instance with predict_proba
@@ -286,24 +289,25 @@ class SklearnWeightEstimator(BaseWeightEstimator):
 
     Examples:
         ```python
-        from sklearn.ensemble import RandomForestClassifier
+        import numpy as np
+        from sklearn.linear_model import LogisticRegression
         from sklearn.pipeline import make_pipeline
         from sklearn.preprocessing import StandardScaler
 
-        # Default (LogisticRegression)
-        estimator = SklearnWeightEstimator()
+        from nonconform.weighting import SklearnWeightEstimator
 
-        # Custom with pipeline
+        rng = np.random.default_rng(42)
+        calibration_samples = rng.normal(size=(120, 3))
+        test_samples = rng.normal(loc=0.5, size=(80, 3))
         estimator = SklearnWeightEstimator(
             base_estimator=make_pipeline(
                 StandardScaler(), LogisticRegression(C=1.0, class_weight="balanced")
             )
         )
-
-        # Random Forest
-        estimator = SklearnWeightEstimator(
-            base_estimator=RandomForestClassifier(n_estimators=100, max_depth=5)
-        )
+        estimator.set_seed(42)
+        estimator.fit(calibration_samples, test_samples)
+        calibration_weights, test_weights = estimator.get_weights()
+        print(calibration_weights.shape, test_weights.shape)
         ```
     """
 
@@ -432,10 +436,10 @@ class SklearnWeightEstimator(BaseWeightEstimator):
 class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
     """Bootstrap-bagged wrapper for weight estimators with instance-wise aggregation.
 
-    This estimator wraps any base weight estimator and applies bootstrap bagging
-    to create more stable, robust weight estimates. It's most relevant when the
-    calibration set is much larger than the test batch (or vice versa), where
-    standalone weights can become spiky and unstable.
+    This estimator repeatedly refits a base weight estimator on balanced
+    bootstrap samples. Geometric averaging can reduce estimator variability in
+    some settings, but it is not universally more accurate or more valid. Compare
+    it against an unbagged estimator on a design representative of deployment.
 
     The algorithm:
     1. For each bootstrap iteration:
@@ -445,7 +449,11 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
        - Store log(weights) for each instance
     2. After all iterations:
        - Aggregate instance-wise weights using geometric mean (average in log-space)
-       - Apply clipping to maintain boundedness for theoretical guarantees
+       - Optionally clip the aggregated weights at empirical quantiles
+
+    Clipping is a numerical stabilization choice that changes the estimated
+    density ratio. Any claimed guarantee must match the clipped construction; a
+    finite observed range alone does not establish the required assumptions.
 
     Seed inheritance:
         This class uses the `_seed` attribute pattern for automatic seed
@@ -460,9 +468,6 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             ``"frozen"`` is supported, meaning the estimator can only serve the
             exact calibration/test batches used during fit(). Defaults to "frozen".
 
-    References:
-        Jin, Ying, and Emmanuel J. Candès. "Selection by Prediction with Conformal
-        p-values." Journal of Machine Learning Research 24.244 (2023): 1-41.
     """
 
     def __init__(
@@ -473,15 +478,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         scoring_mode: Literal["frozen"] = "frozen",
     ) -> None:
         if n_bootstraps < 1:
-            raise ValueError(
-                f"n_bootstraps must be at least 1, got {n_bootstraps}. "
-                f"Typical values are 50-200 for stable weight estimation."
-            )
+            raise ValueError(f"n_bootstraps must be at least 1, got {n_bootstraps}.")
         if clip_quantile is not None and not (0 < clip_quantile < 0.5):
-            raise ValueError(
-                f"clip_quantile must be in (0, 0.5), got {clip_quantile}. "
-                f"Common values are 0.05 (5th-95th percentiles) or 0.01."
-            )
+            raise ValueError(f"clip_quantile must be in (0, 0.5), got {clip_quantile}.")
         if scoring_mode != "frozen":
             raise ValueError(
                 f"Unsupported scoring_mode {scoring_mode!r}. "
@@ -654,9 +653,6 @@ def logistic_weight_estimator(
 ) -> SklearnWeightEstimator:
     """Create weight estimator using Logistic Regression.
 
-    This factory function provides behavioral equivalence with the old
-    LogisticWeightEstimator class.
-
     Note:
         When used with ConformalDetector, the detector's seed is automatically
         propagated to the weight estimator for reproducibility.
@@ -673,9 +669,18 @@ def logistic_weight_estimator(
 
     Examples:
         ```python
+        import numpy as np
+
+        from nonconform import logistic_weight_estimator
+
+        rng = np.random.default_rng(42)
+        calibration_samples = rng.normal(size=(120, 3))
+        test_samples = rng.normal(loc=0.5, size=(80, 3))
         estimator = logistic_weight_estimator(regularization=0.5)
-        estimator.fit(calib_samples, test_samples)
-        w_calib, w_test = estimator.get_weights()
+        estimator.set_seed(42)
+        estimator.fit(calibration_samples, test_samples)
+        calibration_weights, test_weights = estimator.get_weights()
+        print(calibration_weights.shape, test_weights.shape)
         ```
     """
     from sklearn.pipeline import make_pipeline
@@ -703,9 +708,6 @@ def forest_weight_estimator(
 ) -> SklearnWeightEstimator:
     """Create weight estimator using Random Forest.
 
-    This factory function provides behavioral equivalence with the old
-    ForestWeightEstimator class.
-
     Note:
         When used with ConformalDetector, the detector's seed is automatically
         propagated to the weight estimator for reproducibility.
@@ -721,9 +723,18 @@ def forest_weight_estimator(
 
     Examples:
         ```python
-        estimator = forest_weight_estimator(n_estimators=200)
-        estimator.fit(calib_samples, test_samples)
-        w_calib, w_test = estimator.get_weights()
+        import numpy as np
+
+        from nonconform import forest_weight_estimator
+
+        rng = np.random.default_rng(42)
+        calibration_samples = rng.normal(size=(120, 3))
+        test_samples = rng.normal(loc=0.5, size=(80, 3))
+        estimator = forest_weight_estimator(n_estimators=50)
+        estimator.set_seed(42)
+        estimator.fit(calibration_samples, test_samples)
+        calibration_weights, test_weights = estimator.get_weights()
+        print(calibration_weights.shape, test_weights.shape)
         ```
     """
     from sklearn.ensemble import RandomForestClassifier

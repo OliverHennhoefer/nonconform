@@ -7,7 +7,10 @@ from enum import Enum, auto
 
 
 class Distribution(Enum):
-    """Probability distributions for validation set sizes in randomized strategies.
+    """Reserved distribution choices for randomized size configurations.
+
+    The enum remains part of the v1 public surface through ``nonconform.enums``.
+    Current public calibration strategy constructors do not consume it.
 
     Attributes:
         BETA_BINOMIAL: Beta-binomial distribution for drawing validation fractions.
@@ -24,7 +27,8 @@ class ScorePolarity(Enum):
     """Score direction conventions for anomaly detectors.
 
     Attributes:
-        AUTO: Infer polarity from known detector families.
+        AUTO: Strictly infer polarity from recognized detector families and raise
+            for an unknown custom detector.
         HIGHER_IS_ANOMALOUS: Higher scores indicate more anomalous samples.
         HIGHER_IS_NORMAL: Higher scores indicate more normal samples.
     """
@@ -38,9 +42,10 @@ class Pruning(Enum):
     """Pruning strategies for weighted FDR control.
 
     Attributes:
-        HETEROGENEOUS: Remove elements based on independent random checks per item.
-        HOMOGENEOUS: Apply one shared random decision to all items.
-        DETERMINISTIC: Remove items using a fixed rule with no randomness.
+        HETEROGENEOUS: Use independent uniform draws for candidate-specific
+            randomized WCS pruning.
+        HOMOGENEOUS: Use one shared uniform draw for randomized WCS pruning.
+        DETERMINISTIC: Use the non-randomized WCS pruning rule.
     """
 
     HETEROGENEOUS = auto()
@@ -52,8 +57,9 @@ class ConformalMode(Enum):
     """Model retention modes for conformal resampling strategies.
 
     Attributes:
-        PLUS: Keep all calibration-time models for inference (Jackknife+/CV+ style).
-        SINGLE_MODEL: Fit and retain one final model after calibration.
+        PLUS: Retain calibration-time models and aggregate their test scores.
+        SINGLE_MODEL: Fit and retain one final model after constructing
+            calibration scores.
     """
 
     PLUS = "plus"
@@ -73,7 +79,7 @@ class TieBreakMode(Enum):
 
 
 class Kernel(Enum):
-    """Kernel functions for KDE-based p-value computation.
+    """Kernel functions for KDE-based score-tail estimation.
 
     Attributes:
         GAUSSIAN: Gaussian (normal) kernel.

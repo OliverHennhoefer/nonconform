@@ -69,7 +69,19 @@ def _guard_blocked_pyod_detector(detector: Any) -> None:
 
 
 def adapt(detector: Any) -> AnomalyDetector:
-    """Adapt a detector to the AnomalyDetector protocol."""
+    """Return a detector that satisfies the public anomaly-detector protocol.
+
+    Args:
+        detector: PyOD, scikit-learn, or custom detector object.
+
+    Returns:
+        The original structurally compatible object or a PyOD adapter.
+
+    Raises:
+        ValueError: If the detector is a blocked batch-adaptive PyOD class.
+        ImportError: If the object appears to require PyOD but PyOD is absent.
+        TypeError: If required protocol methods are missing.
+    """
     _guard_blocked_pyod_detector(detector)
 
     if isinstance(detector, AnomalyDetector):
@@ -96,7 +108,19 @@ def adapt(detector: Any) -> AnomalyDetector:
 
 
 def parse_score_polarity(score_polarity: ScorePolarityInput) -> ScorePolarity:
-    """Parse score polarity input to canonical enum representation."""
+    """Normalize a score-polarity string or enum.
+
+    Args:
+        score_polarity: A :class:`ScorePolarity` value or one of ``"auto"``,
+            ``"higher_is_anomalous"``, and ``"higher_is_normal"``.
+
+    Returns:
+        The corresponding :class:`ScorePolarity` member.
+
+    Raises:
+        ValueError: If a string value is unsupported.
+        TypeError: If the input is neither a string nor ``ScorePolarity``.
+    """
     if isinstance(score_polarity, ScorePolarity):
         return score_polarity
 
@@ -150,6 +174,13 @@ def resolve_implicit_score_polarity(detector: Any) -> ScorePolarity:
     - Known sklearn normality detectors -> HIGHER_IS_NORMAL
     - PyOD detectors -> HIGHER_IS_ANOMALOUS
     - Unknown custom detectors -> HIGHER_IS_ANOMALOUS
+
+    Args:
+        detector: Adapted detector whose family determines the default.
+
+    Returns:
+        The anomalous-higher or normal-higher convention selected by the v1
+        implicit-default policy.
     """
     if _is_known_sklearn_normality_detector(detector):
         return ScorePolarity.HIGHER_IS_NORMAL
@@ -167,6 +198,18 @@ def resolve_score_polarity(
     Unlike ``resolve_implicit_score_polarity``, this function is intentionally
     strict for explicit ``score_polarity="auto"`` and raises for unknown
     detectors.
+
+    Args:
+        detector: Adapted detector whose family may be inspected.
+        score_polarity: Explicit score convention or ``"auto"``.
+
+    Returns:
+        A non-auto score-polarity convention.
+
+    Raises:
+        ValueError: If strict automatic inference cannot identify the detector
+            family, or if the value is unsupported.
+        TypeError: If ``score_polarity`` has an unsupported type.
     """
     parsed = parse_score_polarity(score_polarity)
     if parsed is not ScorePolarity.AUTO:
@@ -192,7 +235,20 @@ def apply_score_polarity(
     detector: AnomalyDetector,
     score_polarity: ScorePolarityInput,
 ) -> AnomalyDetector:
-    """Return detector that follows requested score polarity convention."""
+    """Normalize detector output so larger values mean more anomalous.
+
+    Args:
+        detector: Detector whose raw score convention is known.
+        score_polarity: Convention of the detector's raw scores. ``AUTO`` must
+            be resolved before this call.
+
+    Returns:
+        The original detector for anomalous-higher scores, or a polarity adapter
+        that negates normal-higher scores.
+
+    Raises:
+        ValueError: If unresolved automatic polarity is supplied.
+    """
     parsed = parse_score_polarity(score_polarity)
     if parsed is ScorePolarity.AUTO:
         raise ValueError(
@@ -210,7 +266,13 @@ def _looks_like_pyod(detector: Any) -> bool:
 
 
 class ScorePolarityAdapter:
-    """Adapter that normalizes detector score direction conventions."""
+    """Normalize a wrapped detector to anomalous-higher scores.
+
+    Args:
+        detector: Detector implementing :class:`AnomalyDetector`.
+        score_polarity: Convention of its raw scores. Automatic polarity is not
+            accepted here.
+    """
 
     def __init__(
         self,
@@ -279,7 +341,14 @@ class ScorePolarityAdapter:
 
 
 class PyODAdapter:
-    """Adapter wrapping PyOD detectors to ensure protocol compliance."""
+    """Wrap a PyOD detector with the public anomaly-detector protocol.
+
+    Args:
+        detector: Configured PyOD detector.
+
+    Raises:
+        ImportError: If PyOD is not installed.
+    """
 
     def __init__(self, detector: Any) -> None:
         """Initialize adapter for a PyOD detector."""

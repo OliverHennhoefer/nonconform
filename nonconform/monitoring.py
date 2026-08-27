@@ -105,9 +105,10 @@ class SequentialRankConformalizer:
     """Generate exact randomized sequential conformal p-values.
 
     At each update, the new score is ranked among all scores observed by this
-    object, including the new score itself.  Independent randomized tie
-    breaking makes the resulting p-values IID ``Uniform(0, 1)`` when the score
-    sequence is exchangeable.
+    object, including the new score itself. Independent uniform tie randomization
+    makes the sequential ranks independent ``Uniform(0, 1)`` variables when the
+    complete score sequence is exchangeable. Numeric input validation alone does
+    not establish exchangeability.
 
     Args:
         tail: ``"upper"`` when larger scores are more extreme and ``"lower"``
@@ -115,7 +116,7 @@ class SequentialRankConformalizer:
         seed: Optional seed for a persistent random number generator.
 
     Notes:
-        History grows without a sliding window.  The current implementation
+        History grows without a sliding window. The current implementation
         uses an exact sorted list: rank queries are logarithmic, while insertion
         is linear in the history length.
     """
@@ -143,12 +144,15 @@ class SequentialRankConformalizer:
         self._rng = np.random.default_rng(self.seed)
 
     def prime(self, score: float) -> Self:
-        """Add one score to rank history without producing a p-value."""
+        """Add one score to rank history without producing a p-value.
+
+        Priming does not update evidence and does not consume a random draw.
+        """
         insort_right(self._sorted_scores, _validate_score(score))
         return self
 
     def prime_many(self, scores: Any) -> Self:
-        """Add scores to rank history without consuming RNG draws."""
+        """Add a one-dimensional score collection without consuming RNG draws."""
         array = _as_1d_scores(scores)
         if array.size:
             sorted_new_scores = np.sort(array).tolist()
@@ -156,7 +160,11 @@ class SequentialRankConformalizer:
         return self
 
     def update(self, score: float) -> float:
-        """Insert one score and return its randomized sequential p-value."""
+        """Insert one score and return its randomized sequential p-value.
+
+        The result lies in ``[0, 1)`` because the randomized rank uses a uniform
+        draw on a half-open interval.
+        """
         return self._update_validated(_validate_score(score))
 
     def _update_validated(self, value: float) -> float:
@@ -187,7 +195,7 @@ class SequentialRankConformalizer:
 
 @dataclass(slots=True, frozen=True)
 class MonitorState:
-    """Snapshot from one rigorous sequential monitoring update."""
+    """Immutable snapshot from one sequential monitoring update."""
 
     rank_step: int
     score: float
@@ -232,8 +240,8 @@ class MonitorState:
 class ExchangeabilityMonitor:
     """Monitor a stream using a frozen scorer and sequential conformal ranks.
 
-    The scorer is fitted once and then applied coordinate-wise to reference and
-    stream observations.  ``prime`` establishes rank history without starting
+    The scorer is fitted once and then applied row-wise to reference and stream
+    observations. ``prime`` establishes rank history without starting
     evidence; ``update`` generates a randomized sequential p-value and sends it
     to the configured martingale.
 
@@ -243,7 +251,7 @@ class ExchangeabilityMonitor:
             upper-tail :class:`SequentialRankConformalizer`.
         martingale: P-value betting martingale. Defaults to Simple Jumper.
         score_polarity: Detector score direction, following
-            :class:`nonconform.ConformalDetector` semantics.
+            :class:`~nonconform.detector.ConformalDetector` semantics.
         seed: Seed propagated to the scorer and default conformalizer.
 
     Supplied conformalizers and martingales are treated as configuration
@@ -251,9 +259,10 @@ class ExchangeabilityMonitor:
     scorer, rank history, and evidence process.
 
     Notes:
-        Exact validity requires the priming and monitored scores to be
+        Sequential-rank validity requires the priming and monitored scores to be
         exchangeable under the null, conditional on a fixed training-only
-        scoring construction.  Do not refit the scorer during an episode.
+        scoring construction. Ville guarantees additionally require a valid
+        e-process. Do not refit the scorer during an episode.
     """
 
     def __init__(
@@ -331,11 +340,21 @@ class ExchangeabilityMonitor:
         martingale: BaseMartingale | None = None,
         seed: int | None = None,
     ) -> ExchangeabilityMonitor:
-        """Create a rigorous monitor from a fitted unweighted Split detector.
+        """Create a monitor from a fitted unweighted ``Split`` detector.
 
-        The fitted scoring model is copied and frozen.  Existing calibration
+        The fitted scoring model is copied and frozen. Existing calibration
         scores initialize sequential rank history; they are not reused as a
         fixed empirical CDF and do not contribute to martingale capital.
+
+        Args:
+            detector: Fitted, unweighted detector using ``Split`` and a single
+                retained scoring model.
+            conformalizer: Optional empty conformalizer configuration prototype.
+            martingale: Optional reset martingale configuration prototype.
+            seed: Seed for the monitor's conformalizer, or None.
+
+        Returns:
+            A fitted monitor primed with copied calibration scores.
         """
         snapshot = _snapshot_split_detector(detector)
         monitor = cls.__new__(cls)
@@ -361,7 +380,15 @@ class ExchangeabilityMonitor:
         return self._last_state
 
     def fit(self, x: pd.DataFrame | np.ndarray) -> Self:
-        """Fit the scoring rule once on a proper training set."""
+        """Fit the scoring rule once on a proper training set.
+
+        Args:
+            x: Finite two-dimensional fitting data. It must be independent of
+                the later null rank sequence for the documented validity scope.
+
+        Returns:
+            This monitor with empty rank and evidence state.
+        """
         x_array = _as_2d_array("x", x)
         self._detector.fit(x_array)
         self._is_fitted = True
@@ -381,7 +408,15 @@ class ExchangeabilityMonitor:
         self._last_state = None
 
     def prime(self, x: pd.DataFrame | np.ndarray) -> Self:
-        """Score reference observations and add them only to rank history."""
+        """Score reference observations and add them only to rank history.
+
+        Args:
+            x: Finite two-dimensional reference batch with the fitted feature
+                count.
+
+        Returns:
+            This monitor after extending its rank history.
+        """
         self._require_fitted()
         if self._martingale.state.step != 0:
             raise RuntimeError(
@@ -393,7 +428,14 @@ class ExchangeabilityMonitor:
         return self
 
     def update(self, x: pd.Series | np.ndarray) -> MonitorState:
-        """Score one observation and update sequential evidence."""
+        """Score one observation and update sequential evidence.
+
+        Args:
+            x: One finite feature vector with the fitted feature count.
+
+        Returns:
+            The immutable state after ranking, betting, and alarm evaluation.
+        """
         self._require_fitted()
         try:
             x_array = np.asarray(x, dtype=float)
@@ -414,7 +456,12 @@ class ExchangeabilityMonitor:
         return state
 
     def update_many(self, x: pd.DataFrame | np.ndarray) -> list[MonitorState]:
-        """Update sequentially for every row in a feature batch."""
+        """Update sequentially for every row in input order.
+
+        The input is accepted as a two-dimensional batch for convenience, but
+        the method preserves row order and performs one sequential update per
+        row.
+        """
         self._require_fitted()
         x_array = self._validate_feature_batch("x", x)
         return [self.update(row) for row in x_array]
