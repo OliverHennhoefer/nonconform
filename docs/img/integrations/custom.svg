@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 64" role="img" aria-label="Custom AnomalyDetector protocol">
+  <title>Custom AnomalyDetector protocol</title>
+  <rect width="144" height="64" rx="15" fill="#fff"/>
+  <text x="72" y="29" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="18" font-weight="700" fill="#2b5597">&lt;custom&gt;</text>
+  <text x="72" y="45" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="9.5" letter-spacing="0.35" fill="#57606a">AnomalyDetector</text>
+</svg>
