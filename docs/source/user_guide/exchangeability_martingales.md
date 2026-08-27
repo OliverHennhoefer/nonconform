@@ -27,11 +27,10 @@ Implemented methods in this release:
 
 ## Why P-values (Not Raw Scores)
 
-These martingales are conformal/exchangeability tests. Their validity relies on:
-
-- under exchangeability, the sequential conformal p-values used by the
-  martingale are valid and, with proper randomized tie-breaking in the classical
-  construction, i.i.d. `Uniform(0, 1)`
+These martingales are conformal/exchangeability tests. Under exchangeability,
+properly randomized sequential conformal p-values in the classical construction
+are independent `Uniform(0, 1)` variables. This is the property used by the
+martingale betting factors.
 
 Raw anomaly scores do not satisfy this requirement directly. Neither does
 repeatedly comparing stream observations with one fixed split-calibration ECDF:
@@ -41,12 +40,13 @@ martingale. The martingale classes do not repair invalid p-values, temporal
 dependence, or detector retraining choices that break the conformal assumptions.
 
 !!! warning "Do not mix up alarm types"
+
     `ville_threshold` and `restarted_ville_threshold` provide anytime
     false-alarm control for a single valid stream. They do not control FDR
     across many simultaneous hypotheses or many streams. For that, use the
     methods in [FDR Control](fdr_control.md).
 
-## Rigorous Basic Usage
+## Basic sequential usage
 
 ```python
 import numpy as np
@@ -58,8 +58,12 @@ from nonconform.monitoring import ExchangeabilityMonitor
 
 rng = np.random.default_rng(42)
 x_train = rng.standard_normal((300, 5))
-x_reference = rng.standard_normal((100, 5))
-x_stream = rng.standard_normal((100, 5))
+x_stream = np.vstack(
+    [
+        rng.standard_normal((60, 5)),
+        rng.normal(loc=3.0, size=(40, 5)),
+    ]
+)
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
@@ -72,7 +76,7 @@ detector.fit(x_train)
 monitor = ExchangeabilityMonitor.from_split_detector(
     detector,
     martingale=SimpleJumperMartingale(
-        alarm_config=AlarmConfig(restarted_ville_threshold=100.0)
+        alarm_config=AlarmConfig(restarted_ville_threshold=20.0)
     ),
     seed=42,
 )
@@ -86,6 +90,8 @@ for x_t in x_stream:
             f"M={state.restarted_martingale:.2f}"
         )
         break
+else:
+    print("No alarm in this finite stream")
 ```
 
 `from_split_detector(...)` copies the fitted scoring model and primes the
@@ -96,6 +102,16 @@ fixed-calibration behavior are unchanged.
 Alternatively, fit a monitor directly and supply a separate reference set:
 
 ```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform.monitoring import ExchangeabilityMonitor
+
+rng = np.random.default_rng(42)
+x_train = rng.normal(size=(300, 5))
+x_reference = rng.normal(size=(100, 5))
+x_stream = rng.normal(size=(10, 5))
+
 monitor = ExchangeabilityMonitor(
     IsolationForest(random_state=42),
     score_polarity="auto",
@@ -118,9 +134,28 @@ The fixed-split code shown in the accompanying nonconform paper remains valid
 API usage and continues to run unchanged:
 
 ```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.martingales import PowerMartingale
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(400, 3))
+data_stream = rng.normal(size=(20, 3))
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
+martingale = PowerMartingale(epsilon=0.5)
+
 for x_t in data_stream:
     p_t = detector.compute_p_value(x_t)
     state = martingale.update(p_t)
+
+print(state.martingale)
 ```
 
 This is an illustrative evidence path, not the sequential randomized-rank
@@ -146,8 +181,7 @@ It uses:
 - `oddball` credit-card fraud data
 - `IsolationForest` for base anomaly scoring
 - `ExchangeabilityMonitor` to produce sequential randomized-rank p-values
-- `PowerMartingale`, `SimpleMixtureMartingale`, and `SimpleJumperMartingale`
-  for online evidence updates
+- `PowerMartingale` for online evidence updates
 
 The example trains on a subset and processes the remaining data in a streaming
 loop while logging p-values and evidence statistics step by step.
@@ -234,6 +268,8 @@ smaller prior mass.
 Use the same threshold mapping:
 
 ```python
+from nonconform.martingales import AlarmConfig
+
 alpha = 0.01
 alarm_config = AlarmConfig(
     restarted_ville_threshold=1 / alpha,
@@ -275,10 +311,12 @@ Scope of this guarantee:
 
 - Keep detector retraining logic outside the martingale classes.
 - Interpret alarms as evidence signals, not automated retraining decisions.
-- Exact exchangeability-martingale validity follows the sequential conformal
-  setup implemented by `SequentialRankConformalizer`. If you reuse a fixed
-  calibration ECDF to score a stream, treat alarms as monitoring signals unless
-  you have separately justified the resulting p-value sequence.
+- The sequential conformal construction implemented by
+  `SequentialRankConformalizer` supports the exact exchangeability-martingale
+  argument when its stated exchangeability, frozen-scorer, and randomization
+  assumptions hold. If you reuse a fixed calibration ECDF to score a stream,
+  treat alarms as monitoring signals unless you have separately justified the
+  resulting p-value sequence.
 - If temporal dependence is strong, p-value validity can degrade; monitor model and
   data assumptions alongside evidence statistics.
 

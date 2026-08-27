@@ -1,504 +1,352 @@
 ---
-description: "Troubleshoot nonconform p-values, FDR results, detector speed, aggregation, logging, memory, and calibration issues."
+description: "Diagnose nonconform imports, fitted state, score polarity, p-value resolution, FDR selection, weighted batches, sequential monitoring, and performance."
 ---
 
-# Troubleshooting Guide
+# Troubleshooting
 
-Common issues and solutions for nonconform.
+Start from the first layer that fails: installation, detector interface,
+fitting, score construction, p-values, selection, or guarantee assumptions.
+Changing `alpha` before identifying the layer can hide the symptom without
+fixing the cause.
 
-## Common Issues and Solutions
+## Import and installation errors
 
-### 1. ImportError: Cannot import symbols from nonconform
+### A symbol is not available from `nonconform`
 
-**Problem**: Getting import errors for detector or strategy classes.
-
-**Solution**: Import public classes from the package root:
+The package root intentionally exports the most common API only:
 
 ```python
-from nonconform import ConformalDetector, Split, CrossValidation, JackknifeBootstrap
-
-from pyod.models.lof import LOF
-
-detector = ConformalDetector(
-    detector=LOF(),
-    strategy=Split(n_calib=0.2),
-    aggregation="median",
-    seed=42
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    Empirical,
+    JackknifeBootstrap,
+    Probabilistic,
+    Split,
+    forest_weight_estimator,
+    logistic_weight_estimator,
 )
 ```
 
-### 2. AttributeError: `ConformalDetector` has no method `predict`
-
-**Problem**: Calling methods or parameters that are not part of the detector interface.
-
-**Solution**: Use `compute_p_values(...)` for conformal p-values and `score_samples(...)` for raw detector scores:
+Use documented module imports for specialized APIs:
 
 ```python
-p_values = detector.compute_p_values(X)  # Conformal p-values
-scores = detector.score_samples(X)       # Raw anomaly scores
+from nonconform.fdr import Pruning, conformal_fdp_upper_bound_from_result
+from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+from nonconform.scoring import ConditionalEmpirical
+
+print(Pruning.DETERMINISTIC)
+print(AlarmConfig())
 ```
 
-### 3. Memory Issues
+Do not import from `nonconform._internal`; that namespace is private and not a
+compatibility contract.
 
-**Problem**: Out of memory with large datasets or certain detectors.
+### An optional dependency is missing
 
-**Solutions**:
-- Use batch processing for large datasets
-- Consider using more memory-efficient detectors (e.g., IsolationForest instead of KNN)
-- Reduce the calibration set size
-- Use sparse data structures when possible
+Install only the extra used by the failing workflow:
 
-```python
-import itertools
-
-def process_in_batches(detector, X, batch_size=1000):
-    """Process large datasets in batches."""
-    results = []
-    for batch in itertools.batched(X, batch_size):
-        batch_results = detector.compute_p_values(batch)
-        results.extend(batch_results)
-    return np.array(results)
+```bash
+pip install "nonconform[pyod]"          # PyOD detectors
+pip install "nonconform[data]"          # oddball datasets and generators
+pip install "nonconform[fdr]"           # online_fdr package
+pip install "nonconform[probabilistic]" # KDEpy and Optuna
+pip install "nonconform[all]"           # every optional extra
 ```
 
-### 4. Slow Performance
+Sequential monitoring and the built-in martingales are part of the core
+installation and do not require the `fdr` extra.
 
-**Problem**: Slow processing, especially with large datasets.
+## Detector construction errors
 
-**Solutions**:
-- Use faster detectors (e.g., IsolationForest, LOF)
-- Reduce the calibration set size
-- Use batch processing
-- Configure logging to hide progress bars: `logging.getLogger('nonconform').setLevel(logging.WARNING)`
-- Profile your code to identify bottlenecks
+### Missing protocol methods
 
-```python
-import time
+The base detector must implement `fit`, `decision_function`, `get_params`, and
+`set_params`, and it must be copyable. A `predict` method alone is insufficient
+because conformal calibration needs continuous scores.
 
-# Time your detector
-start_time = time.time()
-detector.fit(X_train)
-fit_time = time.time() - start_time
+See [Detector compatibility](detector_compatibility.md) for a complete custom
+implementation.
 
-start_time = time.time()
-p_values = detector.compute_p_values(X_test)
-predict_time = time.time() - start_time
+### A PyOD detector is blocked
 
-print(f"Fit time: {fit_time:.2f}s, Predict time: {predict_time:.2f}s")
-```
+`CD`, `COF`, `COPOD`, `ECOD`, `LMDD`, `LOCI`, `RGraph`, `SOD`, and `SOS` are
+rejected because their evaluation scoring is batch-adaptive rather than a
+fixed training-only map. Choose a detector that scores unseen rows from frozen
+fitted state. An unblocked class is not automatically certified; inspect its
+behavior.
 
-### 5. Invalid P-values
+### Automatic score polarity fails
 
-**Problem**: P-values are miscalibrated or extreme.
+Explicit `score_polarity="auto"` recognizes PyOD and a small set of
+scikit-learn normality estimators. For a custom detector or outer meta-estimator,
+set the known convention explicitly:
 
-**Solutions**:
-- Ensure your calibration data is representative of the normal class
-- Check for data leakage between training and calibration sets
-- Verify that the detector is properly fitted
-- Consider using a different conformal strategy
-- Check for violations of the exchangeability assumption
+- `"higher_is_anomalous"` if larger values are more unusual;
+- `"higher_is_normal"` if larger values are more normal.
 
-```python
-def validate_p_values(p_values):
-    """Validate p-value distribution."""
-    print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")
-    print(f"P-value mean: {p_values.mean():.4f}")
-    print(f"P-value std: {p_values.std():.4f}")
+A scikit-learn pipeline around `IsolationForest` needs
+`score_polarity="higher_is_normal"` because polarity inference sees the outer
+pipeline type.
 
-    # Conformal null p-values should be super-uniform, not necessarily
-    # continuous Uniform(0, 1); classical values are discrete and conservative.
-    for level in (0.01, 0.05, 0.10):
-        lower_tail_rate = np.mean(p_values <= level)
-        print(
-            f"P <= {level:.2f}: {lower_tail_rate:.4f} "
-            f"(super-uniform benchmark: <= {level:.2f})"
-        )
+## Fitted-state and shape errors
 
-    print("These rates are diagnostics, not a formal validity test.")
-```
+### `NotFittedError`
 
-### 6. High False Discovery Rate
+Call `fit(...)` for integrated training and calibration, or use the supported
+detached workflow: fit a base detector, construct `ConformalDetector` with
+`Split`, and call `calibrate(...)` on separate data.
 
-**Problem**: Too many false positives even with FDR control.
+`score_samples`, `compute_p_value`, `compute_p_values`, `select`, and
+`prepare_weights_for` all require fitted/calibrated state.
 
-**Solutions**:
-- Increase the calibration set size
-- Use a more conservative alpha level for FDR control
-- Consider using weighted conformal p-values if there's covariate shift
-- Try different detectors
-- Check for data quality issues
+### Feature count differs
 
-```python
-# Use more conservative FDR control
-discoveries = detector.select(X_test, alpha=0.01)
+Use the same feature count, order, units, encoding, and learned preprocessing at
+every stage. Prefer a fitted scikit-learn pipeline so transformations travel
+with the detector.
 
-# Monitor empirical FDR if ground truth is available
-if y_true is not None:
-    false_positives = np.sum(discoveries & (y_true == 0))
-    empirical_fdr = false_positives / max(1, discoveries.sum())
-    print(f"Empirical FDR: {empirical_fdr:.3f}")
-```
+At inference, a pandas `Series` is interpreted as a batch with one feature. For
+one multifeature observation, use `compute_p_value(one_dimensional_numpy_row)`
+or pass a one-row 2D array/DataFrame to a batch method.
 
-### 7. Low Detection Power
+### `n_calib`, folds, or bootstrap parameters fail
 
-**Problem**: Missing too many anomalies.
+- `Split` needs at least one calibration row and at least one proper-training
+  row.
+- `CrossValidation` needs `2 <= k <= n` at fit time.
+- `JackknifeBootstrap` needs at least two bootstrap iterations and at least two
+  input rows.
+- `fit(..., n_jobs=...)` is supported only by `JackknifeBootstrap`.
 
-**Solutions**:
-- Use less conservative alpha levels
-- Use more powerful detectors
-- Consider using ensemble methods
-- Try different conformal strategies (e.g., bootstrap, cross-validation)
-- Check if the anomalies are well-separated from normal data
+See [Input validation](input_validation.md) for the complete constraints.
 
-```python
-# Try multiple strategies for comparison
-from nonconform import CrossValidation, JackknifeBootstrap, Split
+## There is no `predict(...)` method
 
-strategies = {
-    'Split': Split(n_calib=0.2),
-    'JaB+': JackknifeBootstrap(n_bootstraps=50),
-    'CV': CrossValidation(k=5)
-}
+This is intentional. Choose the output that matches the task:
 
-for name, strategy in strategies.items():
-    detector = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation="median",
-        seed=42
-    )
-    detector.fit(X_train)
-    detections = detector.select(X_test, alpha=0.05).sum()
-    print(f"{name}: {detections} discoveries")
-```
+| Need | Method |
+|---|---|
+| Raw detector-scale values | `score_samples(...)` |
+| One unweighted p-value | `compute_p_value(...)` |
+| Batch p-values | `compute_p_values(...)` |
+| FDR-controlled batch decisions | `select(...)` |
+| Sequential evidence state | `ExchangeabilityMonitor.update(...)` |
 
-### 8. Strategy Import Issues
+Do not threshold raw scores and describe the result as conformal or
+FDR-controlled.
 
-**Problem**: Cannot import strategy classes.
+## P-values look wrong
 
-**Solution**: Import all strategies from the package root:
+### Outside `[0, 1]` or nonfinite
+
+This indicates invalid detector output, nonfinite feature data, or a custom
+estimator defect. Inspect feature matrices and raw scores before changing any
+statistical parameters.
 
 ```python
-from nonconform import Split, CrossValidation, JackknifeBootstrap
-```
+import numpy as np
+from sklearn.ensemble import IsolationForest
 
-!!! note "Available Strategies"
-    - `Split` - Simple train/calibration split
-    - `CrossValidation` - K-fold cross-validation (use high k for leave-one-out)
-    - `JackknifeBootstrap` - Jackknife+-after-Bootstrap (JaB+)
+from nonconform import ConformalDetector, Split
 
-### 9. Invalid Strategy Parameters
-
-**Problem**: Passing unsupported keyword arguments to strategy constructors.
-
-**Solution**: Use the supported constructor parameters:
-
-```python
-Split(n_calib=0.2)
-CrossValidation(k=5)
-JackknifeBootstrap(n_bootstraps=50)
-```
-
-### 10. Integration Issues
-
-**Problem**: Problems integrating with other libraries or custom detectors.
-
-**Solutions**:
-- Ensure your detector implements the AnomalyDetector protocol (fit, decision_function, get_params, set_params)
-- Verify that the detector's output format matches expectations
-- Use a valid aggregation string (`"mean"`, `"median"`, `"minimum"`, `"maximum"`)
-- Use `score_polarity` to define score direction before conformalization.
-- Valid `score_polarity` values are `"higher_is_anomalous"`, `"higher_is_normal"`, and `"auto"` (or omit it).
-- If omitted, known sklearn normality detector families default to `"higher_is_normal"`, while PyOD and custom detectors outside recognized families default to `"higher_is_anomalous"`.
-- Set `score_polarity` explicitly for custom detectors when you want deterministic behavior; use `"auto"` for strict family validation.
-
-```python
-
-# Correct usage of aggregation strings
-detector = ConformalDetector(
-    detector=custom_detector,
-    strategy=strategy,
-    aggregation="median",
-    score_polarity="higher_is_anomalous",
-    seed=42
-)
-```
-
-## Debugging Tips
-
-### 1. Enable Verbose Mode
-
-```python
-import logging
-
-# Enable progress bars and detailed output
-logging.getLogger('nonconform').setLevel(logging.INFO)
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(400, 3))
+x_test = rng.normal(size=(20, 3))
 
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
 
-# For debugging, use DEBUG level for maximum verbosity
-logging.getLogger('nonconform').setLevel(logging.DEBUG)
+scores = np.asarray(detector.score_samples(x_test))
+p_values = np.asarray(detector.compute_p_values(x_test))
+
+assert np.isfinite(scores).all()
+assert np.isfinite(p_values).all()
+assert ((0.0 <= p_values) & (p_values <= 1.0)).all()
+print(np.column_stack([scores, p_values])[:5])
 ```
 
-### 2. Check Intermediate Results
+This example intentionally calls `compute_p_values(...)` last because each
+scoring method replaces `last_result`.
+
+### P-values are coarse
+
+With `n_cal` classical empirical calibration scores, values move in steps of
+`1 / (n_cal + 1)`. This is expected. Increase calibration resolution only after
+checking the tradeoff with detector-fitting data and compute.
+
+Randomized tie breaking removes the positive grid floor through prescribed
+randomization. `Probabilistic` produces continuous KDE estimates but changes
+the validity story to a model-based one.
+
+### P-values are reversed
+
+Verify score polarity. Calibration and obvious synthetic anomalies should be
+inspected on the normalized `score_samples(...)` scale; larger normalized
+scores should correspond to more anomalous observations. This is a diagnostic,
+not a substitute for validation on representative data.
+
+## No discoveries
+
+Check, in order:
+
+1. **Detector signal:** do known held-out anomalies tend to receive larger
+   normalized scores?
+2. **Calibration grid:** is the smallest attainable p-value compatible with
+   the family size and selection thresholds?
+3. **Family size:** BH thresholds depend on the complete number of tests.
+4. **Reference contamination:** anomalies in calibration can thicken the score
+   tail.
+5. **Conditional or weighted conservativeness:** inspect transformed p-values,
+   weights, and pruning rather than assuming failure.
+6. **Actual signal:** a valid procedure is allowed to return no discoveries.
+
+Do not raise `alpha` solely until discoveries appear and then report the nominal
+guarantee as if that target had been chosen in advance.
+
+## Empirical FDP is too high
+
+First confirm that labels use `1` for anomaly and `0` for normal and that the
+metric receives `(y_true, selected_mask)`.
+
+Then investigate:
+
+- leakage from calibration/test data into fitting or preprocessing;
+- calibration-to-test shift;
+- invalid detector batch adaptation;
+- score polarity;
+- a mismatch between the declared family and evaluated pooled results;
+- dependence outside the multiple-testing procedure's assumptions;
+- adaptive model, method, or threshold selection on the evaluation data; and
+- Monte Carlo variability from too few independently repeated families.
+
+Lowering `alpha` may reduce discoveries but does not repair an invalid
+construction.
+
+## Weighted-mode problems
+
+### Weights were not prepared
+
+`refit_weights=False` requires a preceding
+`prepare_weights_for(the_exact_batch)`. The default verifier checks size and
+content. Prepare again if either changed.
+
+### Weights are concentrated or unstable
+
+Inspect `last_result.calib_weights` and `last_result.test_weights`, quantiles,
+effective sample size, and sensitivity to the weight estimator and
+`clip_quantile`. There is no universal acceptable weight range.
+
+Near-perfect calibration/target discrimination often signals weak support
+overlap. Clipping can stabilize computation but cannot create missing support.
+
+### BH and weighted p-values disagree with `select(...)`
+
+That is expected. Weighted `select(...)` uses WCS; ordinary BH is not the
+documented weighted selection procedure.
+
+See [Weighted conformal inference](weighted_conformal.md).
+
+## Memory or scoring is slow
+
+Determine which cost dominates:
+
+- `Split` retains one detector.
+- `CrossValidation(k, mode="plus")` retains `k` detectors.
+- jackknife plus mode retains one detector per reference row.
+- `JackknifeBootstrap(B, mode="plus")` retains `B` detectors.
+- weighted inference fits a domain classifier for each target batch by default.
+- exact sequential ranks retain the full score history and use linear-time
+  sorted-list insertion.
+
+For one large **unweighted** family, you may score chunks, collect the p-values,
+and apply one multiple-testing procedure to the complete vector. This preserves
+the family definition when detector scoring is pointwise and deterministic:
 
 ```python
-# Get raw scores before p-value conversion
-raw_scores = detector.score_samples(X_test)
-p_values = detector.compute_p_values(X_test)
+import numpy as np
+from scipy.stats import false_discovery_control
+from sklearn.ensemble import IsolationForest
 
-print(f"Raw scores range: [{raw_scores.min():.4f}, {raw_scores.max():.4f}]")
-print(f"P-values range: [{p_values.min():.4f}, {p_values.max():.4f}]")
+from nonconform import ConformalDetector, Split
 
-# Check calibration set
-print(f"Calibration set size: {len(detector.calibration_set)}")
-print(f"Calibration scores range: [{min(detector.calibration_set):.4f}, {max(detector.calibration_set):.4f}]")
-```
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(500, 3))
+x_family = rng.normal(size=(120, 3))
 
-### 3. Validate Data
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
 
-```python
-def validate_input_data(X):
-    """Validate input data for common issues."""
-    print("=== Data Validation ===")
-    print(f"Shape: {X.shape}")
-    print(f"Data type: {X.dtype}")
-
-    # Check for NaN values
-    nan_count = np.isnan(X).sum()
-    print(f"NaN values: {nan_count}")
-
-    # Check for infinite values
-    inf_count = np.isinf(X).sum()
-    print(f"Infinite values: {inf_count}")
-
-    # Check data ranges
-    print(f"Data range: [{X.min():.4f}, {X.max():.4f}]")
-
-    # Check for constant features
-    constant_features = np.sum(X.std(axis=0) == 0)
-    print(f"Constant features: {constant_features}")
-
-    if nan_count > 0 or inf_count > 0:
-        print("WARNING: Data contains NaN or infinite values")
-
-    if constant_features > 0:
-        print("WARNING: Data contains constant features")
-
-# Example usage
-validate_input_data(X_train)
-validate_input_data(X_test)
-```
-
-### 4. Monitor Memory Usage
-
-```python
-import psutil
-import os
-
-def print_memory_usage(label=""):
-    """Print current memory usage."""
-    process = psutil.Process(os.getpid())
-    memory_mb = process.memory_info().rss / 1024 / 1024
-    print(f"Memory usage {label}: {memory_mb:.2f} MB")
-
-# Monitor memory during processing
-print_memory_usage("before fitting")
-detector.fit(X_train)
-print_memory_usage("after fitting")
-p_values = detector.compute_p_values(X_test)
-print_memory_usage("after prediction")
-```
-
-### 5. Debug Weighted Conformal Issues
-
-```python
-def debug_weighted_conformal(detector, X_train, X_test):
-    """Debug weighted conformal detection specifically."""
-    print("=== Weighted Conformal Debug ===")
-
-    # Check if it's actually a conformal detector
-    from nonconform import ConformalDetector
-    if not isinstance(detector, ConformalDetector):
-        print("WARNING: Not a ConformalDetector")
-        return
-
-    # Fit and check calibration samples
-    detector.fit(X_train)
-
-    if hasattr(detector, 'calibration_samples'):
-        print(f"Calibration samples stored: {len(detector.calibration_samples)}")
-        if len(detector.calibration_samples) == 0:
-            print("ERROR: No calibration samples stored")
-
-    # Check for distribution shift
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import cross_val_score
-
-    X_combined = np.vstack([X_train, X_test])
-    y_combined = np.hstack([np.zeros(len(X_train)), np.ones(len(X_test))])
-
-    clf = LogisticRegression(random_state=42)
-    scores = cross_val_score(clf, X_combined, y_combined, cv=5)
-    shift_score = scores.mean()
-
-    print(f"Distribution shift score: {shift_score:.3f}")
-    if shift_score > 0.7:
-        print("Significant shift detected - weighted conformal recommended")
-    elif shift_score < 0.6:
-        print("Minimal shift - standard conformal may suffice")
-```
-
-## Performance Optimization
-
-### 1. Batch Processing
-
-```python
-import itertools
-
-def optimized_batch_processing(detector, X, batch_size=1000):
-    """Optimized batch processing for large datasets."""
-    n_samples = len(X)
-    results = np.empty(n_samples)
-
-    start_idx = 0
-    for i, batch in enumerate(itertools.batched(X, batch_size)):
-        batch_results = detector.compute_p_values(batch)
-        end_idx = start_idx + len(batch)
-        results[start_idx:end_idx] = batch_results
-        start_idx = end_idx
-
-        if i % 10 == 0:  # Progress update
-            print(f"Processed {i + 1} batches")
-
-    return results
-```
-
-### 2. Strategy-Specific Optimizations
-
-```python
-from nonconform import CrossValidation, JackknifeBootstrap, Split
-
-# For large datasets, use split strategy with smaller calibration
-strategy = Split(n_calib=0.1)  # Smaller calibration set
-
-# For small datasets, use bootstrap for stability
-strategy = JackknifeBootstrap(n_bootstraps=50)
-
-# For medium datasets, use cross-validation
-strategy = CrossValidation(k=5)
-```
-
-### 3. Detector Selection for Performance
-
-```python
-# Fast detectors for large datasets
-fast_detectors = [
-    IsolationForest(contamination=0.1, n_jobs=-1),  # Parallel processing
-    LOF(contamination=0.1, n_jobs=-1),
-    OCSVM(contamination=0.1)
+p_value_chunks = [
+    np.asarray(detector.compute_p_values(x_family[start : start + 25]))
+    for start in range(0, len(x_family), 25)
 ]
+p_values = np.concatenate(p_value_chunks)
+selected = false_discovery_control(p_values, method="bh") <= 0.05
 
-# Avoid expensive detectors for large datasets
-# - KNN with large k
-# - Complex neural networks
-# - High-dimensional methods without dimensionality reduction
+print(selected.shape)
 ```
 
-## Getting Help
+Do not use this pattern with randomized tie breaking, because separate calls
+consume randomization differently from one batch call. Do not use it in
+weighted mode, where the batch defines weight estimation and WCS coupling.
 
-If you encounter other issues:
+Measure real fit and inference paths before changing strategies. Hardware-free
+latency promises and universal dataset-size cutoffs are not reliable guidance.
 
-1. **Verify imports**: Use package-root imports for detector and strategy classes
-2. **Verify parameters**: Ensure constructor argument names are valid
-3. **Check the [GitHub Issues](https://github.com/OliverHennhoefer/nonconform/issues)** for similar problems
-4. **Search the [Discussions](https://github.com/OliverHennhoefer/nonconform/discussions)** for solutions
-5. **Create a new issue** with:
-   - A minimal reproducible example
-   - Expected vs actual behavior
-   - System information (Python version, nonconform version, etc.)
-   - Relevant error messages
+## Sequential monitoring problems
 
-## Logging Configuration
+### A fixed-calibration loop is being treated as Ville-valid
 
-nonconform uses Python's standard logging framework to control progress bars and informational output, plus the `verbose` flag on `ConformalDetector` for aggregation progress.
+Repeated `compute_p_value(...)` calls share a fixed calibration ECDF and are
+only marginally valid by default. Use `ExchangeabilityMonitor` for randomized
+sequential ranks.
 
-### Basic Logging Setup
+### The scorer is refitted during an episode
 
-```python
-import logging
+Stop the episode. Refit, prime a new monitor, and account for the new testing
+opportunity in the lifetime false-alarm budget.
 
-# Show progress bars and info messages (default for development)
-logging.getLogger('nonconform').setLevel(logging.INFO)
+### CUSUM or Shiryaev-Roberts threshold is called a false-alarm probability
 
-# Hide progress bars (recommended for production)
-logging.getLogger('nonconform').setLevel(logging.WARNING)
+Those thresholds are change-evidence triggers that need separate calibration.
+Only the documented Ville thresholds have the probability-of-ever-crossing
+interpretation under the valid e-process assumptions.
 
-# Show everything including debug info
-logging.getLogger('nonconform').setLevel(logging.DEBUG)
-```
+### Alarm labels are compared to point labels
 
-### Common Logging Scenarios
+A change alarm targets a stopping time, not row-level classification. Evaluate
+null false-alarm probability, detection probability, delay, and censoring.
 
-**Production Environment:**
-```python
-import logging
+See [Streaming evaluation](streaming_evaluation.md) and
+[Exchangeability martingales](exchangeability_martingales.md).
 
-# Hide all progress bars and info messages
-logging.getLogger('nonconform').setLevel(logging.WARNING)
+## Logging and progress
 
-detector = ConformalDetector(detector=IForest(), strategy=Split())
-detector.fit(X_train)  # No progress output
-```
+Set `logging.getLogger("nonconform").setLevel(...)` for package progress and
+warnings. `ConformalDetector(verbose=True)` separately enables aggregation
+progress. Exact logger names and progress labels are in
+[Logging and progress](logging.md).
 
-**Development Environment:**
-```python
-import logging
+## Reporting a reproducible issue
 
-# Show progress bars for monitoring
-logging.basicConfig(level=logging.INFO)
+Include:
 
-detector = ConformalDetector(detector=IForest(), strategy=CrossValidation(k=5))
-detector.fit(X_train)  # Shows CV fold progress
-```
+- `nonconform`, Python, NumPy, SciPy, scikit-learn, and optional dependency
+  versions;
+- operating system;
+- detector, strategy, estimation, weighting, polarity, and seed settings;
+- input shapes and dtypes without sensitive data;
+- complete traceback;
+- the smallest runnable reproducer; and
+- whether the issue concerns runtime behavior or a statistical claim.
 
-**Selective Logging:**
-```python
-import logging
-
-# Show progress but hide specific module info
-logging.getLogger('nonconform').setLevel(logging.INFO)
-logging.getLogger('nonconform.resampling.bootstrap').setLevel(logging.WARNING)
-
-# This will show aggregation progress but hide bootstrap configuration details
-```
-
-**Debug Mode:**
-```python
-import logging
-
-# Maximum verbosity for troubleshooting
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-# This will show all internal operations and warnings
-detector = ConformalDetector(detector=LOF(), strategy=JackknifeBootstrap(n_bootstraps=50))
-detector.fit(X_train)
-```
-
-### Logger Hierarchy
-
-nonconform uses the following logger hierarchy:
-- `nonconform`: Root logger for all nonconform output
-- `nonconform.resampling.*`: Strategy-specific logging
-- `nonconform.weighting.*`: Weight-estimation logging
-- `nonconform.fdr`: Weighted FDR control logging
-- `nonconform.adapters`: Detector adapter and score-polarity logging
-
-You can configure specific loggers for fine-grained control over output.
+Open an issue at the
+[project tracker](https://github.com/OliverHennhoefer/nonconform/issues).

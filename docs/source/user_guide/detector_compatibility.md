@@ -1,238 +1,266 @@
 ---
-description: "Use scikit-learn, PyOD, and custom anomaly detectors with nonconform while handling score polarity and interfaces."
+description: "Use scikit-learn, PyOD, and custom anomaly detectors while preserving score polarity and a fixed training-only score map."
 ---
 
-# Detector Compatibility Guide
+# Detector compatibility
 
-Most detectors implementing `AnomalyDetector` work with nonconform: PyOD,
-scikit-learn, or custom implementations.
+`ConformalDetector` can wrap scikit-learn estimators, PyOD models, and custom
+detectors that satisfy a small interface. Statistical compatibility requires
+more than having the right method names: the fitted detector must define a
+fixed pointwise scoring rule for calibration and test observations.
 
-For strict inductive conformal/FDR guarantees, the detector must use a fixed
-training-only score map after `fit(...)`.
+## Required contract
 
-## AnomalyDetector Protocol
+A detector must:
 
-Your detector must implement these four methods:
+- implement `fit(X, y=None)` and return itself;
+- implement `decision_function(X)` and return one finite numeric score per row;
+- implement `get_params(deep=True)` and `set_params(**params)`;
+- support shallow and deep copying;
+- retain all state needed to score new rows after fitting; and
+- score each row without adapting the score map to the other rows in the
+  evaluation batch.
+
+The last condition is validity-critical. If `decision_function(X)` recomputes a
+reference distribution from `X`, the score of one test point depends on the
+test batch and no longer matches a strict training-only inductive construction.
+
+!!! important "Internal score convention"
+
+    `nonconform` normalizes every detector to **larger score means more
+    anomalous** before calibration. A reversed polarity reverses the tail and
+    invalidates the intended interpretation even though all returned numbers
+    may look plausible.
+
+## Scikit-learn
+
+The following recognized scikit-learn estimators use larger
+`decision_function` values for more normal observations, so `nonconform`
+automatically negates their scores when polarity is omitted:
+
+- `IsolationForest`
+- `OneClassSVM`
+- `SGDOneClassSVM`
+- `LocalOutlierFactor`
+- `EllipticEnvelope`
 
 ```python
-from typing import Any, Self
 import numpy as np
+from sklearn.ensemble import IsolationForest
 
-class MyDetector:
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> Self:
-        """Train on normal data. Return self."""
-        ...
+from nonconform import ConformalDetector, Split
 
-    def decision_function(self, X: np.ndarray) -> np.ndarray:
-        """Return anomaly scores. Higher = more anomalous."""
-        ...
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(500, 3))
+x_test = np.vstack(
+    [rng.normal(size=(18, 3)), rng.normal(loc=4.0, size=(2, 3))]
+)
 
-    def get_params(self, deep: bool = True) -> dict[str, Any]:
-        """Return detector parameters as dict."""
-        ...
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
 
-    def set_params(self, **params: Any) -> Self:
-        """Set parameters. Return self."""
-        ...
+print(detector.score_polarity)
+print(detector.compute_p_values(x_test))
 ```
 
-The detector must also be copyable (`copy.copy` and `copy.deepcopy`).
+For `LocalOutlierFactor`, use `novelty=True`; otherwise scikit-learn does not
+expose `decision_function` for unseen observations.
 
-## PyOD Detectors
+### Pipelines and unrecognized meta-estimators
 
-PyOD detectors are supported with strict-inductive caveats. Install PyOD with:
-
-```sh
-pip install nonconform[pyod]
-```
-
-### Compatible Detectors
-
-One-class classification detectors work with nonconform:
-
-| Detector | Class | Best For |
-|----------|-------|----------|
-| Isolation Forest | `IForest` | High-dimensional data, large datasets |
-| Local Outlier Factor | `LOF` | Dense clusters, local anomalies |
-| K-Nearest Neighbors | `KNN` | Simple distance-based detection |
-| One-Class SVM | `OCSVM` | Complex boundaries, small datasets |
-| PCA | `PCA` | Linear anomalies, interpretability |
-| INNE | `INNE` | Isolation-based nearest-neighbor ensembles |
-| HBOS | `HBOS` | Feature independence assumptions |
-| GMM | `GMM` | Probabilistic modeling |
-| AutoEncoder | `AutoEncoder` | Deep learning, complex patterns |
-
-### Strict-Inductive Unsafe (Hard-Blocked)
-
-These detectors are blocked in `ConformalDetector` because they do not keep a
-fixed training-only score rule at inference:
-
-- `CD`
-- `COF`
-- `COPOD`
-- `ECOD`
-- `LMDD`
-- `LOCI`
-- `RGraph`
-- `SOD`
-- `SOS`
-
-### Meta / Inherited-Risk Detectors
-
-These are not hard-blocked, but they inherit base-detector validity risks and
-require careful curation:
-
-- `FeatureBagging`
-- `LSCP`
-- `SUOD` (unsafe by default if it includes blocked base detectors)
-
-### Basic Usage
+Polarity inference is based on the outer estimator type. A scikit-learn
+`Pipeline` around `IsolationForest`, for example, is not itself one of the
+recognized normality-estimator classes. Set its polarity explicitly:
 
 ```python
-from pyod.models.iforest import IForest
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
 from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(400, 4))
+x_test = rng.normal(size=(10, 4))
+
+pipeline = make_pipeline(
+    StandardScaler(),
+    IsolationForest(random_state=42),
+)
+detector = ConformalDetector(
+    detector=pipeline,
+    strategy=Split(n_calib=0.25),
+    score_polarity="higher_is_normal",
+    seed=42,
+).fit(x_reference)
+
+print(detector.compute_p_values(x_test))
+```
+
+Putting learned preprocessing inside the pipeline prevents it from being fitted
+on held-out calibration rows.
+
+## PyOD
+
+Install PyOD support with:
+
+```bash
+pip install "nonconform[pyod]"
+```
+
+PyOD detectors conventionally expose larger `decision_function` scores for
+more anomalous observations, and `nonconform` resolves that polarity
+automatically.
+
+```python
+import numpy as np
+from pyod.models.iforest import IForest
+
+from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(500, 3))
+x_test = np.vstack(
+    [rng.normal(size=(18, 3)), rng.normal(loc=4.0, size=(2, 3))]
+)
 
 detector = ConformalDetector(
     detector=IForest(random_state=42),
     strategy=Split(n_calib=0.3),
-    seed=42
-)
-detector.fit(X_train)
-p_values = detector.compute_p_values(X_test)
+    seed=42,
+).fit(x_reference)
+
+print(detector.compute_p_values(x_test))
 ```
 
-For strict inductive workflows, choose detectors that score against frozen
-training state (for example `IForest`, `KNN`, `LOF`, `HBOS`, `PCA`, `OCSVM`,
-`INNE`).
+### Hard-blocked batch-adaptive detectors
 
-### Automatic Configuration
+`nonconform` rejects `CD`, `COF`, `COPOD`, `ECOD`, `LMDD`, `LOCI`, `RGraph`,
+`SOD`, and `SOS` because their evaluation scoring does not provide the fixed
+training-only score map required by the strict inductive workflow.
 
-`ConformalDetector` applies a standard parameter normalization step during
-construction for supported detectors. It attempts to:
+The block is based on class identity/name, not a claim that every unblocked
+PyOD detector has been theoretically certified. Verify unfamiliar or newly
+released detectors against the required contract.
 
-- set `contamination` to a minimal value when that parameter exists
-- set `n_jobs`/`n_threads`/`num_workers` to `-1` when available (use all cores)
-- set a seed parameter (`random_state`/`seed`/`random_seed`) from `seed` when supported
+Meta-estimators such as `FeatureBagging`, `LSCP`, and `SUOD` inherit the
+behavior of their component detectors. They require explicit inspection;
+`SUOD`, for example, can include blocked detector families in a default or
+custom base-estimator list.
 
-If a parameter is not available on your estimator, the request is skipped
-rather than failing initialization. Unsupported contamination and parallelism
-parameters are logged at debug level; if no supported seed parameter is
-available, the configuration step emits a warning.
+## Custom detector
 
-## Custom Detectors
-
-Implement the protocol to use any anomaly detection algorithm:
+The following complete detector uses squared standardized distance from the
+fitted feature means. It is intentionally simple, but it demonstrates the
+entire protocol without pseudocode.
 
 ```python
 from typing import Any, Self
+
 import numpy as np
 
-class MahalanobisDetector:
-    """Simple Mahalanobis distance-based anomaly detector."""
+from nonconform import ConformalDetector, Split
 
-    def __init__(self, random_state: int | None = None):
-        self.random_state = random_state
-        self._mean = None
-        self._cov_inv = None
+class StandardizedDistanceDetector:
+    def __init__(self, variance_floor: float = 1e-12) -> None:
+        self.variance_floor = variance_floor
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> Self:
-        self._mean = np.mean(X, axis=0)
-        cov = np.cov(X.T) + 1e-6 * np.eye(X.shape[1])
-        self._cov_inv = np.linalg.inv(cov)
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray | None = None,
+    ) -> Self:
+        del y
+        X = np.asarray(X, dtype=float)
+        self.location_ = X.mean(axis=0)
+        self.scale_ = np.maximum(X.std(axis=0), self.variance_floor)
         return self
 
     def decision_function(self, X: np.ndarray) -> np.ndarray:
-        diff = X - self._mean
-        return np.sqrt(np.sum(diff @ self._cov_inv * diff, axis=1))
+        X = np.asarray(X, dtype=float)
+        standardized = (X - self.location_) / self.scale_
+        return np.square(standardized).sum(axis=1)
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
-        return {"random_state": self.random_state}
+        del deep
+        return {"variance_floor": self.variance_floor}
 
     def set_params(self, **params: Any) -> Self:
-        for key, value in params.items():
-            setattr(self, key, value)
+        for name, value in params.items():
+            if name != "variance_floor":
+                raise ValueError(f"Unknown parameter: {name}")
+            self.variance_floor = value
         return self
-```
 
-Use it like any other detector:
-
-```python
-from nonconform import ConformalDetector, Split
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(400, 3))
+x_test = np.vstack(
+    [rng.normal(size=(18, 3)), rng.normal(loc=4.0, size=(2, 3))]
+)
 
 detector = ConformalDetector(
-    detector=MahalanobisDetector(random_state=42),
+    detector=StandardizedDistanceDetector(),
     strategy=Split(n_calib=0.3),
-    score_polarity="higher_is_anomalous",  # explicit for clarity; also the default
-    seed=42
-)
+    score_polarity="higher_is_anomalous",
+    seed=42,
+).fit(x_reference)
+
+print(detector.compute_p_values(x_test))
 ```
 
-See `examples/custom/centroid_detector.py` for a complete working example.
+For custom estimators, omitted polarity defaults to
+`"higher_is_anomalous"`. Prefer setting it explicitly so the convention is
+reviewable. Explicit `score_polarity="auto"` is deliberately strict and raises
+for a custom class whose family is unknown.
 
-## Scikit-learn Detectors
+## Automatic parameter normalization
 
-Scikit-learn detectors that implement `fit`, `decision_function`, `get_params`, and `set_params` work directly:
+During construction and fitting, `nonconform` inspects `get_params()` and may
+set common parameters:
 
-```python
-from sklearn.svm import OneClassSVM
-from nonconform import ConformalDetector, Split
+| Parameter aliases | Value | Purpose |
+|---|---|---|
+| `contamination` | Smallest positive Python float | Prevent detector-level contamination thresholds from defining the conformal decision rule |
+| `n_jobs`, `n_threads`, or `num_workers` | `-1` | Use available parallel workers when the detector exposes such a parameter |
+| `random_state`, `seed`, or `random_seed` | Detector seed | Reproducible fitting where supported |
 
-detector = ConformalDetector(
-    detector=OneClassSVM(kernel="rbf", nu=0.05),
-    strategy=Split(n_calib=0.3),
-    score_polarity="auto",
-    seed=42
-)
-```
+Absent contamination and parallelism parameters are acceptable. If a seed is
+provided but the detector exposes no recognized seed parameter, the library
+warns because it cannot guarantee reproducibility for a stochastic detector.
 
-If you omit `score_polarity`, nonconform defaults to:
-- `"higher_is_normal"` for known sklearn normality detectors
-- `"higher_is_anomalous"` for PyOD detectors and custom detectors outside
-  recognized PyOD/known-sklearn families
+`ConformalDetector` owns copied detector state. Custom objects containing file
+handles, sessions, native resources, or other noncopyable state need an
+appropriate `__copy__`/`__deepcopy__` implementation or a simpler serializable
+configuration object.
 
-`score_polarity="auto"` is strict and raises for custom estimators outside
-recognized PyOD/known-sklearn families.
+## Compatibility review for an unfamiliar detector
 
-## Troubleshooting
+Before using a new detector, verify all of the following from its implementation
+or authoritative documentation:
 
-### Missing Methods Error
+1. `decision_function` is available for unseen rows after `fit`.
+2. It returns exactly one numeric value per row.
+3. The score direction is known.
+4. Test scoring does not refit, renormalize against the test batch, or use test
+   neighbors in a transductive way.
+5. Repeated scoring of the same row with a frozen model is stable, apart from
+   explicitly modeled independent randomness.
+6. Parameters and fitted state can be copied for the selected strategy.
+7. Learned preprocessing is included inside the fitted object or otherwise
+   trained without leakage.
 
-```
-TypeError: Detector must implement AnomalyDetector protocol. Missing methods: decision_function
-```
+Method presence answers only items 1 and 2. The remaining items determine
+whether conformal calibration has the interpretation you intend.
 
-Your detector is missing required methods. Implement all four: `fit`, `decision_function`, `get_params`, `set_params`.
+## References
 
-### PyOD Not Installed
-
-```
-ImportError: Detector appears to be a PyOD detector, but PyOD is not installed.
-```
-
-Install PyOD: `pip install nonconform[pyod]`
-
-### Blocked PyOD Detector
-
-```
-ValueError: PyOD detector 'ECOD' is incompatible with strict inductive conformal/FDR workflows.
-```
-
-Use an inductive-safe detector (for example `IForest`, `KNN`, `LOF`, `HBOS`,
-`PCA`, `OCSVM`, `INNE`) instead of blocked batch-adaptive detectors.
-
-### Score Direction
-
-nonconform computes p-values using **higher scores = more anomalous** internally.
-
-- Use `score_polarity="higher_is_anomalous"` when your detector already follows
-  that convention.
-- Use `score_polarity="higher_is_normal"` when larger scores mean more normal.
-- Omit `score_polarity` for convenience defaults (automatic handling for known
-  sklearn normality detector families, plus custom-detector fallback to
-  anomalous-higher).
-- Use `score_polarity="auto"` for strict detector-family validation (raises on
-  custom estimators outside recognized PyOD/known-sklearn families).
-
-### Copyability
-
-Your detector must support `copy.copy()` and `copy.deepcopy()`. Most Python classes work by default, but if you have complex state (file handles, connections), implement `__copy__` and `__deepcopy__`.
+- [scikit-learn novelty and outlier detection guide](https://scikit-learn.org/stable/modules/outlier_detection.html)
+  documents score conventions and `LocalOutlierFactor` novelty behavior.
+- [PyOD documentation](https://pyod.readthedocs.io/)
+  documents the common PyOD detector API and model catalog.
+- [Custom detector example in this repository](https://github.com/OliverHennhoefer/nonconform/blob/main/examples/custom/centroid_detector.py)
+  provides another complete implementation.

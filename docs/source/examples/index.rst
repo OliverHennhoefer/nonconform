@@ -6,6 +6,7 @@ Examples
    :caption: Contents:
 
    classical_conformal
+   conditional_conformal
    resampling_conformal
    weighted_conformal
    fdr_control

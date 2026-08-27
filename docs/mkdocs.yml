@@ -1,5 +1,5 @@
 site_name: Nonconform
-site_description: Python package for conformal anomaly detection with calibrated p-values, principled thresholds, and FDR-controlled decisions.
+site_description: Conformal p-values, FDR-controlled anomaly discovery, and exchangeability-martingale change monitoring in Python.
 site_author: Oliver Hennhöfer
 site_url: https://oliverhennhoefer.github.io/nonconform
 repo_url: https://github.com/OliverHennhoefer/nonconform
@@ -63,11 +63,11 @@ nav:
     - Conformalization Strategies: user_guide/conformalization_strategies.md
     - Choosing Strategies: user_guide/choosing_strategies.md
     - Detector Compatibility: user_guide/detector_compatibility.md
-    - Weighted Conformal: user_guide/weighted_conformal.md
     - FDR Control: user_guide/fdr_control.md
+    - Exchangeability Martingales: user_guide/exchangeability_martingales.md
+    - Weighted Conformal: user_guide/weighted_conformal.md
     - Batch Evaluation: user_guide/batch_evaluation.md
     - Streaming Evaluation: user_guide/streaming_evaluation.md
-    - Exchangeability Martingales: user_guide/exchangeability_martingales.md
     - Statistical Concepts: user_guide/statistical_concepts.md
     - Input Validation: user_guide/input_validation.md
     - Best Practices: user_guide/best_practices.md
@@ -123,7 +123,6 @@ markdown_extensions:
       anchor_linenums: false
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.arithmatex:

@@ -1,591 +1,316 @@
 ---
-description: "Evaluate nonconform on streaming anomaly data with online generators, drift monitoring, and online or batch FDR control."
+description: "Evaluate per-observation anomaly testing and sequential exchangeability monitoring with the correct families, episodes, and metrics."
 ---
 
-# Streaming Evaluation
-
-Generate single instances for online anomaly detection evaluation with exact global anomaly proportion control.
-
-These examples use `OnlineGenerator` from `oddball.generator` and therefore require the optional `oddball` package (with dataset extras) before execution.
-
-They also rely on `online_fdr` for streaming FDR methods when those sections are run.
-
-## Overview
-
-The `OnlineGenerator` creates deterministic streams of single instances with precise anomaly contamination. It ensures exact global proportion over a specified number of instances, making it ideal for online and streaming evaluation scenarios.
-
-Key features:
-- **Exact global proportion**: Guarantees precise anomaly ratio over total instances
-- **Single instance generation**: Yields one instance at a time for streaming evaluation
-- **Deterministic control**: Reproducible sequences with random seed control
-- **Automatic tracking**: Manages global proportion to ensure mathematical exactness
-
-## Basic Usage
-
-```python
-from oddball import Dataset, load
-from oddball.generator import OnlineGenerator
-
-# Create online generator with exact 2% anomalies over 1000 instances
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.02,
-    n_instances=1000,
-    seed=42
-)
-
-# Get training data for detector fitting
-x_train = online_gen.get_training_data()
-print(f"Training data shape: {x_train.shape}")
-
-# Generate stream with exactly int(0.02 * 1000) = 20 anomalies in 1000 instances
-anomaly_count = 0
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
-    if i < 5:  # Show first few instances
-        print(f"Instance {i + 1}: {x_instance.shape}, Label: {y_label}")
-    anomaly_count += y_label
-
-print(f"Total anomalies: {anomaly_count}/1000 = {anomaly_count / 1000:.3f}")  # Exactly 0.020
-```
-
-## Exact Proportion Control
-
-The online generator uses probabilistic tracking to ensure exact global proportions:
-
-```python
-# Test different proportions
-proportions = [0.01, 0.05, 0.1, 0.15]
-
-for prop in proportions:
-    online_gen = OnlineGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-        anomaly_proportion=prop,
-        n_instances=500,
-        seed=42
-    )
-
-    total_anomalies = 0
-    for x_instance, y_label in online_gen.generate(n_instances=500):
-        total_anomalies += y_label
-
-    expected = int(500 * prop)
-    actual_prop = total_anomalies / 500
-    print(f"Target: {prop:.2f}, Expected: {expected}, Actual: {total_anomalies}, Proportion: {actual_prop:.3f}")
-```
-
-## Integration with Conformal Detection
-
-For standard conformal detectors, `compute_p_value()` accepts one 1-D feature
-vector and returns a Python `float`. Weighted conformal inference requires a
-representative test batch and must continue to use `compute_p_values()`.
-
-```python
-from pyod.models.iforest import IForest
-from online_fdr import Gai
-from nonconform import ConformalDetector, Split
-from nonconform.metrics import false_discovery_rate, statistical_power
-
-# Create online generator
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.03,
-    n_instances=2000,
-    train_size=0.6,  # Use 60% of normal data for training
-    seed=42
-)
-
-# Train detector
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
-
-# Streaming evaluation with online FDR control
-import numpy as np
-
-online_fdr = Gai(alpha=0.05, wealth=0.05)
-decisions = []
-labels = []
-running_metrics = []
-
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=2000)):
-    # Get p-value for instance
-    p_value = detector.compute_p_value(x_instance)
-
-    # Online FDR-controlled decision
-    decision = online_fdr.test_one(p_value)
-    decisions.append(decision)
-    labels.append(y_label)
-
-    # Calculate running metrics every 100 instances
-    if (i + 1) % 100 == 0:
-        fdr = false_discovery_rate(labels, decisions)
-        power = statistical_power(labels, decisions)
-
-        running_metrics.append({
-            'instances': i + 1,
-            'fdr': fdr,
-            'power': power,
-            'anomalies_seen': sum(labels),
-            'detections': sum(decisions)
-        })
-
-        print(f"Instances {i + 1}: FDR={fdr:.3f}, Power={power:.3f}, Anomalies={sum(labels)}")
-
-# Final evaluation
-final_fdr = false_discovery_rate(labels, decisions)
-final_power = statistical_power(labels, decisions)
-print(f"\nFinal Results: FDR={final_fdr:.3f}, Power={final_power:.3f}")
-print(f"Total anomalies: {sum(labels)}/2000 = {sum(labels) / 2000:.3f}")
-```
-
-## Windowed Streaming Analysis
-
-Analyze performance over sliding windows:
-
-```python
-# Streaming evaluation with sliding window analysis
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.05,
-    n_instances=1000,
-    seed=42
-)
-
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
-
-# Sliding window configuration with online FDR
-from scipy.stats import false_discovery_control
-
-window_size = 100
-window_predictions = []
-window_labels = []
-window_results = []
-
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
-    # Get prediction
-    p_value = detector.compute_p_value(x_instance)
-
-    # Add to current window
-    window_predictions.append(p_value)
-    window_labels.append(y_label)
-
-    # Process completed window
-    if len(window_predictions) == window_size:
-        # Apply FDR control to window
-        adjusted = false_discovery_control(window_predictions, method='bh')
-        window_decisions = list(adjusted < 0.05)
-        window_fdr = false_discovery_rate(window_labels, window_decisions)
-        window_power = statistical_power(window_labels, window_decisions)
-
-        window_results.append({
-            'window_start': i - window_size + 1,
-            'window_end': i,
-            'fdr': window_fdr,
-            'power': window_power,
-            'anomalies': sum(window_labels),
-            'detections': sum(window_decisions)
-        })
-
-        # Slide window (remove first half, keep second half)
-        mid_point = window_size // 2
-        window_predictions = window_predictions[mid_point:]
-        window_labels = window_labels[mid_point:]
-
-# Analyze window results
-print("Window Analysis:")
-print("Start\tEnd\tFDR\tPower\tAnomalies\tDetections")
-for result in window_results[:5]:  # Show first 5 windows
-    print(f"{result['window_start']}\t{result['window_end']}\t{result['fdr']:.3f}\t{result['power']:.3f}\t{result['anomalies']}\t{result['detections']}")
-
-# Summary statistics
-fdrs = [r['fdr'] for r in window_results]
-powers = [r['power'] for r in window_results]
-print(f"\nWindow Statistics:")
-print(f"FDR: Mean={np.mean(fdrs):.3f}, Std={np.std(fdrs):.3f}")
-print(f"Power: Mean={np.mean(powers):.3f}, Std={np.std(powers):.3f}")
-```
-
-## Performance and Latency Analysis
-
-Measure per-instance processing performance:
-
-```python
-import time
-import numpy as np
-
-# Performance measurement setup
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.02,
-    n_instances=1000,
-    seed=42
-)
-
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
-
-# Online FDR controller for streaming
-online_fdr = Gai(alpha=0.05, wealth=0.05)
-
-# Measure streaming performance
-latencies = []
-start_time = time.time()
-
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1000)):
-    instance_start = time.time()
-
-    # Process instance with online FDR control
-    p_value = detector.compute_p_value(x_instance)
-    decision = online_fdr.test_one(p_value)
-
-    instance_end = time.time()
-    latencies.append(instance_end - instance_start)
-
-    if i % 200 == 0:
-        current_latency = np.mean(latencies[-200:]) if len(latencies) >= 200 else np.mean(latencies)
-        print(f"Instance {i}: Avg latency = {current_latency*1000:.2f}ms")
-
-total_time = time.time() - start_time
-
-# Performance statistics
-print(f"\nPerformance Summary:")
-print(f"Total instances: 1000")
-print(f"Total time: {total_time:.2f}s")
-print(f"Throughput: {1000/total_time:.1f} instances/second")
-print(f"Average latency: {np.mean(latencies)*1000:.2f}ms")
-print(f"95th percentile latency: {np.percentile(latencies, 95)*1000:.2f}ms")
-print(f"99th percentile latency: {np.percentile(latencies, 99)*1000:.2f}ms")
-```
-
-## Concept Drift Detection
-
-Monitor for changes in performance over time:
-
-```python
-# Monitor for concept drift using performance metrics
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.04,
-    n_instances=1500,
-    seed=42
-)
-
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
-
-# Track metrics in blocks with FDR control
-from scipy.stats import false_discovery_control
-
-block_size = 150
-block_results = []
-current_block_preds = []
-current_block_labels = []
-
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=1500)):
-    p_value = detector.compute_p_value(x_instance)
-
-    current_block_preds.append(p_value)
-    current_block_labels.append(y_label)
-
-    # Process completed block
-    if len(current_block_preds) == block_size:
-        adjusted = false_discovery_control(current_block_preds, method='bh')
-        block_decisions = list(adjusted < 0.05)
-        block_fdr = false_discovery_rate(current_block_labels, block_decisions)
-        block_power = statistical_power(current_block_labels, block_decisions)
-
-        block_results.append({
-            'block': len(block_results) + 1,
-            'instances': f"{i-block_size+1}-{i}",
-            'fdr': block_fdr,
-            'power': block_power,
-            'avg_p_value': np.mean(current_block_preds),
-            'anomaly_rate': np.mean(current_block_labels)
-        })
-
-        # Reset for next block
-        current_block_preds = []
-        current_block_labels = []
-
-# Analyze for drift
-print("Concept Drift Analysis:")
-print("Block\tInstances\tFDR\tPower\tAvg P-value\tAnomaly Rate")
-for result in block_results:
-    print(f"{result['block']}\t{result['instances']}\t{result['fdr']:.3f}\t{result['power']:.3f}\t{result['avg_p_value']:.3f}\t{result['anomaly_rate']:.3f}")
-
-# Detect significant changes
-fdrs = [r['fdr'] for r in block_results]
-powers = [r['power'] for r in block_results]
-p_values = [r['avg_p_value'] for r in block_results]
-
-print(f"\nDrift Detection:")
-print(f"FDR variation (std): {np.std(fdrs):.3f}")
-print(f"Power variation (std): {np.std(powers):.3f}")
-print(f"P-value variation (std): {np.std(p_values):.3f}")
-
-# Simple drift detection based on FDR changes
-if len(fdrs) > 2:
-    fdr_changes = [abs(fdrs[i] - fdrs[i-1]) for i in range(1, len(fdrs))]
-    if max(fdr_changes) > 0.1:
-        print(f"WARNING: Potential concept drift detected (max FDR change: {max(fdr_changes):.3f})")
-    else:
-        print("No significant concept drift detected")
-```
-
-## Comparison with Batch Evaluation
-
-Compare streaming vs batch evaluation approaches:
-
-```python
-from oddball.generator import BatchGenerator
-
 # Streaming evaluation
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.06,
-    n_instances=600,
-    seed=42
-)
 
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
+“Streaming anomaly detection” can refer to different statistical tasks. Choose
+the task before choosing metrics or code.
 
-# Online evaluation with online FDR control
-online_fdr_ctrl = Gai(alpha=0.05, wealth=0.05)
-online_decisions = []
-online_labels = []
+| Task | Output | Appropriate control target |
+|---|---|---|
+| Test distinct hypotheses as they arrive | Per-observation rejections | Online FDR or another online multiple-testing criterion |
+| Detect a distributional change in one ordered process | Alarm time | False-alarm probability and detection delay |
+| Review a completed window | Batch discovery mask | FDR within the declared window family |
 
-for x_instance, y_label in online_gen.generate(n_instances=600):
-    p_value = detector.compute_p_value(x_instance)
-    decision = online_fdr_ctrl.test_one(p_value)
-    online_decisions.append(decision)
-    online_labels.append(y_label)
+`nonconform` provides the second lane through sequential randomized ranks and
+exchangeability martingales. The optional `online_fdr` dependency implements
+separate online multiple-testing procedures. They are not interchangeable.
 
-online_fdr = false_discovery_rate(online_labels, online_decisions)
-online_power = statistical_power(online_labels, online_decisions)
+## Labeled stream generation
 
-# Batch evaluation using same data source
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.06,
-    anomaly_mode="probabilistic",
-    n_batches=6,  # 6 batches × 100 = 600 instances
-    seed=42
-)
+The optional `oddball` package can generate a reproducible labeled sequence:
 
-batch_fdrs = []
-batch_powers = []
-total_batch_anomalies = 0
-
-for x_batch, y_batch in batch_gen.generate():
-    p_values = detector.compute_p_values(x_batch)
-    adjusted = false_discovery_control(p_values, method='bh')
-    batch_decisions = adjusted < 0.05
-
-    batch_fdr = false_discovery_rate(y_batch, batch_decisions)
-    batch_power = statistical_power(y_batch, batch_decisions)
-
-    batch_fdrs.append(batch_fdr)
-    batch_powers.append(batch_power)
-    total_batch_anomalies += np.sum(y_batch)
-
-batch_mean_fdr = np.mean(batch_fdrs)
-batch_mean_power = np.mean(batch_powers)
-
-print("Evaluation Method Comparison:")
-print(f"Online Streaming:")
-print(f"  FDR: {online_fdr:.3f}")
-print(f"  Power: {online_power:.3f}")
-print(f"  Total Anomalies: {sum(online_labels)}")
-
-print(f"Batch Processing:")
-print(f"  FDR: {batch_mean_fdr:.3f} ± {np.std(batch_fdrs):.3f}")
-print(f"  Power: {batch_mean_power:.3f} ± {np.std(batch_powers):.3f}")
-print(f"  Total Anomalies: {total_batch_anomalies}")
+```bash
+pip install "nonconform[data]"
 ```
 
-## Advanced Configuration
-
-### Different Datasets and Training Splits
+`OnlineGenerator` requires a loader callback that returns a DataFrame with a
+`Class` column. `oddball.load` returns arrays by default, so pass
+`as_dataframe=True`.
 
 ```python
-from oddball import Dataset, load
+from oddball import Dataset, OnlineGenerator, load
 
-# Test with different datasets and training split ratios
-configs = [
-    (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), 0.5, "Shuttle"),
-    (lambda **kwargs: load(Dataset.BREASTW, **kwargs), 0.6, "Breast Cancer"),
-    (lambda **kwargs: load(Dataset.FRAUD, **kwargs), 0.7, "Credit Fraud")
-]
+generator = OnlineGenerator(
+    load_data_func=lambda: load(Dataset.WBC, as_dataframe=True),
+    anomaly_proportion=0.1,
+    n_instances=50,
+    train_size=0.5,
+    seed=42,
+)
 
-for load_func, train_split, name in configs:
-    print(f"\n{name} Dataset (train_size={train_split}):")
+labels = [label for _, label in generator.generate()]
+print("instances:", len(labels))
+print("anomalies:", int(sum(labels)))
+```
 
-    online_gen = OnlineGenerator(
-        load_data_func=load_func,
-        anomaly_proportion=0.03,
-        n_instances=300,
-        train_size=train_split,
-        seed=42
+Across the full configured run, the generator places exactly
+`int(n_instances * anomaly_proportion)` anomalies at randomized positions. It
+samples with replacement from held-out normal and anomaly pools. The generated
+sequence is therefore a controlled contamination benchmark, not a model of a
+single persistent change point.
+
+## End-to-end exchangeability monitoring
+
+For a valid monitoring construction, separate normal-only proper training data
+from normal-only priming data, fit the scorer once, and keep it frozen while the
+stream is processed.
+
+```python
+from oddball import Dataset, OnlineGenerator, load
+from sklearn.ensemble import IsolationForest
+
+from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+generator = OnlineGenerator(
+    load_data_func=lambda: load(Dataset.WBC, as_dataframe=True),
+    anomaly_proportion=0.1,
+    n_instances=50,
+    train_size=0.7,
+    seed=42,
+)
+
+x_normal_reference = generator.get_training_data().to_numpy()
+split = len(x_normal_reference) // 2
+x_fit = x_normal_reference[:split]
+x_prime = x_normal_reference[split:]
+
+monitor = ExchangeabilityMonitor(
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    martingale=SimpleJumperMartingale(
+        alarm_config=AlarmConfig(ville_threshold=20.0)
+    ),
+    seed=42,
+)
+monitor.fit(x_fit).prime(x_prime)
+
+records = []
+for step, (x_row, label) in enumerate(generator.generate(), start=1):
+    state = monitor.update(x_row.iloc[0])
+    records.append(
+        {
+            "step": step,
+            "label": int(label),
+            "p_value": state.p_value,
+            "martingale": state.martingale,
+            "alarms": state.triggered_alarms,
+        }
     )
 
-    x_train = online_gen.get_training_data()
-    print(f"  Training data: {x_train.shape}")
-    print(f"  Available for generation - Normal: {online_gen.n_normal}, Anomaly: {online_gen.n_anomaly}")
-
-    # Quick evaluation
-    total_anomalies = 0
-    for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=300)):
-        total_anomalies += y_label
-        if i == 299:  # Last instance
-            print(f"  Total anomalies: {total_anomalies}/300 = {total_anomalies / 300:.3f}")
+first_alarm = next(
+    (record for record in records if "ville" in record["alarms"]),
+    None,
+)
+print("first Ville alarm:", first_alarm)
+print("final martingale:", records[-1]["martingale"])
 ```
 
-### Reproducibility and Reset Functionality
+The labels are used only after monitoring to describe the generated stream.
+Filtering or conditionally processing rows based on those labels would make the
+online protocol unrealistic.
+
+!!! warning "An alarm is not a pointwise anomaly label"
+
+    A martingale alarm says that cumulative evidence crossed a configured
+    threshold. Comparing `triggered_alarms` row by row with anomaly labels and
+    calling the result precision or recall misstates the target. One anomalous
+    observation can trigger later evidence, and a persistent change can be
+    detected after several affected observations.
+
+## Evaluate the monitoring target
+
+A change-monitoring study needs separate null and changed episodes.
+
+### Under no change
+
+Report:
+
+- probability of any alarm by each prespecified horizon;
+- distribution of first-alarm times, with nonalarms treated as censored;
+- number of independently restarted episodes and error-budget allocation;
+- martingale, scorer, priming size, threshold, and all seeds.
+
+For a valid nonnegative martingale starting at one, a Ville threshold
+`1 / alpha` bounds the probability of ever crossing by `alpha` under the null.
+An empirical simulation checks implementation and scenario behavior; it does
+not prove the theorem's assumptions for deployment.
+
+### Under a defined change
+
+Report:
+
+- detection probability by a prespecified post-change horizon;
+- detection delay from the known change time;
+- false alarms before the change;
+- censored runs that never alarm; and
+- performance across change magnitudes and change locations fixed before
+  evaluation.
+
+Do not report mean delay only among successful runs without also reporting the
+detection probability.
+
+### Runnable episode study
+
+The following small simulation illustrates the bookkeeping. Its ten runs are
+not enough for a precise false-alarm estimate.
 
 ```python
-# Test reproducibility
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.05,
-    n_instances=200,
-    seed=42
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.martingales import AlarmConfig, PowerMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+reference_rng = np.random.default_rng(42)
+x_reference = reference_rng.normal(size=(500, 3))
+fitted_detector = ConformalDetector(
+    detector=IsolationForest(n_estimators=40, random_state=42),
+    strategy=Split(n_calib=0.35),
+    seed=42,
+).fit(x_reference)
+
+threshold = 20.0
+change_step = 20
+horizon = 40
+
+def first_ville_alarm(stream: np.ndarray, seed: int) -> int | None:
+    monitor = ExchangeabilityMonitor.from_split_detector(
+        fitted_detector,
+        martingale=PowerMartingale(
+            epsilon=0.5,
+            alarm_config=AlarmConfig(ville_threshold=threshold),
+        ),
+        seed=seed,
+    )
+    for step, state in enumerate(monitor.update_many(stream), start=1):
+        if "ville" in state.triggered_alarms:
+            return step
+    return None
+
+null_alarm_times = []
+changed_alarm_times = []
+for seed in range(10):
+    rng = np.random.default_rng(seed)
+    null_stream = rng.normal(size=(horizon, 3))
+    changed_stream = np.vstack(
+        [
+            rng.normal(size=(change_step, 3)),
+            rng.normal(loc=4.0, size=(horizon - change_step, 3)),
+        ]
+    )
+    null_alarm_times.append(first_ville_alarm(null_stream, seed))
+    changed_alarm_times.append(first_ville_alarm(changed_stream, seed + 100))
+
+false_alarm_rate = np.mean([time is not None for time in null_alarm_times])
+pre_change_false_alarms = [
+    time
+    for time in changed_alarm_times
+    if time is not None and time <= change_step
+]
+post_change_alarms = [
+    time for time in changed_alarm_times if time is not None and time > change_step
+]
+detection_rate = len(post_change_alarms) / len(changed_alarm_times)
+delays = [time - change_step for time in post_change_alarms]
+
+print("false-alarm fraction by horizon:", false_alarm_rate)
+print(
+    "pre-change false-alarm fraction:",
+    len(pre_change_false_alarms) / len(changed_alarm_times),
 )
-
-# First run
-first_run_labels = []
-for x_instance, y_label in online_gen.generate(n_instances=200):
-    first_run_labels.append(y_label)
-
-first_anomalies = sum(first_run_labels)
-
-# Reset and run again
-online_gen.reset()
-second_run_labels = []
-for x_instance, y_label in online_gen.generate(n_instances=200):
-    second_run_labels.append(y_label)
-
-second_anomalies = sum(second_run_labels)
-
-print("Reproducibility Test:")
-print(f"First run anomalies: {first_anomalies}")
-print(f"Second run anomalies: {second_anomalies}")
-print(f"Results match: {first_anomalies == second_anomalies}")
-print(f"Sequence identical: {first_run_labels == second_run_labels}")
+print("post-change detection fraction:", detection_rate)
+print("observed post-change delays:", delays)
 ```
 
-## FDR Control in Streaming
+The scorer and calibration history are fixed across this conditional simulation,
+while each monitored stream is newly generated. A broader end-to-end study can
+also repeat training and calibration draws.
 
-!!! warning "Online-FDR assumptions still apply"
-    The examples below use p-values from a detector with a fixed split
-    calibration set. `online-fdr` does not repair temporal dependence or make
-    those p-values valid automatically; formal online-FDR guarantees require
-    the assumptions of the selected procedure.
+## Ville, restarted Ville, CUSUM, and Shiryaev-Roberts
 
+`AlarmConfig` exposes four thresholds with different interpretations:
 
-Apply FDR control to streaming p-values:
+| Threshold | Statistic | Interpretation |
+|---|---|---|
+| `ville_threshold` | Product martingale | Ville probability-of-ever-crossing bound under a valid null martingale |
+| `restarted_ville_threshold` | Harmonic restart-mixture e-process | Ville bound for the implemented restart mixture |
+| `cusum_threshold` | CUSUM of log betting increments | Change-evidence trigger requiring separate calibration |
+| `shiryaev_roberts_threshold` | Shiryaev-Roberts statistic | Change-evidence trigger requiring separate calibration |
 
-```python
-from scipy.stats import false_discovery_control
+If action is taken when either of two Ville-valid alarms fires, allocate error
+across them. Enabling several alarms does not leave each one with the full
+lifetime error budget.
 
-# Streaming with batch FDR control
-online_gen = OnlineGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    anomaly_proportion=0.04,
-    n_instances=500,
-    seed=42
-)
+## Online FDR is a separate workflow
 
-x_train = online_gen.get_training_data()
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
+Online FDR methods such as LORD test a sequence of distinct hypotheses and
+adapt future test levels to past decisions. Their guarantees typically require
+conditionally super-uniform null p-values relative to the past and stated
+dependence conditions.
 
-# Collect p-values for batch FDR control
-batch_size = 100
-all_p_values = []
-all_labels = []
-current_batch_p = []
-current_batch_labels = []
+Repeated calls to `ConformalDetector.compute_p_value(...)` against one fixed
+calibration ECDF are only marginally valid by default and do not automatically
+satisfy that sequential condition. If online multiple testing is your target,
+construct an appropriate p-value process and verify the exact theorem before
+passing it to `online_fdr`.
 
-for i, (x_instance, y_label) in enumerate(online_gen.generate(n_instances=500)):
-    p_value = detector.compute_p_value(x_instance)
+Conversely, a conformal martingale detects cumulative evidence against
+exchangeability. It does not label each incoming hypothesis under an online FDR
+criterion.
 
-    current_batch_p.append(p_value)
-    current_batch_labels.append(y_label)
+## Windowed batch analysis
 
-    # Process batch when full
-    if len(current_batch_p) == batch_size:
-        # Apply FDR control to batch
-        fdr_adjusted = false_discovery_control(current_batch_p, method='bh')
-        batch_decisions = fdr_adjusted < 0.05
+You may intentionally define each completed time window as a batch family and
+call `select(window, alpha=...)`. Under the relevant assumptions, that targets
+FDR within each window. It does not provide pooled FDR across all windows or an
+anytime false-alarm guarantee.
 
-        # Calculate controlled metrics
-        batch_fdr = false_discovery_rate(current_batch_labels, batch_decisions)
-        batch_power = statistical_power(current_batch_labels, batch_decisions)
+If all observations form one retrospective family, collect the complete set of
+unweighted p-values and apply one procedure after the horizon closes. That
+delays decisions and is no longer an online workflow.
 
-        print(f"Batch {len(all_p_values)//batch_size + 1}: FDR={batch_fdr:.3f}, Power={batch_power:.3f}, Detections={sum(batch_decisions)}")
+## Retraining and resets
 
-        all_p_values.extend(current_batch_p)
-        all_labels.extend(current_batch_labels)
-        current_batch_p = []
-        current_batch_labels = []
+`ExchangeabilityMonitor.reset()` clears rank history and evidence while keeping
+the fitted scorer. Prime the new episode again before monitoring. Refitting the
+scorer also starts a new episode.
 
-# Overall FDR control
-overall_fdr_adjusted = false_discovery_control(all_p_values, method='bh')
-overall_decisions = overall_fdr_adjusted < 0.05
-overall_fdr = false_discovery_rate(all_labels, overall_decisions)
-overall_power = statistical_power(all_labels, overall_decisions)
+Repeated episodes need explicit lifetime error accounting. A threshold that
+controls false alarms for one episode does not automatically control the chance
+of any false alarm over unlimited resets.
 
-print(f"\nOverall Results with FDR Control:")
-print(f"FDR: {overall_fdr:.3f}")
-print(f"Power: {overall_power:.3f}")
-print(f"Total detections: {sum(overall_decisions)}")
-print(f"Total anomalies: {sum(all_labels)}")
-```
+Do not retrain inside an episode and continue the same martingale as if nothing
+changed. The score sequence would no longer be exchangeable conditional on one
+fixed scoring rule.
 
-## Best Practices
+## Performance measurement
 
-1. **Use appropriate n_instances**: Set based on your evaluation requirements and computational constraints
-2. **Monitor global proportion**: Check that generated labels match the planned
-   evaluation proportion
-3. **Apply proper FDR control**: Use online FDR methods for sequential
-   decisions, or batch FDR only for fixed batches you analyze after collection
-4. **Track performance metrics**: Monitor latency and throughput for operational insights
-5. **Reset for reproducibility**: Use reset() when repeating experiments
-6. **Consider concept drift**: Monitor performance changes over time windows
+Measure separately:
 
-## Memory and Computational Efficiency
+- detector scoring latency per row;
+- sequential rank update time;
+- martingale update time;
+- end-to-end latency including serialization and feature computation; and
+- memory growth with rank history.
 
-The online generator is designed for efficiency:
-- **Low memory footprint**: Only stores necessary data for proportion tracking
-- **Fast instance generation**: Minimal overhead per instance
-- **Deterministic behavior**: Reproducible results with proper seed management
-- **Automatic validation**: Built-in parameter and proportion checking
+The exact sequential conformalizer stores all scores in a sorted list. Rank
+queries are logarithmic, while insertion is linear in current history length;
+there is no sliding window. Benchmark at the episode lengths expected in
+deployment.
 
-This streaming evaluation approach enables reproducible online testing with
-controlled label proportions. Statistical error control still comes from the
-conformal/FDR procedure you apply and the assumptions it requires.
+## Reproducibility notes
+
+- Set seeds for the data generator, detector, sequential conformalizer, and
+  randomized evaluation protocol.
+- Reconstruct an `OnlineGenerator` to reproduce its entire initial split and
+  stream. `reset()` resets RNG after construction and is not the clearest
+  reproduction of the first run.
+- Record censored episodes and the exact stopping rule.
+- Never choose a threshold from the same episodes used for final performance
+  reporting.
+
+For implementation details and alarm-state fields, see
+[Exchangeability martingales](exchangeability_martingales.md).

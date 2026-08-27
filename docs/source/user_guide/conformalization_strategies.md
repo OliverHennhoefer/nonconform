@@ -1,230 +1,218 @@
 ---
-description: "Compare split, cross-validation, jackknife, and bootstrap calibration strategies for conformal anomaly detection."
+description: "Understand how nonconform fits detectors, constructs calibration scores, and scores test data under each conformalization strategy."
 ---
 
-# Conformalization Strategies
+# Conformalization strategies
 
-Calibration strategies trade data efficiency, runtime, memory, and validity
-story. Start with the simplest strategy that fits your data size and operational
-constraints.
+A conformalization strategy determines three things:
 
-## Quick Decision Guide
+1. which observations fit each base detector,
+2. which observations produce calibration scores, and
+3. which fitted models score a future test observation.
 
-| Situation | Recommended starting point | Why |
-|---|---|---|
-| Large data, speed matters | `Split(n_calib=0.2)` | Cleanest validity story and low runtime |
-| Large data, speed is secondary | `JackknifeBootstrap(n_bootstraps=100)` | More resampling stability |
-| Medium data | `JackknifeBootstrap(n_bootstraps=100)` | Avoids spending a large fixed holdout |
-| Small data | `CrossValidation.jackknife()` | Uses nearly all observations for fitting/calibration |
+Those choices affect compute, memory, data efficiency, and the statistical
+argument available for the resulting p-values. They do not change the public
+`ConformalDetector` workflow.
 
-Split conformal is the cleanest strict finite-sample baseline because the fitted
-model and calibration scores are separated. Resampling strategies
-(`CrossValidation`, Jackknife, Jackknife+, and JaB+) use data more efficiently
-and often work well in practice, but their guarantees are not interchangeable
-with the split-conformal guarantee. For example, J+aB-style bounds can allow a
-larger failure rate than the nominal split target.
+!!! important "Start with `Split` for the most direct validity argument"
 
-If you need smoother p-values, consider `Probabilistic()` (KDE-based), but treat
-that as model-based/asymptotic behavior rather than exact split-conformal
-finite-sample validity.
+    `Split` gives the most direct finite-sample argument in this package: the
+    scoring rule is fitted without the calibration observations, then held
+    fixed while calibration and test scores are compared. The resampling
+    strategies below are useful computational constructions, but their
+    anomaly-score aggregation does not automatically inherit every coverage
+    theorem proved for CV+, jackknife+, or JaB+ prediction intervals.
 
-For CV/Jackknife/Bootstrap-style conformalization, `mode="plus"` is the more
-defensible validity-oriented default. `mode="single_model"` can perform
-similarly in practice and is lighter at inference time, but it weakens the
-validity story further.
+## Comparison at a glance
 
-For detailed guidance, see [Choosing Strategies](choosing_strategies.md).
+| Strategy | Model fits | Calibration scores | Models retained in `mode="plus"` | Main tradeoff |
+|---|---:|---|---:|---|
+| `Split` | 1 | Held-out split | 1 | Clean separation, but reserves data for calibration |
+| `CrossValidation(k=k)` | `k` | One out-of-fold score per input row | `k` | Uses every row for calibration, with more fitting and inference work |
+| `CrossValidation.jackknife()` | `n` | One leave-one-out score per input row | `n` | Maximum fit count and memory |
+| `JackknifeBootstrap(B)` | `B` | Aggregated out-of-bag score per input row | `B` | Bootstrap-based calibration and configurable ensemble size |
 
----
+Here, `n` is the number of rows passed to `fit(...)` and `B` is
+`n_bootstraps`.
 
-## Available Strategies
+## `Split`
 
-### Split Strategy
-
-Simple train/calibration split. Fast and straightforward.
+`Split` randomly partitions the array passed to `fit(...)` into a proper
+training subset and a calibration subset. It fits one detector on the former
+and scores the latter with that fixed model. `seed` on `ConformalDetector`
+controls the split and is propagated where supported.
 
 ```python
 from nonconform import Split
 
-# Use 30% of data for calibration
-strategy = Split(n_calib=0.3)
+proportional = Split(n_calib=0.2)
+fixed_size = Split(n_calib=200)
 
-# Use fixed number of samples for calibration
-strategy = Split(n_calib=1000)
+print(proportional.calib_size)
+print(fixed_size.calib_size)
 ```
 
-**Characteristics:**
-- **Fastest** computation
-- **Simplest** implementation
-- **Least robust** for small datasets
-- **Memory efficient**
-- **Best validity story** when calibration and test points are exchangeable
+`n_calib` accepts either:
 
-### Cross-Validation Strategy
+- a float strictly between `0` and `1`, interpreted as a proportion; or
+- an integer of at least `1` that leaves at least one row for fitting.
 
-K-fold cross-validation for robust calibration using all data.
+For a proportional split, the calibration count is rounded up. With classical
+empirical p-values and `n_cal` calibration scores, the attainable values are
+multiples of `1 / (n_cal + 1)`. Choose a calibration size that makes the p-value
+resolution compatible with the downstream testing procedure.
+
+## `CrossValidation`
+
+`CrossValidation(k=...)` uses shuffled K-fold splitting by default. Each input
+row receives one calibration score from a model that was not fitted on that
+row.
 
 ```python
 from nonconform import CrossValidation
 
-# 5-fold cross-validation with one final model kept for inference
-strategy = CrossValidation(k=5, mode="single_model")
+cv_plus = CrossValidation(k=5)
+cv_single_model = CrossValidation(k=5, mode="single_model")
 
-# Plus mode keeps fold models for plus-style inference (recommended)
-strategy = CrossValidation(k=5, mode="plus")
+print(cv_plus.k, cv_plus.mode)
+print(cv_single_model.k, cv_single_model.mode)
 ```
 
-!!! info "`mode` semantics"
-    For `CrossValidation` (including `CrossValidation.jackknife(...)`) and `JackknifeBootstrap`:
-    - Default when omitted: `mode="plus"`
-    - Valid values: `"plus"` and `"single_model"` (or `ConformalMode.PLUS` / `ConformalMode.SINGLE_MODEL`)
-    - `mode="plus"`: keeps per-fold/per-bootstrap models for plus-style inference
-    - `mode="single_model"`: still calibrates via folds/bootstraps, then fits one final model on all training data for inference
-    - `mode="single_model"` can weaken conformal validity; use `mode="plus"` when validity is the priority
+In `mode="plus"`, which is the default, all fold models are retained. At
+inference, each model scores every test row and `ConformalDetector` aggregates
+those raw scores with its configured `aggregation` method. In
+`mode="single_model"`, the fold models only construct out-of-fold calibration
+scores; one additional model is then fitted on all input rows for inference.
 
-**Characteristics:**
-- **Uses data efficiently** through folds
-- **Higher computational cost** than Split
-- **Useful alternative** when deterministic fold-based calibration is preferred
-- **Validity story depends on mode**; prefer `mode="plus"` when validity is the
-  priority
+!!! warning "`single_model` changes the calibration-to-test construction"
 
-### JaB+ Strategy (Jackknife+-after-Bootstrap)
+    In `single_model` mode, calibration scores come from fold models while test
+    scores come from a different full-data model. It is cheaper at inference,
+    but it has a weaker validity story. Do not describe it as equivalent to
+    plus mode.
 
-Bootstrap resampling with Jackknife+ for robust calibration [[Kim et al., 2020](#references)].
+### Leave-one-out factory
+
+`CrossValidation.jackknife()` sets the number of folds to the sample count at
+fit time and disables shuffling. It therefore fits one leave-one-out model per
+input row.
+
+```python
+from nonconform import CrossValidation
+
+jackknife_plus = CrossValidation.jackknife()
+jackknife_single_model = CrossValidation.jackknife(mode="single_model")
+
+print(jackknife_plus.k, jackknife_plus.mode)
+print(jackknife_single_model.k, jackknife_single_model.mode)
+```
+
+The factory reports `k is None` before fitting because the actual fold count is
+the eventual sample count. Plus mode retains all leave-one-out models, so both
+fit cost and inference cost grow linearly with `n` model evaluations.
+
+## `JackknifeBootstrap`
+
+`JackknifeBootstrap` fits `n_bootstraps` models on bootstrap resamples. Every
+input row receives an out-of-bag calibration score aggregated across the
+bootstrap models that did not include that row. The implementation constructs
+resamples so that every row has out-of-bag coverage.
 
 ```python
 from nonconform import JackknifeBootstrap
 
-# Typical JaB+ starting point (100+ bootstraps recommended)
-strategy = JackknifeBootstrap(n_bootstraps=100)
-
-# Higher precision with more bootstraps
-strategy = JackknifeBootstrap(n_bootstraps=200)
-```
-
-**Characteristics:**
-- **Flexible ensemble** size
-- **Useful stability check** for noisy/small data
-- **Configurable computational cost**
-- **Typically recommended:** 100+ bootstraps for stable behavior
-- **Looser guarantee** than split conformal in the J+aB theory
-
-### Jackknife Strategy
-
-Leave-one-out cross-validation for maximum data utilization [[Barber et al., 2021](#references)].
-
-```python
-from nonconform import CrossValidation
-
-# Standard jackknife with one final inference model
-strategy = CrossValidation.jackknife(mode="single_model")
-
-# Jackknife+ keeps leave-one-out models for plus-style inference
-strategy = CrossValidation.jackknife(mode="plus")
-```
-
-**Characteristics:**
-- **Maximum data utilization**
-- **Computationally intensive**
-- **Best for very small datasets**
-- **Can be infeasible** when one model fit per observation is too expensive
-
-## Strategy Selection Guide
-
-| Dataset Size | Computational Budget | Recommendation |
-|-------------|---------------------|----------------|
-| Large (>5,000) | Low | Split |
-| Large (>5,000) | High | JackknifeBootstrap |
-| Medium (500-5,000) | Any | JackknifeBootstrap |
-| Small (<500) | Any | Jackknife |
-
-## Mode Semantics
-
-CrossValidation and JackknifeBootstrap strategies support `"plus"` mode for stronger conformal validity behavior in anomaly detection workflows [[Barber et al., 2021](#references); [Kim et al., 2020](#references)]:
-
-```python
-# Enable plus mode for CV strategies
-strategy = CrossValidation(k=5, mode="plus")
-strategy = CrossValidation.jackknife(mode="plus")
-strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
-```
-
-**`mode="plus"` provides:**
-- The plus-style aggregation analyzed for the corresponding resampling method
-  (not a universal efficiency guarantee)
-- Better resampling-based validity behavior than `single_model`
-- Slightly higher computational cost
-- A more defensible approximation or looser guarantee, depending on the method
-
-The "plus" suffix (e.g., Jackknife+, CV+) indicates a refined variant that is typically preferred when validity is the priority, but it should not be read as equivalent to the strict split-conformal guarantee.
-
-**`mode="single_model"` provides:**
-- Lower inference-time memory footprint
-- One final detector trained on full data for inference
-- Can be close to `mode="plus"` in practice for some datasets
-- No validity guarantee comparable to `mode="plus"`
-
-## Performance Comparison
-
-| Strategy | Training Time | Memory Usage | Practical Calibration Stability |
-|---|---|---|---|
-| Split | Fast | Low | Good with enough calibration data |
-| CrossValidation | Medium | Medium | Good for limited data |
-| JackknifeBootstrap | Medium-High | Medium-High | Good for noisy or scarce data |
-| Jackknife (LOO) | Slow | High | Good for very small data |
-
-## Integration with Detectors
-
-All strategies work with any conformal detector:
-
-```python
-from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, logistic_weight_estimator
-from pyod.models.lof import LOF
-
-# Standard conformal with cross-validation
-detector = ConformalDetector(
-    detector=LOF(),
-    strategy=CrossValidation(k=5)
+strategy = JackknifeBootstrap(
+    n_bootstraps=100,
+    aggregation_method="mean",
+    mode="plus",
 )
 
-# Weighted conformal with JaB+
+print(strategy.n_bootstraps)
+print(strategy.aggregation_method)
+```
+
+`aggregation_method` controls aggregation of out-of-bag calibration scores and
+accepts `"mean"` or `"median"`. It is distinct from
+`ConformalDetector(aggregation=...)`, which combines retained models' test
+scores.
+
+Only `JackknifeBootstrap.fit_calibrate(...)` accepts `n_jobs`. Pass it through
+the detector:
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, JackknifeBootstrap
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(120, 3))
+
 detector = ConformalDetector(
-    detector=LOF(),
-    strategy=JackknifeBootstrap(n_bootstraps=100),
-    weight_estimator=logistic_weight_estimator(),
+    detector=IsolationForest(n_estimators=20, random_state=42),
+    strategy=JackknifeBootstrap(n_bootstraps=5),
     seed=42,
 )
+detector.fit(x_reference, n_jobs=1)
+
+print(len(detector.detector_set))
+print(detector.calibration_set.shape)
 ```
 
-## References
+Use more bootstrap iterations only when empirical stability justifies their
+additional cost. The constructor requires at least two; there is no
+distribution-free universal value that is adequate for every detector and
+dataset.
 
-- **Vovk, V. (2015)**.
-  *[Cross-conformal predictors](https://link.springer.com/article/10.1007/s10472-013-9368-4)*.
-  Annals of Mathematics and Artificial Intelligence, 74(1-2), 9-28.
-  [Cross-conformal prediction and empirical validity]
+## Plus and single-model modes
 
-- **Kim, B., Xu, C., & Barber, R. F. (2020)**.
-  *[Predictive Inference Is Free with the Jackknife+-after-Bootstrap](https://proceedings.neurips.cc/paper_files/paper/2020/hash/2b346a0aa375a07f5a90a344a61416c4-Abstract.html)*.
-  Advances in Neural Information Processing Systems (NeurIPS), 33. [JaB+ method
-  with looser coverage guarantees]
+`CrossValidation` and `JackknifeBootstrap` accept the same two modes:
 
-- **Barber, R. F., Candes, E. J., Ramdas, A., & Tibshirani, R. J. (2021)**.
-  *[Predictive Inference with the Jackknife+](https://arxiv.org/abs/1905.02928)*.
-  The Annals of Statistics, 49(1), 486-507. [Jackknife+ method with improved
-  finite-sample efficiency]
+| Mode | Calibration construction | Test scoring | Cost profile |
+|---|---|---|---|
+| `"plus"` | Out-of-fold or out-of-bag | Aggregate all retained resampling models | Higher inference memory and latency |
+| `"single_model"` | Out-of-fold or out-of-bag | One additional full-data model | Lower inference cost, weaker statistical alignment |
 
-- **Vovk, V., Gammerman, A., & Shafer, G. (2005)**.
-  *[Algorithmic Learning in a Random World](https://link.springer.com/book/10.1007/978-3-031-06649-8)*.
-  Springer. [Foundational work on conformal prediction]
+The name `plus` signals the package's resampling and multi-model scoring
+construction. It should not be used as shorthand for a theorem without
+checking that theorem's exact algorithm, target, and assumptions.
 
-- **Lei, J., G'Sell, M., Rinaldo, A., Tibshirani, R. J., & Wasserman, L. (2018)**.
-  *[Distribution-Free Predictive Inference for Regression](https://arxiv.org/abs/1604.04173)*.
-  Journal of the American Statistical Association, 113(523), 1094-1111. [Split
-  conformal prediction with theoretical guarantees]
+## Weighted mode
 
-## Next Steps
+All strategies expose calibration rows for weight estimation, but `Split`
+offers the clearest weighted covariate-shift workflow because its proper
+training, calibration, and test roles remain explicit. If you combine weighted
+inference with a resampling strategy, validate the exact construction and avoid
+claiming the split weighted-conformal guarantee by analogy.
 
-- See [choosing strategies](choosing_strategies.md) for detailed decision framework
-- Learn about [conformal inference](conformal_inference.md) for theoretical foundations
-- Check [input validation](input_validation.md) for parameter constraints
+## What to compare empirically
+
+When labels are available solely for evaluation, compare candidate strategies
+on the same untouched evaluation family:
+
+- realized false discovery proportion and statistical power;
+- variability across repeated random seeds or resamples;
+- fitting time, per-batch scoring time, and peak memory;
+- calibration resolution and the number of discoveries;
+- sensitivity to plausible distribution shifts.
+
+Do not select a strategy on the same labeled evaluation set later used to
+report final performance. That turns the evaluation set into tuning data.
+
+## References and scope
+
+- [Lei et al. (2018), *Distribution-Free Predictive Inference for Regression*](https://doi.org/10.1080/01621459.2017.1307116)
+  develops split conformal prediction under exchangeability.
+- [Barber et al. (2021), *Predictive Inference with the Jackknife+*](https://doi.org/10.1214/20-AOS1965)
+  analyzes jackknife+ prediction intervals.
+- [Kim, Xu, and Barber (2020), *Predictive Inference Is Free with the Jackknife+-after-Bootstrap*](https://proceedings.neurips.cc/paper/2020/hash/2b346a0aa375a07f5a90a344a61416c4-Abstract.html)
+  analyzes JaB+ prediction intervals.
+- [Vovk (2015), *Cross-conformal predictors*](https://doi.org/10.1007/s10472-013-9368-4)
+  studies cross-conformal prediction.
+
+These papers motivate important parts of the strategy design. Their prediction
+set or interval results should not be quoted as direct proofs for every
+anomaly-score aggregation implemented here.
+
+Next, use [Choosing calibration strategies](choosing_strategies.md) to turn
+these mechanics into a task-specific decision.

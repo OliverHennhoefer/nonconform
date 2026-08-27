@@ -40,7 +40,7 @@ uv run pytest
 For documentation changes:
 
 ```bash
-uv run mkdocs build -f docs/mkdocs.yml
+uv run zensical build --clean --strict -f docs/mkdocs.yml
 ```
 
 ## Pull Requests

@@ -14,16 +14,18 @@ For more detail, see [Understanding Conformal Inference](conformal_inference.md)
 
 ## P-values
 
-**What it is**: A number between 0 and 1 that summarizes how extreme an
-observation looks compared with a reference distribution.
+**What it is**: A number in $[0,1]$ whose null distribution is super-uniform
+when the test's assumptions hold. Smaller values represent stronger evidence
+against that null; a p-value is not an effect size or a posterior probability.
 
 **In nonconform**: A conformal p-value compares a test score with calibration
 scores. Smaller values mean stronger evidence that the point does not look like
 the calibration data.
 
-**Guarantee**: Under the null assumptions, conformal p-values are
-super-uniform: $\Pr(p \le a) \le a$. For example, a valid null p-value should
-fall below 0.02 with probability at most 2%.
+**Guarantee**: For $a\in[0,1]$, a valid null p-value satisfies
+$\Pr(p \le a) \le a$. For split conformal anomaly testing, this is ordinarily
+a marginal statement over the random calibration set and a null test point,
+conditional on an independently fitted, fixed scoring rule.
 
 **Common mistake**: A small p-value is not a probability that the point is an
 anomaly. It is evidence against the point behaving like the calibration
@@ -37,31 +39,38 @@ reference population.
 - Valid `tie_break` values are `"classical"` and `"randomized"` (or
   `TieBreakMode.CLASSICAL` / `TieBreakMode.RANDOMIZED`); `None` is invalid.
 - For smoother p-values, use `Empirical(tie_break="randomized")`.
-- `Probabilistic()` also gives continuous p-values through KDE. It trades
-  exact finite-sample conformal validity for model-based/asymptotic behavior;
-  validate it on your task before treating its p-values as calibrated.
+- `Probabilistic()` returns a continuous KDE estimate of score-tail
+  probability. It is model-based and does not inherit the empirical rank's
+  exact finite-sample validity. The library does not attach a general
+  asymptotic-validity claim to it.
 
 ---
 
 ## False Discovery Rate (FDR)
 
-**What it is**: The expected proportion of false positives among the points you
-flag as anomalies.
+**What it is**: Let $V$ be the number of false discoveries and $R$ the total
+number of discoveries in one testing family. Its realized false discovery
+proportion is $\mathrm{FDP}=V/\max(R,1)$. The false discovery rate is the
+repeated-sampling expectation $\mathrm{FDR}=\mathbb{E}[\mathrm{FDP}]$.
 
 **Why it matters**: When you test many observations, some normal points will
 look anomalous by chance. FDR control targets the expected false-positive
 proportion among discoveries, for example at most 5% in expectation when the
 assumptions hold.
 
-**In nonconform**: Prefer `detector.select(X_test, alpha=...)` for default FDR-controlled decisions. Use `scipy.stats.false_discovery_control(...)` when you intentionally need manual p-value post-processing.
+**In nonconform**: `detector.select(X_test, alpha=...)` applies BH in standard
+mode and WCS in weighted mode. `alpha` is a nominal FDR target, not a bound on
+the FDP of every realized family. The corresponding guarantee requires valid
+p-values and the assumptions of the selected procedure. The historical
+`false_discovery_rate(...)` metric returns realized FDP for supplied labels.
 
 ---
 
 ## Anytime False-Alarm Control (Ville Bound)
 
-**What it is**: A sequential false-alarm guarantee for martingale evidence
-processes. If `M_t` is a valid nonnegative martingale under the null and starts
-at 1, then for any threshold `lambda`:
+**What it is**: A sequential false-alarm guarantee for nonnegative evidence
+processes. If $M_t$ is a valid nonnegative supermartingale under the null and
+$M_0\le1$, then for any $\lambda>0$:
 
 $$
 \Pr\left(\sup_t M_t \ge \lambda\right) \le \frac{1}{\lambda}.
@@ -99,46 +108,62 @@ change their joint distribution. For many practical workflows, "same population,
 same measurement process, no systematic time/order effect" is the operational
 check.
 
-**Why it matters**: This is the key assumption for standard conformal prediction guarantees. If your calibration and test data are exchangeable, split conformal p-values are marginally valid.
+**Why it matters**: With a scoring rule fitted independently and then frozen,
+exchangeability of calibration scores and the relevant true-null test score
+supports the standard split-conformal rank argument.
 
-**When it holds**: Training/calibration and test data come from the same source,
-collected the same way, without systematic changes over time or sampling rules.
+**Operational evidence**: Calibration and target null observations are sampled
+under the same mechanism, preprocessing and inclusion rules do not depend on
+their eventual scores, and there is no unmodeled ordering or group effect. These
+checks support exchangeability but cannot prove it from one dataset.
 
-**When it's violated**: Distribution shift, temporal drift, or different data collection procedures between training and test.
+**Common violations**: Distribution shift, temporal dependence, duplicated or
+clustered observations treated as independent rows, outcome-dependent sampling,
+and preprocessing fitted using calibration or target information.
 
 ---
 
 ## Calibration Set
 
-**What it is**: A held-out portion of training data used to compute reference anomaly scores.
+**What it is**: Reference observations scored by a fixed detector to form the
+empirical null comparison set. In `Split`, these are held out from detector
+fitting; detached calibration accepts a separately supplied set.
 
 **Why it matters**: The calibration set provides the "baseline" for computing p-values. Test scores are compared against calibration scores.
 
 **How big should it be**: Empirical conformal p-values move in steps of
 $1/(n+1)$ with `n` calibration samples. Small calibration sets give coarse
-p-values and can make FDR selection conservative or powerless. Treat 50-100
-calibration samples as a usability floor, not a theorem; larger calibration
-sets usually give better p-value resolution.
+p-values and can make FDR selection conservative or powerless. There is no
+universal minimum: choose the count from the required testing resolution,
+family size, detector fitting needs, and measured stability.
 
 ---
 
 ## Statistical Power
 
-**What it is**: The proportion of true anomalies that you successfully detect.
+**What it is**: The probability of rejection under a specified alternative.
+Across a realized labeled family, the analogous descriptive quantity is recall
+or true positive rate, $\mathrm{TP}/(\mathrm{TP}+\mathrm{FN})$.
 
-**In nonconform**: Use `statistical_power(y_true, predictions)` to measure this.
+**In nonconform**: `statistical_power(y_true, predictions)` retains its v1 name
+but computes the realized true positive rate for those arrays. Repeated
+simulation or sampling under a declared alternative is needed to estimate
+power.
 
-**Trade-off**: Higher power often requires accepting more false positives.
-Choose the FDR level from the operational cost of false alarms versus missed
+**Trade-off**: For a fixed scoring system and data design, relaxing the
+rejection threshold typically increases both power and false positives. Choose
+the FDR level from the operational cost of false alarms versus missed
 anomalies.
 
 ---
 
 ## Covariate Shift
 
-**What it is**: When the feature distribution P(X) differs between training and test data, but the relationship P(Y|X) stays the same.
-
-**Example**: Training on data from Sensor A, testing on data from Sensor B (different readings, same underlying physics).
+**What it is**: A shift from a calibration covariate distribution $P_X$ to a
+target distribution $Q_X$ while the relevant conditional data-generating
+mechanism remains invariant. Weighted conformal methods use the density ratio
+$w(x)=dQ_X/dP_X$ and require target support to be covered by calibration
+support.
 
 **Solution**: Use weighted conformal prediction only when the shift is plausibly
 covariate shift with sufficient support overlap and reliable weights. If the
@@ -149,14 +174,14 @@ anomaly mechanism changes, weighting alone does not restore the guarantees. See
 
 ## Key Relationships
 
-| Concept | Controls | Affected by |
+| Concept | Statistical role | Depends on |
 |---------|----------|-------------|
-| **p-value** | Per-test false-positive probability under null assumptions | Calibration set size, detector quality |
-| **FDR** | Expected false-positive proportion among discoveries | p-value validity, number of tests |
-| **Ville threshold** | Anytime false alarm probability (per stream) | Martingale validity, threshold choice |
-| **Restarted Ville threshold** | Anytime false alarm probability for a restart mixture designed for later changes | e-process validity, restart prior |
-| **Power** | True positive rate | FDR threshold, detector quality |
-| **Exchangeability** | p-value validity | Data collection process, distribution shift |
+| **p-value** | Supports a level-$a$ test through null super-uniformity | Null and calibration assumptions; calibration size sets rank resolution |
+| **FDR** | Expected FDP of a declared testing family | Null p-value validity, dependence, family definition, and selection procedure |
+| **Ville threshold** | Bounds ever-crossing probability for one valid stream | e-process validity and threshold choice |
+| **Restarted Ville threshold** | Applies the Ville bound to a restart-mixture e-process | Component e-process validity and restart prior |
+| **Power** | Rejection probability under an alternative | Alternative distribution, scorer, calibration, and decision rule |
+| **Exchangeability** | Supplies rank symmetry used for conformal validity | Joint sampling, dependence, ordering, and preprocessing |
 
 ---
 

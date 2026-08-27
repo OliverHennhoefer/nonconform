@@ -1,587 +1,327 @@
 ---
-description: "Use false discovery rate control with conformal p-values, weighted selection, and online FDR workflows in nonconform."
+description: "Use batch FDR control, weighted conformalized selection, simultaneous post-hoc FDP bounds, and online FDR with their distinct assumptions."
 ---
 
-# False Discovery Rate Control
+# False discovery rate control
 
-FDR control is the decision layer for batch anomaly detection. Use it when you
-turn many conformal p-values into many anomaly flags and want to control the
-expected fraction of false flags among the points you investigate.
+When a batch contains many candidate anomalies, thresholding every p-value at
+the same nominal level ignores multiplicity. False discovery rate (FDR) control
+targets the quality of the selected set instead.
 
-## What is FDR and Why Does It Matter?
+Let `R` be the number of discoveries and `V` the number of selected true nulls.
+The realized false discovery proportion (FDP) is
 
-When you test many observations for anomalies, some will look anomalous by
-chance even if they are truly normal. If you tested 1,000 truly normal,
-well-calibrated p-values one by one at alpha = 0.05, you would expect about 50
-false positives before any multiple-testing correction.
+$$
+\operatorname{FDP}=\frac{V}{\max(R,1)},
+$$
 
-The false discovery proportion in one realized batch is the fraction of false positives among all observations you flag as anomalies:
+and the false discovery rate is
 
-$$\text{FDP} = \frac{\text{False Positives}}{\text{Total Discoveries}}$$
+$$
+\operatorname{FDR}=\mathbb{E}[\operatorname{FDP}].
+$$
 
-More precisely, that displayed fraction is the realized false discovery
-proportion (FDP); FDR is the expected FDP over repeated data draws.
+The expectation is over repetitions of the complete data-generating and
+selection procedure. FDP is observable on one fully labeled family; FDR is not.
 
-An equivalent operational interpretation of the expected proportion is:
+!!! note "What `alpha=0.05` means"
 
-$$\text{FDR} \approx \frac{\text{Wasted Effort (chasing false positives)}}{\text{Total Investigation Effort}}$$
+    Under the assumptions of the p-values and selection procedure, the
+    expected fraction of false discoveries among all discoveries is bounded by
+    the stated target, here 0.05. It does not mean that each
+    selected point has a 95% probability of being anomalous, nor that at most
+    5% of all normal observations will be selected in every realized batch.
 
-**False Discovery Rate (FDR)** control adjusts the selection threshold so that
-the expected false-positive proportion among discoveries stays below a target
-level, such as 5%, when the p-values and dependence assumptions are valid. This
-differs from controlling false positives per individual test: FDR controls the
-average error proportion among the points you actually flag.
+## Standard batch workflow
 
-!!! example "Example"
-    Suppose your pipeline flags 100 observations as anomalies with
-    `alpha = 0.05` FDR control and the statistical assumptions hold.
-
-    - Target: expected false discovery proportion at or below 5%
-    - Realized false alarms in one batch can be lower or higher
-
-    Now compare this to an uncontrolled setup that flags 200 observations,
-    where 50 are false positives:
-
-    - False positives: 50/200 = 25% realized FDP
-    - This means 1 in 4 investigations is wasted effort
-
----
-
-## Quick Start
-
-`detector.select()` is the recommended single-call entry point. It combines
-p-value computation with the appropriate FDR-controlled selection procedure,
-automatically dispatching to weighted selection when a `weight_estimator` is
-configured:
+For an unweighted `ConformalDetector`, `select(...)` computes p-values and
+applies Benjamini-Hochberg (BH) adjustment to the complete input batch.
 
 ```python
-detector.fit(X_train)
-mask = detector.select(X_test, alpha=0.05)
-```
+import numpy as np
+from sklearn.ensemble import IsolationForest
 
-Weighted detectors use classical `Empirical()` by default. Classical weighted
-p-values include tied calibration mass and are accepted by `select()`.
-Randomized empirical p-values are explicit opt-in estimators with
-marginal/asymptotic validity. The published finite-sample WCS theorem uses
-strict primary and auxiliary comparisons.
-
-For the weighted case with custom pruning:
-
-```python
-from nonconform.enums import Pruning
-
-mask = detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-```
-
-When you need raw p-values for custom downstream analysis (multi-alpha sweeps,
-diagnostics, or a separately justified combination workflow), use
-`compute_p_values(...)` plus SciPy BH:
-
-```python
-from scipy.stats import false_discovery_control
-
-p_values = detector.compute_p_values(X_test)
-decisions = false_discovery_control(p_values, method="bh") <= 0.05
-```
-
-!!! note
-    `detector.last_result` is populated by the most recent
-    `detector.compute_p_values(...)` or `detector.select(...)` call.
-    See [Weighted Conformal Selection](#weighted-conformal-selection) below for
-    a complete runnable example.
-
----
-
-## Post-Hoc FDP Bounds
-
-Classical FDR control is a fixed-level, average-over-repeated-runs guarantee. If
-you inspect p-values and then choose a more convenient threshold, you should not
-report the result as if that threshold had been fixed upfront.
-
-For exploratory threshold choice on already-valid unweighted conformal
-p-values, `nonconform.fdr.conformal_fdp_upper_bound_from_result(...)` provides
-a simultaneous upper bound on realized false discovery proportion (FDP) across
-thresholds:
-
-```python
-from nonconform.fdr import conformal_fdp_upper_bound_from_result
-
-p_values = detector.compute_p_values(X_test)
-bounds = conformal_fdp_upper_bound_from_result(
-    detector.last_result,
-    confidence=0.95,
-    method="mc_thc",
-    seed=42,
-)
-
-threshold = 0.05
-selected = bounds.select(threshold)
-fdp_bound = bounds.bound_at(threshold)
-precision_floor = bounds.precision_at(threshold)
-table = bounds.to_frame()
-```
-
-Interpretation: after choosing `threshold`, report the attached FDP certificate,
-for example "at threshold 0.05, the 95% FDP upper bound is 0.18, so certified
-precision is at least 0.82." This is a different claim from "BH controls FDR at
-0.18."
-
-Supported envelope methods are `mc_thc` (default), `mc_hc`, `mc_ks`, `ks`, and
-`mc_bj`. Choose the method before inspecting the curve; comparing methods after
-seeing the data and reporting only the best-looking certificate is result
-tuning. `ks` is simple and often conservative. `mc_bj` can be useful for sharp
-left-tail behavior, but it is numerically heavier and uses the `precision`
-parameter.
-
-!!! warning "Guarantee scope"
-    This first implementation is intended for unweighted empirical split or
-    detached conformal p-values from a fixed scoring map. It does not cover
-    weighted p-values, probabilistic/conditional p-value estimators,
-    cross-validation/jackknife aggregation, detector or feature selection,
-    threshold-dependent preprocessing, or repeated attempts to pick the
-    best-looking pipeline.
-
----
-
-## Selection Entry Points
-
-**Primary (recommended):** `detector.select(X_test, alpha=...)` - dispatches
-automatically based on detector configuration; no manual result-bundle
-handling required.
-
-**Advanced/low-level options** (for custom workflows):
-
-- Standard (exchangeable): apply BH directly via
-  `scipy.stats.false_discovery_control(...)` to conformal p-values.
-- Post-hoc FDP certificates:
-  `conformal_fdp_upper_bound_from_result(result=...)`.
-- Weighted (covariate shift with importance weights):
-  `weighted_false_discovery_control(result=...)` or
-  `weighted_false_discovery_control_from_arrays(...)`.
-
-## Parameter Roles (`delta` vs `alpha`)
-
-When using `ConditionalEmpirical`, keep these roles separate:
-
-- `delta`: calibration confidence/failure budget inside the conditional
-  p-value map.
-- `alpha`: target FDR level in the final selection rule.
-
-They do not need to be equal. A common pattern is to tune `delta` for p-value
-calibration behavior and `alpha` for operational false discovery tolerance.
-
-## Guarantee Scope for BH-Style Selection
-
-BH-style selection applied to conformal p-values has guarantees that depend on:
-
-- how valid/calibrated those p-values are,
-- exchangeability (or the relevant data-shift assumptions for weighted methods),
-- and BH dependence assumptions (independence or PRDS).
-
-For standard split conformal outlier p-values, Bates et al. prove the PRDS
-property needed for BH under their assumptions. This does not mean arbitrary
-post-processing is safe: shared calibration data can make generic p-value
-combination procedures invalid without additional justification.
-
-In other words, the selection routine itself does not create validity from
-invalid inputs; it preserves guarantees under the assumptions above.
-
-| Input situation | Recommended path |
-|---|---|
-| Standard exchangeable conformal p-values | `detector.select(...)` or SciPy BH on `compute_p_values(...)` |
-| Weighted covariate-shift workflow | `detector.select(...)` with a `weight_estimator` so WCS is used |
-| Arbitrary dependent or post-processed p-values | Do not assume BH validity without a separate justification |
-| Streaming decisions over time | Use an online FDR method, not a fixed-batch BH shortcut |
-
-!!! warning "Strict validation for weighted inputs"
-    Weighted FDR routines fail fast on invalid inputs.
-    They now raise `ValueError` when:
-
-    - score/weight arrays are not 1D numeric arrays of matching lengths
-    - any score/weight/p-value contains non-finite values
-    - any weight is negative
-    - total calibration weight is not strictly positive
-    - `result.metadata["kde"]` is present but malformed
-      (missing keys, invalid shapes, non-monotone grid/CDF, or non-positive total weight)
-
-```python
-from scipy.stats import false_discovery_control
-from nonconform.fdr import (
-    weighted_false_discovery_control,
-    weighted_false_discovery_control_from_arrays,
-)
-
-# Standard BH selection from explicit p-values
-cs_mask = false_discovery_control(result.p_values, method="bh") <= 0.05
-
-# Strict WCS from cached result bundle
-wcs_from_result = weighted_false_discovery_control(
-    result=result,
-    alpha=0.05,
-)
-
-# Strict WCS from explicit arrays
-wcs_mask = weighted_false_discovery_control_from_arrays(
-    p_values=result.p_values,
-    test_scores=result.test_scores,
-    calib_scores=result.calib_scores,
-    test_weights=result.test_weights,
-    calib_weights=result.calib_weights,
-    alpha=0.05,
-)
-```
-
----
-
-## Basic Usage
-
-```python
 from nonconform import ConformalDetector, Split
 
-from pyod.models.lof import LOF
-
-detector = ConformalDetector(
-    detector=LOF(),
-    strategy=Split(n_calib=0.2),
-    aggregation="median",
-    seed=42,
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(3_000, 4))
+x_family = np.vstack(
+    [rng.normal(size=(195, 4)), rng.normal(loc=4.5, size=(5, 4))]
 )
 
-detector.fit(X_train)
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
 
-# FDR-controlled selection at 5% - single call
-discoveries = detector.select(X_test, alpha=0.05)
+selected = detector.select(x_family, alpha=0.05)
+result = detector.last_result
+assert result is not None
+assert result.p_values is not None
 
-print(f"FDR-controlled discoveries: {discoveries.sum()}")
+print(f"discoveries: {selected.sum()}")
+print("smallest p-values:", np.sort(result.p_values)[:5])
 ```
 
-## Weighted Conformal Selection
+The input to one `select(...)` call is one testing family. Calling it separately
+on several chunks applies separate procedures. It does not reproduce BH on the
+combined p-values.
 
-When calibration and test distributions differ in a way that matches the
-covariate-shift assumptions, configure a `weight_estimator` and call
-`select()` - it automatically dispatches to Weighted Conformalized Selection
-(WCS):
+## How BH selects
+
+For sorted p-values
+`p_(1) <= ... <= p_(m)`, BH finds the largest `k` satisfying
+
+$$
+p_{(k)}\le \frac{k}{m}\alpha
+$$
+
+and rejects the hypotheses with p-values no greater than `p_(k)`. Equivalently,
+software can return BH-adjusted p-values and select those no greater than
+`alpha`.
+
+Under independent null p-values, or suitable positive regression dependence,
+BH controls FDR. Conformal p-values computed against a shared calibration set
+are generally dependent. Bates et al. establish the needed positive dependence
+and BH control for their conformal outlier-testing construction; applying that
+result requires matching its exchangeability and score-construction conditions.
+
+!!! warning "A procedure cannot repair invalid p-values"
+
+    BH, BY, WCS, and online FDR each have assumptions. No multiplicity method
+    repairs leakage, a changing score map, a misspecified null population, or a
+    calibration-to-test shift outside its model.
+
+## Manual BH or BY adjustment
+
+Use SciPy when you intentionally want adjusted p-values or Benjamini-Yekutieli
+(BY). SciPy documents BH for independent or positively regression-dependent
+p-values and BY as a more conservative option valid under arbitrary dependence.
 
 ```python
-from nonconform import ConformalDetector, JackknifeBootstrap, logistic_weight_estimator
-from nonconform.enums import Pruning
-from pyod.models.iforest import IForest
+import numpy as np
+from scipy.stats import false_discovery_control
 
-detector = ConformalDetector(
-    detector=IForest(random_state=1),
-    strategy=JackknifeBootstrap(n_bootstraps=50),
-    weight_estimator=logistic_weight_estimator(),
-    seed=1,
+p_values = np.array([0.001, 0.009, 0.03, 0.08, 0.20, 0.70])
+alpha = 0.05
+
+bh_adjusted = false_discovery_control(p_values, method="bh")
+by_adjusted = false_discovery_control(p_values, method="by")
+
+print("BH selections:", bh_adjusted <= alpha)
+print("BY selections:", by_adjusted <= alpha)
+```
+
+BY protects against a broader dependence class by sacrificing power. It does
+not protect against choosing the family, method, or target after inspecting the
+same results.
+
+Use family-wise error rate control instead when the objective is the
+probability of making even one false rejection, rather than the expected
+proportion of errors among discoveries.
+
+## Why naive pointwise thresholding fails
+
+If 1,000 true-null p-values are valid and super-uniform, the expected number at
+or below `0.05` is at most 50. Equality requires exact uniformity. Selecting all
+such p-values would therefore create false discoveries even though every
+individual test uses a familiar threshold.
+
+Multiplicity control coordinates the thresholds across the family. It does
+not change the meaning of the underlying p-values.
+
+## Weighted conformalized selection
+
+Under covariate shift, weighted conformal p-values need not have the positive
+dependence used by ordinary BH. In weighted mode, `select(...)` dispatches to
+weighted conformalized selection (WCS), not BH.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.fdr import Pruning
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(2_000, 3))
+x_shifted_family = np.vstack(
+    [
+        rng.normal(loc=0.5, size=(18, 3)),
+        rng.normal(loc=6.0, size=(2, 3)),
+    ]
 )
 
-detector.fit(X_train)
+detector = ConformalDetector(
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.4),
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
+).fit(x_reference)
 
 selected = detector.select(
-    X_test,
+    x_shifted_family,
     alpha=0.1,
     pruning=Pruning.DETERMINISTIC,
-    seed=1,
+)
+print("selected indices:", np.flatnonzero(selected))
+```
+
+The pruning options are:
+
+| Mode | Randomness | Interpretation |
+|---|---|---|
+| `Pruning.DETERMINISTIC` | None | Deterministic pruning based on WCS rejection-set sizes |
+| `Pruning.HOMOGENEOUS` | One shared uniform draw | Randomized pruning with common randomness |
+| `Pruning.HETEROGENEOUS` | Independent uniform draws | Randomized pruning with observation-specific randomness |
+
+Pass `seed` to `select(...)` for reproducible randomized pruning. The
+detector's seed is used when the selection seed is omitted.
+
+WCS validity additionally requires the weighted-conformal covariate-shift
+assumptions and suitable weights. See
+[Weighted conformal inference](weighted_conformal.md).
+
+## Post-hoc simultaneous FDP bounds
+
+FDR control selects by a procedure fixed in advance and controls expected FDP.
+`conformal_fdp_upper_bound_from_result(...)` answers a different question: it
+constructs a high-confidence upper envelope for realized FDP that is
+simultaneous over p-value thresholds. This permits threshold exploration within
+the returned certificate's scope.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.fdr import conformal_fdp_upper_bound_from_result
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(5_000, 3))
+x_family = np.vstack(
+    [rng.normal(size=(180, 3)), rng.normal(loc=5.0, size=(20, 3))]
 )
 
-print(f"Selected points: {selected.sum()} / {len(selected)}")
-```
-
-The ``pruning`` parameter controls the second-stage WCS pruning rule.
-``DETERMINISTIC`` uses a fixed rule. ``HOMOGENEOUS`` and ``HETEROGENEOUS`` use
-shared or independent randomness. Set ``seed`` for reproducible randomized
-pruning decisions.
-
-The Jin--Candès finite-sample WCS construction uses strict primary and
-auxiliary comparisons. Classical and strict primary formulas agree when no
-calibration score ties the test score. With exact ties, the implementation uses
-conservative classical primary p-values; that variant is outside the theorem's
-stated scope. Seeded randomized pruning uses a deterministic stream distinct
-from the estimator's random stream.
-
-## Available Methods
-
-For direct BH control on conformal p-values, use
-`scipy.stats.false_discovery_control`. SciPy documents `method="bh"` for
-Benjamini-Hochberg and `method="by"` for the more conservative
-Benjamini-Yekutieli dependency-robust adjustment.
-
-### Benjamini-Hochberg (BH)
-- **Method**: `'bh'`
-- **Description**: Most commonly used FDR control method
-- **Assumptions**: Independent tests, or tests satisfying positive regression
-  dependence on subsets (PRDS). In plain terms, PRDS means small p-values tend
-  to occur together in a positively dependent way; it is stricter than generic
-  "positive dependence." Standard split conformal outlier p-values satisfy
-  PRDS in the Bates et al. setting.
-- **Usage**: `false_discovery_control(p_values, method='bh')`
-
-```python
-from scipy.stats import false_discovery_control
-
-# BH control on conformal p-values
-bh_adjusted = false_discovery_control(p_values, method='bh')
-bh_discoveries = (bh_adjusted < 0.05).sum()
-
-print(f"BH discoveries: {bh_discoveries}")
-```
-
-## Setting FDR Levels
-
-You can control the desired FDR level using the `alpha` parameter:
-
-```python
-from scipy.stats import false_discovery_control
-
-# Different FDR levels
-fdr_levels = [0.01, 0.05, 0.1, 0.2]
-
-for alpha in fdr_levels:
-    discoveries = (false_discovery_control(p_values, method="bh") <= alpha).sum()
-    print(f"FDR level {alpha}: {discoveries} discoveries")
-```
-
-## When to Use FDR Control
-
-Use FDR control whenever you make more than one test-level anomaly decision.
-This includes both batch decisions made simultaneously and decisions accumulated
-over time.
-
-### Core Rule
-- One test: a per-test threshold may be enough.
-- Multiple tests: control FDR to bound the expected fraction of false
-  discoveries among flagged points.
-
-### Why
-1. **Controlled false discoveries**: bounds expected false-positive proportion among detections.
-2. **Practical power trade-off**: usually more powerful than stricter family-wise error control.
-3. **Scales to many tests**: suitable for modern high-throughput anomaly workflows.
-
-### Sequential Note
-If decisions are made over time (not a fixed batch), use procedures designed
-for online settings (see [Online FDR Control for Streaming Data](#online-fdr-control-for-streaming-data)).
-
-## Integration with Conformal Prediction
-
-`select()` dispatches automatically - standard or weighted - based on the
-detector's configuration:
-
-```python
-from nonconform import ConformalDetector, Split, logistic_weight_estimator
-from nonconform.enums import Pruning
-from pyod.models.lof import LOF
-
-base_detector = LOF()
-strategy = Split(n_calib=0.2)
-
-# Standard: BH-style FDR selection on conformal p-values
-standard_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
+detector = ConformalDetector(
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.3),
     seed=42,
-)
-standard_detector.fit(X_train)
-standard_mask = standard_detector.select(X_test, alpha=0.05)
+).fit(x_reference)
+detector.compute_p_values(x_family)
 
-# Weighted: WCS (handles covariate shift via importance weights)
-weighted_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
+certificate = conformal_fdp_upper_bound_from_result(
+    detector.last_result,
+    confidence=0.95,
+    n_resamples=500,
     seed=42,
-)
-weighted_detector.fit(X_train)
-weighted_mask = weighted_detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
+    thresholds=np.array([0.001, 0.005, 0.01, 0.025, 0.05, 0.1]),
 )
 
-print(f"Standard detections: {standard_mask.sum()}")
-print(f"Weighted detections: {weighted_mask.sum()}")
+print(certificate.to_frame())
+print("FDP upper bound at 0.05:", certificate.bound_at(0.05))
 ```
 
-## Performance Evaluation
+The result-based API deliberately accepts only unweighted `Split` or detached
+calibration results with `Empirical` p-values. It rejects weighted,
+probabilistic/KDE, conditional-calibration, and resampling-strategy results.
+The certificate does not cover changing the detector or model after looking at
+the curve.
 
-Evaluate the effectiveness of FDR control using nonconform's built-in metrics:
+An upper bound of `1.0` is valid but uninformative, not a build or API failure.
+Certificate tightness depends on the calibration count, family size, observed
+p-values, confidence level, and envelope method. Do not change those inputs
+post hoc solely to obtain a more attractive bound.
 
-```python
-from scipy.stats import false_discovery_control
-from nonconform.metrics import false_discovery_rate, statistical_power
+Choose the envelope `method` before inspecting the bound. Supported values are
+`"mc_thc"`, `"mc_hc"`, `"mc_ks"`, `"ks"`, and `"mc_bj"`.
 
-def evaluate_fdr_control(p_values, true_labels, alpha=0.05):
-    """Evaluate FDR control performance."""
-    # Apply FDR control
-    discoveries = false_discovery_control(p_values, method="bh") <= alpha
+!!! note "FDR target and FDP confidence are different"
 
-    # Calculate metrics using nonconform functions
-    empirical_fdr = false_discovery_rate(true_labels, discoveries)
-    power = statistical_power(true_labels, discoveries)
+    `alpha` is the target expected false discovery proportion for a selection
+    procedure. `confidence=0.95` is the simultaneous coverage probability of
+    an FDP upper-bound certificate. Neither can be substituted for the other.
 
-    return {
-        'discoveries': discoveries.sum(),
-        'empirical_fdr': empirical_fdr,
-        'power': power
-    }
+## Repeated and online testing
 
-# Example usage
-results = evaluate_fdr_control(p_values, y_true, alpha=0.05)
-print(f"Discoveries: {results['discoveries']}")
-print(f"Empirical FDR: {results['empirical_fdr']:.3f}")
-print(f"Statistical Power: {results['power']:.3f}")
+### Repeated batches
+
+Applying BH at level `alpha` to every batch can control FDR within each batch
+under the corresponding assumptions. It does not automatically control the
+FDR of all discoveries pooled across time, and it does not create a lifetime
+false-alarm bound.
+
+If all observations form one fixed family and can be held until the family is
+complete, apply one batch procedure to that family. If hypotheses genuinely
+arrive over time and decisions cannot wait, use an online multiple-testing
+method whose assumptions match the p-value process.
+
+### Online FDR
+
+The optional `fdr` extra provides the separate `online_fdr` package:
+
+```bash
+pip install "nonconform[fdr]"
 ```
 
-## Best Practices
-
-### 1. Choose Appropriate FDR Level
-- **Very strict**: `alpha = 0.01` only when false positives are extremely costly (often too strict for exploratory workflows)
-- **Standard**: `alpha = 0.05` for most applications
-- **Exploratory / higher-recall**: `alpha = 0.10` when missing anomalies is costlier than investigating additional false positives
-
-### 2. Method Selection
-- Use **`detector.select(...)`** for most conformal workflows
-- Use **BH** via SciPy for manual p-value thresholding workflows
-- Use **BY** only when you need a conservative fallback for dependence that is
-  not covered by the BH assumptions and you accept reduced power
-
-### 3. Combine with Domain Knowledge
-```python
-from scipy.stats import false_discovery_control
-
-# Incorporate prior knowledge about anomaly prevalence
-expected_anomaly_rate = 0.02  # 2% expected anomalies
-adjusted_alpha = min(0.05, expected_anomaly_rate * 2)  # Adjust FDR level
-
-discoveries = false_discovery_control(p_values, method="bh") <= adjusted_alpha
-```
-
-### 4. Monitor Performance
-```python
-from scipy.stats import false_discovery_control
-
-# Track FDR control performance over time
-fdr_history = []
-for batch in data_batches:
-    p_vals = detector.compute_p_values(batch)
-    discoveries = false_discovery_control(p_vals, method="bh") <= 0.05
-
-    if len(true_labels_batch) > 0:  # If ground truth available
-        metrics = evaluate_fdr_control(p_vals, true_labels_batch)
-        fdr_history.append(metrics['empirical_fdr'])
-```
-
-## Common Pitfalls
-
-### 1. Inappropriate Independence Assumptions
-- BH assumes independence or positive dependence
-- Re-check assumptions or move to methods designed for your dependence structure
-
-### 2. Multiple Rounds of Testing
-- Don't apply FDR control multiple times to the same data
-- If doing sequential testing, use specialized methods
-
-## Online FDR Control for Streaming Data
-
-For dynamic settings with streaming data batches, the optional `online-fdr`
-package provides procedures that make decisions as p-values arrive. Their FDR
-guarantees remain conditional on the assumptions of the chosen procedure (often
-independence and monotonicity); the package does not by itself make temporally
-dependent conformal p-values valid.
-
-Do not conflate this with martingale alarm thresholds such as
-`ville_threshold` or `restarted_ville_threshold` in
-[Exchangeability Martingales](exchangeability_martingales.md): those provide
-anytime false-alarm control on evidence processes, not FDR control across
-multiple tested hypotheses.
-
-### Installation and Basic Usage
+The following is a runnable API demonstration with a simulated p-value stream.
+It does not establish that p-values from an arbitrary application satisfy the
+method's assumptions.
 
 ```python
-# Install FDR dependencies
-# pip install nonconform[fdr]
-
-from online_fdr import Gai
-
-# Example with streaming conformal p-values
-def streaming_anomaly_detection(data_stream, detector, alpha=0.05):
-    """Online FDR control for streaming anomaly detection."""
-
-    # Initialize online FDR method
-    # GAI: alpha-investing style online FDR control
-    online_fdr = Gai(alpha=alpha, wealth=alpha / 2)
-
-    discoveries = []
-
-    for batch in data_stream:
-        # Get p-values for current batch
-        p_values = detector.compute_p_values(batch)
-
-        # Apply online FDR control
-        for p_val in p_values:
-            decision = online_fdr.test_one(float(p_val))
-            discoveries.append(decision)
-
-    return discoveries
-```
-
-### LORD (Levels based On Recent Discovery) Method
-
-```python
+import numpy as np
 from online_fdr import LordThree
 
-# LORD 3: alpha allocation adapts over the testing stream
-lord_fdr = LordThree(alpha=0.05, wealth=0.04, reward=0.05)
+rng = np.random.default_rng(42)
+p_value_stream = rng.uniform(size=100)
+p_value_stream[[30, 70]] = [1e-6, 1e-7]
 
-# Process streaming data with temporal adaptation
-for t, (batch, p_values) in enumerate(stream_with_pvalues):
-    for p_val in p_values:
-        # LORD adapts rejection threshold based on recent discoveries
-        reject = lord_fdr.test_one(float(p_val))
+controller = LordThree(alpha=0.05, wealth=0.025, reward=0.05)
+rejections = np.array(
+    [controller.test_one(float(p_value)) for p_value in p_value_stream],
+    dtype=bool,
+)
 
-        if reject:
-            print(f"Anomaly detected at time {t} with p-value {p_val:.4f}")
+print(np.flatnonzero(rejections))
 ```
 
-### Statistical Assumptions for Online FDR
+Online FDR procedures typically require null p-values that are conditionally
+super-uniform relative to the information available before each test, plus the
+procedure's stated dependence conditions. Repeated
+`ConformalDetector.compute_p_value(...)` calls against one fixed calibration
+ECDF do not automatically supply that conditional property.
 
-**Key Requirements:**
-- **Independence assumption**: Test statistics should be independent or satisfy specific dependency structures
-- **Sequential testing**: Methods designed for sequential hypothesis testing scenarios
-- **Temporal stability**: Underlying anomaly detection model should be reasonably stable
+For evidence of a distributional change in one ordered stream, use
+[exchangeability martingales](exchangeability_martingales.md). That is a
+sequential change-monitoring problem, not automatically an online
+multiple-testing problem.
 
-**When NOT to use online FDR:**
-- Strong temporal dependencies in p-values without proper correction
-- Concept drift affecting p-value calibration
-- Non-stationary data streams requiring model retraining
+## Choosing the correct lane
 
-**Best practice**: Combine with windowed model retraining and exchangeability monitoring for robust streaming anomaly detection.
+| Goal | Use |
+|---|---|
+| Select anomalies in one fixed batch | `detector.select(batch, alpha=...)` |
+| Adjust standard p-values manually | SciPy BH or BY, after checking assumptions |
+| Select under modeled covariate shift | Weighted `detector.select(...)`, which uses WCS |
+| Explore p-value thresholds with a simultaneous realized-FDP certificate | `conformal_fdp_upper_bound_from_result(...)` |
+| Test an open-ended sequence of distinct hypotheses | A justified online FDR procedure |
+| Detect loss of exchangeability in one stream | `ExchangeabilityMonitor` and a conformal martingale |
 
 ## References
 
-- **Benjamini, Y., & Hochberg, Y. (1995)**.
-  *[Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing](https://www.math.tau.ac.il/~ybenja/MyPapers/benjamini_hochberg1995.pdf)*.
-  Journal of the Royal Statistical Society: Series B, 57(1), 289-300.
-- **Benjamini, Y., & Yekutieli, D. (2001)**.
-  *[The Control of the False Discovery Rate in Multiple Testing under Dependency](https://projecteuclid.org/journals/annals-of-statistics/volume-29/issue-4/The-control-of-the-false-discovery-rate-in-multiple-testing-under/10.1214/aos/1013699998.full)*.
-  The Annals of Statistics, 29(4), 1165-1188.
-- **Bates, S., Candès, E., Lei, L., Romano, Y., & Sesia, M. (2023)**.
-  *[Testing for Outliers with Conformal p-values](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short)*.
-  The Annals of Statistics, 51(1), 149-178.
-- **Jin, Y., & Candès, E. J. (2023)**.
-  *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
-  Biometrika, 110(4), 1090-1106.
-- **SciPy documentation**.
-  [`scipy.stats.false_discovery_control`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html).
-
-## Next Steps
-
-- Learn about [weighted conformal p-values](weighted_conformal.md) for handling distribution shift
-- Explore [different conformalization strategies](conformalization_strategies.md) for various scenarios
-- Read about [best practices](best_practices.md) for robust anomaly detection
+- [Benjamini and Hochberg (1995)](https://doi.org/10.1111/j.2517-6161.1995.tb02031.x)
+  introduces BH FDR control.
+- [Benjamini and Yekutieli (2001)](https://doi.org/10.1214/aos/1013699998)
+  studies FDR control under dependence.
+- [Bates et al. (2023)](https://doi.org/10.1214/22-AOS2244)
+  analyzes conformal p-values for outlier testing, their dependence, and FDR
+  control.
+- [SciPy `false_discovery_control`](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.false_discovery_control.html)
+  documents the implemented BH and BY adjustments.
+- [Jin and Candès (2023)](https://arxiv.org/abs/2307.09291)
+  introduces weighted conformal p-values and WCS under covariate shift.
+- [Song, Jin, and Candès (2026)](https://arxiv.org/abs/2605.20726)
+  develops simultaneous FDP bounds over conformal-p-value thresholds.
+- [Javanmard and Montanari (2018)](https://doi.org/10.1214/17-AOS1629)
+  develops LORD-style online FDR control.

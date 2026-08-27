@@ -1,6 +1,6 @@
 # nonconform
 
-> Python package for conformal anomaly detection with calibrated p-values, principled thresholds, and FDR-controlled decisions.
+> Conformal p-values, FDR-controlled anomaly discovery, and exchangeability-martingale change monitoring in Python.
 
 This file is a concise, AI-readable map of the public documentation for nonconform.
 
@@ -8,9 +8,10 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 
 - [Home](https://oliverhennhoefer.github.io/nonconform/) - Project overview, citation, guarantee scope, and installation links.
 - [Installation](https://oliverhennhoefer.github.io/nonconform/installation/) - Package installation and optional extras.
-- [Quick Start](https://oliverhennhoefer.github.io/nonconform/quickstart/) - Minimal conformal anomaly detection workflow.
-- [User Guide](https://oliverhennhoefer.github.io/nonconform/user_guide/) - Concepts, strategies, weighting, FDR control, evaluation, and troubleshooting.
+- [Quick Start](https://oliverhennhoefer.github.io/nonconform/quickstart/) - Minimal batch-discovery and sequential-monitoring workflows.
+- [User Guide](https://oliverhennhoefer.github.io/nonconform/user_guide/) - Concepts, strategies, weighting, FDR control, martingales, evaluation, and troubleshooting.
 - [API Reference](https://oliverhennhoefer.github.io/nonconform/api/) - Public API modules and compatibility contract.
+- [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) - Independent copy-paste examples for the main public calls.
 - [Examples](https://oliverhennhoefer.github.io/nonconform/examples/) - Classical, conditional, resampling, weighted, and FDR examples.
 
 ## Key Topic Pages
@@ -19,6 +20,8 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 - [Choosing Calibration Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/choosing_strategies/) - Split, cross-validation, jackknife, and bootstrap trade-offs.
 - [Weighted Conformal P-values](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) - Covariate shift, importance weighting, diagnostics, and WCS selection.
 - [False Discovery Rate Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) - FDR-controlled anomaly decisions and online FDR workflows.
+- [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) - Sequential conformal ranks, evidence processes, and alarm semantics.
+- [Streaming Evaluation](https://oliverhennhoefer.github.io/nonconform/user_guide/streaming_evaluation/) - Separate evaluation designs for point anomalies and persistent changes.
 - [API Stability](https://oliverhennhoefer.github.io/nonconform/api/stability/) - v1 public API and statistical validity compatibility policy.
 
 ## Project Links
@@ -30,5 +33,7 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 ## Notes for AI Assistants
 
 - Treat documented statistical guarantees as conditional on the assumptions stated in the relevant guide pages.
-- Prefer `ConformalDetector.select(...)` for anomaly decisions that need FDR control.
+- For one fixed batch family, prefer `ConformalDetector.select(...)`; it applies BH in standard mode and WCS in weighted mode.
+- For one ordered change-monitoring stream, use `ExchangeabilityMonitor`; fixed-calibration batch p-values are not sequential conformal p-values.
+- Keep expected FDR, realized FDP, and one-stream Ville false-alarm control distinct.
 - Keep `nonconform._internal` private; it is not user-facing API.

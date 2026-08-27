@@ -1,287 +1,123 @@
 ---
-description: "Example weighted conformal anomaly detection under covariate shift with importance weights and FDR-controlled selection."
+description: "Compare standard BH selection with weighted conformal p-values and WCS under a controlled covariate-shift simulation."
 ---
 
-# Weighted Conformal Anomaly Detection
+# Weighted conformal selection
 
-Use weighted conformal prediction for anomaly detection when the shift is
-plausibly covariate shift with support overlap and reliable weights.
+This example simulates a shifted target null, compares standard split-conformal
+BH selection with weighted conformalized selection (WCS), and inspects the
+estimated importance weights.
 
-## Setup
+It is an API and evaluation example, not evidence that estimated weighting is
+valid for every real shift.
+
+## Complete comparison
 
 ```python
 import numpy as np
-from pyod.models.lof import LOF
-from oddball import Dataset, load
-from nonconform import (
-    ConformalDetector,
-    Split,
-    logistic_weight_estimator,
-)
-from nonconform.enums import Pruning
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.fdr import Pruning
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-# Load benchmark data
-X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
-```
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(3_000, 4))
+x_target = np.vstack(
+    [
+        rng.normal(loc=0.5, size=(24, 4)),
+        rng.normal(loc=6.0, size=(6, 4)),
+    ]
+)
+y_target = np.r_[np.zeros(24, dtype=int), np.ones(6, dtype=int)]
 
-## Basic Usage
-
-```python
-# Initialize base detector
-base_detector = LOF()
-
-# Create weighted conformal detector
-strategy = Split(n_calib=0.2)
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
+standard = ConformalDetector(
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.4),
     seed=42,
-)
+).fit(x_reference)
+standard_selected = np.asarray(standard.select(x_target, alpha=0.1))
+standard_result = standard.last_result
+assert standard_result is not None
+assert standard_result.p_values is not None
 
-# Fit on training data
-detector.fit(X)
-
-# Get weighted p-values for test data
-# The detector automatically estimates importance weights internally
-p_values = detector.compute_p_values(X_test)
-
-# Apply weighted FDR-controlled selection
-discoveries = detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
+weighted = ConformalDetector(
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.4),
+    weight_estimator=logistic_weight_estimator(clip_quantile=0.05),
     seed=42,
-)
-
-print(f"Weighted p-values range: {p_values.min():.4f} - {p_values.max():.4f}")
-print(f"Discoveries with WCS (FDR control): {discoveries.sum()}")
-```
-
-`aggregation` accepts: `"mean"`, `"median"`, `"minimum"`, `"maximum"`.
-Invalid values raise `ValueError`.
-
-## Handling Covariate Shift
-
-!!! warning "Illustrative shift only"
-    The perturbation below reuses the training rows, so the shifted sample is
-    dependent on the calibration source. Use independently sampled deployment
-    data when assessing the covariate-shift validity conditions; this block is
-    only a stress-test pattern.
-
-```python
-# Simulate a simple feature-distribution change for illustration
-np.random.seed(42)
-X_shifted = X + np.random.normal(0, 0.1, X.shape)
-
-# Create a new detector for shifted data
-detector_shifted = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42
-)
-
-# Fit on original data
-detector_shifted.fit(X)
-
-# Predict on shifted data
-p_values_shifted = detector_shifted.compute_p_values(X_shifted)
-
-# Apply weighted FDR-controlled selection
-discoveries_shifted = detector_shifted.select(
-    X_shifted,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-print(f"\nShifted data results:")
-print(f"Weighted p-values range: {p_values_shifted.min():.4f} - {p_values_shifted.max():.4f}")
-print(f"Discoveries with WCS: {discoveries_shifted.sum()}")
-```
-
-## Comparison with Standard Conformal Detection
-
-```python
-# Standard conformal detector for comparison
-standard_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
-
-# Fit on training data
-standard_detector.fit(X)
-
-# Compare on shifted data
-standard_disc = standard_detector.select(X_shifted, alpha=0.05)
-
-print(f"\nComparison on shifted data (with FDR control):")
-print(f"Standard conformal discoveries (BH): {standard_disc.sum()}")
-print(f"Weighted conformal discoveries (WCS): {discoveries_shifted.sum()}")
-```
-
-## Benchmark Shift Example
-
-```python
-# This benchmark can be useful for comparing behavior under train/test
-# differences, but real guarantees still depend on covariate-shift assumptions.
-# X contains normal training data, X_test contains test data with anomalies
-
-# Standard conformal detector
-standard_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
-standard_detector.fit(X)
-standard_p_values = standard_detector.compute_p_values(X_test)
-
-# Weighted conformal detector
-weighted_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42
-)
-weighted_detector.fit(X)
-weighted_p_values = weighted_detector.compute_p_values(X_test)
-
-# Apply FDR control
-standard_disc_severe = standard_detector.select(X_test, alpha=0.05)
-weighted_disc_severe = weighted_detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-print(f"\nDistribution shift results (with FDR control):")
-print(f"Standard conformal discoveries (BH): {standard_disc_severe.sum()}")
-print(f"Weighted conformal discoveries (WCS): {weighted_disc_severe.sum()}")
-print(f"Empirical FDR (weighted): {false_discovery_rate(y=y_test, y_hat=weighted_disc_severe):.3f}")
-print(f"Statistical Power (weighted): {statistical_power(y=y_test, y_hat=weighted_disc_severe):.3f}")
-```
-
-## Evaluation with Ground Truth
-
-```python
-# Evaluate weighted conformal selection with ground truth
-# y_test contains binary labels: 0=normal, 1=anomaly
-
-# Re-run with proper FDR control
-detector.fit(X)
-eval_discoveries = detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-print(f"\nWeighted Conformal Selection Results:")
-print(f"Discoveries: {eval_discoveries.sum()}")
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=eval_discoveries):.3f}")
-print(f"Statistical Power: {statistical_power(y=y_test, y_hat=eval_discoveries):.3f}")
-```
-
-## Visualization
-
-```python
-import matplotlib.pyplot as plt
-
-# Visualize detection results (using first two features for plotting)
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
-# P-value comparison
-axes[0].hist(standard_p_values, bins=30, alpha=0.7, label='Standard', color='blue')
-axes[0].hist(weighted_p_values, bins=30, alpha=0.7, label='Weighted', color='orange')
-axes[0].axvline(x=0.05, color='red', linestyle='--', label='α=0.05')
-axes[0].set_xlabel('p-value')
-axes[0].set_ylabel('Frequency')
-axes[0].set_title('P-value Distributions')
-axes[0].legend()
-
-# Detection comparison (with FDR control)
-detection_comparison = {
-    'Standard (BH)': standard_disc_severe.sum(),
-    'Weighted (WCS)': weighted_disc_severe.sum(),
-}
-axes[1].bar(detection_comparison.keys(), detection_comparison.values())
-axes[1].set_ylabel('Number of Discoveries')
-axes[1].set_title('Discovery Comparison (with FDR control)')
-
-plt.tight_layout()
-plt.show()
-```
-
-## Different Aggregation Methods
-
-```python
-# Compare different aggregation methods for weighted conformal
-aggregation_methods = [
-    "mean",
-    "median",
-    "minimum",
-    "maximum",
-]
-
-for agg_method in aggregation_methods:
-    det = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation=agg_method,
-        weight_estimator=logistic_weight_estimator(),
-        seed=42
-    )
-    det.fit(X)
-    disc = det.select(
-        X_test,
-        alpha=0.05,
+).fit(x_reference)
+weighted_selected = np.asarray(
+    weighted.select(
+        x_target,
+        alpha=0.1,
         pruning=Pruning.DETERMINISTIC,
-        seed=42,
     )
-    print(f"{agg_method} aggregation: {disc.sum()} discoveries")
+)
+weighted_result = weighted.last_result
+assert weighted_result is not None
+assert weighted_result.p_values is not None
+assert weighted_result.calib_weights is not None
+assert weighted_result.test_weights is not None
+
+def effective_sample_size(weights: np.ndarray) -> float:
+    weights = np.asarray(weights, dtype=float)
+    return float(weights.sum() ** 2 / np.square(weights).sum())
+
+for name, selected in {
+    "standard_bh": standard_selected,
+    "weighted_wcs": weighted_selected,
+}.items():
+    print(
+        name,
+        {
+            "discoveries": int(selected.sum()),
+            "realized_fdp": float(false_discovery_rate(y_target, selected)),
+            "power": float(statistical_power(y_target, selected)),
+        },
+    )
+
+print(
+    "calibration weights:",
+    {
+        "quantiles": np.quantile(
+            weighted_result.calib_weights,
+            [0.0, 0.05, 0.5, 0.95, 1.0],
+        ),
+        "ess": effective_sample_size(weighted_result.calib_weights),
+    },
+)
+print(
+    "target weights:",
+    {
+        "quantiles": np.quantile(
+            weighted_result.test_weights,
+            [0.0, 0.05, 0.5, 0.95, 1.0],
+        ),
+        "ess": effective_sample_size(weighted_result.test_weights),
+    },
+)
 ```
 
-## JaB+ Strategy with Weighted Conformal
+The standard and weighted calls intentionally use different selection
+procedures. Weighted conformal p-values need not satisfy the positive
+dependence used by ordinary BH, so weighted `select(...)` dispatches to WCS.
 
-```python
-from nonconform import JackknifeBootstrap
+## What must be true outside this simulation
 
-# Use JaB+ strategy for better stability
-jab_strategy = JackknifeBootstrap(n_bootstraps=50)
+Weighted validity requires a defensible covariate-shift model, target support
+inside calibration support, a fixed score construction, and suitable density
+ratios. Here the shift and labels are generated explicitly. In an application,
+those properties require domain justification and held-out diagnostics.
 
-weighted_jab_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jab_strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42
-)
+`clip_quantile=0.05` truncates the combined estimated weights at their 5th and
+95th percentiles. This can stabilize estimation but changes the ratio. Compare
+clipping choices on separate validation scenarios rather than selecting the
+most attractive final result.
 
-weighted_jab_detector.fit(X)
-jab_discoveries = weighted_jab_detector.select(
-    X_test,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
+ESS and quantiles are descriptive diagnostics, not universal validity tests.
+Near-separation of calibration and target samples, highly concentrated weights,
+or strong sensitivity to the estimator signals weak effective overlap.
 
-print(f"\nJaB+ + Weighted Conformal (with WCS):")
-print(f"Discoveries: {jab_discoveries.sum()}")
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=jab_discoveries):.3f}")
-print(f"Statistical Power: {statistical_power(y=y_test, y_hat=jab_discoveries):.3f}")
-```
-
-## Next Steps
-
-- Try [classical conformal detection](classical_conformal.md) for standard scenarios
-- Learn about [FDR control](fdr_control.md) for multiple testing
-- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly
+See [Weighted conformal inference](../user_guide/weighted_conformal.md) for the
+formulas, batch-state rules, bagged estimator, pruning modes, and references.

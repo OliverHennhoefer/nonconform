@@ -1,10 +1,12 @@
 ---
-description: "Public API reference for nonconform detectors, calibration strategies, p-value scoring, weighting, FDR control, and metrics."
+description: "Public API reference for nonconform batch discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
 ---
 
 # API Reference
 
-Complete API documentation for all nonconform modules and classes.
+Reference documentation for the complete v1 public module surface. For the
+statistical assumptions and decision context behind an API, follow the linked
+user-guide page before relying on a guarantee.
 
 ## Start Here
 
@@ -62,6 +64,20 @@ For standard workflows, prefer `ConformalDetector.select(...)`.
 ## Sequential Monitoring
 
 ::: nonconform.monitoring
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Metrics
+
+::: nonconform.metrics
+    options:
+      show_root_heading: true
+      heading_level: 3
+
+## Enumerations
+
+::: nonconform.enums
     options:
       show_root_heading: true
       heading_level: 3

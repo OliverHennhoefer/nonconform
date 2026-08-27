@@ -1,1003 +1,429 @@
 ---
-description: "Use weighted conformal p-values in nonconform for covariate shift, weight estimation, diagnostics, and WCS selection."
+description: "Use weighted conformal p-values and weighted conformalized selection under a documented covariate-shift model."
 ---
 
-# Weighted Conformal P-values
+# Weighted conformal inference
 
-Handle covariate shift between calibration and test data when the weighted
-conformal assumptions are appropriate.
+Weighted conformal inference addresses a specific departure from standard
+exchangeability: the covariate distribution of target observations differs
+from that of calibration observations, while the relevant conditional
+mechanism remains stable.
 
-!!! abstract "Executive Summary"
-    **When to use**: Your test data comes from a different feature distribution
-    than your calibration data, while the anomaly mechanism is still stable.
+It is not a general-purpose drift correction. Use it only when the shift model
+is defensible.
 
-    **How it works**: Weighted conformal prediction estimates how much the
-    feature distributions differ and reweights the calibration evidence
-    accordingly.
+!!! abstract "Workflow in one paragraph"
 
-    **Quick start**:
-    ```python
-    from nonconform import ConformalDetector, Split, logistic_weight_estimator
+    Add a `weight_estimator` to `ConformalDetector`, fit the detector on
+    reference data, and pass the complete target family to `select(...)`. The
+    weight estimator distinguishes calibration covariates from target
+    covariates and estimates a density ratio. `nonconform` then computes
+    weighted conformal p-values and applies weighted conformalized selection
+    (WCS). Inspect the stored weights and validate the shift model before
+    relying on the result.
 
-    detector = ConformalDetector(
-        detector=your_detector,
-        strategy=Split(n_calib=0.3),
-        weight_estimator=logistic_weight_estimator(),  # Add this
-        seed=42
-    )
-    ```
+## Assumptions
 
-    **Key assumption**: Only the feature distribution `P(X)` changes. The
-    relationship between features and anomaly status, `P(Y | X)`, must stay
-    stable. You also need independent samples, enough feature-support overlap,
-    and good enough weights. If distributions are too far apart, weighting can
-    become unstable and guarantees can degrade.
+Let `P_X` denote the calibration covariate distribution and `Q_X` the target
+covariate distribution. Weighted conformal methods use an importance ratio
 
-## Overview
+$$
+w(x)=\frac{dQ_X}{dP_X}(x).
+$$
 
-Weighted conformal p-values extend classical conformal prediction to covariate
-shift scenarios [[Jin & Candès, 2023](#references); [Tibshirani et al.,
-2019](#references)]. The marginal feature distribution `P(X)` may change between
-calibration and test data, but the conditional relationship `P(Y | X)` must stay
-stable. You also need independent calibration/test samples and enough support
-overlap between feature distributions; when shift is too extreme, estimated
-density ratios become unstable and weighted conformal adjustment may fail.
+The core requirements are:
 
-The weighted p-values provide per-hypothesis calibration under the relevant
-weighted-conformal assumptions. For multiple simultaneous decisions, pair them
-with Weighted Conformalized Selection (WCS). Jin & Candès (2023) prove
-finite-sample WCS control using strict primary and auxiliary score comparisons.
-The classical default agrees with the strict primary formula without relevant
-ties and is conservative when ties occur. The implementation accepts tied
-scores; this classical tied-score variant lies outside the theorem's stated
-scope. Randomized empirical estimation follows Eq. (4) and has
-marginal/asymptotic validity. The finite-sample WCS theorem uses the strict
-primary formula.
+1. **Appropriate shift model.** The feature distribution may change, but the
+   null/anomaly semantics and relevant conditional mechanism must remain
+   stable in the sense required by the chosen weighted-conformal result.
+2. **Support overlap.** Target observations must lie in regions where the
+   calibration distribution has support. Finite weighting cannot recover a
+   missing reference population.
+3. **Valid score construction.** The fitted detector and learned preprocessing
+   must not use the calibration or target outcomes being tested.
+4. **Suitable weights.** Exact results assume known likelihood ratios; using
+   estimated ratios adds modeling error that must be assessed.
+5. **Matching selection procedure.** Weighted conformal p-values generally
+   cannot simply be passed to BH. Use WCS for the finite-sample FDR result
+   developed for this setting.
 
-If weights are learned rather than known, exactness depends on their quality.
-KDE/`Probabilistic` scoring is a model-based/asymptotic path, not the same
-finite-sample conformal result.
+Examples that may fit the model include a change in sensor mix, geography, or
+sampling policy when the definition and mechanism of a normal case remain
+stable. A changed anomaly mechanism, new measurement semantics, label shift,
+or missing target support is not repaired merely by turning on weights.
 
-`ConformalDetector(weight_estimator=...)` estimates importance weights by
-distinguishing calibration samples from the current test batch, then uses those
-weights to compute weighted p-values and WCS selections.
-
-## Basic Usage
+## Complete weighted selection
 
 ```python
 import numpy as np
+from sklearn.ensemble import IsolationForest
+
 from nonconform import ConformalDetector, Split, logistic_weight_estimator
 
-from pyod.models.lof import LOF
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(2_000, 3))
+x_target = np.vstack(
+    [
+        rng.normal(loc=0.5, size=(18, 3)),
+        rng.normal(loc=6.0, size=(2, 3)),
+    ]
+)
 
-# Initialize base detector
-base_detector = LOF()
-strategy = Split(n_calib=0.2)
-
-# Create weighted conformal detector
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.4),
     weight_estimator=logistic_weight_estimator(),
     seed=42,
-)
+).fit(x_reference)
 
-# Fit on training data and get classical weighted empirical p-values.
-# By default, prediction refits the weight model for each batch.
-p_values = detector.fit(X_train).compute_p_values(X_test)
+selected = detector.select(x_target, alpha=0.1)
+result = detector.last_result
+assert result is not None
+assert result.p_values is not None
+assert result.calib_weights is not None
+assert result.test_weights is not None
+
+print(f"discoveries: {selected.sum()}")
+print("smallest p-values:", np.sort(result.p_values)[:5])
+print("calibration weight range:", np.ptp(result.calib_weights))
+print("target weight range:", np.ptp(result.test_weights))
 ```
 
-## How It Works
+In weighted mode, `select(...)` performs WCS. Calling SciPy BH on the stored
+weighted p-values would be a different procedure with a different, generally
+unsupported dependence argument.
 
-The weighted conformal method works through the following steps:
+## What the package fits
 
-### 1. Calibration
-During fitting, the detector:
-- Uses the specified strategy to split data and train models
-- Computes calibration scores on held-out calibration data
-- Stores calibration samples for later weight computation
+With `Split` and weighted mode:
 
-### 2. Weight Estimation
-During prediction, the detector:
-- Fits the configured likelihood-ratio estimator (typically a probabilistic binary domain classifier) to distinguish calibration from test samples
-- Uses predicted probabilities/scores from that estimator to compute importance weights
-- Applies weights to both calibration and test instances
+1. the strategy splits reference rows into proper training and calibration;
+2. the anomaly detector is fitted on proper training rows;
+3. calibration rows are scored by that fixed detector;
+4. when a target batch is supplied, the weight estimator is fitted to
+   distinguish calibration covariates (class `0`) from target covariates
+   (class `1`);
+5. probability odds estimate the target-to-calibration density ratio;
+6. weighted p-values and WCS selection are computed for that target batch.
 
-For explicit control of this state transition, you can precompute weights once and
-reuse them:
+The logistic factory uses a standardization pipeline and balanced logistic
+regression. The forest factory uses a balanced random forest. Both default to
+quantile clipping at `clip_quantile=0.05` across the combined calibration and
+target weights.
 
-```python
-detector.fit(X_train)
-detector.prepare_weights_for(X_test_shifted)
-p_values = detector.compute_p_values(X_test_shifted, refit_weights=False)
-```
+!!! warning "Clipping changes the estimand"
 
-By default, this reuse path verifies exact batch content identity. If you need
-maximum throughput on very large batches and can guarantee your own batch identity
-discipline, set `verify_prepared_batch_content=False` when constructing
-`ConformalDetector` to validate only batch size.
+    Clipping can stabilize numerical behavior and reduce the influence of
+    extreme estimated ratios, but it replaces the original ratio with a
+    truncated one. It is a bias-variance and robustness choice, not a proof of
+    overlap. Report it and assess sensitivity to it.
 
-### 3. Weighted P-value Calculation
-The p-values are computed using weighted empirical distribution functions.
-Standalone `Empirical()` and `calculate_weighted_p_val()` use the deterministic
-classical formula by default, which includes calibration mass tied with the
-test score:
+## Weighted p-values
 
-```python
-# Classical deterministic discrete formula
-weighted_at_or_above = np.sum(
-    calibration_weights[calibration_scores >= test_score]
-)
-p_value = (weighted_at_or_above + test_weight) / (
-    np.sum(calibration_weights) + test_weight
-)
-```
+For calibration scores `S_i`, calibration weights `w_i`, test score `S(x)`, and
+test weight `w(x)`, classical weighted empirical mode computes
 
-This is conservative for discrete scores and can have coarse resolution. The
-randomized variant [[Jin & Candès, 2023](#references)] handles ties and the
-test point's own mass by randomization:
+$$
+p(x)=\frac{w(x)+\sum_{i=1}^{n_{\mathrm{cal}}}
+w_i\mathbf{1}\{S_i\ge S(x)\}}
+{w(x)+\sum_{i=1}^{n_{\mathrm{cal}}}w_i}.
+$$
 
-```python
-# Randomized weighted p-value calculation (Jin & Candes 2023)
-import numpy as np
+This deterministic formula includes tied calibration mass and the test point's
+own mass. With unit weights, it reduces to the classical unweighted empirical
+formula.
 
-def weighted_p_value(test_score, calibration_scores, calibration_weights, test_weight):
-    """
-    Calculate weighted conformal p-value with randomized tie handling.
-    """
-    # Count calibration scores strictly greater than test score
-    weighted_greater = np.sum(calibration_weights[calibration_scores > test_score])
+With `Empirical(tie_break="randomized")`, `nonconform` uses
 
-    # Handle ties: add random fraction of tied weights
-    tied_weights = np.sum(calibration_weights[calibration_scores == test_score])
-    u = np.random.uniform(0, 1)
+$$
+p(x)=\frac{\sum_i w_i\mathbf{1}\{S_i>S(x)\}
++U\left(w(x)+\sum_i w_i\mathbf{1}\{S_i=S(x)\}\right)}
+{w(x)+\sum_i w_i},
+$$
 
-    # Randomized formula: strictly greater + U * (tied + test weight)
-    numerator = weighted_greater + u * (tied_weights + test_weight)
-    denominator = np.sum(calibration_weights) + test_weight
+where `U` is uniform on `[0, 1]`. This removes the positive discrete floor by
+randomizing both tied mass and the test point's mass. Supply `seed` for
+reproducibility.
 
-    return numerator / denominator
-```
+## Weight-estimator choices
 
-!!! info "Classical vs. Randomized"
-    `Empirical()` defaults to `tie_break="classical"` in weighted and
-    unweighted workflows. Valid values are `"classical"` and `"randomized"`
-    (or their `TieBreakMode` members); `None` is invalid. Randomization
-    interpolates tied calibration mass and the test point's own mass even when
-    no calibration score ties the test score. It removes the classical
-    positive resolution floor but adds variability; set a seed for
-    reproducibility.
+### Logistic density-ratio estimator
 
-!!! warning "Discrete WCS guarantee scope"
-    Published finite-sample WCS uses strict comparisons in both its primary and
-    leave-one-out auxiliary formulas. Classical primary p-values coincide with
-    that formula when no relevant ties exist. For exact ties, the implementation
-    uses conservative classical primary p-values outside the theorem's stated
-    scope. Randomized Eq. (4) provides marginal/asymptotic validity and is
-    available explicitly.
-
-## When to Use Weighted Conformal
-
-### Covariate Shift Scenarios
-Use weighted conformal detection when the shift is primarily in `P(X)` and not in `P(Y|X)`, for example:
-
-1. **Domain Adaptation**: Training on one domain, testing on another with stable anomaly mechanism
-2. **Sampling/Selection Shift**: Deployment sampling differs from calibration sampling (population mix changes)
-3. **Subgroup Mixture Shift**: Different subgroup prevalence between calibration and test data
-4. **Time-based Deployment Changes**: Different time periods, only if the change is mostly covariate shift and `P(Y|X)` is still approximately stable
-
-Do **not** treat generic temporal drift as automatically suitable for weighted conformal. If the anomaly mechanism itself changes (`P(Y|X)` shift), weighting alone is insufficient.
-
-### Examples Where Covariate Shift May Occur
-
-```python
-# Example 1: Time-separated data
-# Use this only if P(Y|X) is approximately stable across periods
-detector.fit(X_train_2020)
-p_values_2024 = detector.compute_p_values(X_test_2024)
-
-# Example 2: Geographic shift
-# Training on US data, testing on European data
-detector.fit(X_us)
-p_values_europe = detector.compute_p_values(X_europe)
-
-# Example 3: Sensor/population shift
-# Suitable when feature distribution changed but anomaly semantics stayed stable
-detector.fit(X_before_drift)
-p_values_after_drift = detector.compute_p_values(X_after_drift)
-```
-
-## Comparison with Standard Conformal
-
-```python
-# Standard conformal detector
-standard_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
-
-# Weighted conformal detector
-weighted_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42,
-)
-
-# Fit both on training data
-standard_detector.fit(X_train)
-weighted_detector.fit(X_train)
-
-# Compare on shifted test data using the current one-step API
-from nonconform.enums import Pruning
-
-standard_mask = standard_detector.select(X_test_shifted, alpha=0.05)
-weighted_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-print(f"Standard conformal detections: {standard_mask.sum()}")
-print(f"Weighted conformal detections: {weighted_mask.sum()}")
-```
-
-## Different Aggregation Strategies
-
-The choice of aggregation method can affect performance under covariate shift:
-
-```python
-# Compare different aggregation methods
-from nonconform.enums import Pruning
-
-aggregation_methods = [
-    "mean",
-    "median",
-    "maximum",
-]
-
-for agg_method in aggregation_methods:
-    detector = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation=agg_method,
-        weight_estimator=logistic_weight_estimator(),
-        seed=42,
-    )
-    detector.fit(X_train)
-    wcs_mask = detector.select(
-        X_test_shifted,
-        alpha=0.05,
-        pruning=Pruning.DETERMINISTIC,
-        seed=42,
-    )
-    print(f"{agg_method}: {wcs_mask.sum()} discoveries")
-```
-
-**Note**: Aggregation is applied to the raw anomaly scores from each model before conformal p-values are computed. P-values are not averaged; the aggregated score is turned into a single p-value per point.
-
-## Weight Estimators
-
-`nonconform` provides two weight estimator factory functions for handling covariate shift:
-
-### logistic_weight_estimator
-
-Uses logistic regression to estimate likelihood ratios between calibration and test distributions:
+Use the logistic factory as a transparent baseline when calibration-to-target
+separation is adequately represented by a regularized linear decision boundary
+after standardization.
 
 ```python
 from nonconform import logistic_weight_estimator
 
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42,
+weight_estimator = logistic_weight_estimator(
+    regularization=1.0,
+    clip_quantile=0.05,
+    class_weight="balanced",
+    max_iter=1000,
 )
+
+print(type(weight_estimator.base_estimator).__name__)
+print(weight_estimator.base_estimator.get_params()["logisticregression__C"])
+print(weight_estimator.clip_quantile)
 ```
 
-**When to use**:
-- Linear or moderately complex covariate shifts
-- High-dimensional data where interpretability matters
-- Fast weight estimation is needed
-- Default choice for most applications
+`regularization` is passed as scikit-learn logistic regression's `C`; larger
+values mean weaker L2 regularization. `"auto"` uses `C=1.0`.
 
-**Parameters**:
-- `regularization`: Regularization strength ('auto' or float C value)
-- `clip_quantile`: Quantile for weight clipping (default: 0.05). Set to None to disable clipping.
-- `class_weight`: Class weights for LogisticRegression (default: 'balanced')
-- `max_iter`: Maximum iterations (default: 1000)
+### Forest density-ratio estimator
 
-### forest_weight_estimator
-
-Uses random forest classification to estimate likelihood ratios:
+Use the forest factory when nonlinear separation is plausible and validate its
+probability estimates carefully. Flexible discrimination can overfit,
+especially with limited target data.
 
 ```python
 from nonconform import forest_weight_estimator
 
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    weight_estimator=forest_weight_estimator(n_estimators=100, max_depth=10),
-    seed=42,
-)
-```
-
-**When to use**:
-- Complex, non-linear covariate shifts
-- Feature interactions are important
-- More robust to outliers in feature space
-- When you have sufficient calibration data (hundreds+ samples)
-
-**Parameters**:
-- `n_estimators`: Number of trees (default: 100)
-- `max_depth`: Maximum tree depth (default: 5)
-- `min_samples_leaf`: Minimum samples in leaf (default: 10)
-- `clip_quantile`: Quantile for weight clipping (default: 0.05). Set to None to disable clipping.
-
-### Comparison
-
-```python
-# Compare weight estimators on complex shift
-from nonconform import logistic_weight_estimator, forest_weight_estimator
-
-estimators = {
-    'Logistic': logistic_weight_estimator(),
-    'Forest': forest_weight_estimator(n_estimators=100),
-}
-
-for name, weight_est in estimators.items():
-    detector = ConformalDetector(
-        detector=base_detector,
-        strategy=Split(n_calib=0.2),
-        aggregation="median",
-        weight_estimator=weight_est,
-        seed=42,
-    )
-    detector.fit(X_train)
-    wcs_mask = detector.select(
-        X_test_shifted,
-        alpha=0.05,
-        pruning=Pruning.DETERMINISTIC,
-        seed=42,
-    )
-    print(f"{name}: {wcs_mask.sum()} discoveries")
-```
-
-**General recommendations**:
-- Start with `logistic_weight_estimator()` (faster, more interpretable)
-- Switch to `forest_weight_estimator()` if:
-  - Distribution shift is highly non-linear
-  - You have >500 calibration samples
-  - Logistic weights show poor discrimination
-
-### BootstrapBaggedWeightEstimator
-
-Wraps any base weight estimator with bootstrap bagging for improved stability in extreme imbalance scenarios. It is most relevant when the calibration set is much larger than the test batch, where standalone importance weights can become spiky and overly influential:
-
-`BootstrapBaggedWeightEstimator` currently uses `scoring_mode="frozen"` (default and only supported mode). After `fit(calibration_samples, test_samples)`, it can return stored weights only for that exact calibration/test batch pair; scoring arbitrary new batches requires refitting.
-
-```python
-from nonconform import forest_weight_estimator
-from nonconform.weighting import BootstrapBaggedWeightEstimator
-
-# Bootstrap bagging with forest base (best for extreme imbalance)
-weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=forest_weight_estimator(n_estimators=50),
-    n_bootstraps=50,
+weight_estimator = forest_weight_estimator(
+    n_estimators=200,
+    max_depth=5,
+    min_samples_leaf=10,
     clip_quantile=0.05,
 )
 
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=Split(n_calib=1000),
-    aggregation="median",
-    weight_estimator=weight_est,
-    seed=42,
-)
+print(type(weight_estimator.base_estimator).__name__)
+print(weight_estimator.base_estimator.n_estimators)
+print(weight_estimator.clip_quantile)
 ```
 
-#### How It Works
+There is no generally superior estimator. Compare held-out domain
+discrimination, weight stability, clipping sensitivity, and downstream
+behavior under realistic shifted evaluation designs.
 
-Bootstrap bagging creates an ensemble of weight estimators:
+### Bootstrap-bagged weights
 
-1. **For each bootstrap iteration** (n_bootstraps times):
-   - Resample both calibration and test sets to balanced size
-   - Fit the base estimator on the bootstrap sample
-   - Score all original instances in that batch
-   - Store log-weights for each instance
-
-2. **After all iterations**:
-   - Aggregate using geometric mean (exp of mean log-weights)
-   - Apply clipping to maintain bounded weights
-
-Every instance receives exactly `n_bootstraps` weight estimates, ensuring
-symmetric scoring coverage regardless of calibration/test set size ratios.
-
-#### When to Use
-
-**DO use BootstrapBaggedWeightEstimator when:**
-
-1. **Extreme imbalance**: Large calibration set (>1000) with small test batches (<50)
-   - Common in online/streaming detection
-   - Example: 1000 calibration samples, 25 test instances
-
-2. **High-stakes applications**: Where weight quality is critical
-   - Medical diagnosis with small patient batches
-   - Fraud detection with limited transactions
-   - Safety-critical systems
-
-3. **Severe covariate shift**: When base estimators produce extreme weights
-
-**DO NOT use for:**
-
-1. **Balanced or moderate imbalance**: Marginal benefit (2-3% improvement) doesn't justify 2-5x computational overhead
-2. **Large test sets**: Benefits diminish with larger batches
-3. **Latency-sensitive production**: Significant computational cost (20-50x slower)
-
-#### Performance Benchmarks
-
-The numbers below are illustrative development benchmarks for the estimator
-configuration shown here. They are not statistical guarantees and should not be
-carried over to a new dataset without local validation.
-
-##### Balanced Scenario (1000 calib vs 1000 test)
-| Metric | Base | Bagged-50 | Improvement |
-|--------|------|-----------|-------------|
-| Weight Std | 2.884 | 2.957 | **-2.5%** (worse) |
-| Extreme Weights | 0 | 0 | No change |
-| Time | 0.14s | 0.34s | 2.4x slower |
-
-**Verdict**: Not recommended for balanced sets.
-
-##### Extreme Imbalance (1000 calib vs 25 test)
-| Metric | Logistic Base | Logistic Bagged-50 | Improvement |
-|--------|---------------|-------------------|-------------|
-| Weight Std | 1.604 | 0.841 | **48% better** |
-| Extreme Weights | 612 | 385 | 37% reduction |
-| Recall | 0.067 | 0.200 | **3x better** |
-| Time | 0.14s | 0.34s | 2.4x slower |
-
-| Metric | Forest Base | Forest Bagged-50 | Improvement |
-|--------|-------------|------------------|-------------|
-| Weight Std | 0.153 | 0.259 | Slightly higher but stable |
-| Extreme Weights | 599 | **0** | **100% elimination** |
-| Recall | 0.333 | **1.000** | Better in this benchmark |
-| FDR | 0.000 | 0.190 | Acceptable trade-off |
-| Time | 0.24s | 6.4s | 27x slower |
-
-**Verdict**: Consider for extreme imbalance when the added runtime is acceptable.
-Validate on your own labeled data before adopting it as a default.
-
-#### Configuration Parameters
-
-**n_bootstraps** (default: 100):
-- Number of bootstrap iterations
-- Higher = more stable, but slower
-- Recommended: 20-50 for small test batches, 50-100 for critical applications
-
-**clip_quantile** (default: 0.05):
-- Adaptive quantile-based clipping
-- Clips to (quantile, 1-quantile) percentiles
-- Use when weight distribution is unknown
-- Set to None to disable clipping
-
-#### Advanced Example: Streaming Detection
-
-For online/streaming anomaly detection with small batches:
+`BootstrapBaggedWeightEstimator` repeatedly fits a base weight estimator to
+balanced bootstrap samples, scores every original calibration and target row,
+and aggregates log weights by a geometric mean. Its current
+`scoring_mode="frozen"` only serves the exact batches used during fitting.
 
 ```python
-from nonconform import ConformalDetector, Split, forest_weight_estimator
-from nonconform.enums import Pruning
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
 from nonconform.weighting import BootstrapBaggedWeightEstimator
-from pyod.models.iforest import IForest
 
-# Configuration for small batch streaming
-weight_est = BootstrapBaggedWeightEstimator(
-    base_estimator=forest_weight_estimator(n_estimators=50, max_depth=10),
-    n_bootstraps=50,
-    clip_quantile=0.05,  # Adaptive clipping
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(400, 3))
+x_target = rng.normal(loc=0.5, size=(30, 3))
+
+bagged_weights = BootstrapBaggedWeightEstimator(
+    base_estimator=logistic_weight_estimator(),
+    n_bootstraps=5,
+    clip_quantile=0.05,
+)
+detector = ConformalDetector(
+    detector=IsolationForest(n_estimators=30, random_state=42),
+    strategy=Split(n_calib=0.3),
+    weight_estimator=bagged_weights,
+    seed=42,
+).fit(x_reference)
+
+p_values = detector.compute_p_values(x_target)
+print(p_values[:5])
+```
+
+Bagging adds fitting cost and is not automatically more accurate. Increase the
+bootstrap count only when repeated evaluation shows that the added stability
+is worth the cost.
+
+## Batch-specific state
+
+By default, every `compute_p_values(...)` or `select(...)` call refits the weight
+estimator for its input batch. This is intentional: the batch represents the
+target distribution used in density-ratio estimation.
+
+For an explicit state transition, prepare weights for the exact batch:
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(600, 3))
+x_target = rng.normal(loc=0.5, size=(40, 3))
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    weight_estimator=logistic_weight_estimator(),
+    seed=42,
+).fit(x_reference)
+
+detector.prepare_weights_for(x_target)
+p_values = detector.compute_p_values(x_target, refit_weights=False)
+print(p_values[:5])
+```
+
+The default content check rejects a same-sized but different batch. Disabling
+`verify_prepared_batch_content` removes the digest check and leaves identity
+enforcement to the caller.
+
+Arbitrarily splitting one target family into chunks changes the fitted density
+ratio, the weighted p-values, and the WCS problem. Do not describe chunking as
+an equivalent memory optimization.
+
+## WCS pruning
+
+`select(...)` accepts `Pruning.DETERMINISTIC`, `Pruning.HOMOGENEOUS`, and
+`Pruning.HETEROGENEOUS` from `nonconform.fdr` or `nonconform.enums`.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
+from nonconform.fdr import Pruning
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(2_000, 2))
+x_target = np.vstack(
+    [rng.normal(loc=0.5, size=(18, 2)), rng.normal(loc=6.0, size=(2, 2))]
 )
 
 detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=1000),  # Large calibration set
-    aggregation="median",
-    weight_estimator=weight_est,
-    seed=42,
-)
-
-# Train on historical data
-detector.fit(X_historical)
-
-# Process small incoming batches
-for X_batch in stream_data(batch_size=25):
-    discoveries = detector.select(
-        X_batch,
-        alpha=0.1,
-        pruning=Pruning.DETERMINISTIC,
-        seed=42,
-    )
-
-    print(f"Detected {discoveries.sum()} anomalies in batch of {len(X_batch)}")
-```
-
-#### Cost-Benefit Analysis
-
-| Configuration | Time | Quality | Use Case |
-|--------------|------|---------|----------|
-| Logistic (Base) | 0.14s | Baseline | Standard balanced scenarios |
-| Logistic + Bagging(50) | 0.34s | +48% weight stability | Moderate imbalance, quality focus |
-| Forest (Base) | 0.24s | Good for non-linear | Standard scenarios |
-| **Forest + Bagging(50)** | **6.4s** | **Best in this benchmark** | **Extreme imbalance, quality focus** |
-
-**Recommendation**: Use `forest_weight_estimator + BootstrapBaggedWeightEstimator` when:
-- Calibration set is 40x larger than test batch (e.g., 1000:25)
-- Missing anomalies is very costly
-- Computational budget allows 20-50x overhead
-- Online/streaming detection with small batches
-
-### Decision Guide
-
-**Which weight estimator should I use?**
-
-```
-┌─ Is your test batch very small (<50) AND calibration large (>1000)?
-│
-├─ YES → BootstrapBaggedWeightEstimator(
-│         forest_weight_estimator(50), n_bootstraps=50
-│       )
-│       Cost: High (6-7s), Quality: Best in the illustrative benchmark
-│
-└─ NO → Standard weight estimators
-    │
-    ├─ Linear/moderate shift → logistic_weight_estimator()
-    │                          Cost: Low (0.14s), Quality: Good
-    │
-    └─ Complex/non-linear shift → forest_weight_estimator(50)
-                                   Cost: Medium (0.24s), Quality: Better
-```
-
-Treat the cost and quality labels above as examples from one benchmark, not
-portable promises.
-
-## Strategy Selection
-
-Different strategies can be used with weighted conformal detection:
-
-```python
-from nonconform import CrossValidation, JackknifeBootstrap
-
-# JaB+ strategy for stability
-jab_strategy = JackknifeBootstrap(n_bootstraps=50)
-jab_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jab_strategy,
-    aggregation="median",
+    detector=IsolationForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.4),
     weight_estimator=logistic_weight_estimator(),
-    seed=42
-)
-
-# Cross-validation strategy for efficiency
-cv_strategy = CrossValidation(k=5)
-cv_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=cv_strategy,
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=42
-)
-```
-
-## Weighted Conformal Selection
-
-Weighted conformal p-values provide per-hypothesis calibration under covariate
-shift assumptions. For score configurations covered by the strict published
-construction, Weighted Conformal Selection (WCS) provides finite-sample FDR
-control under the independence, support-overlap, and weight-quality assumptions
-in Jin & Candès [[Jin & Candès, 2023](#references)]:
-
-```python
-from nonconform.enums import Pruning
-
-wcs_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
     seed=42,
-)
+).fit(x_reference)
 
-print(f"WCS-selected anomalies: {wcs_mask.sum()} of {len(wcs_mask)}")
-```
-
-After any call to `compute_p_values()`, `score_samples()`, or `select()`, the detector caches
-the relevant arrays `(p_values, scores, weights)` inside `detector.last_result`.
-Passing this object to `weighted_false_discovery_control` avoids plumbing the raw
-arrays manually.
-
-For explicit array-first workflows, use:
-
-```python
-from nonconform.enums import Pruning
-from nonconform.fdr import (
-    weighted_false_discovery_control_from_arrays,
-)
-from nonconform.scoring import calculate_weighted_p_val
-
-# WCS from precomputed p-values + arrays
-wcs_from_arrays = weighted_false_discovery_control_from_arrays(
-    p_values=weighted_detector.last_result.p_values,
-    test_scores=weighted_detector.last_result.test_scores,
-    calib_scores=weighted_detector.last_result.calib_scores,
-    test_weights=weighted_detector.last_result.test_weights,
-    calib_weights=weighted_detector.last_result.calib_weights,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,
-)
-
-# WCS with explicit empirical p-value computation
-p_values_empirical = calculate_weighted_p_val(
-    scores=weighted_detector.last_result.test_scores,
-    calibration_set=weighted_detector.last_result.calib_scores,
-    test_weights=weighted_detector.last_result.test_weights,
-    calib_weights=weighted_detector.last_result.calib_weights,
-    tie_break="classical",
-)
-wcs_empirical = weighted_false_discovery_control_from_arrays(
-    p_values=p_values_empirical,
-    test_scores=weighted_detector.last_result.test_scores,
-    calib_scores=weighted_detector.last_result.calib_scores,
-    test_weights=weighted_detector.last_result.test_weights,
-    calib_weights=weighted_detector.last_result.calib_weights,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-)
-```
-
-### Pruning Modes
-
-The `pruning` parameter controls the second-stage WCS pruning rule [[Jin &
-Candès, 2023](#references)]:
-
-#### Pruning.DETERMINISTIC
-
-```python
-wcs_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
-    seed=42,  # seed has no effect for deterministic mode
-)
-```
-
-**Behavior**: Uses the deterministic WCS pruning rule without additional randomization.
-
-**When to use**:
-- Reproducibility is critical
-- You don't want any randomness in selections
-- Reporting results that must be exactly reproducible
-
-**Trade-off**: May be slightly conservative (reject fewer hypotheses) compared to randomized methods.
-
-#### Pruning.HOMOGENEOUS
-
-```python
-wcs_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
-    pruning=Pruning.HOMOGENEOUS,
-    seed=42,  # controls randomization
-)
-```
-
-**Behavior**: Draws a single uniform random variable and applies the same pruning randomization across test instances.
-
-**When to use**:
-- Randomized option with one shared draw across the batch
-- Want randomized WCS pruning under the method's assumptions
-- Acceptable to have some randomness
-
-**Trade-off**: Less conservative than DETERMINISTIC, but results vary across random seeds.
-
-#### Pruning.HETEROGENEOUS
-
-```python
-wcs_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
+selected = detector.select(
+    x_target,
+    alpha=0.1,
     pruning=Pruning.HETEROGENEOUS,
-    seed=42,  # controls randomization
+    seed=7,
 )
+print(np.flatnonzero(selected))
 ```
 
-**Behavior**: Draws independent uniform random variables for each test instance. Provides the most flexible pruning randomization.
+Deterministic pruning is the default. Homogeneous pruning uses one shared
+uniform random variable; heterogeneous pruning uses independent uniform
+variables. A selection seed makes randomized pruning reproducible.
 
-**When to use**:
-- You want the less conservative randomized pruning option
-- Research settings where run-to-run variance is acceptable
+## Diagnostics that earn attention
 
-**Trade-off**: Highest variance across random seeds, and often less conservative than deterministic pruning.
+After `compute_p_values(...)` or `select(...)`, inspect `last_result`. Weight
+quantiles and an importance-weight effective sample size (ESS) are useful
+descriptive summaries:
 
-### Comparison of Pruning Methods
-
-```python
-from nonconform.enums import Pruning
-
-pruning_methods = [
-    Pruning.DETERMINISTIC,
-    Pruning.HOMOGENEOUS,
-    Pruning.HETEROGENEOUS
-]
-
-for pruning_method in pruning_methods:
-    wcs_mask = weighted_detector.select(
-        X_test_shifted,
-        alpha=0.05,
-        pruning=pruning_method,
-        seed=42,
-    )
-
-    print(f"{pruning_method.name}: {wcs_mask.sum()} detections")
-```
-
-**Expected relationship**: Deterministic pruning is contained in both randomized
-variants in the WCS theory, so it is usually the most conservative. The two
-randomized variants can differ by data set and seed.
-
-
-## Performance Considerations
-
-### Computational Cost
-Weighted conformal detection has additional overhead:
-- Weight estimation via logistic regression
-- Weighted p-value computation
+$$
+\operatorname{ESS}(w)=\frac{(\sum_i w_i)^2}{\sum_i w_i^2}.
+$$
 
 ```python
-import time
+import numpy as np
+from sklearn.ensemble import IsolationForest
 
-# Compare computation times
-def time_detector(detector, X_train, X_test):
-    start_time = time.time()
-    detector.fit(X_train)
-    fit_time = time.time() - start_time
+from nonconform import ConformalDetector, Split, logistic_weight_estimator
 
-    start_time = time.time()
-    p_values = detector.compute_p_values(X_test)
-    predict_time = time.time() - start_time
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(700, 3))
+x_target = rng.normal(loc=0.8, size=(80, 3))
 
-    return fit_time, predict_time
-
-# Standard vs Weighted timing
-standard_fit, standard_pred = time_detector(standard_detector, X_train, X_test)
-weighted_fit, weighted_pred = time_detector(weighted_detector, X_train, X_test)
-
-print(f"Standard: Fit={standard_fit:.2f}s, Predict={standard_pred:.2f}s")
-print(f"Weighted: Fit={weighted_fit:.2f}s, Predict={weighted_pred:.2f}s")
-print(f"Overhead: {((weighted_fit + weighted_pred) / (standard_fit + standard_pred) - 1) * 100:.1f}%")
-```
-
-### Memory Usage
-Weighted conformal detection requires storing:
-- Calibration samples for weight computation
-- Calibration scores for p-value calculation
-
-For large datasets, consider:
-- Using a subset of calibration samples for weight estimation
-- Implementing online/streaming versions
-
-## Best Practices
-
-### 1. Validate Covariate Shift
-Always check whether a feature-distribution shift is actually present, and then
-separately decide whether the anomaly mechanism is still stable:
-
-```python
-# Use statistical tests to detect shift
-from scipy.stats import ks_2samp
-
-def detect_feature_shift(X_train, X_test):
-    """Detect feature-distribution shift in individual features."""
-    shift_detected = []
-    p_values = []
-
-    for i in range(X_train.shape[1]):
-        statistic, p_value = ks_2samp(X_train[:, i], X_test[:, i])
-        shift_detected.append(p_value < 0.05)
-        p_values.append(p_value)
-
-    print(f"Features with significant shift: {sum(shift_detected)}/{len(shift_detected)}")
-    return shift_detected, p_values
-
-shift_features, shift_p_values = detect_feature_shift(X_train, X_test_shifted)
-```
-
-### 2. Combine with Weighted Conformal Selection
-
-```python
-from nonconform.enums import Pruning
-
-wcs_mask = weighted_detector.select(
-    X_test_shifted,
-    alpha=0.05,
-    pruning=Pruning.DETERMINISTIC,
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    weight_estimator=logistic_weight_estimator(),
     seed=42,
-)
+).fit(x_reference)
+detector.compute_p_values(x_target)
 
-print(f"WCS-controlled discoveries: {wcs_mask.sum()}")
-```
+result = detector.last_result
+assert result is not None
+assert result.calib_weights is not None
+assert result.test_weights is not None
 
-### 3. Monitor Weight Quality
-Extreme weights can indicate poor weight estimation:
+def effective_sample_size(weights: np.ndarray) -> float:
+    weights = np.asarray(weights, dtype=float)
+    return float(weights.sum() ** 2 / np.square(weights).sum())
 
-```python
-def check_weight_quality(detector, X_calib, X_test):
-    """Check for extreme weights that might indicate poor estimation."""
-    # This is a conceptual example - actual implementation would require
-    # access to the internal weights computed by the detector
-
-    # Rule of thumb: weights should typically be between 0.1 and 10
-    # Extreme weights (< 0.01 or > 100) suggest problems
-    pass
-```
-
-### 4. Use Appropriate Base Detectors
-Some detectors work better with weighted conformal:
-- **Good**: Distance-based methods (LOF, KNN) that are sensitive to distribution
-- **Moderate**: Tree-based methods (Isolation Forest) that are somewhat robust
-- **Challenging**: Neural networks that might already adapt to shift
-
-## Advanced Applications
-
-### Multi-domain Adaptation
-```python
-# Handle multiple domains with different shift patterns
-domains = ['domain_A', 'domain_B', 'domain_C']
-domain_detectors = {}
-
-for domain in domains:
-    detector = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation="median",
-        weight_estimator=logistic_weight_estimator(),
-        seed=42
+for name, weights in {
+    "calibration": result.calib_weights,
+    "target": result.test_weights,
+}.items():
+    print(
+        name,
+        {
+            "quantiles": np.quantile(weights, [0.0, 0.05, 0.5, 0.95, 1.0]),
+            "ess": effective_sample_size(weights),
+            "count": len(weights),
+        },
     )
-    detector.fit(X_train)  # Common training set
-    domain_detectors[domain] = detector
-
-# Predict on domain-specific test sets with WCS
-from nonconform.enums import Pruning
-
-for domain in domains:
-    X_test_domain = load_domain_data(domain)  # Load domain-specific test data
-    wcs_mask = domain_detectors[domain].select(
-        X_test_domain,
-        alpha=0.05,
-        pruning=Pruning.DETERMINISTIC,
-        seed=42,
-    )
-    print(f"{domain}: {wcs_mask.sum()} discoveries")
 ```
 
-### Illustrative Online Reweighting Pattern
+ESS is a diagnostic, not a validity theorem or a universal pass/fail test. A
+small ESS relative to the number of rows signals weight concentration and weak
+effective support, but no task-independent cutoff separates safe from unsafe.
 
-The following is an engineering pattern for repeated batch processing. The WCS
-guarantee still applies only to batches that satisfy the covariate-shift,
-independence, support-overlap, and weight-quality assumptions.
+Also assess:
 
-```python
-from nonconform.enums import Pruning
+- out-of-sample calibration of the domain classifier;
+- whether calibration and target samples are nearly perfectly separable;
+- stability across seeds and plausible estimator specifications;
+- sensitivity to `clip_quantile`;
+- empirical p-value calibration and FDP on untouched shifted null data;
+- whether target observations occupy regions absent from calibration data.
 
-# Refit weights on each incoming batch when assumptions are plausible
-def online_weighted_detection(detector, data_stream, window_size=1000):
-    """Online weighted conformal detection with sliding window."""
-    detections = []
+Marginal two-sample tests can flag distribution differences but cannot prove
+the joint covariate-shift condition or support overlap.
 
-    for i, (X_batch, _) in enumerate(data_stream):
-        if i == 0:
-            # Initialize with first batch
-            detector.fit(X_batch)
-        else:
-            # Use sliding window for calibration
-            if i * len(X_batch) > window_size:
-                start_idx = (i * len(X_batch)) - window_size
-                X_calib = get_recent_data(start_idx, window_size)
-                detector.fit(X_calib)
+## Strategy and estimator scope
 
-            # Predict on current batch with WCS
-            wcs_mask = detector.select(
-                X_batch,
-                alpha=0.05,
-                pruning=Pruning.DETERMINISTIC,
-                seed=42,
-            )
-            detections.append(wcs_mask.sum())
+`Split` is the recommended baseline for weighted mode because proper training,
+calibration, and target roles are explicit. Resampling strategies expose
+calibration samples too, but their score aggregation and dependence differ.
+Do not transfer the split weighted-conformal guarantee to those combinations
+without a matching argument.
 
-    return detections
-```
+`ConditionalEmpirical` intentionally rejects weighted mode.
+`Probabilistic` can numerically consume weights, but its KDE p-values are
+model-based rather than the exact discrete empirical construction. State that
+distinction and validate it separately.
 
-## Troubleshooting
+`ExchangeabilityMonitor.from_split_detector(...)` rejects weighted detectors.
+Batch-specific density-ratio refitting is not the frozen sequential rank
+construction required for the monitor's martingale guarantee.
 
-### Common Issues
+## Common failure modes
 
-1. **Poor Weight Estimation**
-   - Insufficient calibration data
-   - High-dimensional data with small samples
-   - Solution: Increase calibration size or use dimensionality reduction
+| Symptom | Likely issue | Action |
+|---|---|---|
+| Nearly perfect calibration/target discrimination | Poor overlap or easily separable domains | Revisit support and shift assumptions; collect reference data covering the target |
+| Highly concentrated weights | Limited effective support, classifier instability, or extrapolation | Inspect features, compare estimators, and report clipping sensitivity |
+| Large changes across target batch definitions | Batch-specific ratio estimation | Define the target family before fitting weights and avoid arbitrary chunking |
+| Weighted and unweighted results differ sharply | Material estimated shift, poor weights, or both | Validate on shifted labeled/null data rather than choosing the preferred result |
+| No discoveries | Coarse weighted p-values, conservative pruning, weak detector, or little signal | Inspect scores, p-values, weights, and WCS rejection sizes without weakening assumptions post hoc |
 
-2. **Extreme P-values**
-   - All p-values near 0 or 1
-   - Solution: Check for severe covariate shift, poor support overlap, or model mismatch
+## Checklist
 
-3. **Inconsistent Results**
-   - High variance in detection counts
-   - Solution: Use bootstrap strategy or increase sample size
-
-### Debugging Tools
-```python
-def debug_weighted_conformal(detector, X_train, X_test):
-    """Debug weighted conformal detection issues."""
-    print("=== Weighted Conformal Debug Report ===")
-
-    # Check data properties
-    print(f"Training samples: {len(X_train)}")
-    print(f"Test samples: {len(X_test)}")
-    print(f"Feature dimensions: {X_train.shape[1]}")
-
-    # Fit detector
-    detector.fit(X_train)
-
-    # Check calibration set size
-    print(f"Calibration samples: {len(detector.calibration_set)}")
-
-    if len(detector.calibration_set) < 50:
-        print("WARNING: Small calibration set may lead to unreliable weights")
-
-    # Get predictions
-    p_values = detector.compute_p_values(X_test)
-
-    # Check p-value distribution
-    print(f"P-value range: [{p_values.min():.4f}, {p_values.max():.4f}]")
-    print(f"P-value mean: {p_values.mean():.4f}")
-    print(f"P-value std: {p_values.std():.4f}")
-
-    if p_values.std() < 0.01:
-        print("WARNING: Very low p-value variance - check for issues")
-
-    print("=== End Debug Report ===")
-
-# Example usage
-debug_weighted_conformal(weighted_detector, X_train, X_test_shifted)
-```
+- State `P_X`, `Q_X`, and why covariate shift is plausible.
+- Confirm target support is represented in calibration data.
+- Keep detector fitting and learned preprocessing independent of calibration and
+  target outcomes.
+- Fit weights on the complete target family used by WCS.
+- Inspect weight concentration, ESS, clipping, and estimator sensitivity.
+- Use WCS through weighted `select(...)`, not ordinary BH.
+- Treat randomized pruning and randomized tie handling as genuine
+  randomization and record seeds.
+- Report estimated-weight limitations with every validity claim.
 
 ## References
 
-- **Jin, Y., & Candès, E. J. (2023)**.
-  *[Model-free Selective Inference Under Covariate Shift via Weighted Conformal p-values](https://arxiv.org/abs/2307.09291)*.
-  Biometrika, 110(4), 1090-1106. [Foundational paper on weighted conformal
-  inference and WCS procedure]
-
-- **Tibshirani, R. J., Barber, R. F., Candes, E., & Ramdas, A. (2019)**.
-  *[Conformal Prediction Under Covariate Shift](https://papers.nips.cc/paper_files/paper/2019/hash/8fb21ee7a2207526da55a679f0332de2-Abstract.html)*.
-  Advances in Neural Information Processing Systems, 32. [Early work on
-  conformal prediction with covariate shift]
-
-- **Genovese, C. R., Roeder, K., & Wasserman, L. (2006)**.
-  *[False Discovery Control with p-value Weighting](https://www.stat.cmu.edu/tr/tr811/tr811.pdf)*.
-  Biometrika, 93(3), 509-524. [Theoretical foundation for weighted FDR
-  control]
-
-## Next Steps
-
-- Learn about [FDR control](fdr_control.md) for multiple testing scenarios
-- Explore [different conformalization strategies](conformalization_strategies.md) for various use cases
-- Read about [best practices](best_practices.md) for robust anomaly detection
-- Check the [troubleshooting guide](troubleshooting.md) for common issues
-- See [input validation](input_validation.md) for parameter constraints and edge cases
+- [Tibshirani et al. (2019), *Conformal Prediction Under Covariate Shift*](https://proceedings.neurips.cc/paper_files/paper/2019/hash/8fb21ee7a2207526da55a679f0332de2-Abstract.html)
+  develops weighted conformal prediction under covariate shift, including the
+  likelihood-ratio requirement.
+- [Jin and Candès (2023), *Model-free Selective Inference under Covariate Shift via Weighted Conformal p-values*](https://arxiv.org/abs/2307.09291)
+  introduces weighted conformal p-values and WCS, including the outlier
+  detection extension under inlier-distribution shift.
+- [Sugiyama et al. (2012), *Density Ratio Estimation in Machine Learning*](https://doi.org/10.1017/CBO9781139035613)
+  provides broader background on density-ratio estimation.

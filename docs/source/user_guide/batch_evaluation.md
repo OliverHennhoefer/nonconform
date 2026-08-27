@@ -1,385 +1,240 @@
 ---
-description: "Evaluate nonconform anomaly detection on generated batches with controlled contamination, reproducibility, and FDR metrics."
+description: "Generate labeled anomaly batches with oddball and evaluate nonconform discovery procedures without confusing realized metrics with guarantees."
 ---
 
-# Batch Evaluation
+# Batch evaluation
 
-Generate evaluation batches with precise anomaly contamination control for systematic anomaly detection testing.
+The optional [`oddball`](https://github.com/OliverHennhoefer/oddball) package
+provides labeled benchmark datasets and reproducible batch generators. It is
+useful for exercising a complete evaluation pipeline. Results on its generated
+batches are empirical measurements, not proofs of conformal validity or FDR
+control.
 
-These examples use `BatchGenerator` from `oddball.generator` and therefore require the optional `oddball` package (and matching dataset extras) to be installed before execution.
-
-## Overview
-
-The `BatchGenerator` creates evaluation batches with configurable anomaly proportion control. It supports two modes:
-- **Proportional mode**: Fixed anomalies per batch (e.g., exactly 10% in each batch)
-- **Probabilistic mode**: Exact global proportion across all batches
-
-## Basic Usage
-
-```python
-from oddball import Dataset, load
-from oddball.generator import BatchGenerator
-
-# Create batch generator with proportional mode (default)
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.1,  # 10% anomalies per batch
-    seed=42
-)
-
-# Get training data for detector fitting
-x_train = batch_gen.get_training_data()
-print(f"Training data shape: {x_train.shape}")
-
-# Generate batches (infinite for proportional mode)
-for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    anomaly_count = y_batch.sum()
-    print(f"Batch {i + 1}: {x_batch.shape}, Anomalies: {anomaly_count} ({anomaly_count / len(x_batch) * 100:.1f}%)")
-    if i >= 4:  # Stop after 5 batches
-        break
+```bash
+pip install "nonconform[data,pyod]"
 ```
 
-## Anomaly Proportion Control Modes
+## Generator contract
 
-### Proportional Mode (Fixed per Batch)
+`BatchGenerator` expects `load_data_func` to return a pandas `DataFrame` with a
+`Class` column, where `0` denotes normal and nonzero values denote anomalies.
+When using `oddball.load`, pass `as_dataframe=True`.
 
-Ensures exact number of anomalies in each batch:
+The generator:
+
+- reserves `train_size` of the normal rows as normal-only training data;
+- samples evaluation rows with replacement from the remaining normal pool and
+  the anomaly pool;
+- yields `(x_batch, y_batch)` pandas objects; and
+- uses its own NumPy random generator controlled by `seed`.
+
+!!! warning "`load(...)` returns arrays by default"
+
+    `load(Dataset.WBC)` returns a tuple, which is appropriate for the direct
+    setup API but not for `BatchGenerator`. Its loader callback must use
+    `load(Dataset.WBC, as_dataframe=True)` so the generator can read `Class`.
+
+## Proportional mode
+
+Proportional mode puts exactly
+`int(batch_size * anomaly_proportion)` anomalies in every batch. The integer
+conversion rounds down, so the realized proportion can be lower than the
+requested value when the product is not integral.
 
 ```python
-# Infinite generation - exactly 15 anomalies per batch of 100
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.15,
-    anomaly_mode="proportional",  # Default mode
-    seed=42
-)
+from oddball import BatchGenerator, Dataset, load
 
-# Each batch will have exactly 15 anomalies (user controls stopping)
-for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    print(f"Anomalies: {y_batch.sum()}/100")  # Always 15
-    if i >= 2:  # Stop after 3 batches
-        break
-
-# Limited generation - exactly 5 batches with 15 anomalies each
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.15,
+generator = BatchGenerator(
+    load_data_func=lambda: load(Dataset.WBC, as_dataframe=True),
+    batch_size=40,
+    anomaly_proportion=0.1,
     anomaly_mode="proportional",
-    n_batches=5,  # Optional limit for proportional mode
-    seed=42
+    n_batches=2,
+    train_size=0.5,
+    seed=42,
 )
 
-# Automatically stops after 5 batches
-for x_batch, y_batch in batch_gen.generate():
-    print(f"Anomalies: {y_batch.sum()}/100")  # Always 15, exactly 5 batches total
+x_reference = generator.get_training_data()
+print("reference shape:", x_reference.shape)
+
+for batch_index, (x_batch, y_batch) in enumerate(generator.generate()):
+    print(
+        batch_index,
+        x_batch.shape,
+        int(y_batch.sum()),
+    )
 ```
 
-### Probabilistic Mode (Global Target)
+If `n_batches=None`, proportional generation is unbounded and the caller must
+stop iteration. Samples are drawn with replacement, so unbounded generation
+does not consume the source pools.
 
-Ensures exact global proportion across all batches:
+## Probabilistic mode
+
+Despite its name, probabilistic mode targets an exact **global count** over the
+configured run. It randomly places
+`int(n_batches * batch_size * anomaly_proportion)` anomalies while ensuring the
+final total equals that target. Individual batches may have different counts.
 
 ```python
-# Exactly 5% anomalies globally across 10 batches
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=50,
-    anomaly_proportion=0.05,
+from oddball import BatchGenerator, Dataset, load
+
+generator = BatchGenerator(
+    load_data_func=lambda: load(Dataset.WBC, as_dataframe=True),
+    batch_size=20,
+    anomaly_proportion=0.1,
     anomaly_mode="probabilistic",
-    n_batches=10,  # Required for probabilistic mode
-    seed=42
+    n_batches=5,
+    seed=42,
 )
 
-total_instances = 0
-total_anomalies = 0
-
-for x_batch, y_batch in batch_gen.generate():  # Automatically stops after n_batches
-    batch_anomalies = y_batch.sum()
-    total_instances += len(x_batch)
-    total_anomalies += batch_anomalies
-    print(f"Batch anomalies: {batch_anomalies}")
-
-print(f"Global proportion: {total_anomalies/total_instances:.3f}")  # Exactly 0.050
+counts = [int(y_batch.sum()) for _, y_batch in generator.generate()]
+print("per-batch anomaly counts:", counts)
+print("global anomaly count:", sum(counts))
 ```
 
-## Integration with Conformal Detection
+Probabilistic mode requires a finite `n_batches` because the global target must
+be known in advance.
+
+## End-to-end discovery evaluation
+
+The next example treats each generated batch as a separate multiple-testing
+family. It reports realized FDP and power for each family and then summarizes
+those realized values.
 
 ```python
-from pyod.models.lof import LOF
-from nonconform import ConformalDetector, Split
-from nonconform.metrics import (
-    false_discovery_rate,
-    statistical_power,
-)
-
-# Create batch generator
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=200,
-    anomaly_proportion=0.08,
-    train_size=0.7,  # Use 70% of normal data for training
-    seed=42
-)
-
-# Get training data and train detector
-x_train = batch_gen.get_training_data()
-detector = ConformalDetector(
-    detector=LOF(n_neighbors=20),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
-
-# Evaluate on generated batches
-batch_results = []
-for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    # Apply FDR control through the one-step API
-    decisions = detector.select(x_batch, alpha=0.05)
-
-    # Calculate metrics
-    fdr = false_discovery_rate(y_batch, decisions)
-    power = statistical_power(y_batch, decisions)
-
-    batch_results.append({
-        'batch': i + 1,
-        'fdr': fdr,
-        'power': power,
-        'detections': decisions.sum()
-    })
-    print(f"Batch {i + 1}: FDR={fdr:.3f}, Power={power:.3f}")
-
-# Summary statistics
 import numpy as np
+from oddball import BatchGenerator, Dataset, load
+from pyod.models.iforest import IForest
 
-mean_fdr = np.mean([r['fdr'] for r in batch_results])
-mean_power = np.mean([r['power'] for r in batch_results])
-print(f"Average FDR: {mean_fdr:.3f}, Average Power: {mean_power:.3f}")
-```
-
-## Advanced Configuration
-
-### Different Datasets
-
-```python
-from oddball import Dataset, load
-
-# Test with different datasets - limited generation example
-datasets = [
-    (lambda **kwargs: load(Dataset.SHUTTLE, **kwargs), "Shuttle"),
-    (lambda **kwargs: load(Dataset.BREASTW, **kwargs), "Breast Cancer"),
-    (lambda **kwargs: load(Dataset.FRAUD, **kwargs), "Credit Fraud")
-]
-
-for load_func, name in datasets:
-    print(f"\n{name} Dataset:")
-
-    batch_gen = BatchGenerator(
-        load_data_func=load_func,
-        batch_size=100,
-        anomaly_proportion=0.1,
-        n_batches=3,  # Generate exactly 3 batches per dataset
-        seed=42
-    )
-
-    # Check data availability
-    x_train = batch_gen.get_training_data()
-    print(f"  Training data: {x_train.shape}")
-    print(f"  Available - Normal: {batch_gen.n_normal}, Anomaly: {batch_gen.n_anomaly}")
-
-    # Generate all batches (automatically stops after 3)
-    for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-        print(f"  Batch {i+1}: {x_batch.shape}, Anomalies: {y_batch.sum()}")
-```
-
-### Reproducibility Control
-
-```python
-# Create generator with specific seed and limited batches
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.1,
-    n_batches=3,  # Exactly 3 batches
-    seed=42
-)
-
-# Generate initial sequence (automatically stops after 3 batches)
-batch1_data = []
-for x_batch, y_batch in batch_gen.generate():
-    batch1_data.append((x_batch.copy(), y_batch.copy()))
-
-# Reset generator
-batch_gen.reset()
-
-# Generate identical sequence (automatically stops after 3 batches)
-batch2_data = []
-for x_batch, y_batch in batch_gen.generate():
-    batch2_data.append((x_batch.copy(), y_batch.copy()))
-
-# Verify reproducibility
-for i, ((x1, y1), (x2, y2)) in enumerate(zip(batch1_data, batch2_data)):
-    anomalies_match = y1.sum() == y2.sum()
-    print(f"Batch {i+1}: Anomaly counts match = {anomalies_match}")
-```
-
-### Performance Evaluation
-
-```python
-# Systematic evaluation across contamination levels
-contamination_levels = [0.01, 0.05, 0.1, 0.15, 0.2]
-performance_results = {}
-
-for contamination in contamination_levels:
-    batch_gen = BatchGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-        batch_size=150,
-        anomaly_proportion=contamination,
-        seed=42
-    )
-
-    # Train detector
-    x_train = batch_gen.get_training_data()
-    detector = ConformalDetector(
-        detector=LOF(n_neighbors=20),
-        strategy=Split(n_calib=0.3)
-    )
-    detector.fit(x_train)
-
-    # Evaluate across multiple batches
-    fdrs = []
-    powers = []
-
-    for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-        if i >= 4:  # Stop after 5 batches
-            break
-        decisions = detector.select(x_batch, alpha=0.05)
-
-        fdr = false_discovery_rate(y_batch, decisions)
-        power = statistical_power(y_batch, decisions)
-
-        fdrs.append(fdr)
-        powers.append(power)
-
-    performance_results[contamination] = {
-        'mean_fdr': np.mean(fdrs),
-        'mean_power': np.mean(powers),
-        'std_fdr': np.std(fdrs),
-        'std_power': np.std(powers)
-    }
-
-# Display results
-print("Contamination\tFDR\t\tPower")
-for contamination, results in performance_results.items():
-    print(f"{contamination:.2f}\t\t{results['mean_fdr']:.3f}±{results['std_fdr']:.3f}\t{results['mean_power']:.3f}±{results['std_power']:.3f}")
-```
-
-## Generator Properties and Validation
-
-```python
-# Check generator configuration
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=100,
-    anomaly_proportion=0.1,
-    seed=42
-)
-
-print(f"Batch size: {batch_gen.batch_size}")
-print(f"Anomaly proportion: {batch_gen.anomaly_proportion}")
-print(f"Anomaly mode: {batch_gen.anomaly_mode}")
-print(f"Normal instances available: {batch_gen.n_normal}")
-print(f"Anomaly instances available: {batch_gen.n_anomaly}")
-
-if batch_gen.anomaly_mode == "proportional":
-    print(f"Normal per batch: {batch_gen.n_normal_per_batch}")
-    print(f"Anomalies per batch: {batch_gen.n_anomaly_per_batch}")
-```
-
-## Error Handling and Validation
-
-```python
-# The generator validates parameters automatically
-try:
-    # Invalid batch size
-    BatchGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-        batch_size=0,  # Invalid
-        anomaly_proportion=0.1
-    )
-except ValueError as e:
-    print(f"Batch size error: {e}")
-
-try:
-    # Invalid anomaly proportion
-    BatchGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-        batch_size=100,
-        anomaly_proportion=1.5  # > 1.0
-    )
-except ValueError as e:
-    print(f"Proportion error: {e}")
-
-try:
-    # Probabilistic mode without n_batches
-    BatchGenerator(
-        load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-        batch_size=100,
-        anomaly_proportion=0.1,
-        anomaly_mode="probabilistic",
-        # Missing n_batches parameter
-    )
-except ValueError as e:
-    print(f"Mode error: {e}")
-```
-
-## Best Practices
-
-1. **Choose appropriate batch size**: Balance between statistical power and computational efficiency
-2. **Use proportional mode** for consistent per-batch evaluation
-3. **Use probabilistic mode** when you need exact global contamination across all batches
-4. **Set random seeds** for reproducible experiments
-5. **Validate data availability** before generating many batches
-6. **Reset generators** when reusing for different experiments
-
-## Integration with FDR Control
-
-```python
-from oddball import Dataset, load
-from oddball.generator import BatchGenerator
-from pyod.models.lof import LOF
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-# Generate batches and apply FDR control
-batch_gen = BatchGenerator(
-    load_data_func=lambda **kwargs: load(Dataset.SHUTTLE, **kwargs),
-    batch_size=200,
+generator = BatchGenerator(
+    load_data_func=lambda: load(Dataset.SATIMAGE2, as_dataframe=True),
+    batch_size=100,
     anomaly_proportion=0.1,
-    seed=42
+    anomaly_mode="proportional",
+    n_batches=5,
+    train_size=0.5,
+    seed=42,
 )
 
-x_train = batch_gen.get_training_data()
 detector = ConformalDetector(
-    detector=LOF(n_neighbors=20),
-    strategy=Split(n_calib=0.3)
-)
-detector.fit(x_train)
+    detector=IForest(n_estimators=50, random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(generator.get_training_data())
 
-for i, (x_batch, y_batch) in enumerate(batch_gen.generate()):
-    # Apply FDR control through select()
-    decisions = detector.select(x_batch, alpha=0.05)
+rows = []
+for batch_index, (x_batch, y_batch) in enumerate(generator.generate()):
+    selected = np.asarray(detector.select(x_batch, alpha=0.1))
+    y_true = y_batch.to_numpy(dtype=int)
+    rows.append(
+        {
+            "batch": batch_index,
+            "discoveries": int(selected.sum()),
+            "fdp": float(false_discovery_rate(y_true, selected)),
+            "power": float(statistical_power(y_true, selected)),
+        }
+    )
 
-    # Calculate empirical FDR on labeled evaluation data
-    fdr = false_discovery_rate(y_batch, decisions)
-    power = statistical_power(y_batch, decisions)
-
-    print(f"Batch {i+1}: Empirical FDR={fdr:.3f}, Power={power:.3f}")
-
-    if i >= 4:  # Stop after 5 batches
-        break
+for row in rows:
+    print(row)
+print("mean realized FDP:", np.mean([row["fdp"] for row in rows]))
+print("mean power:", np.mean([row["power"] for row in rows]))
 ```
 
-This batch evaluation approach provides systematic, reproducible testing with
-precise contamination control. Statistical guarantees still depend on the
-conformal/FDR workflow and its assumptions.
+`SATIMAGE2` provides enough normal reference rows for a substantially finer
+empirical p-value grid than the small `WBC` demonstration above. This matters:
+the smallest classical p-value is `1 / (n_calibration + 1)`, so some small
+reference/family combinations cannot satisfy a BH threshold even for an
+extreme score.
+
+`false_discovery_rate(...)` computes the realized FDP for the supplied labels
+and mask; its historical name is retained for API compatibility. Five generated
+families are far too few to establish FDR control, so this example demonstrates
+evaluation bookkeeping rather than a theorem check.
+
+## Define the family before generating results
+
+There are two defensible but different designs:
+
+| Design | Procedure | Interpretation |
+|---|---|---|
+| Each operational batch is its own family | One `select(...)` call per batch | Per-batch FDR target under the relevant assumptions |
+| All generated rows form one retrospective family | Concatenate rows, compute p-values, and apply one procedure | FDR target for the combined family |
+
+Do not apply BH independently to chunks of one conceptual family and then
+report the pooled discoveries as if one global BH procedure had been used.
+Weighted mode is even more batch-sensitive because the target batch is used to
+estimate density ratios and WCS couples the complete family.
+
+## Reproducibility
+
+A seed controls the initial training split and sampling sequence. Construct two
+generators with identical configuration and seed when you need to demonstrate
+full-run reproducibility:
+
+```python
+import numpy as np
+from oddball import BatchGenerator, Dataset, load
+
+def make_generator() -> BatchGenerator:
+    return BatchGenerator(
+        load_data_func=lambda: load(Dataset.WBC, as_dataframe=True),
+        batch_size=20,
+        anomaly_proportion=0.1,
+        n_batches=2,
+        seed=42,
+    )
+
+first = list(make_generator().generate())
+second = list(make_generator().generate())
+
+for (x_first, y_first), (x_second, y_second) in zip(
+    first,
+    second,
+    strict=True,
+):
+    np.testing.assert_array_equal(x_first.to_numpy(), x_second.to_numpy())
+    np.testing.assert_array_equal(y_first.to_numpy(), y_second.to_numpy())
+
+print("identical runs")
+```
+
+`reset()` restores the generator RNG to the original seed after the training
+split has already been constructed. Because construction itself consumed RNG
+draws, a reset is not the clearest way to reproduce the first generated run.
+Reconstruction, as above, reproduces the entire process.
+
+## Designing a meaningful benchmark
+
+Report enough information to make the evaluation auditable:
+
+- dataset and version;
+- normal/anomaly label convention;
+- source-pool sizes and whether sampling uses replacement;
+- `train_size`, batch size, mode, anomaly proportion, and number of batches;
+- detector, conformal strategy, p-value estimator, selection procedure, and
+  all seeds;
+- per-family discovery count, FDP, and power, including no-discovery families;
+- runtime and memory measured on stated hardware;
+- uncertainty across independent generator seeds.
+
+Do not use generated test labels to tune a detector and then report the same
+batches as final evaluation. Reserve separate generator seeds or source data
+for tuning and final reporting, and account for overlap caused by sampling with
+replacement.
+
+## Common errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `tuple has no attribute columns` | Loader callback used the default array return | Pass `as_dataframe=True` |
+| `Expected 'Class' column in data` | Callback returned a DataFrame without the label column | Return the untouched oddball DataFrame or provide the documented schema |
+| Not enough normal/anomaly instances | Requested per-batch count exceeds a source pool | Reduce batch count/proportion or choose a larger dataset |
+| Probabilistic mode requires `n_batches` | Global target length is undefined | Supply a positive finite batch count |
+
+For ordered evidence and change-detection evaluation, continue with
+[Streaming evaluation](streaming_evaluation.md).

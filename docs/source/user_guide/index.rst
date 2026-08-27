@@ -6,12 +6,15 @@ User Guide
 
    conformal_inference
    conformalization_strategies
-   weighted_conformal
+   choosing_strategies
+   detector_compatibility
    fdr_control
+   exchangeability_martingales
+   weighted_conformal
    batch_evaluation
    streaming_evaluation
-   exchangeability_martingales
    statistical_concepts
+   input_validation
    logging
    best_practices
    troubleshooting

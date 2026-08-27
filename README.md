@@ -126,15 +126,29 @@ print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
 
 ### Sequential change monitoring
 
-The fitted `Split` detector above can initialize the stream lane without
-refitting its scoring model.
+A fitted `Split` detector can initialize the stream lane without refitting its
+scoring model. The example is self-contained so it can be copied independently
+of the batch example.
 
 <details>
 <summary><strong>Show sequential monitoring example</strong></summary>
 
 ```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
 from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
 from nonconform.monitoring import ExchangeabilityMonitor
+
+rng = np.random.default_rng(42)
+x_train = rng.normal(size=(1_000, 2))
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_train)
 
 alpha = 0.05
 monitor = ExchangeabilityMonitor.from_split_detector(
