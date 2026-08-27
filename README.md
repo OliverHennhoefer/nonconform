@@ -1,8 +1,4 @@
-<!-- GitHub-rendered README. Keep shared content aligned with docs/README.md,
-which is intentionally maintained separately for PyPI's rendering engine. -->
-
-![Logo](./docs/img/banner_dark.png#gh-dark-mode-only)
-![Logo](./docs/img/banner_light.png#gh-light-mode-only)
+![nonconform](https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner.png)
 
 ---
 
@@ -33,7 +29,7 @@ and the relevant multiple-testing assumptions.
 | Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
 | Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
 | Sequential monitoring | Randomized sequential ranks with exchangeability martingales (`ExchangeabilityMonitor`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
-| Custom detector integration | Support for any detector implementing the `AnomalyDetector` protocol | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
+| Custom detector integration | Support for protocol-compliant detectors (with strict-inductive caveats for blocked PyOD models) | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
 ## Citation
 
@@ -170,7 +166,7 @@ While primarily designed for static (single-batch) workflows, optional `online-f
 
 ## Custom Detectors
 
-Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol works with nonconform:
+Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol can be integrated with nonconform:
 
 ```python
 from typing import Self
@@ -185,6 +181,10 @@ class MyDetector:
 ```
 
 For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the default score-polarity policy. Use `score_polarity="auto"` only when you want strict detector-family validation.
+
+For strict inductive conformal/FDR pipelines, avoid batch-adaptive PyOD
+detectors with non-frozen score maps (for example `ECOD` and `COPOD`, which are
+blocked at runtime).
 
 See [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
 
