@@ -51,7 +51,7 @@ or a custom detector:
 
 <p align="center">
   <a href="https://scikit-learn.org/">
-    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/scikit-learn.svg" alt="scikit-learn" height="44">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/scikit-learn.svg?v=dc048ee" alt="scikit-learn" height="44">
   </a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://pyod.readthedocs.io/">
