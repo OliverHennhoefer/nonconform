@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">
-    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner.png" alt="nonconform" width="900">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/banner.png" alt="nonconform" width="900">
   </a>
 </h1>
 

@@ -3,6 +3,10 @@ title: "nonconform: Conformal Anomaly Detection"
 description: "Calibrate anomaly scores, control batch discoveries, and monitor streams for change with conformal methods in Python."
 ---
 
+<p align="center">
+  <img src="assets/banner.png" alt="nonconform" width="720">
+</p>
+
 # nonconform: Conformal Anomaly Detection in Python
 
 **Calibrate scores. Control discoveries. Monitor change.**
