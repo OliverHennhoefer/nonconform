@@ -1,211 +1,230 @@
-![nonconform](https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner.png)
+<h1 align="center">
+  <a href="https://oliverhennhoefer.github.io/nonconform/">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/banner.png" alt="nonconform" width="900">
+  </a>
+</h1>
 
----
+<p align="center">
+  <strong>Calibrate scores. Control discoveries. Monitor change.</strong>
+</p>
 
-![Python versions](https://img.shields.io/pypi/pyversions/nonconform.svg)
-[![codecov](https://codecov.io/gh/OliverHennhoefer/nonconform/branch/main/graph/badge.svg?token=Z78HU3I26P)](https://codecov.io/gh/OliverHennhoefer/nonconform)
-[![PyPI version](https://img.shields.io/pypi/v/nonconform.svg)](https://pypi.org/project/nonconform/)
-[![Docs](https://github.com/OliverHennhoefer/nonconform/actions/workflows/docs.yml/badge.svg)](https://oliverhennhoefer.github.io/nonconform/)
+<p align="center">
+  <a href="https://pypi.org/project/nonconform/"><img src="https://img.shields.io/pypi/v/nonconform.svg" alt="PyPI version"></a>
+  <a href="https://pypi.org/project/nonconform/"><img src="https://img.shields.io/pypi/pyversions/nonconform.svg" alt="Supported Python versions"></a>
+  <a href="https://github.com/OliverHennhoefer/nonconform/actions/workflows/codecov.yml"><img src="https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/nonconform/codecov.yml?branch=main&label=Tests" alt="Tests"></a>
+  <a href="https://codecov.io/gh/OliverHennhoefer/nonconform"><img src="https://codecov.io/gh/OliverHennhoefer/nonconform/branch/main/graph/badge.svg?token=Z78HU3I26P" alt="Code coverage"></a>
+  <a href="https://oliverhennhoefer.github.io/nonconform/"><img src="https://img.shields.io/github/actions/workflow/status/OliverHennhoefer/nonconform/docs.yml?branch=main&label=Documentation" alt="Documentation"></a>
+  <a href="https://github.com/OliverHennhoefer/nonconform/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/nonconform.svg" alt="License"></a>
+</p>
 
-## Conformal Anomaly Detection
+<p align="center">
+  <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
+  <a href="https://oliverhennhoefer.github.io/nonconform/quickstart/">Batch workflow</a> ·
+  <a href="https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/">Sequential workflow</a> ·
+  <a href="https://oliverhennhoefer.github.io/nonconform/api/">API reference</a> ·
+  <a href="https://arxiv.org/abs/2605.13642">Paper</a>
+</p>
 
-Thresholds for anomaly detection are often arbitrary and lack theoretical guarantees. **nonconform** wraps anomaly detectors (from [PyOD](https://pyod.readthedocs.io/en/latest/), scikit-learn, or custom implementations) and transforms their raw anomaly scores into conformal *p*-values. Under the assumptions of the selected method, these p-values support controlled false discovery rate (FDR) workflows with explicit, assumption-dependent guarantees.
+`nonconform` turns anomaly scores into conformal evidence for two primary
+workflows: batch discovery control and sequential change monitoring. Wrap a
+supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
+or a custom detector:
 
-> **Note:** The methods in **nonconform** assume that training and test data are [*exchangeable*](https://en.wikipedia.org/wiki/Exchangeable_random_variables). The package is therefore not suited for spatial or temporal autocorrelation unless such dependencies are explicitly handled in preprocessing or model design.
+- **Batch:** Use calibrated p-values directly or call `select(...)` to apply
+  false discovery rate (FDR) control.
+- **Stream:** Use conformal martingales to accumulate evidence against
+  exchangeability and trigger configured alarms.
 
-**Guarantee scope:** nonconform calibrates detector scores; it does not make an
-unsuitable detector or mismatched calibration set valid. Standard conformal
-claims require exchangeability. Weighted workflows require plausible covariate
-shift, support overlap, and reliable weights. FDR claims require valid p-values
-and the relevant multiple-testing assumptions.
+## Why nonconform?
 
-## Feature Overview
+- **Calibrate anomaly scores** into conformal p-values using reference data.
+- **Control batch discoveries** with `ConformalDetector.select(...)`, which
+  combines calibration and FDR control in one workflow.
+- **Monitor streams for change** with conformal martingales, anytime evidence
+  against exchangeability, and configurable alarms.
+- **Keep your detector** through support for PyOD, recognized scikit-learn
+  estimators, and protocol-compliant custom models.
+- **Adapt the calibration** with split, cross-validation, and
+  jackknife+-after-bootstrap strategies.
+- **Handle advanced settings** with weighted conformal methods and post-hoc FDP
+  bounds.
 
-| Need | nonconform Functionality | Start Here |
-| --- | --- | --- |
-| Principled anomaly decisions | `ConformalDetector.select(...)` combines conformal *p*-values with FDR-controlled selection | [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
-| Post-hoc threshold certificates | `conformal_fdp_upper_bound_from_result(...)` attaches FDP and precision bounds to raw conformal *p*-value thresholds | [FDR Control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
-| Flexible calibration strategies | `Split`, `CrossValidation`, and `JackknifeBootstrap` for different data/compute tradeoffs | [Conformalization Strategies](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
-| Covariate-shift aware workflows | Weighted conformal prediction with density-ratio estimators and weighted FDR control (requires sufficient calibration/test support overlap) | [Weighted Conformal](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
-| Rich p-value estimation | Empirical, probabilistic KDE, and conditional calibration estimators | [Common Workflows](https://oliverhennhoefer.github.io/nonconform/api/common_workflows/) |
-| Sequential monitoring | Randomized sequential ranks with exchangeability martingales (`ExchangeabilityMonitor`) | [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
-| Custom detector integration | Support for protocol-compliant detectors (with strict-inductive caveats for blocked PyOD models) | [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
+<p align="center">
+  <a href="https://scikit-learn.org/">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/scikit-learn.svg" alt="scikit-learn" height="44">
+  </a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://pyod.readthedocs.io/">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/pyod.svg" alt="PyOD" height="44">
+  </a>
+</p>
 
-## Citation
+## Installation
 
-If you use **nonconform** in academic work, reports, or other published
-material, please cite the accompanying paper:
+`nonconform` requires Python 3.12 or newer. Both batch discovery control and
+sequential monitoring are included in the core installation.
 
-```bibtex
-@misc{hennhoefer2026,
-      title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
-      author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
-      year={2026},
-      eprint={2605.13642},
-      archivePrefix={arXiv},
-      primaryClass={stat.ML},
-      url={https://arxiv.org/abs/2605.13642},
-}
-```
-
-## Getting Started
-
-Installation via [PyPI](https://pypi.org/project/nonconform/):
-
-```sh
+```bash
 pip install nonconform
 ```
 
-> **Note:** The example below uses an external dataset API. Install with `pip install oddball` or `pip install "nonconform[data]"`.
+For the PyOD detector collection and benchmark datasets:
 
-### Classical Conformal Workflow
-
-**Example:** Isolation Forest on the Shuttle benchmark. This trains a base detector, calibrates conformal scores, then applies FDR-controlled selection through `select(...)`. Raw *p*-values remain available via `detector.last_result.p_values`.
-
-```python
-from pyod.models.iforest import IForest
-
-from nonconform import ConformalDetector, Split
-from nonconform.metrics import false_discovery_rate, statistical_power
-from oddball import Dataset, load
-
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
-
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=1_000),
-    seed=42,
-)
-detector.fit(x_train)
-
-decisions = detector.select(x_test, alpha=0.2)
-
-print(f"Empirical FDR: {false_discovery_rate(y_test, decisions)}")
-print(f"Statistical Power: {statistical_power(y_test, decisions)}")
+```bash
+pip install "nonconform[pyod,data]"
 ```
 
-Output:
+<details>
+<summary><strong>Optional extras</strong></summary>
 
-```text
-Empirical FDR: 0.18
-Statistical Power: 0.99
-```
+| Extra | Adds |
+| --- | --- |
+| `pyod` | PyOD anomaly detectors |
+| `data` | `oddball` benchmark datasets and PyArrow support |
+| `fdr` | Streaming FDR procedures from `online-fdr` |
+| `probabilistic` | KDE-based probabilistic estimation and tuning |
+| `all` | Every optional feature |
 
-## Advanced Methods
+</details>
 
-nonconform includes advanced workflows for practitioners:
+## Quick start
 
-- **Weighted Conformal Prediction** (`weight_estimator=...`): reweights calibration evidence for covariate shift settings where test and calibration distributions differ, assuming enough support overlap between calibration and test features.
-- **Exchangeability Monitoring** (`nonconform.monitoring` + `nonconform.martingales`): randomized sequential conformal ranks and anytime evidence monitoring over streams.
+### Batch discovery control
 
-Weighted Conformal Setup:
-
-```python
-from pyod.models.iforest import IForest
-
-from nonconform import ConformalDetector, Split, logistic_weight_estimator
-
-detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=1_000),
-    weight_estimator=logistic_weight_estimator(),
-    seed=42,
-)
-```
-
-> **Note:** In weighted mode, `ConformalDetector.select(...)` dispatches weighted FDR control automatically.
-
-Rigorous Sequential Monitoring from an Existing Split Detector:
+This core-only example demonstrates the batch lane. The detector is trained on
+normal data, part of which is reserved automatically for conformal calibration.
 
 ```python
 import numpy as np
-from pyod.models.iforest import IForest
+from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_train = rng.normal(size=(1_000, 2))
+x_test = np.vstack([
+    rng.normal(size=(200, 2)),
+    rng.normal(loc=5.0, size=(20, 2)),
+])
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_train)
+
+discoveries = detector.select(x_test, alpha=0.05)
+p_values = detector.last_result.p_values
+
+print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
+```
+
+`discoveries` is a Boolean mask. Here, `alpha=0.05` is the target FDR level,
+not a per-observation score threshold. The underlying conformal p-values remain
+available through `last_result` for inspection or downstream analysis.
+
+### Sequential change monitoring
+
+The fitted `Split` detector above can initialize the stream lane without
+refitting its scoring model.
+
+<details>
+<summary><strong>Show sequential monitoring example</strong></summary>
+
+```python
 from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
 from nonconform.monitoring import ExchangeabilityMonitor
 
-rng = np.random.default_rng(42)
-x_train = rng.normal(size=(2_000, 5))
-x_t = rng.normal(size=5)
-x_stream_chunk = rng.normal(size=(10, 5))
-
-alpha = 0.01
-split_detector = ConformalDetector(
-    detector=IForest(),
-    strategy=Split(n_calib=1_000),
-    seed=42,
-).fit(x_train)
+alpha = 0.05
 monitor = ExchangeabilityMonitor.from_split_detector(
-    split_detector,
+    detector,
     martingale=SimpleJumperMartingale(
         alarm_config=AlarmConfig(restarted_ville_threshold=1 / alpha)
     ),
     seed=42,
 )
 
-state = monitor.update(x_t)
-states = monitor.update_many(x_stream_chunk)
+# Stable observations followed by a distribution shift
+x_stream = np.vstack([
+    rng.normal(size=(50, 2)),
+    rng.normal(loc=3.0, size=(50, 2)),
+])
+
+for x_t in x_stream:
+    state = monitor.update(x_t)
+    if "restarted_ville" in state.triggered_alarms:
+        print(f"Change alarm at step {state.evidence_step}")
+        break
 ```
 
-> **Note:** `from_split_detector(...)` preserves the fitted split detector and
-> primes sequential rank history from its calibration scores. Existing
-> `ConformalDetector.compute_p_value(...)` behavior remains unchanged. Supplied
-> conformalizers and martingales are copied so later caller mutations cannot
-> alter monitor state.
-> Use `ville_threshold` or `restarted_ville_threshold` when you need an anytime
-> false-alarm bound for a monitored stream. CUSUM and Shiryaev-Roberts thresholds
-> are change-evidence triggers for diagnosing possible stream changes; they need
-> separate calibration and do not replace cross-hypothesis FDR control. See
-> [Exchangeability Martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
-> for threshold interpretation details.
+</details>
 
-## Beyond Static Data
+Under the sequential validity assumptions, the restarted Ville alarm at
+`1 / alpha` controls the probability of ever crossing on one stream. It does
+not control FDR across multiple streams. See the
+[sequential monitoring guide](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
+for the full guarantee scope and other alarm statistics.
 
-While primarily designed for static (single-batch) workflows, optional `online-fdr` integration supports [streaming FDR procedures](https://oliverhennhoefer.github.io/nonconform/user_guide/streaming_evaluation/).
+## Choose a workflow
 
-## Custom Detectors
+| Goal | Start with |
+| --- | --- |
+| Calibrate and select anomalies in a batch | [`Split` and `select(...)`](https://oliverhennhoefer.github.io/nonconform/quickstart/) |
+| Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
+| Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
+| Account for covariate shift | [Weighted conformal inference](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
+| Certify a chosen p-value threshold post hoc | [FDP upper bounds](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
+| Bring a custom or third-party detector | [Detector compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
-Any detector implementing the [`AnomalyDetector`](https://oliverhennhoefer.github.io/nonconform/api/#nonconform.structures.AnomalyDetector) protocol can be integrated with nonconform:
+## Statistical scope
 
-```python
-from typing import Self
+> **Guarantees are assumption-dependent.** Standard conformal workflows require
+> calibration data and null test cases to be exchangeable. FDR claims additionally
+> require valid p-values and the assumptions of the selected multiple-testing
+> procedure. Weighted workflows require a plausible covariate-shift model, support
+> overlap, and reliable weights. Sequential martingales require valid sequential
+> conformal p-values; Ville thresholds provide false-alarm control for one valid
+> stream, while CUSUM and Shiryaev-Roberts thresholds are change-evidence triggers
+> that require separate calibration.
 
-import numpy as np
+`nonconform` calibrates detector scores; it cannot make an unsuitable detector
+or mismatched calibration set valid. Spatial or temporal dependence must be
+handled explicitly before applying standard exchangeability-based claims. See
+the guides to [FDR control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/)
+and [sequential monitoring](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
+before relying on error-control statements in a new application.
 
-class MyDetector:
-    def fit(self, X, y=None) -> Self: ...
-    def decision_function(self, X) -> np.ndarray: ...  # higher = more anomalous
-    def get_params(self, deep=True) -> dict: ...
-    def set_params(self, **params) -> Self: ...
+## Citation
+
+If you use `nonconform` in academic work, please cite the
+[accompanying paper](https://arxiv.org/abs/2605.13642):
+
+```bibtex
+@misc{hennhoefer2026,
+  title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
+  author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
+  year={2026},
+  eprint={2605.13642},
+  archivePrefix={arXiv},
+  primaryClass={stat.ML},
+  url={https://arxiv.org/abs/2605.13642},
+}
 ```
 
-For custom detectors, either set `score_polarity` explicitly (`"higher_is_anomalous"` in most cases), or omit it to use the default score-polarity policy. Use `score_polarity="auto"` only when you want strict detector-family validation.
+## Project
 
-For strict inductive conformal/FDR pipelines, avoid batch-adaptive PyOD
-detectors with non-frozen score maps (for example `ECOD` and `COPOD`, which are
-blocked at runtime).
+Read the [documentation](https://oliverhennhoefer.github.io/nonconform/), browse
+the [changelog](https://github.com/OliverHennhoefer/nonconform/blob/main/CHANGELOG.md),
+or report a problem in the [issue tracker](https://github.com/OliverHennhoefer/nonconform/issues).
+Contributions are welcome; start with the
+[contributing guide](https://oliverhennhoefer.github.io/nonconform/contributing/).
+`nonconform` is distributed under the
+[BSD 3-Clause License](https://github.com/OliverHennhoefer/nonconform/blob/main/LICENSE).
 
-See [Detector Compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) for details and examples.
+---
 
-## Optional Dependencies
-
-_For additional features, you might need optional dependencies:_
-
-- `pip install nonconform[pyod]` - Includes PyOD anomaly detection library
-- `pip install nonconform[data]` - Includes oddball for loading benchmark datasets
-- `pip install nonconform[fdr]` - Includes advanced FDR control methods (online-fdr)
-- `pip install nonconform[probabilistic]` - Includes KDEpy and Optuna for probabilistic approximation
-- `pip install nonconform[all]` - Includes all optional dependencies
-
-_Please refer to the [pyproject.toml](https://github.com/OliverHennhoefer/nonconform/blob/main/pyproject.toml) for details._
-
-## Contact
-
-**Bug reporting:** [https://github.com/OliverHennhoefer/nonconform/issues](https://github.com/OliverHennhoefer/nonconform/issues)
-
-----
-
-<a href="https://www.dlr.de/">
-  <img src="https://www.dlr.de/de/pt-lf/aktuelles/pressematerial/logos/bmwk/vorschaubild_bmwk_logo-mit-foerderzusatz_en/@@images/image-600-ea91cd9090327104991124b30fe1de7d.png" alt="BMWK logo" width="250"/>
-</a>
+<p align="center">
+  <a href="https://www.dlr.de/">
+    <img src="https://www.dlr.de/de/pt-lf/aktuelles/pressematerial/logos/bmwk/vorschaubild_bmwk_logo-mit-foerderzusatz_en/@@images/image-600-ea91cd9090327104991124b30fe1de7d.png" alt="Funding acknowledgement" width="250">
+  </a>
+</p>
