@@ -119,9 +119,10 @@ p_values = detector.last_result.p_values
 print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
 ```
 
-`discoveries` is a Boolean mask. Here, `alpha=0.05` is the target FDR level,
-not a per-observation score threshold. The underlying conformal p-values remain
-available through `last_result` for inspection or downstream analysis.
+> [!NOTE]
+> `discoveries` is a Boolean mask. Here, `alpha=0.05` is the target FDR level,
+> not a per-observation score threshold. The underlying conformal p-values remain
+> available through `last_result` for inspection or downstream analysis.
 
 ### Sequential change monitoring
 
@@ -178,6 +179,7 @@ for the full guarantee scope and other alarm statistics.
 
 ## Statistical scope
 
+> [!IMPORTANT]
 > **Guarantees are assumption-dependent.** Standard conformal workflows require
 > calibration data and null test cases to be exchangeable. FDR claims additionally
 > require valid p-values and the assumptions of the selected multiple-testing
