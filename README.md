@@ -54,7 +54,7 @@ or a custom detector:
   &nbsp;&nbsp;&nbsp;
   <a href="https://scikit-learn.org/"><img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/scikit-learn.svg?v=dc048ee" alt="scikit-learn" height="44" align="middle"></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="https://pyod.readthedocs.io/"><img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/pyod.svg" alt="PyOD" height="44" align="middle"></a>
+  <a href="https://pyod.readthedocs.io/"><img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/pyod.svg?v=1" alt="PyOD" height="44" align="middle"></a>
   &nbsp;&nbsp;&nbsp;&nbsp;
   <a href="https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/"><img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/integrations/custom.svg?v=1" alt="Custom AnomalyDetector protocol" height="44" align="middle"></a>
 </p>
