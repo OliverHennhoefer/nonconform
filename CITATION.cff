@@ -1,13 +1,25 @@
 cff-version: 1.2.0
-message: "If you use this work, please cite it using the metadata from this file."
-title: "Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'"
+message: "If you use this software, please cite the preferred citation below."
+title: "nonconform"
 authors:
   - family-names: "Hennhöfer"
     given-names: "Oliver"
-  - family-names: "Kirsch"
-    given-names: "Maximilian"
-  - family-names: "Preisach"
-    given-names: "Christine"
-date-released: "2026-05-13"
-doi: "10.48550/arXiv.2605.13642"
-url: "https://arxiv.org/abs/2605.13642"
+preferred-citation:
+  type: conference-paper
+  title: "Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with nonconform"
+  authors:
+    - family-names: "Hennhöfer"
+      given-names: "Oliver"
+    - family-names: "Kirsch"
+      given-names: "Maximilian"
+    - family-names: "Preisach"
+      given-names: "Christine"
+  collection-title: "Proceedings of the Fifteenth Symposium on Conformal and Probabilistic Prediction with Applications"
+  collection-type: proceedings
+  year: 2026
+  volume: 329
+  start: 613
+  end: 632
+  publisher:
+    name: "PMLR"
+  url: "https://proceedings.mlr.press/v329/hennhofer26a.html"
