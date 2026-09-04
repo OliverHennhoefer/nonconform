@@ -1,48 +1,45 @@
-"""nonconform: Conformal Anomaly Detection with Uncertainty Quantification.
+"""Conformal evidence for anomaly detection and change monitoring.
 
-This package provides statistically rigorous anomaly detection with p-values
-and error control metrics like False Discovery Rate (FDR). Supports PyOD
-detectors, sklearn-compatible detectors, and custom detectors.
+``nonconform`` wraps PyOD, recognized scikit-learn, and custom anomaly scorers
+for two primary workflows: batch conformal p-values with false discovery rate
+control, and sequential randomized ranks with exchangeability martingales.
+Guarantees depend on the assumptions of the selected workflow.
 
 Main Components:
-    - Conformal detectors with uncertainty quantification
-    - Calibration strategies for different data scenarios
-    - Weighted conformal detection for covariate shift
-    - Statistical utilities and FDR control
-    - Sequential evidence monitoring via ``nonconform.martingales``
+    - Batch conformal p-values and FDR-controlled selection
+    - Split and resampling calibration strategies
+    - Weighted conformal inference and WCS under covariate shift
+    - Post-hoc simultaneous FDP bounds
+    - Sequential conformal monitoring via ``nonconform.monitoring`` and
+      ``nonconform.martingales``
 
 Logging Control:
-    By default, INFO level messages and above are shown.
-    Control verbosity with standard Python logging:
+    Configure package progress and warnings with standard Python logging:
 
         import logging
-        logging.getLogger("nonconform").setLevel(logging.ERROR)  # Silence warnings
-        logging.getLogger("nonconform").setLevel(logging.DEBUG)  # Enable debug
+        logging.getLogger("nonconform").setLevel(logging.WARNING)
 
 Examples:
-    Basic usage — FDR-controlled selection in one call:
+    FDR-controlled batch selection:
 
-    >>> from pyod.models.iforest import IForest
+    >>> import numpy as np
+    >>> from sklearn.ensemble import IsolationForest
     >>> from nonconform import ConformalDetector, Split
-    >>> detector = ConformalDetector(detector=IForest(), strategy=Split(n_calib=0.2))
-    >>> detector.fit(X_train)
-    >>> mask = detector.select(X_test, alpha=0.05)
-
-    Raw p-values for custom downstream analysis:
-
-    >>> p_values = detector.compute_p_values(X_test)
-
-    Weighted conformal prediction:
-
-    >>> from nonconform import logistic_weight_estimator
+    >>> rng = np.random.default_rng(42)
+    >>> x_reference = rng.normal(size=(300, 3))
+    >>> x_test = rng.normal(size=(10, 3))
     >>> detector = ConformalDetector(
-    ...     detector=IForest(),
-    ...     strategy=Split(n_calib=0.2),
-    ...     weight_estimator=logistic_weight_estimator(),
+    ...     detector=IsolationForest(random_state=42),
+    ...     strategy=Split(n_calib=0.3),
+    ...     seed=42,
     ... )
+    >>> _ = detector.fit(x_reference)
+    >>> mask = detector.select(x_test, alpha=0.05)
+    >>> mask.shape
+    (10,)
 """
 
-__version__ = "1.0.1"
+__version__ = "1.1.1"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 

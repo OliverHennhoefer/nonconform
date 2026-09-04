@@ -1,18 +1,21 @@
 ---
-description: "Install nonconform with pip or uv and choose optional extras for PyOD, FDR, probabilistic weighting, and data workflows."
+description: "Install nonconform with pip or uv and choose optional extras for PyOD, datasets, online FDR, and probabilistic estimation."
 ---
 
 # Installation
 
-## Prerequisites
+## Requirements
 
-- Python 3.12 or higher
+- Python 3.12 or newer
+- A supported platform for NumPy, SciPy, pandas, and scikit-learn
 
-## Installation Profiles
+The core package includes batch conformal detection, FDR selection, sequential
+conformal monitoring, and conformal martingales.
 
-Pick an installation profile based on how you want to get started.
+## Core installation
 
-### 1. Core (minimal dependencies)
+Use the core installation with supported scikit-learn estimators or a custom
+detector.
 
 === "pip"
     ```bash
@@ -24,9 +27,19 @@ Pick an installation profile based on how you want to get started.
     uv add nonconform
     ```
 
-This includes NumPy, SciPy, and scikit-learn.
+## Optional extras
 
-### 2. Anomaly-ready (recommended for most users)
+Install only the capabilities your application needs.
+
+| Extra | Adds | Needed for |
+|---|---|---|
+| `[pyod]` | [PyOD](https://pyod.readthedocs.io/) | PyOD's detector collection |
+| `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) and PyArrow | Packaged benchmark-dataset workflows |
+| `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Online multiple-testing procedures such as GAI and LORD |
+| `[probabilistic]` | [KDEpy](https://kdepy.readthedocs.io/) and [Optuna](https://optuna.org/) | `Probabilistic()` KDE estimation and tuning |
+| `[all]` | Every optional dependency above | Development or environments that need every feature |
+
+For PyOD models and the example datasets used throughout this site:
 
 === "pip"
     ```bash
@@ -38,11 +51,7 @@ This includes NumPy, SciPy, and scikit-learn.
     uv add "nonconform[pyod,data]"
     ```
 
-This adds:
-- PyOD detector zoo (`[pyod]`)
-- oddball benchmark datasets (`[data]`)
-
-### 3. Full installation
+For every optional capability:
 
 === "pip"
     ```bash
@@ -54,35 +63,30 @@ This adds:
     uv add "nonconform[all]"
     ```
 
-## Optional Dependencies
+!!! note "Sequential monitoring needs no extra"
 
-nonconform offers optional extras for specific use cases:
+    `nonconform.monitoring` and `nonconform.martingales` belong to the core
+    installation. The `[fdr]` extra is for controlling false discoveries across
+    hypotheses tested online. It is not required for conformal martingale change
+    monitoring, and the two guarantee types are not interchangeable.
 
-| Extra | What it adds | Install when you need |
-|-------|-------------|----------------------|
-| `[pyod]` | [PyOD](https://pyod.readthedocs.io/) library | Access to 40+ anomaly detection algorithms (Isolation Forest, LOF, KNN, etc.) |
-| `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) + PyArrow | Benchmark datasets for experimentation and testing |
-| `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Streaming/online FDR control for real-time applications |
-| `[probabilistic]` | [KDEpy](https://kdepy.readthedocs.io/) + [Optuna](https://optuna.org/) | KDE-based probabilistic p-values and optional hyperparameter tuning |
-| `[all]` | All of the above | Full functionality |
-
-### Which Extras Do You Need?
-
-- Add `[pyod]` if you want a larger set of anomaly detectors.
-- Add `[data]` if you want oddball benchmark datasets.
-- Add `[probabilistic]` if you use `Probabilistic()` estimation and KDE tuning.
-- Add `[fdr]` if you need:
-
-- Real-time anomaly detection with streaming FDR control
-- Sequential testing over time
-
-## Verify Installation
+## Verify the installation
 
 ```python
 import nonconform
-print(nonconform.__version__)
+from nonconform.martingales import SimpleJumperMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+print(f"nonconform {nonconform.__version__}")
+print(SimpleJumperMartingale.__name__)
+print(ExchangeabilityMonitor.__name__)
 ```
 
-## Next Steps
+If an optional import fails, verify that its matching extra was installed into
+the same Python environment that runs your code.
 
-Head to the [Quick Start](quickstart.md) to see nonconform in action.
+## Next steps
+
+- Run both core workflows in the [Quick Start](quickstart.md).
+- Check supported score interfaces in [Detector Compatibility](user_guide/detector_compatibility.md).
+- Review the [API Stability Contract](api/stability.md) before building a reusable integration.

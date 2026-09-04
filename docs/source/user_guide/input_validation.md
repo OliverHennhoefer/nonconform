@@ -1,434 +1,268 @@
 ---
-description: "Handle nonconform input validation errors, calibration resolution limits, weight issues, and parameter constraints."
+description: "Validate nonconform parameters, feature matrices, calibration resolution, weighted batches, and fitted state without relying on arbitrary sample-size rules."
 ---
 
-# Input Validation and Error Handling
+# Input validation and edge cases
 
-This guide explains parameter constraints, validation rules, and error handling in nonconform. Understanding these constraints will help you avoid common pitfalls and debug issues more effectively.
+This page distinguishes API constraints enforced by `nonconform` from
+statistical adequacy, which depends on the task. Passing validation means that
+an operation is well formed. It does not establish exchangeability, p-value
+validity, adequate power, or reliable importance weights.
 
-## Core Parameter Constraints
+## Parameter reference
 
-### Calibration Set Size (`n_calib`)
+### Conformal detector
 
-The calibration set size is the most critical parameter affecting the statistical properties of your conformal predictions.
+| Parameter | Accepted values | Notes |
+|---|---|---|
+| `aggregation` | `"mean"`, `"median"`, `"minimum"`, `"maximum"` | Case and surrounding whitespace are normalized; aggregation is across raw test scores from retained models |
+| `score_polarity` | `None`, `"auto"`, `"higher_is_anomalous"`, `"higher_is_normal"`, or the corresponding enum | Explicitly configure custom detectors when the direction cannot be inferred safely |
+| `seed` | `None` or a nonnegative integer | Controls supported stochastic components and deterministic seed derivation |
+| `verbose` | `True` or `False` | Controls aggregation progress; resampling and weighting progress also depend on logger levels |
+| `verify_prepared_batch_content` | `True` or `False` | When true, prepared weighted state is tied to the exact batch bytes, shape, and dtype |
+| `select(..., alpha=...)` | float strictly between `0` and `1` | Target level for the selected FDR procedure |
 
-#### Value Types and Ranges
+The detector must be fitted with `fit(...)` or detached calibration must be
+completed with `calibrate(...)` before scoring.
+
+### `Split`
+
+`Split(n_calib=...)` accepts:
+
+- a float strictly between `0` and `1`, interpreted as the calibration
+  proportion; or
+- an integer at least `1`, interpreted as the calibration count.
+
+At fit time, the resulting calibration count must be smaller than the number of
+input rows so that at least one row remains for fitting the base detector. A
+proportional count is rounded up.
 
 ```python
+import math
+
 from nonconform import Split
 
-# Absolute count (integer)
-strategy = Split(n_calib=2000)  # Use exactly 2000 samples for calibration
+n_rows = 101
+strategy = Split(n_calib=0.2)
+n_calibration = math.ceil(n_rows * strategy.calib_size)
 
-# Proportional split (float between 0 and 1)
-strategy = Split(n_calib=0.2)   # Use 20% of training data for calibration
+print(n_calibration)
 ```
 
-**Valid values**:
-- **Float**: `0 < n_calib < 1` - Proportion of training data
-- **Integer**: `1 <= n_calib < n_train` - Absolute number of samples
+### Cross-validation and bootstrap strategies
 
-**Constraints**:
-- Must be strictly positive
-- Cannot exceed the size of the training data
-- For proportional splits, must be less than 1.0
+| Constructor | Constraint |
+|---|---|
+| `CrossValidation(k=k)` | `k` must be at least `2` and no greater than the number of rows at fit time |
+| `CrossValidation.jackknife()` | Uses `k=n` at fit time and requires at least two rows |
+| `CrossValidation(..., shuffle=...)` | `shuffle` must be Boolean |
+| `JackknifeBootstrap(n_bootstraps=B)` | `B` must be an integer of at least `2` |
+| Either resampling strategy's `mode` | `"plus"` or `"single_model"` |
+| `JackknifeBootstrap(..., aggregation_method=...)` | `"mean"` or `"median"` |
+| `fit(..., n_jobs=...)` with `JackknifeBootstrap` | `None`, `-1`, or a positive integer |
 
-#### P-value Resolution
+Passing `n_jobs` to `fit(...)` with a strategy that does not expose it raises a
+`ValueError` instead of silently ignoring it.
 
-With `n` calibration points, you can obtain at most **n+1 distinct p-values**:
+### P-value estimation
 
-$$\text{Possible p-values} = \left\{\frac{1}{n+1}, \frac{2}{n+1}, \ldots, \frac{n}{n+1}, \frac{n+1}{n+1}\right\}$$
+| Estimator | Key constraints |
+|---|---|
+| `Empirical(tie_break=...)` | `"classical"` or `"randomized"` |
+| `ConditionalEmpirical(delta=...)` | `0 < delta < 1` |
+| `ConditionalEmpirical(method=...)` | `"mc"`, `"simes"`, `"dkwm"`, or `"asymptotic"` |
+| `ConditionalEmpirical(simes_kden=...)` | Positive integer |
+| `ConditionalEmpirical(mc_num_simulations=...)` | Integer of at least `100` |
+| `Probabilistic(...)` | Requires the `probabilistic` extra and has model-specific parameter constraints |
 
-**Example**: With `n_calib=99`, you get 100 possible p-values: {0.01, 0.02, 0.03, ..., 0.99, 1.00}
+`ConditionalEmpirical` rejects weighted p-values. `delta` configures its
+conditional calibration map and is distinct from the selection target
+`alpha`.
 
-**Practical Guidelines**:
-- **Minimum recommended**: 50-100 samples for reasonable p-value resolution
-- **For FDR control at α=0.05**: Consider `n_calib >= 100` for at least 20 distinct p-values below threshold
-- **For precise control**: Use `n_calib >= 1000` for fine-grained p-value resolution
+### Weight estimators
 
-#### Validation Example
+For `logistic_weight_estimator(...)` and `forest_weight_estimator(...)`,
+`clip_quantile` must be `None` or strictly between `0` and `0.5`. The estimator
+requires nonempty calibration samples and a test batch. Custom scikit-learn
+classifiers used by `SklearnWeightEstimator` must implement `predict_proba`.
+
+Weights supplied to the low-level weighted p-value function must be finite and
+nonnegative, must have lengths matching their score arrays, and calibration
+weights must have a positive sum.
+
+!!! warning "Valid numbers can still be invalid evidence"
+
+    Finite, nonnegative weights satisfy numerical validation, but that does not
+    show that they approximate the required density ratio. Inspect overlap,
+    classifier behavior, clipping sensitivity, and downstream calibration as
+    described in [Weighted conformal inference](weighted_conformal.md).
+
+## Feature matrix requirements
+
+For the main fitted workflow, provide a two-dimensional numeric NumPy array or
+pandas `DataFrame` with shape `(n_samples, n_features)`. Use the same feature
+count, order, units, encoding, and preprocessing at fitting, calibration, and
+inference.
 
 ```python
-def validate_calibration_size(X_train, n_calib):
-    """Validate calibration set size parameter."""
-    n_train = len(X_train)
+import numpy as np
 
-    # Check type and range
-    if isinstance(n_calib, float):
-        if not (0 < n_calib < 1):
-            raise ValueError(
-                f"Proportional n_calib must be in (0, 1), got {n_calib}"
-            )
-        n_calib_abs = int(n_calib * n_train)
-    elif isinstance(n_calib, int):
-        if not (1 <= n_calib < n_train):
-            raise ValueError(
-                f"Absolute n_calib must be in [1, {n_train}), got {n_calib}"
-            )
-        n_calib_abs = n_calib
-    else:
-        raise TypeError(
-            f"n_calib must be int or float, got {type(n_calib)}"
-        )
-
-    # Warn about low resolution
-    if n_calib_abs < 50:
-        import warnings
-        warnings.warn(
-            f"Small calibration set (n={n_calib_abs}) will have limited "
-            f"p-value resolution ({n_calib_abs + 1} distinct values). "
-            f"Consider using at least 50-100 calibration samples."
-        )
-
-    return n_calib_abs
-
-# Usage
-n_calib_validated = validate_calibration_size(X_train, n_calib=0.2)
-```
-
-### Cross-Validation Folds (`k`)
-
-For cross-validation-based strategies:
-
-```python
-from nonconform import CrossValidation
-
-strategy = CrossValidation(k=5)
-```
-
-**Valid values**:
-- **Integer**: `2 <= k <= n_train`
-- Common choices: 5, 10
-
-**Constraints**:
-- Must be at least 2 (otherwise no cross-validation)
-- Cannot exceed training set size
-- Each fold will have approximately `n_train / k` samples
-
-**Trade-offs**:
-- **Larger k**: Better statistical efficiency, higher computational cost
-- **Smaller k**: Faster computation, potentially less stable estimates
-
-### Bootstrap Parameters (`n_bootstraps`)
-
-For bootstrap-based strategies:
-
-```python
-from nonconform import JackknifeBootstrap
-
-strategy = JackknifeBootstrap(n_bootstraps=100)
-```
-
-**Valid values**:
-- `n_bootstraps`: Integer ≥ 2 (typical: 20-200)
-- `aggregation_method`: `"mean"` or `"median"`
-- `mode`: `"plus"` (recommended) or `"single_model"`
-
-For `ConformalDetector(aggregation=...)`, valid methods are:
-`"mean"`, `"median"`, `"minimum"`, and `"maximum"`.
-
-**Constraints**:
-- More bootstraps improve stability but increase computation
-- Using `mode="single_model"` trades validity for speed; `mode="plus"` is recommended
-
-### Random Seed (`seed`)
-
-```python
-detector = ConformalDetector(detector=base_det, strategy=strategy, seed=42)
-```
-
-**Valid values**:
-- **Integer**: Any valid Python integer
-- **None**: Non-reproducible random behavior
-
-**Purpose**:
-- Ensures reproducible train/calibration splits
-- Critical for scientific reproducibility
-
-## Edge Cases and Special Behaviors
-
-### Case 1: Very Small Calibration Sets (n_calib ≤ 10)
-
-**What happens**:
-```python
-# Only 10 calibration samples
-strategy = Split(n_calib=10)
-detector = ConformalDetector(detector=IsolationForest(), strategy=strategy)
-detector.fit(X_train)
-p_values = detector.compute_p_values(X_test)
-
-# p_values will only take 11 distinct values: {1/11, 2/11, ..., 11/11}
-# Very coarse resolution!
-```
-
-**Consequences**:
-- Extremely limited p-value resolution (only 11 distinct values with n=10)
-- Large prediction set sizes (conservative predictions)
-- Inconsistent performance across different random seeds
-- FDR control may be ineffective
-
-**Recommendation**: Avoid calibration sets smaller than 50 samples unless you understand the limitations.
-
-### Case 2: All Calibration Scores Identical
-
-**What happens**:
-```python
-# Pathological case: all calibration data has same score
-# (e.g., constant features, deterministic detector)
-```
-
-**Behavior**:
-- All test scores ≥ calibration scores → p-value = 1.0 (treated as normal)
-- All test scores < calibration scores → p-value = 1/(n+1) (treated as anomalous)
-- Binary classification with no gradation
-
-**Detection**:
-```python
-def check_calibration_diversity(calib_scores, tolerance=1e-10):
-    """Check if calibration scores have sufficient diversity."""
-    if np.ptp(calib_scores) < tolerance:  # peak-to-peak
-        raise ValueError(
-            "Calibration scores are nearly identical. "
-            "This may indicate: (1) constant features, "
-            "(2) detector not properly trained, or "
-            "(3) insufficient data diversity."
-        )
-
-# Access calibration scores stored on the detector
-calib_scores = detector.calibration_set
-check_calibration_diversity(calib_scores)
-```
-
-### Case 3: Test Score Outside Calibration Range
-
-**What happens**:
-```python
-# Test score is extremely anomalous (beyond all calibration scores)
-test_score = 100.0  # Far beyond max calibration score
-# → p-value = 1/(n+1) (smallest possible)
-
-# Test score is extremely normal (below all calibration scores)
-test_score = -100.0  # Far below min calibration score
-# → p-value = 1.0 (largest possible)
-```
-
-**Behavior**:
-- Conformal p-values are **bounded**: always in [1/(n+1), 1]
-- Extreme test scores saturate at boundary values
-- This is correct behavior - conformal prediction provides conservative guarantees
-
-### Case 4: Insufficient Training Data
-
-**What happens**:
-```python
-# Only 100 training samples, but requesting 200 for calibration
-X_train = np.random.randn(100, 10)
-strategy = Split(n_calib=200)  # More than available!
-
-detector = ConformalDetector(detector=LOF(), strategy=strategy)
-# → Will raise ValueError during fit()
-```
-
-**Error message**:
-```
-ValueError: Calibration size (200) exceeds training size (100)
-```
-
-**Solution**: Reduce `n_calib` or provide more training data.
-
-### Case 5: Zero Training Data for Detector
-
-**What happens**:
-```python
-# Using all data for calibration leaves none for training
-X_train = np.random.randn(100, 10)
-strategy = Split(n_calib=100)  # All data!
-
-detector = ConformalDetector(detector=LOF(), strategy=strategy)
-# → Will raise ValueError
-```
-
-**Error message**:
-```
-ValueError: No training data remaining after calibration split.
-Reduce n_calib to leave data for training the base detector.
-```
-
-**Solution**: Ensure `n_calib < n_train` to leave data for training.
-
-## Weight Estimator Validation
-
-When using weighted conformal inference:
-
-```python
-from nonconform import logistic_weight_estimator
-
-detector = ConformalDetector(
-    detector=base_det,
-    strategy=strategy,
-    weight_estimator=logistic_weight_estimator(),
-    seed=42,
+x_reference = np.asarray(
+    [
+        [0.1, 1.2, -0.3],
+        [0.0, 0.8, -0.1],
+        [0.2, 1.0, -0.4],
+    ],
+    dtype=float,
 )
+
+if x_reference.ndim != 2:
+    raise ValueError("x_reference must be two-dimensional")
+if x_reference.shape[0] < 2 or x_reference.shape[1] < 1:
+    raise ValueError("x_reference needs rows and features")
+if not np.isfinite(x_reference).all():
+    raise ValueError("x_reference must contain only finite values")
+
+print(x_reference.shape)
 ```
 
-**Constraints**:
-- Weight estimator must have `fit()` and `predict_proba()` methods
-- Must be compatible with binary classification (calibration vs. test)
-- Output probabilities should be in (0, 1)
+This explicit check is useful at application boundaries because different base
+detectors enforce dtype, missing-value, and infinity rules differently.
+`nonconform` adapts pandas inputs but does not promise to repair invalid feature
+data.
 
-**Common issues**:
+At inference, a pandas `Series` is interpreted as a batch with one feature, not
+as one row with many features. Pass a one-dimensional NumPy array to
+`compute_p_value(...)` for one observation, or a one-row `DataFrame`/2D array
+to the batch methods.
+
+## Calibration resolution
+
+For classical unweighted empirical p-values,
+
+$$
+p(x)=\frac{1+\sum_{i=1}^{n_{\mathrm{cal}}}
+\mathbf{1}\{S_i\ge S(x)\}}{n_{\mathrm{cal}}+1}.
+$$
+
+The smallest possible p-value is `1 / (n_cal + 1)`. This is a mathematical
+resolution limit, not a reason to impose an arbitrary universal minimum
+calibration size.
+
 ```python
-# Issue 1: Weights too extreme (near 0 or infinity)
-weights = weight_est.predict_proba(X_test)[:, 1] / (1 - weight_est.predict_proba(X_calib).mean())
-if np.any(weights > 1000) or np.any(weights < 0.001):
-    import warnings
-    warnings.warn("Extreme weight values detected. Covariate shift may be too severe.")
+import numpy as np
 
-# Issue 2: Perfect separation (weights undefined)
-# Occurs when calibration and test are completely separable
-# → LogisticRegression may not converge
+from nonconform import Empirical
+
+calibration_scores = np.arange(10, dtype=float)
+test_scores = np.array([-1.0, 4.5, 20.0])
+
+p_values = Empirical().compute_p_values(test_scores, calibration_scores)
+print(p_values)
+print("minimum attainable:", 1 / (len(calibration_scores) + 1))
 ```
 
-## Aggregation Method Constraints
+Choose `n_cal` by considering the testing-family size and procedure, desired
+power, detector fitting needs, compute budget, and empirical stability. A
+calibration set can be large enough for fine resolution and still be
+unrepresentative of the deployment null.
+
+### Ties
+
+Classical empirical p-values count calibration scores tied with the test score
+as at least as extreme. This is deterministic and conservative. Randomized tie
+handling interpolates tied mass and requires a seed for reproducibility.
 
 ```python
-from nonconform import ConformalDetector
+import numpy as np
 
+from nonconform import Empirical
 
-detector = ConformalDetector(
-    detector=base_det,
-    strategy=strategy,
-    aggregation="median"  # or "mean", "minimum", "maximum"
+calibration_scores = np.ones(20)
+test_scores = np.ones(5)
+
+classical = Empirical().compute_p_values(test_scores, calibration_scores)
+
+randomized_estimator = Empirical(tie_break="randomized")
+randomized_estimator.set_seed(42)
+randomized = randomized_estimator.compute_p_values(
+    test_scores,
+    calibration_scores,
 )
+
+print("classical:", classical)
+print("randomized:", randomized)
 ```
 
-**Valid values**:
-- `"mean"`: Arithmetic mean of raw anomaly scores across models
-- `"median"`: Median of raw anomaly scores across models (robust to outliers)
-- `"minimum"`: Minimum raw anomaly score across models
-- `"maximum"`: Maximum raw anomaly score across models
+Randomized p-values are valid only with the prescribed independent
+randomization. They are not deterministic scores with finer-looking decimal
+places.
 
-**When it matters**:
-- Only relevant for strategies that produce multiple p-values (CrossValidation, Jackknife, Bootstrap)
-- Split strategy computes single p-value → aggregation has no effect
+## Fitted state and cached results
 
-## Validation Best Practices
+The following methods require a fitted or detached-calibrated detector:
+`score_samples(...)`, `compute_p_value(...)`, `compute_p_values(...)`,
+`select(...)`, and `prepare_weights_for(...)`.
 
-### 1. Always Validate Input Data
+After a scoring call, `last_result` is either `None` or a defensive
+`ConformalResult` copy. Its fields depend on the call:
 
-```python
-def validate_training_data(X_train, y_train=None):
-    """Validate training data before fitting."""
-    # Check for NaN/Inf
-    if not np.all(np.isfinite(X_train)):
-        raise ValueError("Training data contains NaN or Inf values")
+| Latest call | `p_values` | scores | weights |
+|---|---|---|---|
+| `compute_p_values(...)` | Present | Present | Present in weighted mode |
+| `select(...)` | Present | Present | Present in weighted mode |
+| `score_samples(...)` | `None` | Present | Present in weighted mode |
 
-    # Check dimensions
-    if X_train.ndim != 2:
-        raise ValueError(f"Expected 2D array, got shape {X_train.shape}")
+The public `calibration_set`, `calibration_samples`, `detector_set`, and
+`last_result` accessors return copies. Modifying a retrieved array does not
+modify detector state.
 
-    # Check sufficient samples
-    if len(X_train) < 100:
-        import warnings
-        warnings.warn(
-            f"Small training set (n={len(X_train)}). "
-            f"Consider collecting more data for stable conformal predictions."
-        )
+## Prepared weighted batches
 
-    # For one-class anomaly detection, y_train should be all normal (0)
-    if y_train is not None and np.any(y_train != 0):
-        import warnings
-        warnings.warn(
-            "Training labels contain anomalies (y != 0). "
-            "Conformal anomaly detection assumes one-class training."
-        )
+`prepare_weights_for(batch)` fits weight state for one concrete batch.
+`compute_p_values(batch, refit_weights=False)` and
+`select(batch, refit_weights=False)` require that preparation first.
 
-validate_training_data(X_train, y_train)
-```
+With the default `verify_prepared_batch_content=True`, both batch length and
+content must match. With verification disabled, only batch length is checked;
+that option trades safety for lower hashing cost and should be used only when
+the caller enforces identity.
 
-### 2. Check Exchangeability Assumptions
+## Assumptions cannot be tested into existence
 
-```python
-def check_exchangeability(X_train, X_test):
-    """Simple heuristic check for potential exchangeability violations."""
-    from scipy.stats import ks_2samp
+Marginal feature tests, classifier accuracy, and drift metrics can reveal
+differences between datasets. They cannot prove joint exchangeability or the
+covariate-shift condition. Use them as diagnostics alongside knowledge of how
+the data was sampled, transformed, and ordered.
 
-    # Compare feature distributions
-    violations = []
-    for i in range(X_train.shape[1]):
-        stat, pval = ks_2samp(X_train[:, i], X_test[:, i])
-        if pval < 0.001:  # Strong evidence of distribution shift
-            violations.append(i)
+Likewise, checking that p-values lie in `[0, 1]` detects numerical corruption,
+not miscalibration. Calibration diagnostics require null data that was not used
+to fit, calibrate, tune, or choose the displayed result.
 
-    if violations:
-        import warnings
-        warnings.warn(
-            f"Features {violations} show significant distribution shift. "
-            f"Consider using weighted conformal inference."
-        )
+## Common exceptions
 
-check_exchangeability(X_train, X_test)
-```
+| Exception | Typical cause | Resolution |
+|---|---|---|
+| `NotFittedError` | Scoring or preparing weights before fitting/calibration | Complete `fit(...)` or the supported detached `calibrate(...)` workflow |
+| `ValueError` about `n_calib` | Invalid type/range or no proper-training rows remain | Reduce the calibration count or add reference rows |
+| `ValueError` about folds | `k < 2` or `k > n` | Choose a valid fold count for the actual fit array |
+| `ValueError` about `n_jobs` | Parallelism passed to an unsupported strategy | Pass it only with `JackknifeBootstrap` |
+| `RuntimeError` about weights | Weighted state was not prepared, or weighted mode is disabled | Use `refit_weights=True` or prepare the exact batch |
+| `ValueError` about prepared batch | Size or content differs from the prepared batch | Prepare weights again for the batch being scored |
+| `ValueError` about feature count | Inference dimensionality differs from fitted dimensionality | Reproduce the fitted feature schema and preprocessing |
 
-### 3. Validate Predictions
+Do not branch production logic on complete exception strings. Catch the narrow
+documented exception class where recovery is safe, and preserve the original
+message for diagnosis.
 
-```python
-def validate_p_values(p_values):
-    """Validate conformal p-values after prediction."""
-    # Check range
-    if not np.all((p_values >= 0) & (p_values <= 1)):
-        raise ValueError("P-values must be in [0, 1]")
+## Pre-flight checklist
 
-    # Check for invalid values
-    if not np.all(np.isfinite(p_values)):
-        raise ValueError("P-values contain NaN or Inf")
-
-    # Check for degenerate case (all same value)
-    if np.std(p_values) < 1e-10:
-        import warnings
-        warnings.warn(
-            "P-values have near-zero variance. "
-            "This may indicate issues with calibration or detector."
-        )
-
-p_values = detector.compute_p_values(X_test)
-validate_p_values(p_values)
-```
-
-## Error Messages Reference
-
-### Common Errors and Fixes
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `ValueError: n_calib must be positive` | `n_calib <= 0` | Use positive integer or float in (0, 1) |
-| `ValueError: n_calib exceeds training size` | `n_calib >= len(X_train)` | Reduce n_calib or add more training data |
-| `ValueError: No training data after split` | All data used for calibration | Ensure n_calib < n_train |
-| `TypeError: n_calib must be int or float` | Wrong type passed | Use int (count) or float (proportion) |
-| `ValueError: P-values outside [0,1]` | Internal calculation error | Check for data issues or file bug report |
-| `ConvergenceWarning` from weight estimator | Calibration and test too different | Covariate shift may be too severe |
-
-## Summary Checklist
-
-Before fitting a conformal detector, verify:
-
-- [ ] Training data has sufficient samples (n ≥ 100 recommended)
-- [ ] `n_calib` leaves enough data for training the base detector
-- [ ] `n_calib` provides adequate p-value resolution (≥ 50-100 recommended)
-- [ ] No NaN or Inf values in training data
-- [ ] For one-class detection, training data contains only normal instances
-- [ ] Random seed set for reproducibility
-- [ ] Exchangeability assumption is reasonable (or use weighted conformal)
-
-After prediction:
-
-- [ ] P-values are in valid range [0, 1]
-- [ ] P-values have reasonable diversity (not all identical)
-- [ ] No NaN or Inf values in predictions
-
-## Further Reading
-
-- [Conformal Inference](conformal_inference.md) - Theoretical foundations
-- [Troubleshooting](troubleshooting.md) - Common issues and solutions
-- [Best Practices](best_practices.md) - Production-ready patterns
-- [Weighted Conformal](weighted_conformal.md) - Handling covariate shift
+- Define the null population and the unit of exchangeability.
+- Keep detector fitting, calibration, tuning, and final evaluation roles
+  separate.
+- Confirm feature schema and score polarity.
+- Calculate the classical p-value grid for the actual calibration count.
+- Declare each multiple-testing family before viewing its p-values.
+- Treat weight quality and support overlap as statistical requirements, not
+  mere input validation.
+- Freeze the scoring rule during a sequential monitoring episode.

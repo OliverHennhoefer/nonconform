@@ -111,6 +111,13 @@ class AlarmConfig:
     change-evidence thresholds and should not be interpreted as
     probability-of-ever-crossing Ville thresholds without a separate theorem for
     the exact statistic.
+
+    Attributes:
+        ville_threshold: Threshold for the original cumulative martingale.
+        restarted_ville_threshold: Threshold for the harmonic restart-mixture
+            e-process.
+        cusum_threshold: Threshold for the multiplicative CUSUM statistic.
+        shiryaev_roberts_threshold: Threshold for the Shiryaev-Roberts statistic.
     """
 
     ville_threshold: float | None = None
@@ -149,7 +156,13 @@ class AlarmConfig:
 
 @dataclass(slots=True, frozen=True)
 class MartingaleState:
-    """Snapshot of martingale and alarm statistics after one update."""
+    """Immutable snapshot of evidence statistics after one update.
+
+    Linear-scale values may be ``0`` or ``inf`` after floating-point underflow or
+    overflow; the corresponding ``log_*`` field preserves the log-scale state.
+    ``triggered_alarms`` reports thresholds crossed at this step and is not a
+    latched alarm history.
+    """
 
     step: int
     p_value: float
@@ -162,10 +175,19 @@ class MartingaleState:
     log_shiryaev_roberts: float
     shiryaev_roberts: float
     triggered_alarms: tuple[str, ...]
+    log_e_value: float = 0.0
+    e_value: float = 1.0
 
 
 class BaseMartingale(ABC):
-    """Abstract base class for p-value-driven exchangeability martingales."""
+    """Abstract base class for p-value-driven sequential evidence.
+
+    Built-in subclasses turn each input p-value into a non-negative betting
+    factor and multiply capital over time. Ville-threshold interpretation
+    requires the resulting process to be an e-process under the null, which in
+    turn depends on the conditional validity of the input p-values. Merely
+    passing values in ``[0, 1]`` does not establish that property.
+    """
 
     def __init__(self, alarm_config: AlarmConfig | None = None) -> None:
         self._alarm_config = alarm_config if alarm_config is not None else AlarmConfig()
@@ -180,6 +202,7 @@ class BaseMartingale(ABC):
         """Reset martingale and alarm statistics to initial values."""
         self._step = 0
         self._last_p_value = float("nan")
+        self._last_log_increment = 0.0
         self._log_martingale = 0.0
         self._log_active_restarted_mass = float("-inf")
         self._log_restarted_martingale = 0.0
@@ -203,6 +226,7 @@ class BaseMartingale(ABC):
 
         self._step += 1
         self._last_p_value = p_value_validated
+        self._last_log_increment = log_increment
         self._log_martingale += log_increment
         self._log_active_restarted_mass = float(
             log_increment
@@ -245,6 +269,8 @@ class BaseMartingale(ABC):
             log_shiryaev_roberts=self._log_shiryaev_roberts,
             shiryaev_roberts=_linear_from_log(self._log_shiryaev_roberts),
             triggered_alarms=self._triggered_alarms(),
+            log_e_value=self._last_log_increment,
+            e_value=_linear_from_log(self._last_log_increment),
         )
 
     def _triggered_alarms(self) -> tuple[str, ...]:
@@ -275,7 +301,12 @@ class BaseMartingale(ABC):
 
 
 class PowerMartingale(BaseMartingale):
-    """Power martingale with fixed ``epsilon`` in ``(0, 1]``."""
+    r"""Power martingale with fixed ``epsilon`` in ``(0, 1]``.
+
+    Each p-value contributes the betting factor
+    ``epsilon * p_value ** (epsilon - 1)``. Values below one emphasize small
+    p-values; ``epsilon=1`` produces the constant factor one.
+    """
 
     def __init__(
         self,
@@ -296,7 +327,12 @@ class PowerMartingale(BaseMartingale):
 
 
 class SimpleMixtureMartingale(BaseMartingale):
-    """Simple mixture martingale over a fixed epsilon grid."""
+    """Equal-weight mixture of power martingales over an epsilon grid.
+
+    When ``epsilons`` is omitted, the grid contains ``n_grid`` evenly spaced
+    values from ``min_epsilon`` through one. The mixture tracks the arithmetic
+    mean of component capitals, evaluated stably in log space.
+    """
 
     def __init__(
         self,
@@ -351,8 +387,10 @@ class SimpleMixtureMartingale(BaseMartingale):
 class SimpleJumperMartingale(BaseMartingale):
     """Simple Jumper martingale (Algorithm 1 in Vovk et al.).
 
-    This method mixes three betting components and redistributes mass each
-    step through ``jump``.
+    This method mixes three betting components with parameters ``-1``, ``0``,
+    and ``1``. Before each bet, ``jump`` redistributes capital equally among the
+    components; the current p-value then multiplies each component by
+    ``1 + epsilon * (p_value - 0.5)``.
     """
 
     def __init__(
@@ -385,7 +423,7 @@ class SimpleJumperMartingale(BaseMartingale):
 
         betting_terms = 1.0 + self._epsilons * (p_value - 0.5)
         # Note: with epsilons=[-1, 0, 1] and p_value in [0, 1], betting_terms are
-        # always in [0.5, 1.5] — all strictly positive for valid inputs.
+        # always in [0.5, 1.5], so all are strictly positive for valid inputs.
 
         self._log_components = log_components_after_jump + np.log(betting_terms)
         log_capital_new = _logsumexp(self._log_components)

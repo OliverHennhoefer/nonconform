@@ -1,133 +1,74 @@
 ---
-description: "Example workflow for split and cross-validation conformal anomaly detection with calibrated p-values and FDR selection."
+description: "Run a complete split-conformal anomaly detection workflow with benchmark data, p-values, BH selection, and labeled evaluation."
 ---
 
-# Classical Conformal Anomaly Detection
+# Classical split-conformal detection
 
-This example demonstrates how to use classical conformal prediction for anomaly detection.
+This example loads a normal-only reference sample and a labeled test family,
+fits a PyOD detector through `ConformalDetector`, and selects discoveries with
+BH FDR control.
 
-## Setup
+```bash
+pip install "nonconform[data,pyod]"
+```
+
+## Complete example
 
 ```python
 import numpy as np
-from pyod.models.lof import LOF
+from oddball import Dataset, load
+from pyod.models.iforest import IForest
+
 from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
-from oddball import Dataset, load
 
-# Load example data - downloads automatically and caches in memory
-x_train, x_test, y_test = load(Dataset.BREASTW, setup=True)
-print(f"Training samples: {len(x_train)}, Test samples: {len(x_test)}")
-```
+x_reference, x_test, y_test = load(Dataset.SATIMAGE2, setup=True, seed=42)
 
-## Basic Usage
-
-```python
-# Initialize base detector
-base_detector = LOF()
-
-# Create conformal detector with split strategy
-strategy = Split(n_calib=0.2)
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
+    detector=IForest(n_estimators=100, random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
 
-# Fit the detector on training data (normal samples only)
-detector.fit(x_train)
+selected = np.asarray(detector.select(x_test, alpha=0.1))
+result = detector.last_result
+assert result is not None
+assert result.p_values is not None
 
-# Get raw anomaly scores (optional)
-scores = detector.score_samples(x_test)
-
-# Apply FDR-controlled selection
-discoveries = detector.select(x_test, alpha=0.05)
-p_values = detector.last_result.p_values
-
-print(f"Discoveries with FDR control: {discoveries.sum()}")
-print(f"True anomaly rate in test set: {y_test.mean():.2%}")
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=discoveries):.3f}")
-print(f"Statistical Power: {statistical_power(y=y_test, y_hat=discoveries):.3f}")
+print("reference rows:", len(x_reference))
+print("test rows:", len(x_test))
+print("true anomalies:", int(np.asarray(y_test).sum()))
+print("discoveries:", int(selected.sum()))
+print("smallest p-values:", np.sort(result.p_values)[:5])
+print("realized FDP:", float(false_discovery_rate(y_test, selected)))
+print("power:", float(statistical_power(y_test, selected)))
 ```
 
-## Advanced Usage with Cross-Validation
+The reference sample returned by `setup=True` contains normal observations for
+fitting and calibration. The test labels are used only after selection for
+evaluation.
 
-```python
-from nonconform import CrossValidation
+`select(...)` computes p-values and decisions in one pass. Retrieve
+`last_result` immediately afterward to inspect the same p-values; another
+scoring call replaces the cached snapshot.
 
-# Use cross-validation strategy for better calibration
-cv_strategy = CrossValidation(k=5)
-cv_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=cv_strategy,
-    aggregation="median",
-    seed=42
-)
+!!! note "The displayed FDP is not the FDR guarantee"
 
-# Fit and predict with cross-validation
-cv_detector.fit(x_train)
-cv_discoveries = cv_detector.select(x_test, alpha=0.05)
+    `false_discovery_rate(...)` computes the realized false discovery
+    proportion for this one labeled family. FDR is its expectation over
+    repetitions of the complete procedure. One benchmark family can measure
+    FDP and power, but cannot demonstrate FDR control by itself.
 
-# Compare with split strategy
-print(f"Split strategy detections: {discoveries.sum()}")
-print(f"Cross-validation detections: {cv_discoveries.sum()}")
-```
+## What to vary responsibly
 
-## Comparing Different Aggregation Methods
+- Change the base detector only using separate tuning data.
+- Change `n_calib` after checking both detector-fitting needs and the p-value
+  grid `1 / (n_cal + 1)`.
+- Choose `alpha` from the operational error budget before inspecting the test
+  p-values.
+- Repeat the full evaluation across prespecified datasets or seeds and report
+  variability, including runs with no discoveries.
 
-```python
-# Try different aggregation methods
-aggregation_methods = [
-    "mean",
-    "median",
-    "maximum",
-]
-
-for agg_method in aggregation_methods:
-    detector = ConformalDetector(
-        detector=base_detector,
-        strategy=strategy,
-        aggregation=agg_method,
-        seed=42
-    )
-    detector.fit(x_train)
-    selected = detector.select(x_test, alpha=0.05)
-    print(f"{agg_method} aggregation: {selected.sum()} detections")
-```
-
-## Visualization
-
-```python
-import matplotlib.pyplot as plt
-
-# Plot p-value distribution (visualization only - use FDR-controlled decisions for actual detection)
-plt.figure(figsize=(10, 5))
-
-plt.subplot(1, 2, 1)
-plt.hist(p_values, bins=50, alpha=0.7, color='blue', edgecolor='black')
-plt.axvline(x=0.05, color='red', linestyle='--', label='α=0.05 (reference)')
-plt.xlabel('p-value')
-plt.ylabel('Frequency')
-plt.title('P-value Distribution')
-plt.legend()
-
-plt.subplot(1, 2, 2)
-# Color by FDR-controlled discoveries, not raw p-values
-plt.scatter(range(len(p_values)), p_values, c=discoveries,
-            cmap='coolwarm', alpha=0.6)
-plt.axhline(y=0.05, color='red', linestyle='--', label='α=0.05 (reference)')
-plt.xlabel('Sample Index')
-plt.ylabel('p-value')
-plt.title('P-values with FDR-controlled Discoveries')
-plt.legend()
-
-plt.tight_layout()
-plt.show()
-```
-
-## Next Steps
-
-- Try [weighted conformal detection](weighted_conformal.md) for handling distribution shift
-- Learn about [FDR control](fdr_control.md) for multiple testing
-- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly
+For resampling alternatives, continue with
+[Data-efficient resampling](resampling_conformal.md). For the exact BH
+assumptions, see [FDR control](../user_guide/fdr_control.md).

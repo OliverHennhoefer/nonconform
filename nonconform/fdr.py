@@ -1,4 +1,4 @@
-"""False Discovery Rate control utilities for conformal prediction.
+"""Batch false-discovery procedures for conformal anomaly evidence.
 
 This module provides explicit entry points for:
 
@@ -724,6 +724,20 @@ class FDPBoundResult:
     discovery proportion (FDP) for threshold selections of conformal p-values.
     Use this as an exploratory certificate, not as a replacement for
     ``ConformalDetector.select(...)``.
+
+    Attributes:
+        p_values: Empirical conformal p-values used to construct the certificate.
+        thresholds: Thresholds evaluated when the certificate was built.
+        rejection_counts: Number of p-values at or below each stored threshold.
+        fdp_upper_bounds: Simultaneous realized-FDP upper bounds at the stored
+            thresholds.
+        n_calibration: Number of calibration scores in the conformal construction.
+        n_test: Size of the testing family.
+        confidence: Requested simultaneous coverage probability.
+        method: ECDF-envelope method used to construct the certificate.
+        n_resamples: Number of Monte Carlo draws requested by Monte Carlo methods.
+        boost: Whether threshold-specific envelope sharpening was enabled.
+        seed: Seed used for Monte Carlo calibration, or None.
     """
 
     p_values: np.ndarray
@@ -771,7 +785,14 @@ class FDPBoundResult:
         )
 
     def bound_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
-        """Evaluate the FDP upper bound at one or more thresholds."""
+        """Evaluate the simultaneous FDP upper envelope at thresholds.
+
+        Args:
+            threshold: Scalar or one-dimensional array in ``[0, 1]``.
+
+        Returns:
+            A float for scalar input or an ndarray matching array input.
+        """
         threshold_arr, scalar_input = _as_threshold_query(threshold)
         bounds = _evaluate_fdp_upper_bound(
             self.p_values,
@@ -784,12 +805,17 @@ class FDPBoundResult:
         return bounds
 
     def precision_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
-        """Evaluate the certified precision lower bound at thresholds."""
+        """Return ``1 - bound_at(threshold)`` as a precision lower bound."""
         bounds = self.bound_at(threshold)
         return 1.0 - bounds
 
     def to_frame(self, thresholds: np.ndarray | None = None) -> pd.DataFrame:
-        """Return threshold-level FDP certificates as a DataFrame."""
+        """Return threshold-level FDP certificates as a DataFrame.
+
+        Args:
+            thresholds: Optional one-dimensional thresholds in ``[0, 1]``. When
+                omitted, use the thresholds stored in this result.
+        """
         if thresholds is None:
             threshold_arr = self.thresholds
             fdp_bounds = self.fdp_upper_bounds
@@ -813,7 +839,11 @@ class FDPBoundResult:
         )
 
     def select(self, threshold: float) -> np.ndarray:
-        """Return the selection mask induced by ``p_values <= threshold``."""
+        """Return the mask induced by ``p_values <= threshold``.
+
+        This applies the requested threshold; it does not choose a threshold
+        from the FDP bound and is not a Benjamini-Hochberg selection.
+        """
         threshold_arr, scalar_input = _as_threshold_query(threshold)
         if not scalar_input:
             raise ValueError("threshold must be a scalar for select().")
@@ -929,11 +959,43 @@ def conformal_fdp_upper_bound(
 ) -> FDPBoundResult:
     """Compute post-hoc simultaneous FDP upper bounds for conformal p-values.
 
-    This implements simultaneous FDP envelopes from Song, Jin, and Candes for
+    This implements simultaneous FDP envelopes from Song, Jin, and Candès for
     unweighted conformal p-values from a fixed scoring map. Choose ``method``
     before inspecting the resulting curve. The returned certificate is valid
     for threshold exploration under that scope; it does not cover detector/model
     selection or weighted conformal p-values.
+
+    This array-level entry point cannot inspect how its p-values were produced.
+    The caller is responsible for supplying one complete testing family of
+    empirical conformal p-values with the stated calibration size and satisfying
+    the reference method's assumptions. Prefer
+    :func:`conformal_fdp_upper_bound_from_result` when a ``ConformalResult`` is
+    available because it rejects known incompatible configurations.
+
+    Args:
+        p_values: Non-empty one-dimensional testing-family p-values in
+            ``[0, 1]``.
+        n_calibration: Number of calibration scores used for every p-value.
+        confidence: Simultaneous coverage probability in ``(0, 1)``.
+        n_resamples: Positive Monte Carlo sample size for methods prefixed by
+            ``"mc_"``. It is accepted but not used by ``method="ks"``.
+        method: One of ``"mc_thc"``, ``"mc_hc"``, ``"mc_ks"``, ``"ks"``, or
+            ``"mc_bj"``.
+        seed: Non-negative Monte Carlo seed, or None.
+        boost: Whether to apply threshold-specific envelope sharpening.
+        lower: Lower truncation point for ``method="mc_thc"``.
+        upper: Upper truncation point for ``method="mc_thc"``.
+        beta: Positive truncation exponent for ``method="mc_thc"``.
+        precision: Positive numerical tolerance for the ``"mc_bj"`` inversion.
+        thresholds: Optional one-dimensional thresholds in ``[0, 1]``. Defaults
+            to the unique observed p-values.
+
+    Returns:
+        A simultaneous threshold-indexed FDP certificate.
+
+    References:
+        Song, Jin, and Candès, "Everywhere Valid Bounds on False Discovery
+        Proportions in Conformal Inference" (2026), arXiv:2605.20726.
     """
     p_values_arr = _as_p_values("p_values", p_values)
     n_calibration = _validate_positive_integer("n_calibration", n_calibration)
@@ -1020,7 +1082,31 @@ def conformal_fdp_upper_bound_from_result(
     precision: float = 1e-8,
     thresholds: np.ndarray | None = None,
 ) -> FDPBoundResult:
-    """Compute simultaneous FDP bounds from a ``ConformalResult`` bundle."""
+    """Compute simultaneous FDP bounds from a compatible result bundle.
+
+    The result must contain unweighted ``Empirical`` p-values from ``Split`` or
+    detached calibration. Weighted, KDE, conditionally calibrated, and
+    resampling-strategy bundles are rejected because they lie outside the
+    implemented certificate's scope.
+
+    Args:
+        result: Result produced by ``ConformalDetector.compute_p_values()`` or
+            ``select()``.
+        confidence: Simultaneous coverage probability in ``(0, 1)``.
+        n_resamples: Positive Monte Carlo sample size for ``"mc_"`` methods.
+        method: ECDF-envelope method. See
+            :func:`conformal_fdp_upper_bound` for supported values.
+        seed: Non-negative Monte Carlo seed, or None.
+        boost: Whether to apply threshold-specific envelope sharpening.
+        lower: Lower truncation point for ``method="mc_thc"``.
+        upper: Upper truncation point for ``method="mc_thc"``.
+        beta: Positive truncation exponent for ``method="mc_thc"``.
+        precision: Positive numerical tolerance for the ``"mc_bj"`` inversion.
+        thresholds: Optional one-dimensional thresholds in ``[0, 1]``.
+
+    Returns:
+        A simultaneous threshold-indexed FDP certificate.
+    """
     result = _require_result_bundle(
         result,
         caller="conformal_fdp_upper_bound_from_result",
@@ -1073,7 +1159,12 @@ def _validate_pruning(pruning: Pruning) -> None:
 def _calib_weight_mass_strictly_above(
     calib_scores: np.ndarray, w_calib: np.ndarray, targets: np.ndarray
 ) -> np.ndarray:
-    """Compute weighted calibration mass strictly above each target score."""
+    """Compute WCS auxiliary calibration mass strictly above each target.
+
+    This strict comparison is part of WCS's leave-one-out self-consistency
+    construction. It is intentionally separate from the tie policy used for
+    the primary empirical p-values.
+    """
     order = np.argsort(calib_scores)
     sorted_scores = calib_scores[order]
     sorted_weights = w_calib[order]
@@ -1322,6 +1413,8 @@ def _run_wcs(
     if include_self_weight:
         sorted_test_idx = np.argsort(test_scores_arr, kind="mergesort")
         sorted_scores = test_scores_arr[sorted_test_idx]
+        # WCS auxiliary self-weight uses a strict score ordering; tied test
+        # scores are intentionally excluded independently of primary p-values.
         lt_cutoffs = np.searchsorted(sorted_scores, test_scores_arr, side="left")
     logger = get_logger("fdr")
     j_iterator = (
@@ -1368,7 +1461,25 @@ def weighted_false_discovery_control(
     pruning: Pruning = Pruning.DETERMINISTIC,
     seed: int | None = None,
 ) -> np.ndarray:
-    """Perform WCS from a strict ConformalResult bundle."""
+    """Apply weighted conformalized selection to a result bundle.
+
+    The result must contain p-values, test and calibration scores, and matching
+    non-negative weights for the same complete testing family. The procedure
+    cannot establish the covariate-shift model, support overlap, or weight
+    quality. Its FDR interpretation depends on those assumptions and the WCS
+    theorem matching the supplied construction.
+
+    Args:
+        result: Weighted ``ConformalResult`` produced for the target family.
+        alpha: Nominal FDR target in ``(0, 1)``.
+        pruning: Deterministic, homogeneous-randomized, or
+            heterogeneous-randomized WCS pruning rule.
+        seed: Non-negative seed for randomized pruning, or None. Ignored by
+            deterministic pruning.
+
+    Returns:
+        Boolean selection mask aligned with the result's test rows.
+    """
     p_values, test_scores, calib_scores, test_weights, calib_weights = (
         _extract_required_wcs_fields(result)
     )
@@ -1398,7 +1509,26 @@ def weighted_false_discovery_control_from_arrays(
     pruning: Pruning = Pruning.DETERMINISTIC,
     seed: int | None = None,
 ) -> np.ndarray:
-    """Perform WCS from explicit weighted arrays and precomputed p-values."""
+    """Apply weighted conformalized selection to explicit arrays.
+
+    This low-level API cannot verify provenance. All arrays must come from the
+    same calibration construction and complete target family; score orientation,
+    p-value construction, and weights must be mutually consistent.
+
+    Args:
+        p_values: One p-value per test observation.
+        test_scores: One anomalous-higher score per test observation.
+        calib_scores: Calibration scores in the same orientation.
+        test_weights: Non-negative target-density weights for test observations.
+        calib_weights: Non-negative target-density weights for calibration
+            observations.
+        alpha: Nominal FDR target in ``(0, 1)``.
+        pruning: WCS pruning rule.
+        seed: Non-negative seed for randomized pruning, or None.
+
+    Returns:
+        Boolean selection mask aligned with the test arrays.
+    """
     return _run_wcs(
         p_values=p_values,
         test_scores=test_scores,

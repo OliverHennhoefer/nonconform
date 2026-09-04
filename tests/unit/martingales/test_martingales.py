@@ -10,6 +10,7 @@ import pytest
 from nonconform.martingales import (
     AlarmConfig,
     BaseMartingale,
+    MartingaleState,
     PowerMartingale,
     SimpleJumperMartingale,
     SimpleMixtureMartingale,
@@ -54,6 +55,8 @@ def _assert_state_close(left, right):
     np.testing.assert_allclose(left.cusum, right.cusum)
     np.testing.assert_allclose(left.log_shiryaev_roberts, right.log_shiryaev_roberts)
     np.testing.assert_allclose(left.shiryaev_roberts, right.shiryaev_roberts)
+    np.testing.assert_allclose(left.log_e_value, right.log_e_value)
+    np.testing.assert_allclose(left.e_value, right.e_value)
 
 
 def _simple_jumper_manual(
@@ -117,11 +120,31 @@ class TestValidation:
 
 
 class TestInitialState:
+    def test_legacy_positional_state_construction_remains_compatible(self):
+        state = MartingaleState(
+            1,
+            0.5,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+            1.0,
+            (),
+        )
+
+        assert state.e_value == pytest.approx(1.0)
+        assert state.log_e_value == pytest.approx(0.0)
+
     def test_initial_state_matches_defaults(self):
         state = PowerMartingale(epsilon=0.7).state
         assert state.step == 0
         assert np.isnan(state.p_value)
         assert state.martingale == pytest.approx(1.0)
+        assert state.e_value == pytest.approx(1.0)
+        assert state.log_e_value == pytest.approx(0.0)
         assert state.restarted_martingale == pytest.approx(1.0)
         assert state.log_restarted_martingale == pytest.approx(0.0)
         assert state.cusum == pytest.approx(0.0)
@@ -135,7 +158,9 @@ class TestPowerMartingale:
         states = martingale.update_many(np.array([0.25, 0.04], dtype=float))
 
         assert states[0].martingale == pytest.approx(1.0)
+        assert states[0].e_value == pytest.approx(1.0)
         assert states[1].martingale == pytest.approx(2.5)
+        assert states[1].e_value == pytest.approx(2.5)
 
         expected_log = np.log(0.5) + (0.5 - 1.0) * np.log(0.04)
         assert states[1].log_martingale == pytest.approx(expected_log)

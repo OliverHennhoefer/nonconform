@@ -1,268 +1,206 @@
 ---
-description: "Choose nonconform calibration strategies based on data size, compute budget, robustness needs, and statistical trade-offs."
+description: "Choose a nonconform calibration strategy from the required validity claim, calibration resolution, data budget, and measured compute cost."
 ---
 
-# Choosing Calibration Strategies
+# Choosing calibration strategies
 
-This guide helps you choose a calibration strategy based on data size, runtime,
-memory, and how clean a validity story you need. The recommendations are
-starting points, not universal optima.
+There is no dataset-size threshold at which one strategy becomes universally
+best. Choose from the guarantee you need, then measure the statistical and
+computational tradeoffs on data that represents deployment.
 
-## Strategy Overview
+## Recommended decision order
 
-nonconform provides one simple split baseline and a family of resampling
-strategies for cases where a holdout calibration split would waste too much
-data:
+### 1. State the validity claim
 
-| Strategy | Speed | Data Efficiency | Validity Story | Best For |
-|---|---|---|---|---|
-| **Split** | High | Medium | Cleanest | Large datasets, production baselines |
-| **CV+** | Medium | High | Resampling-based | Practical small-data default |
-| **Jackknife+** | Low | Very high | Resampling-based | Very small datasets |
-| **JackknifeBootstrap (JaB+)** | Low | High | Looser resampling bound | Bootstrap stability |
+If you need the clearest finite-sample conformal argument, start with
+`Split`. It separates proper training data from calibration data and applies a
+fixed scoring rule to calibration and test observations.
 
-> **Guarantee note:** Split conformal is the cleanest strict finite-sample
-> baseline. Resampling strategies such as cross-conformal, CV+, Jackknife+, and
-> JaB+ use data more efficiently and often work well in practice, but their
-> guarantees are weaker, approximate, asymptotic, or looser depending on the
-> method. `mode="plus"` is the validity-oriented default for these families;
-> `mode="single_model"` is lighter but weakens the validity story further.
+Use `CrossValidation` or `JackknifeBootstrap` because their use of data or
+their empirical stability is valuable for your task, not because a `+` suffix
+automatically provides the same guarantee. The library aggregates anomaly
+scores across fitted models; prediction-interval theorems for CV+,
+jackknife+, and JaB+ do not transfer automatically to that construction.
 
-## Detailed Strategy Characteristics
+### 2. Check calibration resolution
 
-### Split Conformal
+With `Empirical(tie_break="classical")` and `n_cal` calibration scores,
+p-values lie on the grid
 
-**When to use:**
-- Large training datasets (>5,000 samples)
-- Real-time or production environments requiring fast inference
-- When computational resources are limited
-- Initial prototyping and development
+$$
+\left\{\frac{1}{n_{\mathrm{cal}}+1},
+\frac{2}{n_{\mathrm{cal}}+1}, \ldots, 1\right\}.
+$$
 
-**Advantages:**
-- Fastest training and inference
-- Minimal memory usage
-- Simple to understand and implement
-- Predictable computational cost
+For `Split`, increasing the calibration share refines that grid but leaves less
+data for fitting the anomaly detector. Cross-validation and bootstrap
+strategies produce one calibration score per input row, but require more model
+fits and have a different validity story.
 
-**Disadvantages:**
-- Uses only a subset of data for calibration
-- May be less reliable with small datasets
-- No theoretical optimality guarantees
+!!! tip "Calculate before choosing"
 
-**Configuration example:**
-```python
-from nonconform import Split
+    Write down the batch size, target `alpha`, intended multiple-testing
+    procedure, and attainable p-value grid. A strategy can be statistically
+    valid yet unable to make discoveries at the resolution your testing family
+    requires.
 
-# For large datasets
-strategy = Split(n_calib=0.2)  # Use 20% for calibration
+### 3. Budget model fits and retained models
 
-# For fixed calibration size
-strategy = Split(n_calib=2000)  # Use exactly 2000 samples
-```
+| Strategy | Fits during `fit(...)` | Retained models in plus mode | Test scoring per row |
+|---|---:|---:|---:|
+| `Split` | 1 | 1 | 1 model |
+| `CrossValidation(k=k)` | `k` | `k` | `k` models |
+| `CrossValidation.jackknife()` | `n` | `n` | `n` models |
+| `JackknifeBootstrap(B)` | `B` | `B` | `B` models |
 
-### Data-Efficient Resampling
+`mode="single_model"` reduces retained models and test-time scoring, but adds a
+full-data fit and changes the relationship between calibration and test scores.
+Treat that as a statistical choice, not merely an optimization flag.
 
-**When to use:**
-- Small to medium datasets where a fixed calibration holdout is too costly
-- Applications where every observation should help train at least one model
-- Research workflows where you can spend extra computation for smoother results
-- Production workflows where the memory and latency costs are acceptable
+### 4. Account for the base detector
 
-**Advantages:**
-- Avoids permanently reserving a calibration-only subset
-- Lets each observation contribute through folds, leave-one-out fits, or
-  bootstrap out-of-bag structure
-- Often improves practical power when data is scarce
-- `mode="plus"` gives the most defensible resampling option in this package
+The strategy multiplies the cost and behavior of the detector you provide.
+Measure the whole pipeline with realistic feature count, sample count, model
+hyperparameters, and test batch size. A fold count or bootstrap count that is
+cheap for one detector may be infeasible for another.
 
-**Disadvantages:**
-- More computationally expensive than Split
-- Memory usage can grow with folds, leave-one-out models, or bootstraps
-- Guarantees are weaker, approximate, asymptotic, or looser than the clean
-  split-conformal baseline, depending on the method
-- Method choice depends on dataset size and compute budget
+### 5. Compare on untouched evaluation data
 
-**Configuration examples:**
-```python
-from nonconform import CrossValidation, JackknifeBootstrap
+When trustworthy labels exist, compare:
 
-# Practical default for limited data
-strategy = CrossValidation(k=5, mode="plus")
+- realized false discovery proportion and power;
+- variability across repeated seeds or resamples;
+- fitting time, scoring latency, and peak memory;
+- the number and stability of discoveries;
+- behavior under deployment-relevant shifts.
 
-# Leave-one-out variant for very small datasets
-strategy = CrossValidation.jackknife(mode="plus")
+Use one dataset for strategy selection and another for the final report. If the
+same labeled data guides the choice and supplies the reported result, the final
+estimate is optimistically selected.
 
-# Bootstrap variant for stability analysis
-strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
-```
+## Sensible starting points
 
-**How to choose inside the family:**
+| Constraint | Starting point | Reason to reconsider |
+|---|---|---|
+| Strongest, easiest-to-audit validity story | `Split(n_calib=...)` | Calibration grid is too coarse or fitting data is too scarce |
+| A moderate resampling budget | `CrossValidation(k=5, mode="plus")` | Fit or inference cost is excessive, or its validity scope is insufficient |
+| Leave-one-out construction is specifically justified | `CrossValidation.jackknife(mode="plus")` | `n` fits and retained models are impractical |
+| Bootstrap out-of-bag stability is specifically useful | `JackknifeBootstrap(..., mode="plus")` | Results are unstable across bootstrap counts or cost is excessive |
+| Inference memory is the binding constraint | A `single_model` mode | The weaker calibration-to-test alignment is unacceptable |
 
-| Method | Good First Use | Watch Out For |
-|--------|----------------|---------------|
-| CV+ | Limited data with practical compute | More folds cost more model fits |
-| Jackknife+ | Very small data | Leave-one-out fitting can be expensive |
-| JaB+ | Bootstrap stability or noisy data | Too few bootstraps can be unstable |
+These are starting configurations, not recommended sample-size regimes.
 
-## Decision Framework
+## Complete comparison example
 
-The thresholds below are practical defaults. Use labeled validation data when
-available and compare strategies on empirical FDR, power, runtime, and memory.
-
-### 1. Dataset Size Considerations
-
-**Large datasets (>10,000 samples):**
-- **Primary choice:** Split (fast, efficient)
-- **Alternative:** JackknifeBootstrap (if speed is not the top priority)
-
-**Medium datasets (1,000-10,000 samples):**
-- **Primary choice:** JackknifeBootstrap (balanced robustness and practicality)
-- **Alternative:** Jackknife+ (if you want lower compute than larger-bootstrap setups)
-
-**Small datasets (<1,000 samples):**
-- **Primary choice:** Jackknife+
-- **Alternative:** Jackknife (for the smallest datasets)
-
-### 2. Performance Requirements
-
-**Real-time applications (latency <100ms):**
-- Use Split conformal
-- Pre-compute calibration sets where possible
-- Consider caching fitted detectors
-
-**Batch processing (latency <10s):**
-- Jackknife+ or JackknifeBootstrap
-- Optimize based on accuracy requirements
-
-**Offline analysis (no latency constraints):**
-- Any strategy based on accuracy needs
-- JackknifeBootstrap for maximum robustness
-
-### 3. Accuracy vs Speed Trade-offs
-
-**Maximum speed (production systems):**
-```python
-# Fastest configuration
-strategy = Split(n_calib=1000)  # Fixed size for predictable performance
-```
-
-**Balanced (general applications):**
-```python
-# Good robustness with practical defaults
-strategy = JackknifeBootstrap(n_bootstraps=100)
-```
-
-**Maximum robustness checks (research/high-rigor applications):**
-```python
-# More resampling stability, but slower
-strategy = JackknifeBootstrap(n_bootstraps=200)
-```
-
-## Advanced Considerations
-
-### Data Distribution Properties
-
-**Exchangeable data (IID assumption holds):**
-- All strategies work well
-- Choose based on computational constraints
-
-**Non-exchangeable data (distribution shift):**
-- Consider weighted conformal detection only when the shift is plausibly
-  covariate shift with support overlap
-- JackknifeBootstrap strategy may provide additional robustness
-- Monitor calibration performance over time
-
-**Heterogeneous data (mixed distributions):**
-- JackknifeBootstrap recommended
-- Jackknife+ as alternative
-- Avoid Split with very diverse training sets
-
-### Computational Resource Planning
-
-**Memory constraints:**
-- Split: O(n_calib) memory usage
-- Jackknife+: O(n_train) memory usage
-- Cross-Validation: O(k × n_test) inference peak; O(k) stored models + O(n_train) calibration scores
-- JackknifeBootstrap: O(n_train x n_bootstraps) memory usage (includes permanent `_oob_mask` storage)
-
-**CPU considerations:**
-- Split: Single model training
-- Jackknife+: n_train + 1 model trainings
-- Cross-Validation: n_folds model trainings
-- JackknifeBootstrap: n_bootstraps model trainings
-
-## Strategy Transition Guide
-
-### From Research to Production
-
-1. **Development phase:** Use JackknifeBootstrap for robust results
-2. **Validation phase:** Compare with Jackknife+ for speed assessment
-3. **Production phase:** Deploy with Split when latency, memory, and simple
-   validation are the priorities
-4. **Monitoring phase:** Validate that Split maintains required accuracy
-
-### Handling Performance Degradation
-
-If you observe degraded performance after strategy changes:
-
-1. **Check calibration set size:** Ensure adequate samples for reliable calibration
-2. **Validate data assumptions:** Verify exchangeability hasn't changed
-3. **Monitor drift:** Use weighted conformal only when detected drift matches
-   the covariate-shift assumptions
-4. **Adjust parameters:** Tune strategy-specific parameters
-
-## Common Pitfalls
-
-### Split Conformal
-- **Don't:** Use with very small datasets (<500 samples)
-- **Don't:** Use fixed small calibration sets with varying dataset sizes
-- **Do:** Use proportional calibration sizing for consistency
-
-### Resampling Strategies
-- **Don't:** Use too many folds with small datasets (overfitting risk)
-- **Don't:** Treat `mode="single_model"` as equivalent to plus-style resampling
-- **Don't:** Forget that Jackknife+ requires one fit per observation
-- **Don't:** Use too few bootstraps (<20) for robust estimates
-- **Do:** Balance folds, leave-one-out fits, or bootstraps against your compute budget
-- **Do:** Monitor bootstrap stability when using JaB+
-
-## Benchmarking Your Choice
-
-Always validate your strategy choice with performance metrics:
+This example compares three strategies on one labeled evaluation set. It is an
+illustration of the measurement pattern, not evidence that the winning strategy
+will generalize to another dataset.
 
 ```python
-from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, Split
+from time import perf_counter
+
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    JackknifeBootstrap,
+    Split,
+)
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-# Compare strategies on your data
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(240, 4))
+x_evaluation = np.vstack(
+    [
+        rng.normal(size=(190, 4)),
+        rng.normal(loc=4.0, size=(10, 4)),
+    ]
+)
+y_evaluation = np.r_[np.zeros(190, dtype=int), np.ones(10, dtype=int)]
+
+permutation = rng.permutation(len(x_evaluation))
+x_evaluation = x_evaluation[permutation]
+y_evaluation = y_evaluation[permutation]
+
 strategies = {
-    "Split": Split(n_calib=0.2),
-    "CV+": CrossValidation(k=5, mode="plus"),
-    "Jackknife+": CrossValidation.jackknife(mode="plus"),
-    "JaB+": JackknifeBootstrap(n_bootstraps=100, mode="plus"),
+    "split": Split(n_calib=0.3),
+    "cv_plus": CrossValidation(k=5, mode="plus"),
+    "bootstrap_plus": JackknifeBootstrap(n_bootstraps=10, mode="plus"),
 }
 
 for name, strategy in strategies.items():
     detector = ConformalDetector(
-        detector=your_detector,
+        detector=IsolationForest(
+            n_estimators=30,
+            max_samples=128,
+            random_state=42,
+        ),
         strategy=strategy,
-        seed=42
+        seed=42,
     )
-    detector.fit(X_train)
-    decisions = detector.select(X_test, alpha=0.1)
 
-    # Evaluate FDR-controlled decisions
-    fdr = false_discovery_rate(y_test, decisions)
-    power = statistical_power(y_test, decisions)
+    started = perf_counter()
+    detector.fit(x_reference)
+    fit_seconds = perf_counter() - started
 
-    print(f"{name}: FDR={fdr:.3f}, Power={power:.3f}")
+    started = perf_counter()
+    selected = np.asarray(detector.select(x_evaluation, alpha=0.1))
+    score_seconds = perf_counter() - started
+
+    print(
+        name,
+        {
+            "discoveries": int(selected.sum()),
+            "fdp": float(false_discovery_rate(y_evaluation, selected)),
+            "power": float(statistical_power(y_evaluation, selected)),
+            "fit_seconds": round(fit_seconds, 3),
+            "score_seconds": round(score_seconds, 3),
+        },
+    )
 ```
 
-Choose the strategy that best meets your requirements for FDR control,
-statistical power, runtime, and memory. When in doubt, keep Split as a baseline:
-it is easier to reason about, and it makes assumption failures easier to spot.
+The metric function reports realized false discovery proportion on this
+particular labeled family, even though its API name is
+`false_discovery_rate`. FDR is the expectation of that random proportion over
+repetitions of the data-generating and selection process. One evaluation batch
+cannot demonstrate FDR control by itself.
 
-## References
+## Cases that require a different question
 
-For the statistical background behind these recommendations, see
-[Conformalization Strategies](conformalization_strategies.md#references).
+### Distribution shift
+
+Resampling does not repair a calibration-to-test distribution shift. If the
+shift is plausibly covariate shift and support overlaps, consider the
+[weighted conformal workflow](weighted_conformal.md). If anomaly semantics or
+the conditional mechanism changes, importance weighting alone is not a
+solution.
+
+### Sequential monitoring
+
+Choosing among `Split`, `CrossValidation`, and `JackknifeBootstrap` does not
+turn batch p-values into a conditionally valid sequential p-value process. For
+change monitoring, use [exchangeability martingales](exchangeability_martingales.md)
+and keep the scoring rule fixed during an episode.
+
+### Labeled anomalies in training data
+
+These conformalization strategies do not automatically clean contaminated
+reference data. Define the null population and curate the proper training and
+calibration data accordingly. Any data-dependent cleaning step becomes part of
+the procedure whose validity must be assessed.
+
+## Avoid these shortcuts
+
+- Do not choose a strategy solely from labels such as “small” or “large” data.
+- Do not claim that bootstrap resampling makes non-exchangeable data
+  exchangeable.
+- Do not assume that more folds or bootstraps monotonically improve power or
+  validity.
+- Do not tune the strategy on the final evaluation family.
+- Do not compare strategies with different preprocessing, seeds, or test
+  families unless that difference is intentional and reported.
+
+For the exact implementation mechanics and literature scope, see
+[Conformalization strategies](conformalization_strategies.md).

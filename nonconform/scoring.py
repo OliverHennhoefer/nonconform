@@ -1,12 +1,15 @@
-"""P-value estimation strategies for conformal prediction.
+"""Tail-probability estimation strategies for calibrated anomaly scores.
 
-This module provides strategies for computing p-values from calibration scores.
+``Empirical`` implements rank-based conformal p-values. ``ConditionalEmpirical``
+adds a calibration map for a stronger conditional target. ``Probabilistic``
+instead estimates a smooth score-tail probability with a kernel density model;
+it does not inherit the exact finite-sample guarantee of the empirical rank.
 
 Classes:
     BaseEstimation: Abstract base class for p-value estimation.
     Empirical: Classical empirical p-value estimation using discrete CDF.
     ConditionalEmpirical: Conditionally calibrated empirical p-values.
-    Probabilistic: KDE-based probabilistic p-value estimation.
+    Probabilistic: KDE-based score-tail probability estimation.
 """
 
 from abc import ABC, abstractmethod
@@ -58,7 +61,7 @@ def _validate_finite(name: str, values: np.ndarray) -> None:
 
 
 class BaseEstimation(ABC):
-    """Abstract base for p-value estimation strategies."""
+    """Abstract base for p-value and score-tail estimation strategies."""
 
     @abstractmethod
     def compute_p_values(
@@ -67,7 +70,7 @@ class BaseEstimation(ABC):
         calibration_set: np.ndarray,
         weights: tuple[np.ndarray, np.ndarray] | None = None,
     ) -> np.ndarray:
-        """Compute p-values for test scores.
+        """Compute p-values or strategy-defined tail estimates for test scores.
 
         Args:
             scores: Test instance anomaly scores (1D array).
@@ -75,7 +78,8 @@ class BaseEstimation(ABC):
             weights: Optional (w_calib, w_test) tuple for weighted conformal.
 
         Returns:
-            Array of p-values for each test instance.
+            Array of values for each test instance. The concrete strategy
+            defines their statistical interpretation.
         """
         pass
 
@@ -94,11 +98,11 @@ class BaseEstimation(ABC):
 
 
 class Empirical(BaseEstimation):
-    """Classical empirical p-value estimation using discrete CDF.
+    """Classical rank-based empirical conformal p-values.
 
     Computes p-values using deterministic tie handling by default. Optionally
-    supports randomized smoothing to eliminate the resolution floor caused by
-    discrete ties (Jin & Candes 2023).
+    supports randomized smoothing of tied calibration mass and the test point's
+    own mass, eliminating the classical resolution floor (Jin & Candes 2023).
 
     Args:
         tie_break: Tie-breaking strategy (`"classical"` or `"randomized"`).
@@ -106,11 +110,20 @@ class Empirical(BaseEstimation):
 
     Examples:
         ```python
+        import numpy as np
+
+        from nonconform import Empirical
+
+        calibration_scores = np.array([0.2, 0.5, 0.7, 1.1, 1.4])
+        test_scores = np.array([0.6, 1.5])
         estimation = Empirical()  # tie_break="classical" by default
-        p_values = estimation.compute_p_values(test_scores, calib_scores)
+        p_values = estimation.compute_p_values(test_scores, calibration_scores)
+        print(p_values)
 
         # For randomized smoothing:
-        estimation = Empirical(tie_break="randomized")
+        randomized = Empirical(tie_break="randomized")
+        randomized.set_seed(42)
+        print(randomized.compute_p_values(test_scores, calibration_scores))
         ```
     """
 
@@ -190,7 +203,9 @@ class ConditionalEmpirical(Empirical):
         first release of ``ConditionalEmpirical``.
 
     Args:
-        delta: Confidence level used by the conditional calibration map.
+        delta: Failure-probability parameter used by the conditional calibration
+            map; the associated calibration event has probability at least
+            ``1 - delta`` under the method's assumptions.
             Must be in ``(0, 1)``. Defaults to ``0.05``.
         method: Conditional calibration method. One of
             ``{"mc", "simes", "dkwm", "asymptotic"}``. Defaults to ``"mc"``.
@@ -289,9 +304,9 @@ def calculate_p_val(
 ) -> np.ndarray:
     """Calculate empirical p-values (standalone function).
 
-    Uses classical deterministic tie handling by default. Optionally supports
-    randomized smoothing to eliminate the resolution floor caused by discrete
-    ties (Jin & Candes 2023).
+    Uses classical deterministic tie handling by default. Randomized mode
+    interpolates tied calibration mass and the test point's own mass, removing
+    the classical positive resolution floor.
 
     Args:
         scores: Test instance anomaly scores (1D array).
@@ -309,7 +324,7 @@ def calculate_p_val(
     n_cal = len(calibration_set)
 
     if mode is TieBreakMode.CLASSICAL:
-        # Old formula: count >= (at or above)
+        # Deterministic discrete formula: count calibration scores >= score.
         ranks = n_cal - np.searchsorted(sorted_cal, scores, side="left")
         return (1.0 + ranks) / (1.0 + n_cal)
 
@@ -336,9 +351,19 @@ def calculate_weighted_p_val(
 ) -> np.ndarray:
     """Calculate weighted empirical p-values (standalone function).
 
-    Uses classical deterministic tie handling by default. Optionally supports
-    randomized smoothing to eliminate the resolution floor caused by discrete
-    ties (Jin & Candes 2023).
+    The default ``"classical"`` mode uses deterministic discrete tie handling:
+    calibration mass at or above the test score is included, together with the
+    test point's own weight. For calibration mass ``W_cal`` and test score
+    ``s`` with test weight ``w_test``, this is
+    ``(W_{>=}(s) + w_test) / (W_cal + w_test)``. This variant is conservative
+    for discrete scores and agrees with the unweighted classical formula when
+    all weights are one. Without calibration scores tied with ``s``, it equals
+    the strict deterministic formula used by Jin and Candes (2023).
+
+    The ``"randomized"`` mode uses the tie-safe weighted conformal formula
+    ``(W_{>}(s) + U * (W_{=}(s) + w_test)) / (W_cal + w_test)``, where
+    ``U`` is uniform on ``[0, 1]``. It avoids the discrete resolution floor and
+    interpolates both tied calibration mass and the test point's own mass.
 
     Args:
         scores: Test instance anomaly scores (1D array).
@@ -353,9 +378,10 @@ def calculate_weighted_p_val(
         Array of weighted p-values for each test instance.
 
     Note:
-        Including test_weights in the numerator/denominator implies a positive
-        lower bound of test_weights / (sum(calib_weights) + test_weights) when
-        there is no calibration mass above the test score.
+        Classical mode has the positive lower bound
+        ``test_weights / (sum(calib_weights) + test_weights)`` when no
+        calibration mass lies above the test score. Randomized mode has no such
+        positive floor because it multiplies the test point's mass by ``U``.
     """
     mode = _normalize_tie_break_mode(tie_break)
 
@@ -403,30 +429,36 @@ def calculate_weighted_p_val(
     right_idx = np.searchsorted(sorted_scores, scores, side="right")
 
     if mode is TieBreakMode.CLASSICAL:
-        weighted_greater = total_weight - cumulative_weights[right_idx]
-        numerator = weighted_greater + w_scores
+        weighted_at_or_above = total_weight - cumulative_weights[left_idx]
+        numerator = weighted_at_or_above + w_scores
     else:
-        weighted_greater = total_weight - cumulative_weights[right_idx]
+        weighted_strictly_above = total_weight - cumulative_weights[right_idx]
         weighted_equal = cumulative_weights[right_idx] - cumulative_weights[left_idx]
 
         if rng is None:
             rng = np.random.default_rng()
         u = rng.uniform(size=len(scores))
 
-        numerator = weighted_greater + (weighted_equal + w_scores) * u
+        numerator = weighted_strictly_above + (weighted_equal + w_scores) * u
 
     denominator = total_weight + w_scores
     return numerator / denominator
 
 
 class Probabilistic(BaseEstimation):
-    """KDE-based probabilistic p-value estimation with continuous values.
+    """KDE-based continuous estimates of score-tail probability.
 
-    Provides smooth p-values in [0,1] via kernel density estimation.
-    Supports automatic hyperparameter tuning and weighted conformal prediction.
-    In weighted mode, only calibration weights are applied to the KDE; test
-    weights are intentionally not injected into the survival calculation so
-    p-values can reach 0. This avoids the lower bound
+    Fits a kernel density estimate to calibration scores and evaluates its
+    survival function. The results are model-based estimates, not rank-based
+    conformal p-values, and therefore do not have the empirical estimator's
+    exact finite-sample distribution-free guarantee. Smoothness or finer
+    numerical resolution is not evidence of calibration.
+
+    The estimator supports automatic hyperparameter tuning and calibration
+    weights. In weighted mode, only calibration weights are applied to the KDE;
+    test weights are intentionally not injected into the survival calculation.
+    This is not the exact discrete weighted conformal construction, and it lets
+    tail estimates reach 0 instead of imposing the lower bound
     w_test / (sum_calib_weight + w_test) that the discrete weighted formula
     would impose.
 
@@ -438,12 +470,19 @@ class Probabilistic(BaseEstimation):
 
     Examples:
         ```python
-        # Basic usage
-        estimation = Probabilistic()
-        p_values = estimation.compute_p_values(test_scores, calib_scores)
+        import numpy as np
 
-        # With custom kernel
-        estimation = Probabilistic(kernel=Kernel.EPANECHNIKOV)
+        from nonconform import Probabilistic
+        from nonconform.enums import Kernel
+
+        rng = np.random.default_rng(42)
+        calibration_scores = rng.normal(size=200)
+        test_scores = np.array([0.0, 1.0, 2.0])
+
+        # n_trials=0 skips optional hyperparameter search for a quick example.
+        estimation = Probabilistic(kernel=Kernel.GAUSSIAN, n_trials=0)
+        tail_estimates = estimation.compute_p_values(test_scores, calibration_scores)
+        print(tail_estimates)
         ```
     """
 

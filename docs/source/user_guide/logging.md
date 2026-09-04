@@ -1,117 +1,135 @@
 ---
-description: "Configure nonconform logging and progress output for development, production, debugging, and long-running workflows."
+description: "Configure nonconform logger levels and progress bars for fitting, aggregation, weighting, and weighted FDR control."
 ---
 
-# Logging and Progress Control
+# Logging and progress
 
-`nonconform` uses Python logging for strategy-level progress and warnings.
-Aggregation progress bars are controlled by `ConformalDetector(verbose=...)`.
+`nonconform` uses standard Python logger levels to decide whether several
+long-running operations display `tqdm` progress bars. Raw-score aggregation has
+a separate `ConformalDetector(verbose=...)` switch.
 
-## Quick Setup
+## Controls at a glance
+
+| Output | Control | Display label |
+|---|---|---|
+| Cross-validation fitting | `nonconform.resampling.crossval` enabled for `INFO` | `Calibration` |
+| Jackknife-bootstrap fitting | `nonconform.resampling.bootstrap` enabled for `INFO` | `Calibration` |
+| Bootstrap-bagged weight fitting | `nonconform.weighting.bagged` enabled for `INFO` | `Weighting` |
+| WCS iteration | `nonconform.fdr` enabled for `INFO` | `Weighted FDR Control` |
+| Aggregating retained detector scores | `ConformalDetector(verbose=True)` | `Aggregation` |
+
+Warnings use the same logger hierarchy. `verbose=False` does not suppress
+warnings, and changing the logger level does not disable an aggregation bar
+explicitly requested with `verbose=True`.
+
+## Set the package level explicitly
+
+Configure logging before constructing and fitting detectors:
 
 ```python
 import logging
 
-# Development: show progress/info
-logging.getLogger("nonconform").setLevel(logging.INFO)
+package_logger = logging.getLogger("nonconform")
+package_logger.setLevel(logging.WARNING)
 
-# Production: warnings and errors only
-logging.getLogger("nonconform").setLevel(logging.WARNING)
+print(logging.getLevelName(package_logger.level))
 ```
 
-## `verbose` vs Logging Level
+Useful package-wide levels are:
 
-- `verbose=True` shows aggregation progress during `compute_p_values()` and
-  `score_samples()`.
-- Logging level controls strategy-level progress output and warnings.
+- `logging.DEBUG` for parameter-normalization details;
+- `logging.INFO` for strategy, weighting, and WCS progress;
+- `logging.WARNING` for warnings and errors only; and
+- `logging.ERROR` for errors only.
+
+The effective behavior can also depend on handlers configured by the host
+application. Libraries should not call `logging.basicConfig(...)` on behalf of
+an application.
+
+## Complete progress example
 
 ```python
 import logging
+
+import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, CrossValidation
 
 logging.getLogger("nonconform").setLevel(logging.INFO)
 
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(150, 3))
+x_test = rng.normal(size=(20, 3))
+
 detector = ConformalDetector(
-    detector=IsolationForest(random_state=42),
-    strategy=CrossValidation(k=5),
-    score_polarity="auto",
+    detector=IsolationForest(n_estimators=20, random_state=42),
+    strategy=CrossValidation(k=3),
     verbose=True,
     seed=42,
-)
-detector.fit(X_train)
-_ = detector.compute_p_values(X_test)
+).fit(x_reference)
+
+p_values = detector.compute_p_values(x_test)
+print(p_values[:3])
 ```
 
-## Common Patterns
+This can show `Calibration` during the three fold fits and `Aggregation` while
+the retained models score `x_test`.
 
-### Quiet Production Output
+## Configure one subsystem
+
+Logger names follow Python's dotted hierarchy:
 
 ```python
 import logging
 
 logging.getLogger("nonconform").setLevel(logging.WARNING)
+logging.getLogger("nonconform.resampling.bootstrap").setLevel(logging.INFO)
 
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    verbose=False,
+print(
+    logging.getLevelName(
+        logging.getLogger("nonconform.resampling.bootstrap").getEffectiveLevel()
+    )
 )
 ```
 
-### Keep Aggregation Bars, Hide Strategy Details
-
-```python
-import logging
-
-logging.getLogger("nonconform").setLevel(logging.WARNING)
-
-detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    verbose=True,
-)
-```
-
-### Full Debugging
-
-```python
-import logging
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-```
-
-## Typical Progress Messages
-
-| Message | Component | Trigger |
-|---|---|---|
-| `CV fold training (N folds)` | Cross-validation strategy | `fit()` |
-| `Bootstrap training (N folds)` | Bootstrap strategy | `fit()` |
-| `Aggregating N models` | Ensemble aggregation | `compute_p_values()` / `score_samples()` with `verbose=True` |
-
-## Logger Names
-
-Useful logger namespaces:
+The relevant names are:
 
 - `nonconform`
-- `nonconform.resampling.*`
-- `nonconform.weighting.*`
-- `nonconform.fdr`
 - `nonconform.adapters`
-- `nonconform._internal.*`
+- `nonconform.resampling.crossval`
+- `nonconform.resampling.bootstrap`
+- `nonconform.weighting.bagged`
+- `nonconform.fdr`
 
-Configure specific namespaces if you want different levels per subsystem.
+Set a child logger explicitly only when its output policy should differ from
+the package-level policy.
+
+## Application logging pattern
+
+For scripts, configure a handler once at the application boundary, then set the
+package level:
 
 ```python
 import logging
 
-# Base level for package logs
-logging.getLogger("nonconform").setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(
+    logging.Formatter("%(levelname)s %(name)s: %(message)s")
+)
 
-# More detail for resampling strategies only
-logging.getLogger("nonconform.resampling").setLevel(logging.DEBUG)
+logger = logging.getLogger("nonconform")
+logger.handlers.clear()
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
+
+logger.info("nonconform logging configured")
 ```
+
+Clearing handlers is appropriate in a standalone script that owns its logging
+configuration. Do not do it inside reusable library code or a hosted runtime
+whose handlers belong to the caller.
+
+Progress bars normally write to standard error. Account for that when capturing
+logs in notebooks, tests, job runners, or container platforms.

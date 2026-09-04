@@ -62,6 +62,8 @@ def aggregate(method: str, scores: np.ndarray) -> np.ndarray:
         ValueError: If the method is not a supported aggregation type.
 
     Examples:
+        >>> import numpy as np
+        >>> from nonconform.metrics import aggregate
         >>> scores = np.array([[1, 2, 3], [4, 5, 6]])
         >>> aggregate("mean", scores)
         array([2.5, 3.5, 4.5])
@@ -80,24 +82,28 @@ def aggregate(method: str, scores: np.ndarray) -> np.ndarray:
 
 
 def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray) -> float:
-    """Calculate the False Discovery Rate (FDR) for binary classification.
+    """Calculate the realized false discovery proportion for one labeled family.
 
-    FDR is the proportion of false positives among all predicted positives:
-    FDR = FP / (FP + TP)
+    The returned quantity is ``FP / (FP + TP)`` for the supplied realization.
+    Its expectation over repeated testing families is the false discovery rate
+    (FDR). The function name is retained for public API compatibility.
 
-    If there are no predicted positives, FDR is defined as 0.0.
+    If there are no predicted positives, this function returns a realized FDP
+    of 0.0.
 
     Args:
         y: True binary labels (1 = positive/anomaly, 0 = negative/normal).
         y_hat: Predicted binary labels.
 
     Returns:
-        The calculated False Discovery Rate.
+        The realized false discovery proportion.
 
     Examples:
+        >>> import numpy as np
+        >>> from nonconform.metrics import false_discovery_rate
         >>> y = np.array([1, 0, 1, 0])
         >>> y_hat = np.array([1, 1, 0, 0])  # 1 TP, 1 FP
-        >>> false_discovery_rate(y, y_hat)
+        >>> float(false_discovery_rate(y, y_hat))
         0.5
     """
     y_true = y.astype(bool)
@@ -115,24 +121,28 @@ def false_discovery_rate(y: np.ndarray, y_hat: np.ndarray) -> float:
 
 
 def statistical_power(y: np.ndarray, y_hat: np.ndarray) -> float:
-    """Calculate statistical power (recall or true positive rate).
+    """Calculate realized recall (true positive rate) for one labeled family.
 
-    Power (TPR) is the proportion of actual positives correctly identified:
-    Power = TP / (TP + FN)
+    The returned quantity is ``TP / (TP + FN)`` for the supplied realization.
+    Its expectation under a specified data-generating process is statistical
+    power. The function name is retained for public API compatibility.
 
-    If there are no actual positives, power is defined as 0.0.
+    If there are no actual positives, this function returns a realized true
+    positive rate of 0.0.
 
     Args:
         y: True binary labels (1 = positive/anomaly, 0 = negative/normal).
         y_hat: Predicted binary labels.
 
     Returns:
-        The calculated statistical power.
+        The realized true positive rate.
 
     Examples:
+        >>> import numpy as np
+        >>> from nonconform.metrics import statistical_power
         >>> y = np.array([1, 0, 1, 0])
         >>> y_hat = np.array([1, 1, 0, 0])  # 1 TP, 1 FN
-        >>> statistical_power(y, y_hat)
+        >>> float(statistical_power(y, y_hat))
         0.5
     """
     y_bool = y.astype(bool)

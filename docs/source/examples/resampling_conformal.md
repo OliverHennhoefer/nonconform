@@ -1,198 +1,111 @@
 ---
-description: "Example data-efficient conformal anomaly detection with cross-validation, jackknife, and bootstrap calibration strategies."
+description: "Compare split, cross-validation, leave-one-out, and bootstrap conformalization with measured fit cost and labeled discovery metrics."
 ---
 
-# Data-Efficient Resampling Conformal Detection
+# Data-efficient resampling
 
-Split conformal is the clearest baseline: fit on one subset, calibrate on
-another, then test on new data. When the dataset is small, that holdout can be
-expensive. Resampling strategies use the same data more efficiently by rotating
-which observations are used for fitting and calibration.
+Resampling strategies construct calibration scores without reserving one fixed
+holdout. They can improve data use when reference data is scarce, at the cost
+of more model fits, retained models, and a different validity argument.
 
-This chapter covers the resampling family together:
+!!! important "The `+` name is not a transferable guarantee"
 
-- `CrossValidation(k=..., mode="plus")` for CV-style calibration
-- `CrossValidation.jackknife(mode="plus")` for leave-one-out Jackknife+
-- `JackknifeBootstrap(..., mode="plus")` for Jackknife+-after-Bootstrap (JaB+)
+    In plus mode, `nonconform` retains resampling models and aggregates their
+    raw test scores. Prediction-interval theorems for CV+, jackknife+, and JaB+
+    do not automatically certify this anomaly-score aggregation. Keep `Split`
+    as the clean finite-sample baseline and state the exact construction used.
 
-These methods often work well in practice, especially when training data is
-scarce. Their guarantees are not interchangeable with the clean split-conformal
-finite-sample guarantee; use `mode="plus"` when validity is more important than
-inference-time memory.
-
-## Setup
+## Complete comparison
 
 ```python
-import numpy as np
-from pyod.models.lof import LOF
-from sklearn.datasets import load_breast_cancer
+from time import perf_counter
 
-from nonconform import ConformalDetector, CrossValidation, JackknifeBootstrap, Split
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import (
+    ConformalDetector,
+    CrossValidation,
+    JackknifeBootstrap,
+    Split,
+)
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-data = load_breast_cancer()
-X = data.data
-y = data.target
-
-# In this dataset, target=0 is malignant and target=1 is benign.
-y_anomaly = 1 - y
-base_detector = LOF()
-```
-
-## Choose a Resampling Strategy
-
-| Strategy | Use When | Main Cost |
-|----------|----------|-----------|
-| CV+ | You want a practical small-data default | Fit one model per fold |
-| Jackknife+ | The dataset is very small and every point matters | Fit one model per observation |
-| JaB+ | You want bootstrap stability and can spend more compute | Fit many bootstrap models |
-
-CV+ is usually the first resampling strategy to try. Jackknife+ pushes data use
-further but is expensive. JaB+ is useful when bootstrap stability is valuable or
-when you prefer a configurable ensemble size.
-
-## CV+
-
-```python
-cv_strategy = CrossValidation(k=5, mode="plus")
-
-cv_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=cv_strategy,
-    aggregation="median",
-    seed=42,
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(80, 4))
+x_test = np.vstack(
+    [rng.normal(size=(16, 4)), rng.normal(loc=4.5, size=(4, 4))]
 )
+y_test = np.r_[np.zeros(16, dtype=int), np.ones(4, dtype=int)]
 
-cv_detector.fit(X)
-cv_discoveries = cv_detector.select(X, alpha=0.05)
-
-print(f"CV+ discoveries: {cv_discoveries.sum()}")
-print(f"Empirical FDR: {false_discovery_rate(y_anomaly, cv_discoveries):.3f}")
-print(f"Power: {statistical_power(y_anomaly, cv_discoveries):.3f}")
-```
-
-For smaller datasets, increase `k` if compute allows:
-
-```python
-for k in [3, 5, 10]:
-    detector = ConformalDetector(
-        detector=LOF(),
-        strategy=CrossValidation(k=k, mode="plus"),
-        aggregation="median",
-        seed=42,
-    )
-    detector.fit(X)
-    discoveries = detector.select(X, alpha=0.05)
-    print(f"{k}-fold CV+: {discoveries.sum()} discoveries")
-```
-
-## Jackknife+
-
-```python
-jackknife_strategy = CrossValidation.jackknife(mode="plus")
-
-jackknife_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jackknife_strategy,
-    aggregation="median",
-    seed=42,
-)
-
-jackknife_detector.fit(X)
-jackknife_discoveries = jackknife_detector.select(X, alpha=0.05)
-
-print(f"Jackknife+ discoveries: {jackknife_discoveries.sum()}")
-```
-
-Jackknife+ is leave-one-out CV+. It is the most data-intensive option in this
-family and can be impractical once the training set is more than a few hundred
-observations.
-
-## JaB+
-
-```python
-jab_strategy = JackknifeBootstrap(n_bootstraps=100, mode="plus")
-
-jab_detector = ConformalDetector(
-    detector=base_detector,
-    strategy=jab_strategy,
-    aggregation="median",
-    seed=42,
-)
-
-jab_detector.fit(X)
-jab_discoveries = jab_detector.select(X, alpha=0.05)
-
-print(f"JaB+ discoveries: {jab_discoveries.sum()}")
-```
-
-Use more bootstraps for smoother behavior when compute permits:
-
-```python
-for n_bootstraps in [50, 100, 200]:
-    detector = ConformalDetector(
-        detector=LOF(),
-        strategy=JackknifeBootstrap(n_bootstraps=n_bootstraps, mode="plus"),
-        aggregation="median",
-        seed=42,
-    )
-    detector.fit(X)
-    discoveries = detector.select(X, alpha=0.05)
-    print(f"JaB+ with {n_bootstraps} bootstraps: {discoveries.sum()} discoveries")
-```
-
-## Compare Against Split
-
-Always keep split conformal in the comparison. It is simpler, faster, and has
-the cleanest finite-sample validity story.
-
-```python
 strategies = {
-    "Split": Split(n_calib=0.2),
-    "CV+": CrossValidation(k=5, mode="plus"),
-    "Jackknife+": CrossValidation.jackknife(mode="plus"),
-    "JaB+": JackknifeBootstrap(n_bootstraps=100, mode="plus"),
+    "split": Split(n_calib=0.25),
+    "cv_plus": CrossValidation(k=4, mode="plus"),
+    "jackknife_plus": CrossValidation.jackknife(mode="plus"),
+    "bootstrap_plus": JackknifeBootstrap(n_bootstraps=10, mode="plus"),
 }
 
-results = {}
 for name, strategy in strategies.items():
     detector = ConformalDetector(
-        detector=LOF(),
+        detector=IsolationForest(
+            n_estimators=10,
+            max_samples=0.8,
+            random_state=42,
+        ),
         strategy=strategy,
-        aggregation="median",
         seed=42,
     )
-    detector.fit(X)
-    p_values = detector.compute_p_values(X)
-    discoveries = detector.select(X, alpha=0.05)
-    results[name] = {
-        "discoveries": discoveries.sum(),
-        "mean_p": p_values.mean(),
-        "empirical_fdr": false_discovery_rate(y_anomaly, discoveries),
-        "power": statistical_power(y_anomaly, discoveries),
-    }
 
-print("\nStrategy comparison:")
-print(f"{'Strategy':<12} {'Discoveries':<12} {'Mean p':<10} {'Emp. FDR':<10} {'Power':<10}")
-for name, values in results.items():
+    started = perf_counter()
+    detector.fit(x_reference)
+    fit_seconds = perf_counter() - started
+
+    selected = np.asarray(detector.select(x_test, alpha=0.1))
     print(
-        f"{name:<12} {values['discoveries']:<12} "
-        f"{values['mean_p']:<10.3f} {values['empirical_fdr']:<10.3f} "
-        f"{values['power']:<10.3f}"
+        name,
+        {
+            "retained_models": len(detector.detector_set),
+            "calibration_scores": len(detector.calibration_set),
+            "fit_seconds": round(fit_seconds, 3),
+            "discoveries": int(selected.sum()),
+            "realized_fdp": float(false_discovery_rate(y_test, selected)),
+            "power": float(statistical_power(y_test, selected)),
+        },
     )
 ```
 
-## Practical Guidance
+This small synthetic dataset makes leave-one-out fitting affordable. Its timing
+does not predict production latency. Measure the actual detector, feature
+dimension, reference size, and test-batch size on deployment hardware.
 
-- Start with `Split` if you have enough data for a clean train/calibration split.
-- Try CV+ when the holdout split costs too much power.
-- Try Jackknife+ only when the dataset is small enough for leave-one-out fitting.
-- Try JaB+ when bootstrap stability matters and the extra compute is acceptable.
-- Prefer `mode="plus"` for resampling strategies unless inference-time memory is
-  the main constraint.
+The split strategy has only 20 calibration scores in this example, so its
+classical p-value grid is much coarser than the 80-score grids produced by the
+resampling strategies. That difference is part of the comparison, not proof
+that one strategy is universally better.
 
-## Next Steps
+## Interpreting the mechanics
 
-- Use [classical conformal detection](classical_conformal.md) as the split baseline.
-- Read [conformalization strategies](../user_guide/conformalization_strategies.md) for the guarantee and mode details.
-- Learn [FDR control](fdr_control.md) before interpreting many simultaneous discoveries.
+| Strategy | Calibration construction | Test scoring in plus mode |
+|---|---|---|
+| `Split` | Held-out scores from one fixed model | One model |
+| `CrossValidation(k=4)` | One out-of-fold score per reference row | Median raw score across four retained models by default |
+| `CrossValidation.jackknife()` | One leave-one-out score per reference row | Median raw score across 80 retained models here |
+| `JackknifeBootstrap(10)` | Out-of-bag score aggregated per reference row | Median raw score across ten retained models by default |
+
+`JackknifeBootstrap(aggregation_method=...)` controls aggregation of out-of-bag
+calibration scores. `ConformalDetector(aggregation=...)` separately controls
+aggregation of retained models' test scores.
+
+## Evaluation discipline
+
+- Compare strategies on untouched labeled data or prespecified simulations.
+- Repeat stochastic strategies across seeds and report variability.
+- Include fit time, scoring time, retained-model count, and peak memory.
+- Do not choose the strategy on the same family used for the final reported
+  FDP and power.
+- Do not describe resampling as a fix for distribution shift.
+
+See [Conformalization strategies](../user_guide/conformalization_strategies.md)
+for exact implementation details and primary references, then
+[Choosing strategies](../user_guide/choosing_strategies.md) for the decision
+process.

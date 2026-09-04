@@ -1,13 +1,17 @@
 """Calibration strategies for conformal anomaly detection.
 
-This module provides various calibration strategies that define how to split
-data for training and calibration in conformal prediction.
+These strategies define how detector replicas and calibration scores are formed.
+``Split`` uses disjoint fitting and calibration subsets. ``CrossValidation``
+uses out-of-fold scores, and ``JackknifeBootstrap`` uses out-of-bag scores. The
+latter two are package-specific score-aggregation constructions; their names do
+not by themselves transfer coverage theorems for conformal prediction intervals
+to anomaly p-values.
 
 Classes:
     BaseStrategy: Abstract base class for calibration strategies.
     Split: Simple train-test split strategy.
     CrossValidation: K-fold cross-validation strategy (includes Jackknife factory).
-    JackknifeBootstrap: Jackknife+-after-Bootstrap (JaB+) strategy.
+    JackknifeBootstrap: Bootstrap out-of-bag calibration strategy.
 """
 
 from __future__ import annotations
@@ -120,6 +124,8 @@ class Split(BaseStrategy):
 
     Examples:
         ```python
+        from nonconform import Split
+
         # Use 20% of data for calibration
         strategy = Split(n_calib=0.2)
 
@@ -215,10 +221,13 @@ class Split(BaseStrategy):
 
 
 class CrossValidation(BaseStrategy):
-    """K-fold cross-validation strategy for conformal anomaly detection.
+    """K-fold out-of-fold calibration for conformal anomaly scoring.
 
-    Splits data into k folds and uses each fold as a calibration set while
-    training on the remaining folds.
+    The strategy trains one detector per fold and records scores for observations
+    while they are held out. In ``"plus"`` mode, test scores are aggregated over
+    the retained fold models before comparison with the out-of-fold calibration
+    scores. This is the package's anomaly-score construction, not a claim that a
+    CV+ prediction-interval theorem applies unchanged.
 
     Args:
         k: Number of folds. If None, uses leave-one-out (k=n at fit time).
@@ -229,6 +238,8 @@ class CrossValidation(BaseStrategy):
 
     Examples:
         ```python
+        from nonconform import CrossValidation
+
         # 5-fold cross-validation
         strategy = CrossValidation(k=5)
 
@@ -279,8 +290,10 @@ class CrossValidation(BaseStrategy):
 
         Examples:
             ```python
+            from nonconform import CrossValidation
+
             strategy = CrossValidation.jackknife()
-            detector_list, calib_scores = strategy.fit_calibrate(X, detector)
+            print(strategy.k, strategy.mode)
             ```
         """
         return cls(k=None, mode=mode, shuffle=False)
@@ -430,10 +443,17 @@ def _train_bootstrap_model(
 
 
 class JackknifeBootstrap(BaseStrategy):
-    """Jackknife+-after-Bootstrap (JaB+) conformal anomaly detection.
+    """Bootstrap and out-of-bag calibration for conformal anomaly scoring.
 
-    Implements the JaB+ method which provides predictive inference for ensemble
-    models trained on bootstrap samples. Uses out-of-bag samples for calibration.
+    Each bootstrap replica is fitted on a sample drawn with replacement. Every
+    reference observation receives a calibration score aggregated over replicas
+    for which that observation was out of bag. In ``"plus"`` mode, test scores
+    are aggregated over all retained replicas.
+
+    The construction is inspired by jackknife+-after-bootstrap (JaB+), but this
+    class produces anomaly scores and p-values rather than the predictive
+    intervals studied by the JaB+ theorem. Do not infer an interval-coverage
+    guarantee solely from the class name.
 
     Args:
         n_bootstraps: Number of bootstrap iterations. Defaults to 100.
@@ -443,8 +463,8 @@ class JackknifeBootstrap(BaseStrategy):
             ``ConformalMode`` values are accepted. Defaults to `"plus"`.
 
     References:
-        Jin, Ying, and Emmanuel J. Candès. "Selection by Prediction with Conformal
-        p-values." Journal of Machine Learning Research 24.244 (2023): 1-41.
+        Kim, Byol, Chen Xu, and Rina Foygel Barber. "Predictive Inference Is Free
+        with the Jackknife+-after-Bootstrap." NeurIPS 2020.
     """
 
     def __init__(
@@ -457,8 +477,7 @@ class JackknifeBootstrap(BaseStrategy):
 
         if n_bootstraps < 2:
             exc = ValueError(
-                f"Number of bootstraps must be at least 2, got {n_bootstraps}. "
-                f"Typical values are 50-200 for jackknife-after-bootstrap."
+                f"Number of bootstraps must be at least 2, got {n_bootstraps}."
             )
             exc.add_note(f"Received n_bootstraps={n_bootstraps}, which is invalid.")
             raise exc
@@ -495,13 +514,14 @@ class JackknifeBootstrap(BaseStrategy):
         weighted: bool = False,
         n_jobs: int | None = None,
     ) -> tuple[list[AnomalyDetector], np.ndarray]:
-        """Fit and calibrate using JaB+ method.
+        """Fit bootstrap replicas and compute out-of-bag calibration scores.
 
         Args:
             x: Input data matrix.
             detector: The base anomaly detector.
             seed: Random seed for reproducibility. Defaults to None.
-            weighted: Not used in JaB+. Defaults to False.
+            weighted: Accepted for the shared strategy interface. Calibration
+                indices already include every input row in this strategy.
             n_jobs: Number of parallel jobs. Use -1 for all available cores.
                 Defaults to None (sequential).
 

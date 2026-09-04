@@ -4,7 +4,7 @@ This module provides the fundamental types used throughout the package:
 
 Classes:
     AnomalyDetector: Protocol defining the detector interface.
-    ConformalResult: Container for conformal prediction outputs.
+    ConformalResult: Container for conformal inference outputs.
 """
 
 from __future__ import annotations
@@ -27,8 +27,10 @@ def _array_summary(arr: np.ndarray | None) -> str:
 class AnomalyDetector(Protocol):
     """Protocol defining the interface for anomaly detectors.
 
-    Any detector (PyOD, sklearn-compatible, or custom) can be used with
-    nonconform by implementing this protocol.
+    A supported PyOD model, a recognized scikit-learn estimator, or a custom
+    object can be used with nonconform when it provides this interface. The
+    object must also support shallow and deep copying because resampling
+    strategies create independent detector replicas.
 
     Required methods:
         fit: Train the detector on data
@@ -36,26 +38,14 @@ class AnomalyDetector(Protocol):
         get_params: Retrieve detector parameters
         set_params: Configure detector parameters
 
-    The detector must be copyable (support copy.copy and copy.deepcopy).
-
     Examples:
         ```python
-        # Most PyOD detectors work automatically (blocked strict-inductive
-        # exceptions are documented in the detector compatibility guide)
-        from pyod.models.iforest import IForest
+        from sklearn.ensemble import IsolationForest
 
-        detector: AnomalyDetector = IForest()
+        from nonconform.structures import AnomalyDetector
 
-
-        # Custom detector implementing the protocol
-        class MyDetector:
-            def fit(self, X, y=None): ...
-            def decision_function(self, X): ...
-            def get_params(self, deep=True): ...
-            def set_params(self, **params): ...
-
-
-        detector: AnomalyDetector = MyDetector()
+        detector: AnomalyDetector = IsolationForest(random_state=42)
+        print(isinstance(detector, AnomalyDetector))
         ```
     """
 
@@ -74,7 +64,9 @@ class AnomalyDetector(Protocol):
     def decision_function(self, X: np.ndarray) -> np.ndarray:
         """Compute anomaly scores for samples.
 
-        Higher scores indicate more anomalous samples.
+        Score direction is detector-specific. Pass the corresponding
+        ``score_polarity`` to :class:`~nonconform.detector.ConformalDetector`
+        when it cannot be inferred safely.
 
         Args:
             X: Data of shape (n_samples, n_features).
@@ -111,23 +103,34 @@ class AnomalyDetector(Protocol):
 class ConformalResult:
     """Snapshot of detector outputs for downstream procedures.
 
-    This dataclass holds all outputs from a conformal prediction, including
-    p-values, raw scores, and optional weights for weighted conformal.
+    This dataclass holds the latest p-values or score-tail estimates, raw scores,
+    and optional weights produced by a detector call.
 
     Attributes:
-        p_values: Conformal p-values for test instances (None when unavailable).
-        test_scores: Non-conformity scores for the test instances (raw predictions).
-        calib_scores: Non-conformity scores for the calibration set.
+        p_values: Values produced by the configured estimation strategy, or None
+            when only scores were requested. With ``Empirical``, these are
+            rank-based conformal p-values.
+        test_scores: Aggregated, anomalous-higher scores for test instances.
+        calib_scores: Anomalous-higher scores for the calibration set.
         test_weights: Importance weights for test instances (weighted mode only).
         calib_weights: Importance weights for calibration instances.
-        metadata: Optional dictionary with extra data (debug info, timings, etc.).
+        metadata: Method metadata, including the strategy, estimator, and
+            weighted-mode marker for p-value computations.
 
     Examples:
         ```python
-        p_values = detector.compute_p_values(X_test)
-        result = detector.last_result
-        print(result.p_values)  # Access p-values
-        print(result.metadata)  # Access optional metadata
+        import numpy as np
+
+        from nonconform.structures import ConformalResult
+
+        result = ConformalResult(
+            p_values=np.array([0.50, 0.02]),
+            test_scores=np.array([0.1, 2.4]),
+            calib_scores=np.array([-0.2, 0.0, 0.3, 0.8]),
+            metadata={"nonconform": {"weighted": False}},
+        )
+        print(result.p_values)
+        print(result.metadata)
         ```
     """
 

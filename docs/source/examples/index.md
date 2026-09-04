@@ -1,52 +1,45 @@
 ---
-description: "Runnable nonconform examples for classical, weighted, conditional, resampling, and FDR-controlled anomaly detection."
+description: "Independently runnable nonconform examples for batch, conditional, resampling, weighted, derandomized e-value, FDR, and sequential workflows."
 ---
 
 # Examples
 
-Practical examples demonstrating different conformal anomaly detection approaches.
+Every Python block in this section is self-contained: it includes its imports,
+data construction or loading, fitting, inference, and output. Copy any block
+into a fresh Python process after installing the dependencies named on its page.
 
-## Getting Started
+## Choose an example
 
-| Example | Difficulty | What You'll Learn |
-|---------|------------|-------------------|
-| [Classical Conformal](classical_conformal.md) | Beginner | Basic split conformal detection, FDR control, p-value interpretation |
-| [Data-Efficient Resampling](resampling_conformal.md) | Intermediate | CV+, Jackknife+, and JaB+ for small-data calibration |
+| Example | Start here when | Main output |
+|---|---|---|
+| [Classical split conformal](classical_conformal.md) | Calibration and test nulls are exchangeable | Empirical p-values and BH discovery mask |
+| [Conditional conformal](conditional_conformal.md) | You need calibration-set-conditional p-value maps | Conditionally transformed p-values and BH mask |
+| [Data-efficient resampling](resampling_conformal.md) | A fixed holdout is costly and resampling is justified | Strategy comparison with fit cost, FDP, and power |
+| [Weighted conformal](weighted_conformal.md) | The target null follows a defensible covariate-shift model | Weighted p-values, WCS mask, and weight diagnostics |
+| [Derandomized conformal e-values](derandomized_e_values.md) | Random calibration splits make selections unstable | Aggregated e-values and e-BH discovery mask |
+| [FDR control and FDP bounds](fdr_control.md) | You need to compare multiple-testing targets | Pointwise, BH, BY, and simultaneous FDP certificate |
+| [Exchangeability martingales](../user_guide/exchangeability_martingales.md#basic-sequential-usage) | You monitor an ordered stream for change | Sequential p-values, martingale evidence, and alarms |
 
-## Advanced Strategies
+## Dependency guide
 
-| Example | Difficulty | What You'll Learn |
-|---------|------------|-------------------|
-| [Conditional Conformal](conditional_conformal.md) | Intermediate | Conditionally calibrated conformal p-values with BH-style FDR selection |
-
-## Special Topics
-
-| Example | Difficulty | What You'll Learn |
-|---------|------------|-------------------|
-| [Weighted Conformal](weighted_conformal.md) | Advanced | Handling distribution shift between training and test data |
-| [FDR Control](fdr_control.md) | Intermediate | Multiple testing correction, Benjamini-Hochberg procedure |
-| [Derandomized E-Values](derandomized_e_values.md) | Advanced | Stable repeated split-conformal decisions with e-BH selection |
-
-## What Each Example Covers
-
-**[Classical Conformal](classical_conformal.md)** - Start here if you're new to nonconform. Learn the core workflow: wrap a detector, compute p-values, and apply FDR control. Includes visualization of results.
-
-**[Data-Efficient Resampling](resampling_conformal.md)** - Learn CV+, Jackknife+, and JaB+ together as one family of strategies for using scarce training data efficiently. Start here when a fixed calibration holdout would cost too much power.
-
-**[Conditional Conformal](conditional_conformal.md)** - Apply conditional calibration maps (`mc`, `simes`, `dkwm`, `asymptotic`) to empirical conformal p-values, then run BH-style FDR selection.
-
-**[Weighted Conformal](weighted_conformal.md)** - Handle covariate shift scenarios where your test data comes from a different distribution than your training data. Essential for real-world deployment.
-
-**[FDR Control](fdr_control.md)** - Deep dive into False Discovery Rate control. Understand when to use BH vs weighted methods and how to evaluate FDR performance.
-
-**[Derandomized E-Values](derandomized_e_values.md)** - Repeat split conformal scoring, aggregate conformal e-values, and apply e-BH when split randomness makes ordinary decisions unstable.
-
-## Prerequisites
-
-All examples assume you have installed nonconform with the PyOD and data extras:
+The synthetic scikit-learn examples need only the core installation:
 
 ```bash
-pip install "nonconform[pyod,data]"
+pip install nonconform
 ```
 
-Most examples use the PyOD `LOF` detector and benchmark datasets from `oddball`. Each example is self-contained and can be run independently.
+The classical benchmark and derandomized e-value examples also use PyOD and
+oddball:
+
+```bash
+pip install "nonconform[data,pyod]"
+```
+
+No example assumes variables created by a previous code block.
+
+!!! note "Examples measure behavior; guides state scope"
+
+    A successful run shows that the API path executes on the displayed data.
+    It does not verify exchangeability, density-ratio correctness, dependence
+    conditions, or deployment performance. Follow each example's links to the
+    corresponding user guide before making a statistical claim.

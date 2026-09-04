@@ -93,6 +93,105 @@ class TestWeightedPValueCalculation:
         np.testing.assert_almost_equal(p_values[0], expected)
 
 
+class TestWeightedTieSemantics:
+    def test_classical_includes_weighted_calibration_ties(self):
+        test_scores = np.array([2.0])
+        calib_scores = np.array([1.0, 2.0, 2.0, 3.0])
+        test_weights = np.array([5.0])
+        calib_weights = np.array([1.0, 2.0, 3.0, 4.0])
+
+        p_values = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="classical",
+        )
+
+        # At-or-above mass is 2 + 3 + 4. A strict comparison yields (4 + 5) / 15.
+        expected = (2.0 + 3.0 + 4.0 + 5.0) / 15.0
+        strict_excluding_ties = (4.0 + 5.0) / 15.0
+        np.testing.assert_allclose(p_values, [expected])
+        assert p_values[0] > strict_excluding_ties
+
+    def test_uniform_weighted_classical_matches_unweighted_on_ties(self):
+        test_scores = np.array([2.0, 3.0, 2.0])
+        calib_scores = np.array([1.0, 2.0, 2.0, 3.0])
+
+        weighted = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=np.ones(len(test_scores)),
+            calib_weights=np.ones(len(calib_scores)),
+            tie_break="classical",
+        )
+        unweighted = calculate_p_val(test_scores, calib_scores, tie_break="classical")
+
+        np.testing.assert_allclose(weighted, unweighted)
+
+    def test_classical_matches_strict_formula_without_ties(self):
+        test_scores = np.array([2.5])
+        calib_scores = np.array([1.0, 2.0, 3.0, 4.0])
+        test_weights = np.array([2.0])
+        calib_weights = np.array([1.0, 2.0, 3.0, 4.0])
+
+        actual = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="classical",
+        )
+
+        strictly_above = 3.0 + 4.0
+        expected = (strictly_above + test_weights[0]) / (
+            calib_weights.sum() + test_weights[0]
+        )
+        np.testing.assert_allclose(actual, [expected])
+
+    def test_randomized_partial_tie_formula(self):
+        test_scores = np.array([2.0])
+        calib_scores = np.array([1.0, 2.0, 2.0, 3.0])
+        test_weights = np.array([5.0])
+        calib_weights = np.array([1.0, 2.0, 3.0, 4.0])
+        seed = 123
+
+        expected_rng = np.random.default_rng(seed)
+        u = expected_rng.uniform(size=1)[0]
+        expected = (4.0 + (2.0 + 3.0 + 5.0) * u) / 15.0
+        actual = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="randomized",
+            rng=np.random.default_rng(seed),
+        )
+
+        np.testing.assert_allclose(actual, [expected])
+
+    def test_randomized_all_ties_uses_uniform_tie_mass(self):
+        n_calib = 19
+        n_test = 20
+        test_scores = np.full(n_test, 5.0)
+        calib_scores = np.full(n_calib, 5.0)
+        test_weights = np.ones(n_test)
+        calib_weights = np.ones(n_calib)
+        seed = 456
+
+        expected = np.random.default_rng(seed).uniform(size=n_test)
+        actual = calculate_weighted_p_val(
+            scores=test_scores,
+            calibration_set=calib_scores,
+            test_weights=test_weights,
+            calib_weights=calib_weights,
+            tie_break="randomized",
+            rng=np.random.default_rng(seed),
+        )
+
+        np.testing.assert_allclose(actual, expected)
+
+
 class TestPValueRange:
     def test_minimum_p_value_greater_than_zero(self, sample_scores):
         test_scores, calib_scores = sample_scores(n_test=20, n_calib=100)

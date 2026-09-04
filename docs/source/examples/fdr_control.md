@@ -1,309 +1,103 @@
 ---
-description: "Example workflows for FDR-controlled anomaly decisions, weighted selection, detector comparisons, and power analysis."
+description: "Compare naive thresholding, BH, BY, and a simultaneous post-hoc FDP certificate on one complete conformal anomaly family."
 ---
 
-# FDR Control for Multiple Testing
+# FDR control and FDP certification
 
-Use `detector.select(...)` for default FDR-controlled anomaly decisions, and
-`scipy.stats.false_discovery_control` for manual BH analysis on p-values.
+This example starts from one fixed test family and compares three decision
+rules:
 
-## Setup
+- unadjusted pointwise thresholding;
+- Benjamini-Hochberg (BH), used by standard `select(...)`; and
+- Benjamini-Yekutieli (BY), applied manually through SciPy.
+
+It then constructs a simultaneous post-hoc upper bound for realized FDP over a
+prespecified threshold grid.
+
+## Complete example
 
 ```python
 import numpy as np
-from pyod.models.lof import LOF
 from scipy.stats import false_discovery_control
-from oddball import Dataset, load
+from sklearn.ensemble import IsolationForest
+
 from nonconform import ConformalDetector, Split
-from nonconform.enums import Pruning
+from nonconform.fdr import conformal_fdp_upper_bound_from_result
 from nonconform.metrics import false_discovery_rate, statistical_power
 
-# Load benchmark data
-X, X_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=42)
-```
-
-!!! note "Prerequisites"
-    All code blocks below require running the Setup block above first.
-
-## Basic Usage
-
-```python
-# Initialize detector
-base_detector = LOF()
-strategy = Split(n_calib=0.2)
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(800, 4))
+x_family = np.vstack(
+    [rng.normal(size=(95, 4)), rng.normal(loc=5.0, size=(5, 4))]
+)
+y_family = np.r_[np.zeros(95, dtype=int), np.ones(5, dtype=int)]
+alpha = 0.1
 
 detector = ConformalDetector(
-    detector=base_detector,
-    strategy=strategy,
-    aggregation="median",
-    seed=42
-)
-
-# Fit and run FDR-controlled selection
-detector.fit(X)
-discoveries = detector.select(X_test, alpha=0.05)
-p_values = detector.last_result.p_values
-
-# Optional manual BH analysis on cached p-values
-adjusted_p_values = false_discovery_control(p_values, method="bh")
-
-print(f"Original detections: {(p_values < 0.05).sum()}")
-print(f"FDR-controlled discoveries: {discoveries.sum()}")
-print(f"Reduction: {(p_values < 0.05).sum() - discoveries.sum()}")
-```
-
-## Different FDR Control Methods
-
-```python
-# BH method in scipy.stats.false_discovery_control
-adjusted_p_vals = false_discovery_control(p_values, method='bh')
-discoveries = adjusted_p_vals < 0.05
-print(f"BH method: {discoveries.sum()} discoveries")
-
-# Compare with no adjustment
-no_adjustment = (p_values < 0.05).sum()
-print(f"No adjustment: {no_adjustment} detections")
-```
-
-## Post-Hoc FDP Bounds
-
-```python
-from nonconform.fdr import conformal_fdp_upper_bound_from_result
-
-p_values = detector.compute_p_values(X_test)
-bounds = conformal_fdp_upper_bound_from_result(
-    detector.last_result,
-    method="mc_thc",
+    detector=IsolationForest(n_estimators=100, random_state=42),
+    strategy=Split(n_calib=0.4),
     seed=42,
-    thresholds=np.array([0.01, 0.05, 0.1]),
-)
+).fit(x_reference)
 
-print(bounds.to_frame().to_string(index=False))
+bh_selected = np.asarray(detector.select(x_family, alpha=alpha))
+result = detector.last_result
+assert result is not None
+assert result.p_values is not None
+p_values = result.p_values
 
-# Optional dense threshold grid for plotting or downstream filtering
-curve = bounds.to_frame(thresholds=np.linspace(0.0, 0.2, 101))
-```
+pointwise_selected = p_values <= alpha
+by_adjusted = false_discovery_control(p_values, method="by")
+by_selected = by_adjusted <= alpha
 
-## Weighted Conformal Selection (Covariate Shift)
-
-```python
-from nonconform import JackknifeBootstrap, logistic_weight_estimator
-from pyod.models.iforest import IForest
-
-# Load a dataset that exhibits covariate shift between calibration and test sets
-x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=1)
-
-weighted_detector = ConformalDetector(
-    detector=IForest(random_state=1),
-    strategy=JackknifeBootstrap(n_bootstraps=50),
-    aggregation="median",
-    weight_estimator=logistic_weight_estimator(),
-    seed=1,
-)
-
-weighted_detector.fit(x_train)
-
-# Weighted select() dispatches to Weighted Conformal Selection under covariate shift
-wcs_mask = weighted_detector.select(
-    x_test,
-    alpha=0.1,
-    pruning=Pruning.DETERMINISTIC,
-    seed=1,
-)
-# detector.last_result bundles the scores/weights produced by select()
-
-print(f"WCS detections: {wcs_mask.sum()} out of {len(wcs_mask)} test points")
-print(f"Empirical FDR: {false_discovery_rate(y=y_test, y_hat=wcs_mask):.3f}")
-```
-
-## FDR Control at Different Levels
-
-```python
-# Try different FDR levels
-fdr_levels = [0.01, 0.05, 0.1, 0.2]
-
-print("\nFDR Control at Different Levels:")
-print("-" * 40)
-print(f"{'FDR Level':<12} {'Discoveries':<12} {'Adjusted α':<12}")
-print("-" * 40)
-
-for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method="bh")
-    discoveries = adjusted_p_vals < alpha
-
-    print(f"{alpha:<12} {discoveries.sum():<12} {adjusted_p_vals.min():.6f}")
-```
-
-## Evaluating FDR Control Performance
-
-```python
-# Use benchmark data with known ground truth (loaded in Setup)
-# X contains training data (normal), X_test contains test data, y_test contains labels
-
-# Fit detector and get p-values
-detector.fit(X)  # Fit only on normal data
-p_values = detector.compute_p_values(X_test)
-
-# Apply different FDR control levels
-fdr_levels = [0.05, 0.1, 0.15, 0.2]
-
-print("\nFDR Control Performance Evaluation:")
-print("-" * 60)
-print(f"{'FDR Level':<12} {'Discoveries':<14} {'Empirical FDR':<14} {'Power':<10}")
-print("-" * 60)
-
-for alpha in fdr_levels:
-    adjusted_p_vals = false_discovery_control(p_values, method="bh")
-    discoveries = adjusted_p_vals < alpha
-
-    empirical_fdr = false_discovery_rate(y_test, discoveries)
-    power = statistical_power(y_test, discoveries)
-
-    print(f"{alpha:<12} {discoveries.sum():<14} {empirical_fdr:<14.3f} {power:<10.3f}")
-```
-
-## Multiple Detectors with FDR Control
-
-```python
-from pyod.models.knn import KNN
-from pyod.models.ocsvm import OCSVM
-
-# Multiple detectors
-detectors = {
-    'LOF': LOF(contamination=0.1),
-    'KNN': KNN(contamination=0.1),
-    'OCSVM': OCSVM(contamination=0.1)
-}
-
-# Get p-values from each detector
-all_p_values = {}
-strategy = Split(n_calib=0.2)
-
-for name, base_det in detectors.items():
-    detector = ConformalDetector(
-        detector=base_det,
-        strategy=strategy,
-        aggregation="median",
-        seed=42
+for name, selected in {
+    "pointwise": pointwise_selected,
+    "BH": bh_selected,
+    "BY": by_selected,
+}.items():
+    print(
+        name,
+        {
+            "discoveries": int(selected.sum()),
+            "realized_fdp": float(false_discovery_rate(y_family, selected)),
+            "power": float(statistical_power(y_family, selected)),
+        },
     )
-    detector.fit(X)
-    p_vals = detector.compute_p_values(X_test)
-    all_p_values[name] = p_vals
 
-# Apply FDR control to each detector's p-values
-print("\nMultiple Detectors with FDR Control:")
-print("-" * 60)
-print(f"{'Detector':<10} {'Raw Det.':<12} {'FDR Det.':<12} {'Emp. FDR':<12} {'Power':<10}")
-print("-" * 60)
-
-for name, p_vals in all_p_values.items():
-    # Raw detections
-    raw_detections = (p_vals < 0.05).sum()
-
-    # FDR controlled detections
-    adj_p_vals = false_discovery_control(p_vals, method='bh')
-    fdr_discoveries = adj_p_vals < 0.05
-
-    # Performance metrics using nonconform functions
-    empirical_fdr = false_discovery_rate(y_test, fdr_discoveries)
-    power = statistical_power(y_test, fdr_discoveries)
-
-    print(f"{name:<10} {raw_detections:<12} {fdr_discoveries.sum():<12} {empirical_fdr:<12.3f} {power:<10.3f}")
-```
-
-## Visualization
-
-```python
-import matplotlib.pyplot as plt
-
-# Visualize FDR control effects
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-
-# P-value histogram
-axes[0, 0].hist(p_values, bins=50, alpha=0.7, color='blue', edgecolor='black')
-axes[0, 0].axvline(x=0.05, color='red', linestyle='--', label='α=0.05')
-axes[0, 0].set_xlabel('p-value')
-axes[0, 0].set_ylabel('Frequency')
-axes[0, 0].set_title('P-value Distribution')
-axes[0, 0].legend()
-
-# Adjusted p-value histogram
-adjusted_p_vals = false_discovery_control(p_values, method='bh')
-axes[0, 1].hist(adjusted_p_vals, bins=50, alpha=0.7, color='orange', edgecolor='black')
-axes[0, 1].axvline(x=0.05, color='red', linestyle='--', label='alpha=0.05')
-axes[0, 1].set_xlabel('Adjusted p-value')
-axes[0, 1].set_ylabel('Frequency')
-axes[0, 1].set_title('BH Adjusted P-value Distribution')
-axes[0, 1].legend()
-
-# Comparison of detection methods
-detection_methods = ['Raw (alpha=0.05)', 'BH FDR Control']
-detection_counts = [
-    (p_values < 0.05).sum(),
-    (false_discovery_control(p_values, method='bh') < 0.05).sum()
-]
-
-axes[1, 0].bar(detection_methods, detection_counts, color=['blue', 'orange'])
-axes[1, 0].set_ylabel('Number of Detections')
-axes[1, 0].set_title('Detection Comparison')
-axes[1, 0].tick_params(axis='x', rotation=45)
-
-# FDR control at different levels
-fdr_levels = np.arange(0.01, 0.21, 0.01)
-discoveries_at_levels = []
-
-for alpha in fdr_levels:
-    adj_p_vals = false_discovery_control(p_values, method='bh')
-    discoveries_at_levels.append((adj_p_vals < alpha).sum())
-
-axes[1, 1].plot(fdr_levels, discoveries_at_levels, 'o-', linewidth=2)
-axes[1, 1].axhline(y=(p_values < 0.05).sum(), color='red', linestyle='--',
-                   label='Raw (alpha=0.05)')
-axes[1, 1].set_xlabel('FDR Level')
-axes[1, 1].set_ylabel('Number of Discoveries')
-axes[1, 1].set_title('Discoveries vs FDR Level')
-axes[1, 1].legend()
-axes[1, 1].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-```
-
-## Power Analysis
-
-```python
-# Analyze statistical power at different FDR levels using benchmark data
-alpha_levels = [0.01, 0.05, 0.1, 0.2]
-power_results = {}
-
-# Use benchmark data loaded in Setup
-detector = ConformalDetector(
-    detector=LOF(contamination=0.1),
-    strategy=Split(n_calib=0.2),
-    aggregation="median",
-    seed=42
+certificate = conformal_fdp_upper_bound_from_result(
+    result,
+    confidence=0.95,
+    n_resamples=500,
+    seed=42,
+    thresholds=np.array([0.005, 0.01, 0.025, 0.05, 0.1]),
 )
-detector.fit(X)
-p_vals = detector.compute_p_values(X_test)
-
-for alpha in alpha_levels:
-    # Apply FDR control at different significance levels
-    adj_p_vals = false_discovery_control(p_vals, method='bh')
-    discoveries = adj_p_vals < alpha
-
-    # Calculate power using nonconform's statistical_power
-    power_results[alpha] = statistical_power(y_test, discoveries)
-
-print("\nPower Analysis:")
-print("-" * 30)
-print(f"{'Alpha Level':<12} {'Power':<8}")
-print("-" * 30)
-for alpha, power in power_results.items():
-    print(f"{alpha:<12} {power:<8.3f}")
+print(certificate.to_frame().to_string(index=False))
 ```
 
-## Next Steps
+The pointwise rule does not account for the 100 simultaneous tests. BH is less
+conservative than BY when its independence or positive-dependence conditions
+apply. BY supports a broader dependence class, but neither procedure repairs
+invalid p-values or adaptive family construction.
 
-- Try [classical conformal detection](classical_conformal.md) for standard scenarios
-- Learn about [weighted conformal detection](weighted_conformal.md) for handling distribution shift
-- Explore [data-efficient resampling](resampling_conformal.md) when a holdout split is too costly
+The labeled `realized_fdp` is the FDP of this one family. FDR is the expected
+FDP over repetitions. Do not interpret one low realized FDP as validation of
+the FDR theorem.
+
+## Why the FDP certificate is different
+
+The certificate is simultaneous over p-value thresholds within its documented
+scope. This supports post-hoc threshold exploration while attaching a
+high-confidence realized-FDP upper bound. It does not select by BH and does not
+replace the expected-FDR target.
+
+The result-based API accepts unweighted `Split` or detached calibration with
+`Empirical` p-values. It rejects weighted, KDE, conditional-calibration, and
+resampling-strategy result bundles.
+
+The example uses 500 Monte Carlo resamples for speed. A reported analysis
+should assess resampling stability and fix the envelope method before viewing
+the final curve.
+
+For weighted covariate shift, use the separate
+[weighted WCS example](weighted_conformal.md). For online hypotheses and
+single-stream change evidence, see the distinctions in the
+[FDR guide](../user_guide/fdr_control.md#repeated-and-online-testing).
