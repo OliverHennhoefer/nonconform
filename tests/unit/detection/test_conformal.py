@@ -858,6 +858,25 @@ class TestConformalDetectorWeightedPreparation:
         _ = detector.compute_p_values(x_test, refit_weights=False)
         assert weight_estimator.fit_calls == 1
 
+    def test_prepare_nullable_dataframe_then_reuse_weights(self, sample_data):
+        """Content verification accepts equal nullable numeric DataFrames."""
+        x_train, x_test = sample_data
+        batch = pd.DataFrame(x_test, dtype="Float64")
+        weight_estimator = CountingWeightEstimator()
+        detector = ConformalDetector(
+            detector=MockDetector(np.arange(100, dtype=float)),
+            strategy=Split(n_calib=0.2),
+            weight_estimator=weight_estimator,
+            seed=42,
+        ).fit(x_train)
+        detector.prepare_weights_for(batch)
+
+        detector.compute_p_values(batch.copy(), refit_weights=False)
+
+        assert weight_estimator.fit_calls == 1
+        with pytest.raises(ValueError, match="batch content"):
+            detector.compute_p_values(batch + 1.0, refit_weights=False)
+
     def test_reuse_with_different_batch_size_raises(self, sample_data):
         """Prepared weights cannot be reused for a different batch size."""
         x_train, x_test = sample_data

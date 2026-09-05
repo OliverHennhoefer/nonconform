@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -10,119 +11,25 @@ import pandas as pd
 from nonconform.structures import ConformalResult
 
 from ._internal import Pruning
+from ._internal import e_values as _e_value_core
 from ._internal import fdp_bounds as _fdp_bounds
 from ._internal import wcs as _wcs
-from ._internal.validation import (
-    as_1d_numeric as _as_1d_numeric,
-)
-from ._internal.validation import (
-    validate_finite as _validate_finite,
-)
-from ._internal.validation import (
-    validate_non_negative_finite as _validate_non_negative_finite,
-)
-from ._internal.validation import (
-    validate_probability as _validate_probability,
-)
-
-
-def _as_1d_or_2d_numeric(name: str, values: np.ndarray) -> np.ndarray:
-    """Normalize array-like input into a strict 1D or 2D float ndarray."""
-    try:
-        arr = np.asarray(values, dtype=float)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{name} must be a numeric array.") from exc
-    if arr.ndim not in {1, 2}:
-        raise ValueError(f"{name} must be a 1D or 2D array, got shape {arr.shape!r}.")
-    return arr
-
-
-def _as_e_values(name: str, values: np.ndarray) -> np.ndarray:
-    """Normalize e-values into a non-empty, validated 1D float array."""
-    e_values = _as_1d_numeric(name, values).astype(float, copy=True)
-    if e_values.size == 0:
-        raise ValueError(f"{name} must contain at least one e-value.")
-    _validate_non_negative_finite(name, e_values)
-    return e_values
-
-
-def _as_repeated_scores(
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return score arrays as ``(n_repetitions, n_points)`` matrices."""
-    test_arr = _as_1d_or_2d_numeric("test_scores", test_scores).astype(float, copy=True)
-    calib_arr = _as_1d_or_2d_numeric("calib_scores", calib_scores).astype(
-        float, copy=True
-    )
-    _validate_finite("test_scores", test_arr)
-    _validate_finite("calib_scores", calib_arr)
-
-    if test_arr.ndim != calib_arr.ndim:
-        raise ValueError("test_scores and calib_scores must have the same dimension.")
-    if test_arr.ndim == 1:
-        if test_arr.size == 0:
-            raise ValueError("test_scores must contain at least one score.")
-        if calib_arr.size == 0:
-            raise ValueError("calib_scores must contain at least one score.")
-        return test_arr.reshape(1, -1), calib_arr.reshape(1, -1)
-
-    if test_arr.shape[0] == 0:
-        raise ValueError("test_scores must contain at least one repetition.")
-    if test_arr.shape[1] == 0:
-        raise ValueError("test_scores must contain at least one score.")
-    if calib_arr.shape[1] == 0:
-        raise ValueError("calib_scores must contain at least one score.")
-    if test_arr.shape[0] != calib_arr.shape[0]:
-        raise ValueError(
-            "test_scores and calib_scores must have the same number of repetitions."
-        )
-    return test_arr, calib_arr
-
-
-def _conformal_e_value_threshold(
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
-    *,
-    alpha_bh: float,
-) -> float:
-    """Return the score threshold used for one conformal e-value split."""
-    n_test = test_scores.size
-    n_calib = calib_scores.size
-    candidates = np.unique(np.concatenate([test_scores, calib_scores]))
-    for threshold in np.sort(candidates):
-        test_count = int(np.count_nonzero(test_scores >= threshold))
-        if test_count == 0:
-            continue
-        calib_count = int(np.count_nonzero(calib_scores >= threshold))
-        fdp_hat = (n_test / n_calib) * (calib_count / test_count)
-        if fdp_hat <= alpha_bh:
-            return float(threshold)
-    return float("inf")
-
-
-def _e_bh_selection(e_values: np.ndarray, *, alpha: float) -> tuple[np.ndarray, float]:
-    """Return e-BH selection mask and selected e-value threshold."""
-    m = e_values.size
-    order = np.argsort(-e_values, kind="mergesort")
-    sorted_e_values = e_values[order]
-    thresholds = m / (alpha * np.arange(1, m + 1, dtype=float))
-    passing = np.nonzero(sorted_e_values >= thresholds)[0]
-    if passing.size == 0:
-        return np.zeros(m, dtype=bool), float("inf")
-
-    n_selected = int(passing[-1] + 1)
-    selected = np.zeros(m, dtype=bool)
-    selected[order[:n_selected]] = True
-    return selected, float(sorted_e_values[n_selected - 1])
 
 
 @dataclass(slots=True, frozen=True)
 class EValueSelectionResult:
     """Batch e-value FDR selection result.
 
-    The result bundles aggregated conformal e-values with the e-BH discoveries
-    selected at the requested FDR level.
+    Attributes:
+        e_values: Uniformly aggregated conformal e-values.
+        selected: Boolean e-BH discovery mask.
+        alpha: Target FDR level supplied to e-BH.
+        alpha_bh: Fixed inner threshold used to construct split e-values.
+        e_threshold: Selected e-value cutoff, or infinity when none are selected.
+        n_repetitions: Number of split-conformal results aggregated.
+        n_calibration: Number of calibration scores in every repetition.
+        tie_seed: Seed used for randomized score ties, or None when ties were
+            rejected.
     """
 
     e_values: np.ndarray
@@ -131,19 +38,17 @@ class EValueSelectionResult:
     alpha_bh: float
     e_threshold: float
     n_repetitions: int
+    n_calibration: int
+    tie_seed: int | None
 
     def __post_init__(self) -> None:
-        """Copy array fields so the result is independent of caller inputs."""
-        object.__setattr__(
-            self,
-            "e_values",
-            np.asarray(self.e_values, dtype=float).copy(),
-        )
-        object.__setattr__(
-            self,
-            "selected",
-            np.asarray(self.selected, dtype=bool).copy(),
-        )
+        """Copy array fields and expose them as read-only snapshots."""
+        e_values = np.asarray(self.e_values, dtype=float).copy()
+        selected = np.asarray(self.selected, dtype=bool).copy()
+        e_values.flags.writeable = False
+        selected.flags.writeable = False
+        object.__setattr__(self, "e_values", e_values)
+        object.__setattr__(self, "selected", selected)
 
 
 @dataclass(slots=True)
@@ -266,37 +171,36 @@ def conformal_e_values(
     calib_scores: np.ndarray,
     *,
     alpha_bh: float,
+    tie_seed: int | None = None,
 ) -> np.ndarray:
     """Compute derandomized conformal e-values from split-conformal scores.
+
+    This low-level array interface trusts the caller to provide repetitions for
+    the same test family in the same observation order. Repetitions are
+    aggregated uniformly.
 
     Args:
         test_scores: Test anomaly scores. Shape ``(n_test,)`` for one split or
             ``(n_repetitions, n_test)`` for repeated splits.
         calib_scores: Calibration anomaly scores with matching split dimension.
-        alpha_bh: Inner BH-style threshold level used to construct each split's
-            conformal e-values.
+        alpha_bh: Inner BH-style threshold for each split construction.
+        tie_seed: ``None`` rejects tied scores. A non-negative integer
+            reproducibly randomizes unique secondary ranks for ties.
 
     Returns:
-        Aggregated e-values of shape ``(n_test,)``. Repeated splits are
-        aggregated with uniform weights.
+        Aggregated e-values of shape ``(n_test,)``.
+
+    Raises:
+        TypeError: If ``tie_seed`` has an unsupported type.
+        ValueError: If score inputs, ``alpha_bh``, or ``tie_seed`` are invalid,
+            or tied scores are found when ``tie_seed`` is None.
     """
-    alpha_bh_value = _validate_probability("alpha_bh", alpha_bh)
-    test_arr, calib_arr = _as_repeated_scores(test_scores, calib_scores)
-
-    e_values_by_split = np.zeros_like(test_arr, dtype=float)
-    for idx in range(test_arr.shape[0]):
-        threshold = _conformal_e_value_threshold(
-            test_arr[idx],
-            calib_arr[idx],
-            alpha_bh=alpha_bh_value,
-        )
-        calib_count = int(np.count_nonzero(calib_arr[idx] >= threshold))
-        denominator = (1.0 + calib_count) / (1.0 + calib_arr.shape[1])
-        e_values_by_split[idx] = (test_arr[idx] >= threshold).astype(float) / (
-            denominator
-        )
-
-    return np.mean(e_values_by_split, axis=0)
+    return _e_value_core.compute_conformal_e_values(
+        test_scores,
+        calib_scores,
+        alpha_bh=alpha_bh,
+        tie_seed=tie_seed,
+    )
 
 
 def e_value_false_discovery_control(
@@ -304,52 +208,72 @@ def e_value_false_discovery_control(
     *,
     alpha: float = 0.05,
 ) -> np.ndarray:
-    """Apply the e-BH procedure to e-values.
+    """Apply the e-BH procedure to non-negative e-values.
 
     Args:
         e_values: Non-negative e-values; larger values are stronger evidence.
         alpha: Target FDR level in ``(0, 1)``.
 
     Returns:
-        Boolean selection mask of shape ``(n_test,)``.
+        Boolean selection mask aligned with ``e_values``.
     """
-    alpha_value = _validate_probability("alpha", alpha)
-    e_values_arr = _as_e_values("e_values", e_values)
-    selected, _ = _e_bh_selection(e_values_arr, alpha=alpha_value)
+    alpha_value = _fdp_bounds.validate_probability("alpha", alpha)
+    e_values_arr = _e_value_core.normalize_e_values(e_values)
+    selected, _ = _e_value_core.e_bh_selection(e_values_arr, alpha=alpha_value)
     return selected
 
 
-def conformal_e_value_selection(
-    test_scores: np.ndarray,
-    calib_scores: np.ndarray,
+def select_conformal_e_values(
+    results: Sequence[ConformalResult],
     *,
     alpha: float = 0.05,
     alpha_bh: float | None = None,
+    tie_seed: int | None = None,
 ) -> EValueSelectionResult:
-    """Compute conformal e-values and apply e-BH selection.
+    """Select a fixed test family from repeated split-conformal results.
 
-    This is an expert batch workflow for stabilizing repeated split-conformal
-    anomaly decisions. Existing p-value, BH, and weighted FDR workflows are
-    unchanged.
+    Native detector provenance checks integrated, unweighted ``Split`` results
+    and the recorded test-batch content and ordering. Supply unmodified snapshots:
+    changes to their score arrays are not tracked. Manual or unstamped results
+    are unsupported; expert callers can use :func:`conformal_e_values` directly.
+
+    Args:
+        results: Non-empty sequence of unmodified detector-produced snapshots.
+        alpha: Target FDR level for the final e-BH procedure.
+        alpha_bh: Inner threshold, defaulting to ``alpha / 10``.
+        tie_seed: ``None`` rejects ties. A non-negative integer reproducibly
+            randomizes unique secondary ranks for ties.
+
+    Returns:
+        Aggregated e-values, final e-BH mask, and diagnostics.
+
+    Raises:
+        TypeError: If ``results`` or ``tie_seed`` has an unsupported type.
+        ValueError: If provenance, batch identity, score arrays, probabilities,
+            or tied-score handling are unsupported.
     """
-    alpha_value = _validate_probability("alpha", alpha)
+    alpha_value = _fdp_bounds.validate_probability("alpha", alpha)
     alpha_bh_value = alpha_value / 10.0 if alpha_bh is None else alpha_bh
-    alpha_bh_value = _validate_probability("alpha_bh", alpha_bh_value)
-    test_arr, calib_arr = _as_repeated_scores(test_scores, calib_scores)
-
-    e_values = conformal_e_values(
-        test_arr,
-        calib_arr,
+    test_scores, calib_scores = _e_value_core.scores_from_results(results)
+    e_values = _e_value_core.compute_conformal_e_values(
+        test_scores,
+        calib_scores,
         alpha_bh=alpha_bh_value,
+        tie_seed=tie_seed,
     )
-    selected, e_threshold = _e_bh_selection(e_values, alpha=alpha_value)
+    selected, e_threshold = _e_value_core.e_bh_selection(
+        e_values,
+        alpha=alpha_value,
+    )
     return EValueSelectionResult(
         e_values=e_values,
         selected=selected,
         alpha=alpha_value,
-        alpha_bh=alpha_bh_value,
+        alpha_bh=float(alpha_bh_value),
         e_threshold=e_threshold,
-        n_repetitions=int(test_arr.shape[0]),
+        n_repetitions=int(test_scores.shape[0]),
+        n_calibration=int(calib_scores.shape[1]),
+        tie_seed=tie_seed,
     )
 
 
@@ -642,11 +566,11 @@ __all__ = [
     "EValueSelectionResult",
     "FDPBoundResult",
     "Pruning",
-    "conformal_e_value_selection",
     "conformal_e_values",
     "conformal_fdp_upper_bound",
     "conformal_fdp_upper_bound_from_result",
     "e_value_false_discovery_control",
+    "select_conformal_e_values",
     "weighted_false_discovery_control",
     "weighted_false_discovery_control_from_arrays",
 ]

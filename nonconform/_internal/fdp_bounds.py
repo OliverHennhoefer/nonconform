@@ -8,6 +8,11 @@ import numpy as np
 
 from nonconform.structures import ConformalResult
 
+from .provenance import (
+    EstimationFamily,
+    StrategyFamily,
+    parse_result_provenance,
+)
 from .validation import (
     as_1d_numeric,
     validate_optional_seed,
@@ -85,36 +90,24 @@ def as_threshold_query(threshold: float | np.ndarray) -> tuple[np.ndarray, bool]
 
 
 def validate_result_scope(result: ConformalResult) -> None:
-    """Reject cached result scopes known to fall outside the FDP-bound guarantee."""
-    metadata = result.metadata if isinstance(result.metadata, dict) else {}
-    if "kde" in metadata:
-        raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports empirical conformal "
-            "p-values, not probabilistic/KDE p-values."
-        )
-
-    scope = metadata.get("nonconform")
-    if scope is None:
+    """Reject result scopes known to fall outside the FDP-bound guarantee."""
+    provenance = parse_result_provenance(result, allow_legacy_metadata=True)
+    if provenance is None:
         return
-    if not isinstance(scope, dict):
-        raise ValueError("result.metadata['nonconform'] must be a dictionary.")
-
-    strategy = scope.get("strategy")
-    estimation = scope.get("estimation")
-    if scope.get("weighted"):
+    if provenance.weighted:
         raise ValueError(
             "conformal_fdp_upper_bound_from_result() supports only unweighted "
             "conformal p-values in this release."
         )
-    if strategy != "Split":
-        raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports split or detached "
-            "calibration results only."
-        )
-    if estimation != "Empirical":
+    if provenance.estimation_family is not EstimationFamily.EMPIRICAL:
         raise ValueError(
             "conformal_fdp_upper_bound_from_result() supports empirical conformal "
             "p-values only."
+        )
+    if provenance.strategy_family is not StrategyFamily.SPLIT:
+        raise ValueError(
+            "conformal_fdp_upper_bound_from_result() supports split or detached "
+            "calibration results only."
         )
 
 

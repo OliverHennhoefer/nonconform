@@ -43,7 +43,7 @@ are different.
 | [Detector compatibility](detector_compatibility.md) | scikit-learn, PyOD, custom protocols, blocked batch-adaptive models, and score polarity |
 | [Weighted conformal](weighted_conformal.md) | Covariate-shift assumptions, density-ratio estimators, weight diagnostics, and WCS |
 | [FDR control](fdr_control.md) | BH, BY, WCS, derandomized e-values, post-hoc FDP certificates, repeated batches, and online FDR distinctions |
-| [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | Stable repeated split-conformal decisions with aggregated e-values and e-BH |
+| [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | Repeated split-conformal evidence aggregated with e-values and e-BH |
 | [Exchangeability martingales](exchangeability_martingales.md) | Sequential randomized ranks, betting martingales, alarms, and Ville scope |
 
 ## Evaluation and operations

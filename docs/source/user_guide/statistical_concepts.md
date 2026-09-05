@@ -53,18 +53,22 @@ stronger evidence against a null hypothesis. Unlike p-values, e-values are
 designed to be averaged across certain dependent analyses when their validity
 conditions hold.
 
-**In nonconform**: `conformal_e_value_selection(...)` builds conformal e-values
-from repeated split-conformal score arrays and applies e-BH for batch FDR
-control. Use it when split randomness makes ordinary `Split` decisions unstable.
+**In nonconform**: `select_conformal_e_values(...)` validates repeated
+split-conformal result snapshots, builds uniformly aggregated conformal
+evidence, and applies e-BH for batch FDR control. The lower-level
+`conformal_e_values(...)` interface is available when experts have independently
+verified score provenance.
 
-**Guarantee**: The derandomized conformal e-values target an average validity
-condition that is sufficient for e-BH FDR control under the method assumptions:
-exchangeable inliers/null test points, valid repeated split-conformal score
-maps, and one final e-BH filtering step.
+**Guarantee**: The construction targets an aggregate null-evidence condition
+that is sufficient for e-BH FDR control under the method assumptions; it does
+not claim that each constructed value is individually an ordinary e-value. The
+scope requires exchangeable inliers/null test points, a strict or independently
+randomized score ordering, one fixed test family in consistent row order, valid
+integrated unweighted `Split` score maps, and one final e-BH filtering step.
 
 **Common mistake**: Do not treat e-values as p-values or threshold them at
 ordinary p-value cutoffs. Use `e_value_false_discovery_control(...)` or
-`conformal_e_value_selection(...)` for FDR decisions.
+`select_conformal_e_values(...)` for FDR decisions.
 
 ---
 

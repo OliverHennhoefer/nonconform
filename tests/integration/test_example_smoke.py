@@ -72,5 +72,5 @@ def test_derandomized_e_values_notebook_smoke(monkeypatch, capsys):
 
     output = capsys.readouterr().out
     assert "Derandomized discoveries:" in output
-    assert "Empirical FDR:" in output
-    assert "Empirical Power:" in output
+    assert "Derandomized realized FDP:" in output
+    assert "Derandomized realized true-positive rate:" in output

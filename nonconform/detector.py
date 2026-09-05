@@ -15,7 +15,6 @@ Classes:
 
 from __future__ import annotations
 
-import hashlib
 import inspect
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -33,7 +32,8 @@ from nonconform.adapters import (
     resolve_implicit_score_polarity,
     resolve_score_polarity,
 )
-from nonconform.scoring import Empirical
+from nonconform.resampling import Split
+from nonconform.scoring import ConditionalEmpirical, Empirical
 from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
 
@@ -44,6 +44,14 @@ from ._internal import (
     ensure_numpy_array,
     normalize_aggregation_method,
     set_params,
+)
+from ._internal.provenance import (
+    BatchSignature,
+    CalibrationMode,
+    EstimationFamily,
+    ResultProvenance,
+    StrategyFamily,
+    batch_signature,
 )
 
 if TYPE_CHECKING:
@@ -69,20 +77,6 @@ def _derive_wcs_pruning_seed(seed: int | None) -> int | None:
         return None
     seed_sequence = np.random.SeedSequence([seed, _WCS_PRUNING_SEED_DOMAIN])
     return int(seed_sequence.generate_state(1, dtype=np.uint64)[0])
-
-
-def _batch_signature(x: np.ndarray) -> tuple[tuple[int, ...], str, str]:
-    """Return stable signature for a concrete batch.
-
-    This helper computes a full digest over batch bytes, which is O(n) in both
-    time and memory. Use only when strict batch-content verification is desired.
-    """
-    contiguous = np.ascontiguousarray(x)
-    digest = hashlib.blake2b(
-        contiguous.tobytes(),
-        digest_size=16,
-    ).hexdigest()
-    return contiguous.shape, str(contiguous.dtype), digest
 
 
 def _as_numpy_with_index(
@@ -372,11 +366,10 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
+        self._calibration_mode: CalibrationMode | None = None
         self._n_features_in: int | None = None
         self._prepared_weight_batch_size: int | None = None
-        self._prepared_weight_batch_signature: (
-            tuple[tuple[int, ...], str, str] | None
-        ) = None
+        self._prepared_weight_batch_signature: BatchSignature | None = None
         self._last_result: ConformalResult | None = None
 
     def _configure(
@@ -591,6 +584,7 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             **fit_kwargs
         )
+        self._calibration_mode = CalibrationMode.INTEGRATED
         self._n_features_in = int(x.shape[1])
 
         if (
@@ -630,8 +624,6 @@ class ConformalDetector(BaseConformalDetector):
             NotFittedError: If the base detector appears unfitted.
         """
         _ = y
-        from nonconform.resampling import Split
-
         if not isinstance(self.strategy, Split):
             raise ValueError(
                 "calibrate() is supported only with Split strategy. "
@@ -664,6 +656,7 @@ class ConformalDetector(BaseConformalDetector):
 
         self._detector_set = [self.detector]
         self._calibration_set = calibration_set
+        self._calibration_mode = CalibrationMode.DETACHED
         self._n_features_in = int(x.shape[1])
         if self._is_weighted_mode:
             self._calibration_samples = x.copy()
@@ -691,11 +684,45 @@ class ConformalDetector(BaseConformalDetector):
         )
         return aggregate(method=self.aggregation, scores=scores)
 
+    def _result_metadata(self) -> dict[str, Any]:
+        """Return the released metadata shape for p-value snapshots."""
+        return {
+            "nonconform": {
+                "strategy": type(self.strategy).__name__,
+                "estimation": type(self.estimation).__name__,
+                "weighted": self._is_weighted_mode,
+            }
+        }
+
+    def _result_provenance(
+        self,
+        test_batch_signature: BatchSignature,
+    ) -> ResultProvenance:
+        """Return typed provenance for a detector-produced result snapshot."""
+        if isinstance(self.estimation, ConditionalEmpirical):
+            estimation_family = EstimationFamily.CONDITIONAL_EMPIRICAL
+        elif isinstance(self.estimation, Empirical):
+            estimation_family = EstimationFamily.EMPIRICAL
+        else:
+            estimation_family = EstimationFamily.OTHER
+        return ResultProvenance(
+            strategy_family=(
+                StrategyFamily.SPLIT
+                if isinstance(self.strategy, Split)
+                else StrategyFamily.OTHER
+            ),
+            estimation_family=estimation_family,
+            weighted=self._is_weighted_mode,
+            calibration_mode=self._calibration_mode,
+            test_batch_signature=test_batch_signature,
+        )
+
     def _resolve_weights(
         self,
         x: np.ndarray,
         *,
         refit_weights: bool,
+        test_batch_signature: BatchSignature,
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Resolve calibration/test weights for the current batch."""
         if not self._is_weighted_mode or self.weight_estimator is None:
@@ -705,7 +732,7 @@ class ConformalDetector(BaseConformalDetector):
             self.weight_estimator.fit(self._calibration_samples, x)
             self._prepared_weight_batch_size = len(x)
             if self.verify_prepared_batch_content:
-                self._prepared_weight_batch_signature = _batch_signature(x)
+                self._prepared_weight_batch_signature = test_batch_signature
             else:
                 self._prepared_weight_batch_signature = None
             return self.weight_estimator.get_weights()
@@ -721,7 +748,7 @@ class ConformalDetector(BaseConformalDetector):
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
         if self.verify_prepared_batch_content and (
-            self._prepared_weight_batch_signature != _batch_signature(x)
+            self._prepared_weight_batch_signature != test_batch_signature
         ):
             raise ValueError(
                 "Prepared weights do not match current batch content. "
@@ -870,7 +897,7 @@ class ConformalDetector(BaseConformalDetector):
         self.weight_estimator.fit(self._calibration_samples, x)
         self._prepared_weight_batch_size = len(x)
         if self.verify_prepared_batch_content:
-            self._prepared_weight_batch_signature = _batch_signature(x)
+            self._prepared_weight_batch_signature = batch_signature(x)
         else:
             self._prepared_weight_batch_signature = None
         return self
@@ -892,11 +919,16 @@ class ConformalDetector(BaseConformalDetector):
             Aggregated raw anomaly scores.
         """
         x_array, index = _as_numpy_with_index(x)
+        test_batch_signature = batch_signature(x_array)
         estimates = self._aggregate_scores(x_array)
-        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
+        weights = self._resolve_weights(
+            x_array,
+            refit_weights=refit_weights,
+            test_batch_signature=test_batch_signature,
+        )
         calib_weights, test_weights = weights if weights else (None, None)
 
-        self._last_result = ConformalResult(
+        result = ConformalResult(
             p_values=None,
             test_scores=estimates.copy(),
             calib_scores=self._calibration_set.copy(),
@@ -904,6 +936,8 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata={},
         )
+        result._provenance = self._result_provenance(test_batch_signature)
+        self._last_result = result
         if index is not None:
             return pd.Series(estimates, index=index, name="score")
         return estimates
@@ -987,27 +1021,26 @@ class ConformalDetector(BaseConformalDetector):
             named ``"p_value"``; NumPy input produces an ndarray.
         """
         x_array, index = _as_numpy_with_index(x)
+        test_batch_signature = batch_signature(x_array)
         estimates = self._aggregate_scores(x_array)
-        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
+        weights = self._resolve_weights(
+            x_array,
+            refit_weights=refit_weights,
+            test_batch_signature=test_batch_signature,
+        )
         calib_weights, test_weights = weights if weights else (None, None)
 
         p_values = self.estimation.compute_p_values(
             estimates, self._calibration_set, weights
         )
 
-        metadata: dict[str, Any] = {
-            "nonconform": {
-                "strategy": type(self.strategy).__name__,
-                "estimation": type(self.estimation).__name__,
-                "weighted": self._is_weighted_mode,
-            }
-        }
+        metadata = self._result_metadata()
         if hasattr(self.estimation, "get_metadata"):
             meta = self.estimation.get_metadata()
             if meta:
                 metadata.update(meta)
 
-        self._last_result = ConformalResult(
+        result = ConformalResult(
             p_values=p_values.copy(),
             test_scores=estimates.copy(),
             calib_scores=self._calibration_set.copy(),
@@ -1015,6 +1048,8 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata=metadata,
         )
+        result._provenance = self._result_provenance(test_batch_signature)
+        self._last_result = result
         if index is not None:
             return pd.Series(p_values, index=index, name="p_value")
         return p_values

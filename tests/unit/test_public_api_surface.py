@@ -67,11 +67,11 @@ PUBLIC_MODULE_EXPORTS = {
         "EValueSelectionResult",
         "FDPBoundResult",
         "Pruning",
-        "conformal_e_value_selection",
         "conformal_e_values",
         "conformal_fdp_upper_bound",
         "conformal_fdp_upper_bound_from_result",
         "e_value_false_discovery_control",
+        "select_conformal_e_values",
         "weighted_false_discovery_control",
         "weighted_false_discovery_control_from_arrays",
     ],
@@ -196,6 +196,14 @@ def test_enums_module_exports_expected_symbols():
 def test_aggregation_removed_from_enums_module():
     with pytest.raises(ImportError, match="Aggregation"):
         exec("from nonconform.enums import Aggregation", {})
+
+
+def test_unreleased_e_value_selection_name_is_absent():
+    module = importlib.import_module("nonconform.fdr")
+
+    assert not hasattr(module, "conformal_e_value_selection")
+    with pytest.raises(ImportError, match="conformal_e_value_selection"):
+        exec("from nonconform.fdr import conformal_e_value_selection", {})
 
 
 def test_metrics_module_exports_expected_symbols():

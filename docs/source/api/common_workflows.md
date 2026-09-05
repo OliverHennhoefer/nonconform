@@ -83,18 +83,18 @@ print(np.column_stack([result.test_scores, p_values]))
     Retrieve `last_result` after the call you want to inspect. The returned
     object is a defensive copy.
 
-## Stable repeated-split selection with e-values
+## Repeated-split selection with e-values
 
 When a single split-conformal run is too sensitive to the random calibration
-split, collect score bundles from repeated `Split` runs and apply e-BH to
-conformal e-values:
+split, collect result snapshots from repeated `Split` runs, aggregate their
+conformal e-values, and apply e-BH once:
 
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformal_e_value_selection
+from nonconform.fdr import select_conformal_e_values
 
 rng = np.random.default_rng(42)
 x_reference = rng.normal(size=(800, 4))
@@ -102,8 +102,7 @@ x_test = np.vstack(
     [rng.normal(size=(18, 4)), rng.normal(loc=5.0, size=(2, 4))]
 )
 
-test_scores = []
-calib_scores = []
+results = []
 
 for seed in range(5):
     detector = ConformalDetector(
@@ -117,19 +116,21 @@ for seed in range(5):
     assert result is not None
     assert result.test_scores is not None
     assert result.calib_scores is not None
-    test_scores.append(result.test_scores)
-    calib_scores.append(result.calib_scores)
+    results.append(result)
 
-e_result = conformal_e_value_selection(
-    np.vstack(test_scores),
-    np.vstack(calib_scores),
+e_result = select_conformal_e_values(
+    results,
     alpha=0.05,
+    tie_seed=2026,
 )
 mask = e_result.selected
 ```
 
-Use this as an expert stability workflow, not as a replacement for the default
-`select(...)` path.
+Use this as an expert repeated-split workflow, not as a replacement for the
+default `select(...)` path. Pass unmodified result snapshots for the identical
+fixed test batch in the same row order. The API checks the recorded batch
+identity; it does not track edits to snapshot score arrays. By default ties
+raise, while `tie_seed` handles discrete or otherwise tied scores reproducibly.
 
 ## Detached calibration for a pre-fitted detector
 

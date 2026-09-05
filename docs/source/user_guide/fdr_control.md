@@ -187,16 +187,16 @@ assumptions and suitable weights. See
 
 Split-conformal decisions can vary with the random training/calibration split.
 Repeating the split and voting on discoveries does not automatically preserve
-FDR control. `conformal_e_value_selection(...)` instead constructs conformal
-e-values for each split, averages them uniformly, and applies e-BH once to the
-aggregated evidence.
+FDR control. `select_conformal_e_values(...)` instead validates repeated
+split-conformal result snapshots, constructs conformal e-values, averages them
+uniformly, and applies e-BH once to the aggregated evidence.
 
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformal_e_value_selection
+from nonconform.fdr import select_conformal_e_values
 
 rng = np.random.default_rng(42)
 x_reference = rng.normal(size=(3_000, 4))
@@ -204,8 +204,7 @@ x_family = np.vstack(
     [rng.normal(size=(195, 4)), rng.normal(loc=4.5, size=(5, 4))]
 )
 
-test_scores = []
-calib_scores = []
+results = []
 for seed in range(5):
     detector = ConformalDetector(
         detector=IsolationForest(random_state=seed),
@@ -219,13 +218,12 @@ for seed in range(5):
     assert result is not None
     assert result.test_scores is not None
     assert result.calib_scores is not None
-    test_scores.append(result.test_scores)
-    calib_scores.append(result.calib_scores)
+    results.append(result)
 
-e_result = conformal_e_value_selection(
-    np.vstack(test_scores),
-    np.vstack(calib_scores),
+e_result = select_conformal_e_values(
+    results,
     alpha=0.1,
+    tie_seed=2026,
 )
 
 print("selected indices:", np.flatnonzero(e_result.selected))
@@ -235,16 +233,26 @@ print("inner alpha:", e_result.alpha_bh)
 This is an expert workflow for one fixed test family analyzed by repeated valid
 split-conformal score maps. Use it when single-split decisions are unstable,
 not as a default replacement for `detector.select(...)`. The default inner
-threshold is `alpha_bh=alpha / 10`; pass it explicitly only when the analysis
-plan justifies another value.
+threshold is `alpha_bh=alpha / 10`. Fix `alpha_bh` before inspecting the data;
+changing it after seeing selections invalidates the stated analysis plan.
+
+Pass unmodified result snapshots. The API checks their recorded test-batch
+identity and ordering; it does not track edits to their score arrays.
+
+The proof cited below assumes a strict ordering of calibration and test scores.
+The default `tie_seed=None` therefore rejects ties. For discrete detectors, pass
+a non-negative `tie_seed`; this assigns reproducible random secondary ranks
+without perturbing unequal scores.
 
 !!! warning "Guarantee scope"
 
     Derandomized e-values require exchangeability of the normal reference data
-    and null test points, a fixed score orientation in which larger scores mean
-    more anomalous, repeated valid split-conformal constructions, and one final
-    e-BH application. The package currently provides uniform aggregation, not
-    the adaptive weighting described in the paper.
+    and null test points, one fixed test family in identical row order across
+    repetitions, anomalous-higher scores, repeated valid integrated and
+    unweighted `Split` constructions, and one final e-BH application. The
+    construction provides the aggregate null-evidence condition needed by e-BH;
+    it does not claim that each constructed value is individually an ordinary
+    e-value. The package provides uniform aggregation only.
 
 See the complete
 [derandomized conformal e-value example](../examples/derandomized_e_values.md).
@@ -370,7 +378,7 @@ multiple-testing problem.
 | Select anomalies in one fixed batch | `detector.select(batch, alpha=...)` |
 | Adjust standard p-values manually | SciPy BH or BY, after checking assumptions |
 | Select under modeled covariate shift | Weighted `detector.select(...)`, which uses WCS |
-| Stabilize repeated split-conformal selections | `conformal_e_value_selection(...)` and e-BH |
+| Aggregate repeated split-conformal evidence | `select_conformal_e_values(...)` and e-BH |
 | Explore p-value thresholds with a simultaneous realized-FDP certificate | `conformal_fdp_upper_bound_from_result(...)` |
 | Test an open-ended sequence of distinct hypotheses | A justified online FDR procedure |
 | Detect loss of exchangeability in one stream | `ExchangeabilityMonitor` and a conformal martingale |

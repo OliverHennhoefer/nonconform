@@ -1,6 +1,11 @@
 import numpy as np
 import pytest
 
+from nonconform._internal.provenance import (
+    EstimationFamily,
+    ResultProvenance,
+    StrategyFamily,
+)
 from nonconform.fdr import (
     FDPBoundResult,
     conformal_fdp_upper_bound,
@@ -433,6 +438,34 @@ def test_conformal_fdp_upper_bound_from_result_rejects_known_unsupported_scopes(
     )
 
     with pytest.raises(ValueError, match=match):
+        conformal_fdp_upper_bound_from_result(
+            result,
+            confidence=0.8,
+            n_resamples=5,
+        )
+
+
+def test_fdp_result_scope_prefers_native_provenance_over_metadata():
+    result = ConformalResult(
+        p_values=np.array([0.1, 0.2]),
+        calib_scores=np.array([0.2, 0.4, 0.6]),
+        metadata={
+            "nonconform": {
+                "strategy": "Split",
+                "estimation": "Empirical",
+                "weighted": False,
+            }
+        },
+    )
+    result._provenance = ResultProvenance(
+        strategy_family=StrategyFamily.OTHER,
+        estimation_family=EstimationFamily.EMPIRICAL,
+        weighted=False,
+        calibration_mode=None,
+        test_batch_signature=None,
+    )
+
+    with pytest.raises(ValueError, match="split"):
         conformal_fdp_upper_bound_from_result(
             result,
             confidence=0.8,
