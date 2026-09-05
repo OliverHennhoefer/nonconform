@@ -6,13 +6,13 @@ description: "Navigate nonconform concepts, batch discovery control, weighted co
 
 `nonconform` supports two primary workflows built on anomaly scores:
 
-- **Batch discovery control:** calibrate p-values for a fixed family and select
+- **Batch discovery control:** construct p-values or e-values for a fixed family and select
   anomalies with a justified FDR procedure.
 - **Sequential change monitoring:** generate randomized sequential conformal
   p-values, accumulate evidence with a martingale, and trigger configured
   alarms.
 
-Choose the workflow first. Their p-values, error targets, and evaluation metrics
+Choose the workflow first. Their evidence, error targets, and evaluation metrics
 are different.
 
 ## Start from your task
@@ -33,7 +33,7 @@ are different.
 |---|---|
 | [Statistical concepts](statistical_concepts.md) | Short definitions of p-values, exchangeability, FDR, power, covariate shift, and Ville control |
 | [Conformal inference](conformal_inference.md) | Rank construction, data roles, marginal and conditional validity, ties, and batch versus sequential p-values |
-| [Conformalization strategies](conformalization_strategies.md) | Exact mechanics and statistical scope of `Split`, `CrossValidation`, jackknife, and bootstrap |
+| [Conformalization strategies](conformalization_strategies.md) | Exact mechanics and statistical scope of `Split`, `DerandomizedSplits`, `CrossValidation`, jackknife, and bootstrap |
 | [Choosing strategies](choosing_strategies.md) | Decision process based on validity needs, resolution, model-fit budget, and empirical evaluation |
 
 ## Applied workflows
@@ -43,7 +43,7 @@ are different.
 | [Detector compatibility](detector_compatibility.md) | scikit-learn, PyOD, custom protocols, blocked batch-adaptive models, and score polarity |
 | [Weighted conformal](weighted_conformal.md) | Covariate-shift assumptions, density-ratio estimators, weight diagnostics, and WCS |
 | [FDR control](fdr_control.md) | BH, BY, WCS, derandomized e-values, post-hoc FDP certificates, repeated batches, and online FDR distinctions |
-| [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | Repeated split-conformal evidence aggregated with e-values and e-BH |
+| [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | `DerandomizedSplits` with automatic repetitions, e-values, and e-BH |
 | [Exchangeability martingales](exchangeability_martingales.md) | Sequential randomized ranks, betting martingales, alarms, and Ville scope |
 
 ## Evaluation and operations

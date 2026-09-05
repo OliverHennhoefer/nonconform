@@ -14,6 +14,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import (
     ConformalDetector,
     CrossValidation,
+    DerandomizedSplits,
     Probabilistic,
     Split,
     logistic_weight_estimator,
@@ -56,6 +57,34 @@ class ContinuousDistanceDetector(RoundedDistanceDetector):
         if self.center_ is None:
             raise RuntimeError("detector is not fitted")
         return np.linalg.norm(X - self.center_, axis=1)
+
+
+@pytest.mark.parametrize("model_type", [IsolationForest, IForest])
+def test_derandomized_strategy_real_detector_matches_manual_splits(
+    simple_dataset, model_type
+):
+    x_train, x_test, _ = simple_dataset(n_train=120, n_test=40, n_features=4)
+    detector = ConformalDetector(
+        detector=model_type(n_estimators=10),
+        strategy=DerandomizedSplits(3, 0.3, tie_seed=99),
+        seed=7,
+    ).fit(x_train)
+    mask = detector.select(x_test, alpha=0.2)
+    results = []
+    for stream in np.random.SeedSequence(7).spawn(2)[0].spawn(3):
+        split_seed = int(stream.generate_state(1)[0])
+        single = ConformalDetector(
+            detector=model_type(n_estimators=10),
+            strategy=Split(0.3),
+            seed=split_seed,
+        ).fit(x_train)
+        single.score_samples(x_test)
+        results.append(single.last_result)
+    expected = select_conformal_e_values(results, alpha=0.2, tie_seed=99)
+    np.testing.assert_array_equal(mask, expected.selected)
+    np.testing.assert_array_equal(
+        detector.last_selection_result.e_values, expected.e_values
+    )
 
 
 def _fit_weighted_detector(x_train):

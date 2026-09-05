@@ -9,6 +9,7 @@ import nonconform
 CURATED_ROOT_EXPORTS = [
     "ConformalDetector",
     "Split",
+    "DerandomizedSplits",
     "CrossValidation",
     "JackknifeBootstrap",
     "Empirical",
@@ -96,6 +97,7 @@ PUBLIC_MODULE_EXPORTS = {
     "nonconform.resampling": [
         "BaseStrategy",
         "CrossValidation",
+        "DerandomizedSplits",
         "JackknifeBootstrap",
         "Split",
     ],

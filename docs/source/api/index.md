@@ -48,7 +48,10 @@ For the v1 public compatibility contract, see
 
 Includes post-hoc FDP bounds, derandomized e-value selection, and weighted
 low-level expert APIs (`weighted_false_discovery_control`).
-For standard workflows, prefer `ConformalDetector.select(...)`.
+For batch workflows, prefer `ConformalDetector.select(...)`. With
+`DerandomizedSplits`, it applies e-BH and exposes evidence through
+`last_selection_result`; standalone e-value functions remain available for
+expert use.
 ::: nonconform.fdr
     options:
       show_root_heading: true

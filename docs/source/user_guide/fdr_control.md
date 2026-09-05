@@ -34,8 +34,10 @@ selection procedure. FDP is observable on one fully labeled family; FDR is not.
 
 ## Standard batch workflow
 
-For an unweighted `ConformalDetector`, `select(...)` computes p-values and
-applies Benjamini-Hochberg (BH) adjustment to the complete input batch.
+For an unweighted `ConformalDetector` using a p-value strategy such as `Split`,
+`select(...)` computes p-values and applies Benjamini-Hochberg (BH) adjustment
+to the complete input batch. `DerandomizedSplits` instead uses the e-value
+procedure described below.
 
 ```python
 import numpy as np
@@ -185,77 +187,69 @@ assumptions and suitable weights. See
 
 ## Derandomized conformal e-values
 
-Split-conformal decisions can vary with the random training/calibration split.
-Repeating the split and voting on discoveries does not automatically preserve
-FDR control. `select_conformal_e_values(...)` instead validates repeated
-split-conformal result snapshots, constructs conformal e-values, averages them
-uniformly, and applies e-BH once to the aggregated evidence.
+`DerandomizedSplits` fits repeated training/calibration splits, constructs
+conformal e-values separately for every split, averages the evidence uniformly,
+and applies e-BH once. It manages the replicas and calibration rows internally.
 
 ```python
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
-from nonconform import ConformalDetector, Split
-from nonconform.fdr import select_conformal_e_values
+from nonconform import ConformalDetector, DerandomizedSplits
 
 rng = np.random.default_rng(42)
 x_reference = rng.normal(size=(3_000, 4))
-x_family = np.vstack(
+x_test = np.vstack(
     [rng.normal(size=(195, 4)), rng.normal(loc=4.5, size=(5, 4))]
 )
 
-results = []
-for seed in range(5):
-    detector = ConformalDetector(
-        detector=IsolationForest(random_state=seed),
-        strategy=Split(n_calib=0.3),
-        score_polarity="higher_is_normal",
-        seed=seed,
-    ).fit(x_reference)
-    detector.score_samples(x_family)
-
-    result = detector.last_result
-    assert result is not None
-    assert result.test_scores is not None
-    assert result.calib_scores is not None
-    results.append(result)
-
-e_result = select_conformal_e_values(
-    results,
-    alpha=0.1,
-    tie_seed=2026,
-)
-
-print("selected indices:", np.flatnonzero(e_result.selected))
+detector = ConformalDetector(
+    detector=IsolationForest(),
+    strategy=DerandomizedSplits(n_repetitions=5, n_calib=0.3),
+    seed=42,
+).fit(x_reference)
+mask = detector.select(x_test, alpha=0.1)
+e_result = detector.last_selection_result
+assert e_result is not None
+print("selected indices:", np.flatnonzero(mask))
 print("inner alpha:", e_result.alpha_bh)
 ```
 
-This is an expert workflow for one fixed test family analyzed by repeated valid
-split-conformal score maps. Use it when single-split decisions are unstable,
-not as a default replacement for `detector.select(...)`. The default inner
-threshold is `alpha_bh=alpha / 10`. Fix `alpha_bh` before inspecting the data;
-changing it after seeing selections invalidates the stated analysis plan.
+Set advanced options on the strategy: `alpha_bh=None` uses `alpha / 10`, and
+`tie_seed=None` automatically derives a tie stream separate from fitting.
+An explicit `tie_seed` overrides only tie handling. With a detector seed, the
+splits and randomized secondary ranks are reproducible for deterministic
+scoring. Without one, randomness is generated once per fit. Fix the procedure
+and inner threshold before inspecting test evidence.
 
-Pass unmodified result snapshots. The API checks their recorded test-batch
-identity and ordering; it does not track edits to their score arrays.
+`select()` returns a boolean mask and stores a defensive `EValueSelectionResult`
+in `last_selection_result`. Its fields include `e_values`, `selected`,
+`e_threshold`, `alpha`, `alpha_bh`, `n_repetitions`, `n_calibration`, and the
+effective `tie_seed`. Raw scoring and refitting clear selection diagnostics.
+`last_result` is `None` after e-value selection.
 
-The proof cited below assumes a strict ordering of calibration and test scores.
-The default `tie_seed=None` therefore rejects ties. For discrete detectors, pass
-a non-negative `tie_seed`; this assigns reproducible random secondary ranks
-without perturbing unequal scores.
+`score_samples()` still aggregates raw scores using `aggregation`, but selection
+always constructs evidence from the separate model/calibration pairs. P-value
+methods are unsupported for this strategy. Use unweighted integrated fitting;
+non-Empirical estimation is rejected because p-value estimation is unused.
+
+For existing individual split snapshots, `select_conformal_e_values(...)`
+remains available. It checks native provenance and identical test-batch content
+and ordering, but cannot track modifications to snapshot score arrays. Its
+default `tie_seed=None` still rejects tied scores.
 
 !!! warning "Guarantee scope"
 
-    Derandomized e-values require exchangeability of the normal reference data
-    and null test points, one fixed test family in identical row order across
-    repetitions, anomalous-higher scores, repeated valid integrated and
-    unweighted `Split` constructions, and one final e-BH application. The
-    construction provides the aggregate null-evidence condition needed by e-BH;
-    it does not claim that each constructed value is individually an ordinary
-    e-value. The package provides uniform aggregation only.
+    Requires exchangeable normal reference and null test observations, the same
+    fixed test family in the same row order for every repetition, valid
+    integrated unweighted splits, and one final e-BH application. Randomized
+    secondary ranks provide strict ordering without perturbing unequal scores.
+    The aggregate null-evidence condition supports e-BH; individual constructed
+    values need not be ordinary e-values. Uniform aggregation is the only
+    supported evidence aggregation. Realized FDP in one batch is not expected
+    FDR, and aggregation is not a promise of improved stability on every dataset.
 
-See the complete
-[derandomized conformal e-value example](../examples/derandomized_e_values.md).
+See the [Shuttle example and advanced result-list workflow](../examples/derandomized_e_values.md).
 
 ## Post-hoc simultaneous FDP bounds
 
@@ -378,7 +372,7 @@ multiple-testing problem.
 | Select anomalies in one fixed batch | `detector.select(batch, alpha=...)` |
 | Adjust standard p-values manually | SciPy BH or BY, after checking assumptions |
 | Select under modeled covariate shift | Weighted `detector.select(...)`, which uses WCS |
-| Aggregate repeated split-conformal evidence | `select_conformal_e_values(...)` and e-BH |
+| Aggregate repeated split-conformal evidence | `DerandomizedSplits` with `select(...)` and e-BH |
 | Explore p-value thresholds with a simultaneous realized-FDP certificate | `conformal_fdp_upper_bound_from_result(...)` |
 | Test an open-ended sequence of distinct hypotheses | A justified online FDR procedure |
 | Detect loss of exchangeability in one stream | `ExchangeabilityMonitor` and a conformal martingale |

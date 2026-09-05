@@ -11,29 +11,31 @@ A conformalization strategy determines three things:
 3. which fitted models score a future test observation.
 
 Those choices affect compute, memory, data efficiency, and the statistical
-argument available for the resulting p-values. They do not change the public
-`ConformalDetector` workflow.
+argument available for the resulting evidence. `DerandomizedSplits` constructs
+e-values; the other strategies support p-value estimation. All use the public
+`ConformalDetector.fit(...)` and `select(...)` workflow.
 
 !!! important "Start with `Split` for the most direct validity argument"
 
     `Split` gives the most direct finite-sample argument in this package: the
     scoring rule is fitted without the calibration observations, then held
-    fixed while calibration and test scores are compared. The resampling
+    fixed while calibration and test scores are compared. The CV and bootstrap
     strategies below are useful computational constructions, but their
     anomaly-score aggregation does not automatically inherit every coverage
     theorem proved for CV+, jackknife+, or JaB+ prediction intervals.
 
 ## Comparison at a glance
 
-| Strategy | Model fits | Calibration scores | Models retained in `mode="plus"` | Main tradeoff |
+| Strategy | Model fits | Calibration scores | Models retained (plus mode where available) | Main tradeoff |
 |---|---:|---|---:|---|
 | `Split` | 1 | Held-out split | 1 | Clean separation, but reserves data for calibration |
+| `DerandomizedSplits(R)` | `R` | Separate held-out scores per model | `R` | Averages e-values across splits; retains all models |
 | `CrossValidation(k=k)` | `k` | One out-of-fold score per input row | `k` | Uses every row for calibration, with more fitting and inference work |
 | `CrossValidation.jackknife()` | `n` | One leave-one-out score per input row | `n` | Maximum fit count and memory |
 | `JackknifeBootstrap(B)` | `B` | Aggregated out-of-bag score per input row | `B` | Bootstrap-based calibration and configurable ensemble size |
 
 Here, `n` is the number of rows passed to `fit(...)` and `B` is
-`n_bootstraps`.
+`n_bootstraps`; `R` is `n_repetitions`.
 
 ## `Split`
 
@@ -61,6 +63,48 @@ For a proportional split, the calibration count is rounded up. With classical
 empirical p-values and `n_cal` calibration scores, the attainable values are
 multiples of `1 / (n_cal + 1)`. Choose a calibration size that makes the p-value
 resolution compatible with the downstream testing procedure.
+
+## `DerandomizedSplits`
+
+Use repeated integrated splits when dependence on a particular calibration
+split matters. Each repetition fits a fresh model and retains its own
+calibration scores. `select()` computes per-split conformal e-values, averages
+them uniformly, and applies e-BH once to the fixed test batch.
+
+```python
+from nonconform import DerandomizedSplits
+
+strategy = DerandomizedSplits(n_repetitions=5, n_calib=0.2)
+print(strategy.get_params())
+```
+
+`n_calib` follows `Split` semantics and `n_repetitions` must be a positive
+integer. One repetition is supported. The defaults (five repetitions and 10%
+calibration) are starting points rather than universally optimal choices.
+Fitting is sequential; `fit(n_jobs=...)` is unsupported for this strategy.
+
+Configure advanced settings on the strategy: `alpha_bh=None` resolves to
+`alpha / 10` during selection; a fixed explicit value must lie in `(0, 1)`.
+Choose it before inspecting test evidence. `tie_seed=None` automatically
+randomizes tied scores using a separate stream derived during fitting. An
+integer overrides only the tie stream. A detector seed reproduces the fitting
+and tie streams; without a seed, new randomness is generated once per fit.
+Unchanged models and batches use the same tie seed on subsequent selections.
+
+The resulting mask is available from `select()`, and evidence and diagnostics
+from `last_selection_result`. `calibration_set` has shape
+`(n_repetitions, n_calibration)` aligned with `detector_set`.
+`score_samples()` still aggregates raw scores for inspection; its `aggregation`
+setting never affects e-value selection. P-value methods and detached
+`calibrate()` are unsupported. Non-identity weighting and non-Empirical
+estimation configurations are rejected because this procedure constructs
+e-values directly.
+
+This retains all models in memory, unlike manually collecting score snapshots
+and discarding models. It enables repeated inference without refitting, but does
+not give joint FDR control over separately analyzed batches. See
+[the e-value guarantee scope](fdr_control.md#derandomized-conformal-e-values)
+and [the Shuttle example](../examples/derandomized_e_values.md).
 
 ## `CrossValidation`
 

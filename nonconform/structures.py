@@ -114,7 +114,9 @@ class ConformalResult:
             when only scores were requested. With ``Empirical``, these are
             rank-based conformal p-values.
         test_scores: Aggregated, anomalous-higher scores for test instances.
-        calib_scores: Anomalous-higher scores for the calibration set.
+        calib_scores: Anomalous-higher scores for the calibration set, or None
+            for aggregated raw DerandomizedSplits scores, which have no single
+            corresponding calibration distribution.
         test_weights: Importance weights for test instances (weighted mode only).
         calib_weights: Importance weights for calibration instances.
         metadata: Method metadata, including the strategy, estimator, and

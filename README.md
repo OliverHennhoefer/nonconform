@@ -40,6 +40,8 @@ or a custom detector:
 - **Calibrate anomaly scores** into conformal p-values using reference data.
 - **Control batch discoveries** with `ConformalDetector.select(...)`, which
   combines calibration and FDR control in one workflow.
+- **Combine repeated split evidence** with `DerandomizedSplits`, automatic
+  model fitting, and e-value-based selection through the same `select(...)` API.
 - **Monitor streams for change** with conformal martingales, anytime evidence
   against exchangeability, and configurable alarms.
 - **Keep your detector** through support for PyOD, recognized scikit-learn
@@ -185,6 +187,7 @@ for the full guarantee scope and other alarm statistics.
 | Goal | Start with |
 | --- | --- |
 | Calibrate and select anomalies in a batch | [`Split` and `select(...)`](https://oliverhennhoefer.github.io/nonconform/quickstart/) |
+| Aggregate evidence across random splits | [`DerandomizedSplits` and e-BH](https://oliverhennhoefer.github.io/nonconform/examples/derandomized_e_values/) |
 | Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Account for covariate shift | [Weighted conformal inference](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
@@ -196,8 +199,9 @@ for the full guarantee scope and other alarm statistics.
 > [!IMPORTANT]
 > **Guarantees are assumption-dependent.** Standard conformal workflows require
 > calibration data and null test cases to be exchangeable. FDR claims additionally
-> require valid p-values and the assumptions of the selected multiple-testing
-> procedure. Weighted workflows require a plausible covariate-shift model, support
+> require valid p-values or the applicable aggregate null-evidence condition,
+> together with the assumptions of the selected multiple-testing procedure.
+> Weighted workflows require a plausible covariate-shift model, support
 > overlap, and reliable weights. Sequential martingales require valid sequential
 > conformal p-values; Ville thresholds provide false-alarm control for one valid
 > stream, while CUSUM and Shiryaev-Roberts thresholds are change-evidence triggers

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `DerandomizedSplits` for repeated split-conformal e-value selection
+  through `ConformalDetector.fit()` and `select()`, with automatic randomized
+  tie handling and defensive diagnostics in `last_selection_result`. Existing
+  strategies and standalone e-value functions retain their behavior.
 - Added result-aware derandomized conformal e-value selection through
   `nonconform.fdr.select_conformal_e_values`, plus low-level e-value and e-BH
   primitives. For unmodified result snapshots, the workflow verifies

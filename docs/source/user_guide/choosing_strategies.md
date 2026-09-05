@@ -22,6 +22,11 @@ automatically provides the same guarantee. The library aggregates anomaly
 scores across fitted models; prediction-interval theorems for CV+,
 jackknife+, and JaB+ do not transfer automatically to that construction.
 
+If the goal is to combine repeated split evidence, use `DerandomizedSplits`.
+It constructs e-values separately for each split and applies one final e-BH
+selection through `select()`. This differs from raw-score aggregation in CV
+and bootstrap strategies; see [FDR control](fdr_control.md#derandomized-conformal-e-values).
+
 ### 2. Check calibration resolution
 
 With `Empirical(tie_break="classical")` and `n_cal` calibration scores,
@@ -46,14 +51,15 @@ fits and have a different validity story.
 
 ### 3. Budget model fits and retained models
 
-| Strategy | Fits during `fit(...)` | Retained models in plus mode | Test scoring per row |
+| Strategy | Fits during `fit(...)` | Retained models (plus mode where available) | Test scoring per row |
 |---|---:|---:|---:|
 | `Split` | 1 | 1 | 1 model |
+| `DerandomizedSplits(R)` | `R` | `R` | `R` models |
 | `CrossValidation(k=k)` | `k` | `k` | `k` models |
 | `CrossValidation.jackknife()` | `n` | `n` | `n` models |
 | `JackknifeBootstrap(B)` | `B` | `B` | `B` models |
 
-`mode="single_model"` reduces retained models and test-time scoring, but adds a
+For CV and bootstrap, `mode="single_model"` reduces retained models and test-time scoring, but adds a
 full-data fit and changes the relationship between calibration and test scores.
 Treat that as a statistical choice, not merely an optimization flag.
 
@@ -83,6 +89,7 @@ estimate is optimistically selected.
 | Constraint | Starting point | Reason to reconsider |
 |---|---|---|
 | Strongest, easiest-to-audit validity story | `Split(n_calib=...)` | Calibration grid is too coarse or fitting data is too scarce |
+| Reduce sensitivity to a random split with e-value aggregation | `DerandomizedSplits(n_repetitions=5, n_calib=...)` | Retained-model memory or repeated fitting cost is excessive |
 | A moderate resampling budget | `CrossValidation(k=5, mode="plus")` | Fit or inference cost is excessive, or its validity scope is insufficient |
 | Leave-one-out construction is specifically justified | `CrossValidation.jackknife(mode="plus")` | `n` fits and retained models are impractical |
 | Bootstrap out-of-bag stability is specifically useful | `JackknifeBootstrap(..., mode="plus")` | Results are unstable across bootstrap counts or cost is excessive |

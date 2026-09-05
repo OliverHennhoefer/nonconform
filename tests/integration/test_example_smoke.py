@@ -74,3 +74,11 @@ def test_derandomized_e_values_notebook_smoke(monkeypatch, capsys):
     assert "Derandomized discoveries:" in output
     assert "Derandomized realized FDP:" in output
     assert "Derandomized realized true-positive rate:" in output
+    detector = namespace["detector"]
+    result = detector.last_selection_result
+    assert result is not None
+    assert result.n_repetitions == 5
+    assert result.n_calibration == 1_000
+    assert result.tie_seed is not None
+    np.testing.assert_array_equal(namespace["decisions"], result.selected)
+    assert detector.last_result is None

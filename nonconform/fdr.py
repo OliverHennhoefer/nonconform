@@ -253,8 +253,27 @@ def select_conformal_e_values(
             or tied-score handling are unsupported.
     """
     alpha_value = _fdp_bounds.validate_probability("alpha", alpha)
-    alpha_bh_value = alpha_value / 10.0 if alpha_bh is None else alpha_bh
     test_scores, calib_scores = _e_value_core.scores_from_results(results)
+    return _select_conformal_e_values_from_scores(
+        test_scores,
+        calib_scores,
+        alpha=alpha_value,
+        alpha_bh=alpha_bh,
+        tie_seed=tie_seed,
+    )
+
+
+def _select_conformal_e_values_from_scores(
+    test_scores: np.ndarray,
+    calib_scores: np.ndarray,
+    *,
+    alpha: float,
+    alpha_bh: float | None,
+    tie_seed: int | None,
+) -> EValueSelectionResult:
+    """Select from repetition matrices whose construction scope is verified."""
+    alpha_value = _fdp_bounds.validate_probability("alpha", alpha)
+    alpha_bh_value = alpha_value / 10.0 if alpha_bh is None else alpha_bh
     e_values = _e_value_core.compute_conformal_e_values(
         test_scores,
         calib_scores,
