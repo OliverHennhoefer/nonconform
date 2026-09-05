@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, Self, runtime_checkable
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from nonconform._internal.provenance import ResultProvenance
 
 
 def _array_summary(arr: np.ndarray | None) -> str:
@@ -111,7 +114,9 @@ class ConformalResult:
             when only scores were requested. With ``Empirical``, these are
             rank-based conformal p-values.
         test_scores: Aggregated, anomalous-higher scores for test instances.
-        calib_scores: Anomalous-higher scores for the calibration set.
+        calib_scores: Anomalous-higher scores for the calibration set, or None
+            for aggregated raw DerandomizedSplits scores, which have no single
+            corresponding calibration distribution.
         test_weights: Importance weights for test instances (weighted mode only).
         calib_weights: Importance weights for calibration instances.
         metadata: Method metadata, including the strategy, estimator, and
@@ -140,6 +145,12 @@ class ConformalResult:
     test_weights: np.ndarray | None = None
     calib_weights: np.ndarray | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    _provenance: ResultProvenance | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly result summary."""
@@ -168,7 +179,7 @@ class ConformalResult:
         def _copy_arr(arr: np.ndarray | None) -> np.ndarray | None:
             return arr.copy() if arr is not None else None
 
-        return ConformalResult(
+        copied = ConformalResult(
             p_values=_copy_arr(self.p_values),
             test_scores=_copy_arr(self.test_scores),
             calib_scores=_copy_arr(self.calib_scores),
@@ -176,6 +187,8 @@ class ConformalResult:
             calib_weights=_copy_arr(self.calib_weights),
             metadata=deepcopy(self.metadata),
         )
+        copied._provenance = self._provenance
+        return copied
 
 
 __all__ = [

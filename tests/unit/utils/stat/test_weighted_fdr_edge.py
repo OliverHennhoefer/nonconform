@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from scipy.stats import false_discovery_control
 
+from nonconform._internal.wcs import _calib_weight_mass_strictly_above
 from nonconform.enums import Pruning
 from nonconform.fdr import (
-    _calib_weight_mass_strictly_above,
     weighted_false_discovery_control,
     weighted_false_discovery_control_from_arrays,
 )

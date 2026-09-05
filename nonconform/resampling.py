@@ -7,9 +7,13 @@ latter two are package-specific score-aggregation constructions; their names do
 not by themselves transfer coverage theorems for conformal prediction intervals
 to anomaly p-values.
 
+``DerandomizedSplits`` retains separate held-out calibration rows and constructs
+e-values per split before uniform evidence aggregation and e-BH selection.
+
 Classes:
     BaseStrategy: Abstract base class for calibration strategies.
     Split: Simple train-test split strategy.
+    DerandomizedSplits: Repeated split-conformal e-values with e-BH selection.
     CrossValidation: K-fold cross-validation strategy (includes Jackknife factory).
     JackknifeBootstrap: Bootstrap out-of-bag calibration strategy.
 """
@@ -22,7 +26,7 @@ import math
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from copy import copy, deepcopy
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pandas as pd
@@ -34,9 +38,18 @@ from nonconform._internal import (
     ConformalMode,
     ensure_numpy_array,
     normalize_bootstrap_aggregation_method,
+    set_params,
+)
+from nonconform._internal.validation import (
+    as_1d_numeric,
+    validate_finite,
+    validate_optional_seed,
+    validate_positive_integer,
+    validate_probability,
 )
 
 if TYPE_CHECKING:
+    from nonconform.fdr import EValueSelectionResult
     from nonconform.structures import AnomalyDetector
 
 # Module-level loggers for performance
@@ -70,6 +83,14 @@ class BaseStrategy(abc.ABC):
     Attributes:
         _mode: Model retention mode controlling calibration/inference behavior.
     """
+
+    _uses_e_values = False
+
+    def _select_e_values(
+        self, test_scores: np.ndarray, calib_scores: np.ndarray, *, alpha: float
+    ) -> EValueSelectionResult:
+        """Select from preserved repetitions for an e-value strategy."""
+        raise NotImplementedError("This strategy does not construct e-values.")
 
     def __init__(self, mode: ConformalModeInput = "plus") -> None:
         """Initialize the base calibration strategy.
@@ -218,6 +239,165 @@ class Split(BaseStrategy):
     def calib_size(self) -> float | int:
         """Returns the calibration size or proportion."""
         return self._calib_size
+
+
+class DerandomizedSplits(BaseStrategy):
+    """Aggregate conformal e-values across repeated random splits with e-BH.
+
+    Each replica retains its own held-out calibration scores. Selection converts
+    each replica's scores to e-values before uniformly averaging the evidence;
+    it never pools calibration scores or aggregates raw scores first.
+
+    Args:
+        n_repetitions: Positive number of splits. Defaults to five.
+        n_calib: Calibration count or fraction, with the same meaning as Split.
+        alpha_bh: Fixed inner threshold in (0, 1), or None for alpha / 10 using
+            the target supplied to detector.select(). Choose before inspecting
+            the test evidence.
+        tie_seed: Optional non-negative override for randomized score ties.
+            None automatically derives a separate random stream during fit.
+
+    Examples:
+        ```python
+        from sklearn.ensemble import IsolationForest
+        from nonconform import ConformalDetector, DerandomizedSplits
+
+        detector = ConformalDetector(
+            detector=IsolationForest(),
+            strategy=DerandomizedSplits(n_repetitions=5, n_calib=0.2),
+            seed=42,
+        )
+        # detector.fit(x_reference)
+        # selected = detector.select(x_test, alpha=0.05)
+        # evidence = detector.last_selection_result.e_values
+        ```
+
+    Note:
+        Requires unweighted, integrated splits and exchangeable normal reference
+        and null test observations. All repetitions score the same fixed test
+        family. The aggregate null-evidence condition supports one final e-BH
+        application; individual values need not be ordinary e-values. Repetition
+        reduces dependence on a particular split but does not remove randomness.
+    """
+
+    _uses_e_values = True
+
+    def __init__(
+        self,
+        n_repetitions: int = 5,
+        n_calib: float | int = 0.1,
+        *,
+        alpha_bh: float | None = None,
+        tie_seed: int | None = None,
+    ) -> None:
+        super().__init__()
+        validate_positive_integer("n_repetitions", n_repetitions)
+        if alpha_bh is not None:
+            validate_probability("alpha_bh", alpha_bh)
+        validate_optional_seed("tie_seed", tie_seed)
+        self.n_repetitions = n_repetitions
+        self.n_calib = n_calib
+        self.alpha_bh = alpha_bh
+        self.tie_seed = tie_seed
+        self._effective_tie_seed: int | None = None
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Return constructor parameters for inspection and sklearn cloning."""
+        return {
+            "n_repetitions": self.n_repetitions,
+            "n_calib": self.n_calib,
+            "alpha_bh": self.alpha_bh,
+            "tie_seed": self.tie_seed,
+        }
+
+    def set_params(self, **params: Any) -> Self:
+        """Update constructor parameters and clear derived random state."""
+        current = self.get_params()
+        unknown = params.keys() - current.keys()
+        if unknown:
+            raise ValueError(
+                f"Invalid DerandomizedSplits parameters: {sorted(unknown)}"
+            )
+        updated = type(self)(**(current | params))
+        self.__dict__.update(updated.__dict__)
+        return self
+
+    @ensure_numpy_array
+    def fit_calibrate(
+        self,
+        x: pd.DataFrame | np.ndarray,
+        detector: AnomalyDetector,
+        seed: int | None = None,
+        weighted: bool = False,
+    ) -> tuple[list[AnomalyDetector], np.ndarray]:
+        """Fit independent replicas and return aligned calibration-score rows.
+
+        Returns:
+            Models and scores shaped (n_repetitions, n_calibration). Row i
+            contains only held-out scores produced by model i.
+        """
+        self._effective_tie_seed = None
+        x = np.asarray(x)
+        if x.ndim != 2 or x.shape[1] == 0:
+            raise ValueError(
+                "x must be a two-dimensional reference batch with features."
+            )
+        if weighted:
+            raise ValueError(
+                "DerandomizedSplits does not support weighted calibration."
+            )
+        validate_optional_seed("seed", seed)
+        validate_positive_integer("n_repetitions", self.n_repetitions)
+        split = Split(n_calib=self.n_calib)
+        split._validate_n_calib(len(x))
+        n_calibration = (
+            math.ceil(len(x) * self.n_calib)
+            if isinstance(self.n_calib, float)
+            else self.n_calib
+        )
+        split_stream, tie_stream = np.random.SeedSequence(seed).spawn(2)
+        models = []
+        calibration_rows = []
+        for stream in split_stream.spawn(self.n_repetitions):
+            split_seed = int(stream.generate_state(1)[0])
+            replica = set_params(deepcopy(detector), split_seed)
+            fitted, scores = split.fit_calibrate(x, replica, seed=split_seed)
+            row = as_1d_numeric("calibration scores", scores)
+            if row.size != n_calibration:
+                raise ValueError(
+                    "Each model must return one score per calibration row."
+                )
+            validate_finite("calibration scores", row)
+            models.append(fitted[0])
+            calibration_rows.append(row.copy())
+        calibration_scores = np.vstack(calibration_rows)
+        self._effective_tie_seed = (
+            int(tie_stream.generate_state(1, dtype=np.uint64)[0])
+            if self.tie_seed is None
+            else self.tie_seed
+        )
+        return models, calibration_scores
+
+    def _select_e_values(
+        self, test_scores: np.ndarray, calib_scores: np.ndarray, *, alpha: float
+    ) -> EValueSelectionResult:
+        """Delegate preserved score rows to the shared statistical procedure."""
+        from nonconform.fdr import _select_conformal_e_values_from_scores
+
+        if self._effective_tie_seed is None:
+            raise RuntimeError("Fit DerandomizedSplits before selecting anomalies.")
+        return _select_conformal_e_values_from_scores(
+            test_scores,
+            calib_scores,
+            alpha=alpha,
+            alpha_bh=self.alpha_bh,
+            tie_seed=self._effective_tie_seed,
+        )
+
+    @property
+    def calibration_ids(self) -> None:
+        """No pooled calibration sample exists for this unweighted strategy."""
+        return None
 
 
 class CrossValidation(BaseStrategy):
@@ -718,6 +898,7 @@ class JackknifeBootstrap(BaseStrategy):
 __all__ = [
     "BaseStrategy",
     "CrossValidation",
+    "DerandomizedSplits",
     "JackknifeBootstrap",
     "Split",
 ]

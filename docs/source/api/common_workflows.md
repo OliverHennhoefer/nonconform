@@ -7,10 +7,10 @@ you can copy and run any example by itself.
 ## Batch discovery control
 
 Use `select(...)` when a batch of observations forms one multiple-testing
-family and you want a Boolean mask of discoveries. In standard, unweighted
-mode, `select(...)` computes conformal p-values and applies the
+family and you want a Boolean mask of discoveries. With an unweighted p-value
+strategy such as `Split`, `select(...)` computes conformal p-values and applies the
 Benjamini-Hochberg (BH) procedure at the requested false discovery rate (FDR)
-level.
+level. `DerandomizedSplits` instead uses e-values and e-BH, as shown below.
 
 ```python
 import numpy as np
@@ -81,7 +81,74 @@ print(np.column_stack([result.test_scores, p_values]))
     Calling `score_samples(...)`, `compute_p_value(...)`,
     `compute_p_values(...)`, or `select(...)` replaces the cached result.
     Retrieve `last_result` after the call you want to inspect. The returned
-    object is a defensive copy.
+    object is a defensive copy. When the detector uses `DerandomizedSplits`,
+    inspect `last_selection_result` after `select()` instead; `last_result` is cleared.
+
+## Repeated-split selection with e-values
+
+`DerandomizedSplits` fits repeated training/calibration splits, constructs
+conformal e-values separately for every split, averages the evidence uniformly,
+and applies e-BH once. It manages the replicas and calibration rows internally.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, DerandomizedSplits
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(800, 4))
+x_test = np.vstack(
+    [rng.normal(size=(15, 4)), rng.normal(loc=4.5, size=(5, 4))]
+)
+
+detector = ConformalDetector(
+    detector=IsolationForest(),
+    strategy=DerandomizedSplits(n_repetitions=5, n_calib=0.3),
+    seed=42,
+).fit(x_reference)
+mask = detector.select(x_test, alpha=0.05)
+e_result = detector.last_selection_result
+assert e_result is not None
+print("selected indices:", np.flatnonzero(mask))
+print("inner alpha:", e_result.alpha_bh)
+```
+
+Set advanced options on the strategy: `alpha_bh=None` uses `alpha / 10`, and
+`tie_seed=None` automatically derives a tie stream separate from fitting.
+An explicit `tie_seed` overrides only tie handling. With a detector seed, the
+splits and randomized secondary ranks are reproducible for deterministic
+scoring. Without one, randomness is generated once per fit. Fix the procedure
+and inner threshold before inspecting test evidence.
+
+`select()` returns a boolean mask and stores a defensive `EValueSelectionResult`
+in `last_selection_result`. Its fields include `e_values`, `selected`,
+`e_threshold`, `alpha`, `alpha_bh`, `n_repetitions`, `n_calibration`, and the
+effective `tie_seed`. Raw scoring and refitting clear selection diagnostics.
+`last_result` is `None` after e-value selection.
+
+`score_samples()` still aggregates raw scores using `aggregation`, but selection
+always constructs evidence from the separate model/calibration pairs. P-value
+methods are unsupported for this strategy. Use unweighted integrated fitting;
+non-Empirical estimation is rejected because p-value estimation is unused.
+
+For existing individual split snapshots, `select_conformal_e_values(...)`
+remains available. It checks native provenance and identical test-batch content
+and ordering, but cannot track modifications to snapshot score arrays. Its
+default `tie_seed=None` still rejects tied scores.
+
+!!! warning "Guarantee scope"
+
+    Requires exchangeable normal reference and null test observations, the same
+    fixed test family in the same row order for every repetition, valid
+    integrated unweighted splits, and one final e-BH application. Randomized
+    secondary ranks provide strict ordering without perturbing unequal scores.
+    The aggregate null-evidence condition supports e-BH; individual constructed
+    values need not be ordinary e-values. Uniform aggregation is the only
+    supported evidence aggregation. Realized FDP in one batch is not expected
+    FDR, and aggregation is not a promise of improved stability on every dataset.
+
+See the [Shuttle example and advanced result-list workflow](../examples/derandomized_e_values.md).
 
 ## Detached calibration for a pre-fitted detector
 

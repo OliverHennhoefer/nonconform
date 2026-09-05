@@ -15,7 +15,6 @@ Classes:
 
 from __future__ import annotations
 
-import hashlib
 import inspect
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -33,7 +32,8 @@ from nonconform.adapters import (
     resolve_implicit_score_polarity,
     resolve_score_polarity,
 )
-from nonconform.scoring import Empirical
+from nonconform.resampling import Split
+from nonconform.scoring import ConditionalEmpirical, Empirical
 from nonconform.structures import AnomalyDetector, ConformalResult
 from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
 
@@ -45,8 +45,17 @@ from ._internal import (
     normalize_aggregation_method,
     set_params,
 )
+from ._internal.provenance import (
+    BatchSignature,
+    CalibrationMode,
+    EstimationFamily,
+    ResultProvenance,
+    StrategyFamily,
+    batch_signature,
+)
 
 if TYPE_CHECKING:
+    from nonconform.fdr import EValueSelectionResult
     from nonconform.resampling import BaseStrategy
     from nonconform.scoring import BaseEstimation
 
@@ -69,20 +78,6 @@ def _derive_wcs_pruning_seed(seed: int | None) -> int | None:
         return None
     seed_sequence = np.random.SeedSequence([seed, _WCS_PRUNING_SEED_DOMAIN])
     return int(seed_sequence.generate_state(1, dtype=np.uint64)[0])
-
-
-def _batch_signature(x: np.ndarray) -> tuple[tuple[int, ...], str, str]:
-    """Return stable signature for a concrete batch.
-
-    This helper computes a full digest over batch bytes, which is O(n) in both
-    time and memory. Use only when strict batch-content verification is desired.
-    """
-    contiguous = np.ascontiguousarray(x)
-    digest = hashlib.blake2b(
-        contiguous.tobytes(),
-        digest_size=16,
-    ).hexdigest()
-    return contiguous.shape, str(contiguous.dtype), digest
 
 
 def _as_numpy_with_index(
@@ -225,14 +220,23 @@ class ConformalDetector(BaseConformalDetector):
     covariate-shift assumptions, support overlap, and adequate weights; the class
     cannot verify those scientific assumptions from data alone.
 
+    With ``DerandomizedSplits``, ``fit()`` retains repeated model/calibration
+    pairs and ``select()`` uniformly aggregates per-split e-values before e-BH.
+    Inspect ``last_selection_result`` for evidence and selection diagnostics.
+    P-value methods and detached calibration are unavailable for this strategy.
+
     Args:
         detector: Anomaly detector (PyOD, sklearn-compatible, or custom).
-        strategy: The conformal strategy for fitting and calibration.
-        estimation: P-value estimation strategy. Defaults to Empirical().
+        strategy: The conformal strategy for fitting, calibration, and evidence
+            construction. DerandomizedSplits selects through e-values and e-BH.
+        estimation: P-value estimation strategy. Defaults to Empirical(). Unused
+            by DerandomizedSplits, which accepts only None or ordinary Empirical.
         weight_estimator: Weight estimator for covariate shift. Defaults to None.
         aggregation: Method for aggregating scores from multiple fitted models:
             ``"mean"``, ``"median"``, ``"minimum"``, or ``"maximum"``.
             Defaults to ``"median"``.
+            For DerandomizedSplits, affects score_samples() only; selection
+            always uniformly averages per-split e-values.
         score_polarity: Score direction convention. Use `"higher_is_anomalous"`
             when higher raw scores indicate more anomalous samples, and
             `"higher_is_normal"` when higher scores indicate more normal samples.
@@ -252,7 +256,7 @@ class ConformalDetector(BaseConformalDetector):
 
     Attributes:
         detector: The underlying anomaly detection model.
-        strategy: The calibration strategy for computing p-values.
+        strategy: The calibration and evidence-construction strategy.
         weight_estimator: Optional weight estimator for handling covariate shift.
         aggregation: Method for combining scores from multiple models.
         score_polarity: Resolved score polarity used internally.
@@ -372,12 +376,12 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set: list[AnomalyDetector] = []
         self._calibration_set: np.ndarray = np.array([])
         self._calibration_samples: np.ndarray = np.array([])
+        self._calibration_mode: CalibrationMode | None = None
         self._n_features_in: int | None = None
         self._prepared_weight_batch_size: int | None = None
-        self._prepared_weight_batch_signature: (
-            tuple[tuple[int, ...], str, str] | None
-        ) = None
+        self._prepared_weight_batch_signature: BatchSignature | None = None
         self._last_result: ConformalResult | None = None
+        self._last_selection_result: EValueSelectionResult | None = None
 
     def _configure(
         self,
@@ -395,6 +399,10 @@ class ConformalDetector(BaseConformalDetector):
         verify_prepared_batch_content: bool,
     ) -> None:
         """Apply constructor parameters and reset learned state."""
+        if strategy._uses_e_values or getattr(
+            getattr(self, "strategy", None), "_uses_e_values", False
+        ):
+            self._reset_fit_state()
         self._init_detector = _snapshot_param(detector)
         self._init_strategy = _snapshot_param(strategy)
         self._init_estimation = _snapshot_param(estimation)
@@ -447,6 +455,14 @@ class ConformalDetector(BaseConformalDetector):
         self._is_weighted_mode = weight_estimator is not None and not isinstance(
             weight_estimator, IdentityWeightEstimator
         )
+        if self.strategy._uses_e_values:
+            if self._is_weighted_mode:
+                raise ValueError("DerandomizedSplits does not support weighting.")
+            if estimation is not None and type(estimation) is not Empirical:
+                raise ValueError(
+                    "DerandomizedSplits constructs e-values directly; p-value "
+                    "estimation is unused. Omit estimation or use ordinary Empirical()."
+                )
         self._reset_fit_state()
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
@@ -545,7 +561,7 @@ class ConformalDetector(BaseConformalDetector):
             f"verbose={self.verbose}, "
             f"fitted={self.is_fitted}, "
             f"n_models={len(self._detector_set)}, "
-            f"n_calibration={len(self._calibration_set)})"
+            f"n_calibration={self._calibration_set.shape[-1]})"
         )
 
     @ensure_numpy_array
@@ -572,6 +588,9 @@ class ConformalDetector(BaseConformalDetector):
             The fitted detector instance (for method chaining).
         """
         _ = y
+        self._last_selection_result = None
+        if self.strategy._uses_e_values:
+            self._reset_fit_state()
         fit_kwargs: dict[str, Any] = {
             "x": x,
             "detector": self.detector,
@@ -591,6 +610,7 @@ class ConformalDetector(BaseConformalDetector):
         self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
             **fit_kwargs
         )
+        self._calibration_mode = CalibrationMode.INTEGRATED
         self._n_features_in = int(x.shape[1])
 
         if (
@@ -630,12 +650,12 @@ class ConformalDetector(BaseConformalDetector):
             NotFittedError: If the base detector appears unfitted.
         """
         _ = y
-        from nonconform.resampling import Split
-
+        self._last_selection_result = None
         if not isinstance(self.strategy, Split):
             raise ValueError(
                 "calibrate() is supported only with Split strategy. "
-                f"Got {type(self.strategy).__name__}."
+                f"Got {type(self.strategy).__name__}. Use fit(x_reference) for "
+                "integrated calibration."
             )
 
         try:
@@ -664,6 +684,7 @@ class ConformalDetector(BaseConformalDetector):
 
         self._detector_set = [self.detector]
         self._calibration_set = calibration_set
+        self._calibration_mode = CalibrationMode.DETACHED
         self._n_features_in = int(x.shape[1])
         if self._is_weighted_mode:
             self._calibration_samples = x.copy()
@@ -675,10 +696,16 @@ class ConformalDetector(BaseConformalDetector):
         self._last_result = None
         return self
 
-    def _aggregate_scores(self, x: np.ndarray) -> np.ndarray:
-        """Compute aggregated anomaly scores across fitted detector replicas."""
+    def _score_models(self, x: np.ndarray) -> np.ndarray:
+        """Score one batch with every replica, preserving model order."""
         if not self.is_fitted:
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
+        if self.strategy._uses_e_values:
+            x = np.asarray(x)
+            if x.ndim != 2 or x.shape[1] != self._n_features_in:
+                raise ValueError(
+                    "x must be a two-dimensional batch with the fitted feature count."
+                )
 
         iterable = (
             tqdm(self._detector_set, total=len(self._detector_set), desc="Aggregation")
@@ -686,16 +713,58 @@ class ConformalDetector(BaseConformalDetector):
             else self._detector_set
         )
 
-        scores = np.vstack(
-            [np.asarray(model.decision_function(x)) for model in iterable]
-        )
+        rows = []
+        for model in iterable:
+            row = np.asarray(model.decision_function(x))
+            if self.strategy._uses_e_values and row.shape != (len(x),):
+                raise ValueError("Each model must return one score per test row.")
+            rows.append(row)
+        return np.vstack(rows)
+
+    def _aggregate_scores(self, x: np.ndarray) -> np.ndarray:
+        """Compute aggregated anomaly scores across fitted detector replicas."""
+        scores = self._score_models(x)
         return aggregate(method=self.aggregation, scores=scores)
+
+    def _result_metadata(self) -> dict[str, Any]:
+        """Return the released metadata shape for p-value snapshots."""
+        return {
+            "nonconform": {
+                "strategy": type(self.strategy).__name__,
+                "estimation": type(self.estimation).__name__,
+                "weighted": self._is_weighted_mode,
+            }
+        }
+
+    def _result_provenance(
+        self,
+        test_batch_signature: BatchSignature,
+    ) -> ResultProvenance:
+        """Return typed provenance for a detector-produced result snapshot."""
+        if isinstance(self.estimation, ConditionalEmpirical):
+            estimation_family = EstimationFamily.CONDITIONAL_EMPIRICAL
+        elif isinstance(self.estimation, Empirical):
+            estimation_family = EstimationFamily.EMPIRICAL
+        else:
+            estimation_family = EstimationFamily.OTHER
+        return ResultProvenance(
+            strategy_family=(
+                StrategyFamily.SPLIT
+                if isinstance(self.strategy, Split)
+                else StrategyFamily.OTHER
+            ),
+            estimation_family=estimation_family,
+            weighted=self._is_weighted_mode,
+            calibration_mode=self._calibration_mode,
+            test_batch_signature=test_batch_signature,
+        )
 
     def _resolve_weights(
         self,
         x: np.ndarray,
         *,
         refit_weights: bool,
+        test_batch_signature: BatchSignature,
     ) -> tuple[np.ndarray, np.ndarray] | None:
         """Resolve calibration/test weights for the current batch."""
         if not self._is_weighted_mode or self.weight_estimator is None:
@@ -705,7 +774,7 @@ class ConformalDetector(BaseConformalDetector):
             self.weight_estimator.fit(self._calibration_samples, x)
             self._prepared_weight_batch_size = len(x)
             if self.verify_prepared_batch_content:
-                self._prepared_weight_batch_signature = _batch_signature(x)
+                self._prepared_weight_batch_signature = test_batch_signature
             else:
                 self._prepared_weight_batch_signature = None
             return self.weight_estimator.get_weights()
@@ -721,7 +790,7 @@ class ConformalDetector(BaseConformalDetector):
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
         if self.verify_prepared_batch_content and (
-            self._prepared_weight_batch_signature != _batch_signature(x)
+            self._prepared_weight_batch_signature != test_batch_signature
         ):
             raise ValueError(
                 "Prepared weights do not match current batch content. "
@@ -738,13 +807,18 @@ class ConformalDetector(BaseConformalDetector):
         seed: int | None = None,
         refit_weights: bool = True,
     ) -> np.ndarray | pd.Series:
-        """Compute p-values or tail estimates and apply batch selection.
+        """Construct evidence and select anomalies from one fixed test batch.
 
         This is the single-call batch workflow. It combines
         ``compute_p_values()`` with Benjamini-Hochberg in standard mode or
         weighted conformalized selection in weighted mode. Validity still
         depends on the assumptions of both the p-value construction and the
         selected multiple-testing procedure.
+
+        With DerandomizedSplits, this instead constructs per-split e-values,
+        averages them uniformly, and applies e-BH once. Configure alpha_bh and
+        tie_seed on that strategy. Automatic ties use a separate fitting-derived
+        seed. Selection populates last_selection_result and clears last_result.
 
         Args:
             x: New data instances for anomaly estimation.
@@ -813,12 +887,26 @@ class ConformalDetector(BaseConformalDetector):
             print("Number selected:", int(selected.sum()))
             ```
         """
+        self._last_selection_result = None
+        if self.strategy._uses_e_values:
+            self._last_result = None
         if not (0.0 < alpha < 1.0):
             raise ValueError(f"alpha must be in (0, 1), got {alpha}")
 
         from nonconform.fdr import weighted_false_discovery_control
 
         x_array, index = _as_numpy_with_index(x)
+        if self.strategy._uses_e_values:
+            scores = self._score_models(x_array)
+            selection = self.strategy._select_e_values(
+                scores, self._calibration_set, alpha=alpha
+            )
+            self._last_selection_result = selection
+            mask = selection.selected.copy()
+            if index is not None:
+                return pd.Series(mask, index=index, name="selected")
+            return mask
+
         self.compute_p_values(x_array, refit_weights=refit_weights)
         result = self._last_result
         if result is None or result.p_values is None:
@@ -870,7 +958,7 @@ class ConformalDetector(BaseConformalDetector):
         self.weight_estimator.fit(self._calibration_samples, x)
         self._prepared_weight_batch_size = len(x)
         if self.verify_prepared_batch_content:
-            self._prepared_weight_batch_signature = _batch_signature(x)
+            self._prepared_weight_batch_signature = batch_signature(x)
         else:
             self._prepared_weight_batch_signature = None
         return self
@@ -883,6 +971,10 @@ class ConformalDetector(BaseConformalDetector):
     ) -> np.ndarray | pd.Series:
         """Return aggregated raw anomaly scores for new data.
 
+        Clears last_selection_result. With DerandomizedSplits, raw aggregation
+        is diagnostic only and the last_result snapshot has calib_scores=None;
+        select() instead uses each model's separate score/calibration pair.
+
         Args:
             x: New data instances for anomaly estimation.
             refit_weights: Whether to refit the weight estimator for this batch
@@ -891,25 +983,40 @@ class ConformalDetector(BaseConformalDetector):
         Returns:
             Aggregated raw anomaly scores.
         """
+        self._last_selection_result = None
+        if self.strategy._uses_e_values:
+            self._last_result = None
         x_array, index = _as_numpy_with_index(x)
+        test_batch_signature = batch_signature(x_array)
         estimates = self._aggregate_scores(x_array)
-        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
+        weights = self._resolve_weights(
+            x_array,
+            refit_weights=refit_weights,
+            test_batch_signature=test_batch_signature,
+        )
         calib_weights, test_weights = weights if weights else (None, None)
 
-        self._last_result = ConformalResult(
+        result = ConformalResult(
             p_values=None,
             test_scores=estimates.copy(),
-            calib_scores=self._calibration_set.copy(),
+            calib_scores=(
+                None if self.strategy._uses_e_values else self._calibration_set.copy()
+            ),
             test_weights=_safe_copy(test_weights),
             calib_weights=_safe_copy(calib_weights),
             metadata={},
         )
+        result._provenance = self._result_provenance(test_batch_signature)
+        self._last_result = result
         if index is not None:
             return pd.Series(estimates, index=index, name="score")
         return estimates
 
     def compute_p_value(self, x: pd.Series | np.ndarray) -> float:
         """Return one value from the configured estimation strategy.
+
+        Unavailable for DerandomizedSplits; use select() on a fixed test batch
+        and inspect last_selection_result instead.
 
         This is a single-sample convenience wrapper around
         :meth:`compute_p_values`. It updates :attr:`last_result` with the
@@ -938,6 +1045,7 @@ class ConformalDetector(BaseConformalDetector):
             Randomized tie-breaking can produce different values from one batch
             call.
         """
+        self._require_p_value_strategy()
         if not self.is_fitted:
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
         if self._is_weighted_mode:
@@ -977,6 +1085,9 @@ class ConformalDetector(BaseConformalDetector):
     ) -> np.ndarray | pd.Series:
         """Return values from the configured estimation strategy for new data.
 
+        Unavailable for DerandomizedSplits; use select() and inspect
+        last_selection_result instead.
+
         Args:
             x: New data instances for anomaly estimation.
             refit_weights: Whether to refit the weight estimator for this batch
@@ -986,28 +1097,28 @@ class ConformalDetector(BaseConformalDetector):
             P-values or score-tail estimates. Pandas input produces a Series
             named ``"p_value"``; NumPy input produces an ndarray.
         """
+        self._require_p_value_strategy()
         x_array, index = _as_numpy_with_index(x)
+        test_batch_signature = batch_signature(x_array)
         estimates = self._aggregate_scores(x_array)
-        weights = self._resolve_weights(x_array, refit_weights=refit_weights)
+        weights = self._resolve_weights(
+            x_array,
+            refit_weights=refit_weights,
+            test_batch_signature=test_batch_signature,
+        )
         calib_weights, test_weights = weights if weights else (None, None)
 
         p_values = self.estimation.compute_p_values(
             estimates, self._calibration_set, weights
         )
 
-        metadata: dict[str, Any] = {
-            "nonconform": {
-                "strategy": type(self.strategy).__name__,
-                "estimation": type(self.estimation).__name__,
-                "weighted": self._is_weighted_mode,
-            }
-        }
+        metadata = self._result_metadata()
         if hasattr(self.estimation, "get_metadata"):
             meta = self.estimation.get_metadata()
             if meta:
                 metadata.update(meta)
 
-        self._last_result = ConformalResult(
+        result = ConformalResult(
             p_values=p_values.copy(),
             test_scores=estimates.copy(),
             calib_scores=self._calibration_set.copy(),
@@ -1015,6 +1126,8 @@ class ConformalDetector(BaseConformalDetector):
             calib_weights=_safe_copy(calib_weights),
             metadata=metadata,
         )
+        result._provenance = self._result_provenance(test_batch_signature)
+        self._last_result = result
         if index is not None:
             return pd.Series(p_values, index=index, name="p_value")
         return p_values
@@ -1026,7 +1139,12 @@ class ConformalDetector(BaseConformalDetector):
 
     @property
     def calibration_set(self) -> np.ndarray:
-        """Returns a copy of the calibration scores."""
+        """Return a copy of calibration scores.
+
+        DerandomizedSplits returns a matrix shaped
+        (n_repetitions, n_calibration), with one row per retained model.
+        Other strategies return their existing one-dimensional score array.
+        """
         return self._calibration_set.copy()
 
     @property
@@ -1036,8 +1154,36 @@ class ConformalDetector(BaseConformalDetector):
 
     @property
     def last_result(self) -> ConformalResult | None:
-        """Return the most recent conformal result snapshot."""
+        """Return the most recent raw-score or p-value snapshot.
+
+        DerandomizedSplits selection instead populates last_selection_result
+        and clears this snapshot. Its raw-score snapshots have no pooled
+        calibration scores.
+        """
         return None if self._last_result is None else self._last_result.copy()
+
+    @property
+    def last_selection_result(self) -> EValueSelectionResult | None:
+        """Return a defensive snapshot of the latest e-value selection.
+
+        None before selection, after fitting or raw scoring, and for existing
+        p-value selection workflows. Arrays remain read-only in the snapshot.
+        """
+        if self._last_selection_result is None:
+            return None
+        from dataclasses import replace
+
+        return replace(self._last_selection_result)
+
+    def _require_p_value_strategy(self) -> None:
+        """Reject p-value operations for a strategy that constructs e-values."""
+        self._last_selection_result = None
+        if self.strategy._uses_e_values:
+            self._last_result = None
+            raise ValueError(
+                "DerandomizedSplits constructs e-values, not p-values. "
+                "Use select(x, alpha=...) and inspect last_selection_result."
+            )
 
     @property
     def score_polarity(self) -> ScorePolarity:

@@ -1,12 +1,13 @@
 """Conformal evidence for anomaly detection and change monitoring.
 
 ``nonconform`` wraps PyOD, recognized scikit-learn, and custom anomaly scorers
-for two primary workflows: batch conformal p-values with false discovery rate
+for two primary workflows: batch conformal evidence with false discovery rate
 control, and sequential randomized ranks with exchangeability martingales.
 Guarantees depend on the assumptions of the selected workflow.
 
 Main Components:
     - Batch conformal p-values and FDR-controlled selection
+    - Repeated split-conformal e-values with DerandomizedSplits and e-BH
     - Split and resampling calibration strategies
     - Weighted conformal inference and WCS under covariate shift
     - Post-hoc simultaneous FDP bounds
@@ -48,6 +49,7 @@ from nonconform.detector import ConformalDetector
 # Calibration strategies
 from nonconform.resampling import (
     CrossValidation,
+    DerandomizedSplits,
     JackknifeBootstrap,
     Split,
 )
@@ -67,6 +69,7 @@ from nonconform.weighting import (
 __all__ = [  # noqa: RUF022
     "ConformalDetector",
     "Split",
+    "DerandomizedSplits",
     "CrossValidation",
     "JackknifeBootstrap",
     "Empirical",

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `DerandomizedSplits` for repeated split-conformal e-value selection
+  through `ConformalDetector.fit()` and `select()`, with automatic randomized
+  tie handling and defensive diagnostics in `last_selection_result`. Existing
+  strategies and standalone e-value functions retain their behavior.
+- Added result-aware derandomized conformal e-value selection through
+  `nonconform.fdr.select_conformal_e_values`, plus low-level e-value and e-BH
+  primitives. For unmodified result snapshots, the workflow verifies
+  split-conformal provenance and exact test batch identity, rejects score ties
+  by default, and supports reproducible randomized tie-breaking through `tie_seed`.
+
 ## [1.1.1] - 2026-08-19
 
 ### Changed
@@ -40,7 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `nonconform.fdr.conformal_fdp_upper_bound`, including certified precision
   lower bounds and envelope methods `mc_thc`, `mc_hc`, `mc_ks`, `ks`, and
   `mc_bj`.
-
 ### Changed
 
 - Restricted cached-result FDP certificates to known supported empirical split

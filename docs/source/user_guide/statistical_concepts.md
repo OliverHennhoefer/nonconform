@@ -46,6 +46,35 @@ reference population.
 
 ---
 
+## E-values
+
+**What it is**: A non-negative evidence value where larger values indicate
+stronger evidence against a null hypothesis. Unlike p-values, e-values are
+designed to be averaged across certain dependent analyses when their validity
+conditions hold.
+
+**In nonconform**: `DerandomizedSplits` manages repeated split-conformal fitting
+through the detector. `select(...)` uniformly averages per-split evidence and
+applies e-BH, with diagnostics in `last_selection_result`. Tied scores are
+randomized automatically using a separate fitting-derived stream.
+`select_conformal_e_values(...)` remains available for existing split-result
+snapshots, and the lower-level `conformal_e_values(...)` accepts arrays when
+experts have independently verified score provenance. These standalone
+functions still require an explicit `tie_seed` to handle ties.
+
+**Guarantee**: The construction targets an aggregate null-evidence condition
+that is sufficient for e-BH FDR control under the method assumptions; it does
+not claim that each constructed value is individually an ordinary e-value. The
+scope requires exchangeable inliers/null test points, a strict or independently
+randomized score ordering, one fixed test family in consistent row order, valid
+integrated unweighted `Split` score maps, and one final e-BH filtering step.
+
+**Common mistake**: Do not treat e-values as p-values or threshold them at
+ordinary p-value cutoffs. Use `detector.select(...)` with `DerandomizedSplits`,
+or the standalone e-value selection functions, for FDR decisions.
+
+---
+
 ## False Discovery Rate (FDR)
 
 **What it is**: Let $V$ be the number of false discoveries and $R$ the total

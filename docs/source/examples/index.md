@@ -1,5 +1,5 @@
 ---
-description: "Independently runnable nonconform examples for batch, conditional, resampling, weighted, FDR, and sequential workflows."
+description: "Independently runnable nonconform examples for batch, conditional, resampling, weighted, derandomized e-value, FDR, and sequential workflows."
 ---
 
 # Examples
@@ -16,6 +16,7 @@ into a fresh Python process after installing the dependencies named on its page.
 | [Conditional conformal](conditional_conformal.md) | You need calibration-set-conditional p-value maps | Conditionally transformed p-values and BH mask |
 | [Data-efficient resampling](resampling_conformal.md) | A fixed holdout is costly and resampling is justified | Strategy comparison with fit cost, FDP, and power |
 | [Weighted conformal](weighted_conformal.md) | The target null follows a defensible covariate-shift model | Weighted p-values, WCS mask, and weight diagnostics |
+| [Derandomized conformal e-values](derandomized_e_values.md) | Random calibration splits make selections unstable | `DerandomizedSplits` with `detector.select()`, e-values, and e-BH mask |
 | [FDR control and FDP bounds](fdr_control.md) | You need to compare multiple-testing targets | Pointwise, BH, BY, and simultaneous FDP certificate |
 | [Exchangeability martingales](../user_guide/exchangeability_martingales.md#basic-sequential-usage) | You monitor an ordered stream for change | Sequential p-values, martingale evidence, and alarms |
 
@@ -27,7 +28,8 @@ The synthetic scikit-learn examples need only the core installation:
 pip install nonconform
 ```
 
-The classical benchmark example also uses PyOD and oddball:
+The classical benchmark and derandomized e-value examples also use PyOD and
+oddball:
 
 ```bash
 pip install "nonconform[data,pyod]"
