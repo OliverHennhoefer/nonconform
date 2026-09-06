@@ -191,7 +191,7 @@ for the full guarantee scope and other alarm statistics.
 | Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Account for covariate shift | [Weighted conformal inference](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
-| Certify a chosen p-value threshold post hoc | [FDP upper bounds](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
+| Certify realized FDP across p-value thresholds with `detector.fdp_bounds(x)` | [FDP upper bounds](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
 | Bring a custom or third-party detector | [Detector compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
 ## Statistical scope

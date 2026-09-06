@@ -31,7 +31,7 @@ from nonconform import (
 Use documented module imports for specialized APIs:
 
 ```python
-from nonconform.fdr import Pruning, conformal_fdp_upper_bound_from_result
+from nonconform.fdr import FDPCertificate, Pruning
 from nonconform.martingales import AlarmConfig, SimpleJumperMartingale
 from nonconform.monitoring import ExchangeabilityMonitor
 from nonconform.scoring import ConditionalEmpirical

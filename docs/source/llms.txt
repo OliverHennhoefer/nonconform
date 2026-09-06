@@ -35,6 +35,7 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 
 - Treat documented statistical guarantees as conditional on the assumptions stated in the relevant guide pages.
 - For one fixed batch family, prefer `ConformalDetector.select(...)`; it applies BH for p-value strategies, e-BH with `DerandomizedSplits`, and WCS in weighted mode. E-value diagnostics are in `last_selection_result`; strategy ties are randomized automatically from a separate fitting-derived seed.
+- For simultaneous realized-FDP certification, use detector.fdp_bounds(x) or a native result.fdp_bounds(); FDPCertificate.from_p_values is the expert route. Certificates are immutable; threshold queries never resample. Only unweighted empirical Split/detached native scopes are supported.
 - For one ordered change-monitoring stream, use `ExchangeabilityMonitor`; fixed-calibration batch p-values are not sequential conformal p-values.
 - Keep expected FDR, realized FDP, and one-stream Ville false-alarm control distinct.
 - Keep `nonconform._internal` private; it is not user-facing API.

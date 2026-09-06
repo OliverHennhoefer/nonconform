@@ -51,119 +51,262 @@ class EValueSelectionResult:
         object.__setattr__(self, "selected", selected)
 
 
-@dataclass(slots=True)
-class FDPBoundResult:
-    """Post-hoc simultaneous FDP upper-bound certificate.
+@dataclass(slots=True, init=False, eq=False)
+class FDPCertificate:
+    """Immutable simultaneous certificate for realized FDP at p-value cutoffs.
 
-    The result evaluates a high-confidence bound on the realized false discovery
-    proportion for threshold selections of conformal p-values.
+    Construct via ``detector.fdp_bounds(x)``, ``result.fdp_bounds()``, or the
+    expert ``from_p_values()`` factory. Choose the envelope method before
+    inspecting its curve. Thresholds may then be explored within this fixed
+    testing family. Confidence is simultaneous coverage, not an FDR target.
 
-    Attributes:
-        p_values: Empirical conformal p-values used for the certificate.
-        thresholds: Thresholds evaluated when the certificate was built.
-        rejection_counts: Number of p-values at or below each threshold.
-        fdp_upper_bounds: Simultaneous realized-FDP upper bounds.
-        n_calibration: Calibration sample size.
-        n_test: Testing-family size.
-        confidence: Requested simultaneous coverage probability.
-        method: ECDF-envelope method.
-        n_resamples: Requested Monte Carlo sample size.
-        boost: Whether threshold-specific sharpening was enabled.
-        seed: Monte Carlo seed, or None.
+    Evidence and default-grid diagnostics are read-only arrays. Queries never
+    resample. ``select(t)`` returns an original-order NumPy mask for p <= t;
+    t is a p-value cutoff, not a requested FDP bound.
     """
 
-    p_values: np.ndarray
-    thresholds: np.ndarray
-    rejection_counts: np.ndarray
-    fdp_upper_bounds: np.ndarray
-    n_calibration: int
-    n_test: int
-    confidence: float
-    method: str
-    n_resamples: int
-    boost: bool
-    seed: int | None
-    _summary_quantile: float = field(repr=False)
-    _lower: float = field(repr=False)
-    _upper: float = field(repr=False)
-    _beta: float = field(repr=False)
-    _precision: float = field(repr=False)
-    _bj_lower_bounds: np.ndarray | None = field(default=None, repr=False)
-    precision_lower_bounds: np.ndarray = field(init=False)
+    _p_values: np.ndarray = field(repr=False)
+    _support: np.ndarray = field(repr=False)
+    _counts: np.ndarray = field(repr=False)
+    _prefix_minima: np.ndarray | None = field(repr=False)
+    _envelope: _fdp_bounds.Envelope = field(repr=False)
 
-    def __post_init__(self) -> None:
-        """Copy array fields so the result is independent of caller inputs."""
-        self.p_values = np.asarray(self.p_values, dtype=float).copy()
-        self.thresholds = np.asarray(self.thresholds, dtype=float).copy()
-        self.rejection_counts = np.asarray(self.rejection_counts, dtype=int).copy()
-        self.fdp_upper_bounds = np.asarray(self.fdp_upper_bounds, dtype=float).copy()
-        if self._bj_lower_bounds is not None:
-            self._bj_lower_bounds = np.asarray(
-                self._bj_lower_bounds,
-                dtype=float,
-            ).copy()
-        self.precision_lower_bounds = 1.0 - self.fdp_upper_bounds
-
-    def _ecdf_upper_bound(self, x: np.ndarray) -> np.ndarray:
-        """Evaluate this result's ECDF envelope."""
-        return _fdp_bounds.ecdf_upper_bound_from_params(
-            x,
-            method=self.method,
-            summary_quantile=self._summary_quantile,
-            lower=self._lower,
-            upper=self._upper,
-            beta=self._beta,
-            bj_lower_bounds=self._bj_lower_bounds,
-            n_test=self.n_test,
+    def __init__(self) -> None:
+        """Require validated construction through the certificate factories."""
+        raise TypeError(
+            "Use detector.fdp_bounds(), result.fdp_bounds(), or "
+            "FDPCertificate.from_p_values()."
         )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent mutation after validated factory construction."""
+        raise AttributeError("FDPCertificate is immutable.")
+
+    def __delattr__(self, name: str) -> None:
+        """Prevent deletion of certificate state."""
+        raise AttributeError("FDPCertificate is immutable.")
+
+    def __repr__(self) -> str:
+        """Summarize configuration without dumping evidence arrays."""
+        return (
+            f"FDPCertificate(method={self.method!r}, confidence={self.confidence}, "
+            f"n_test={self.n_test}, n_calibration={self.n_calibration}, "
+            f"boost={self.boost})"
+        )
+
+    @classmethod
+    def from_p_values(
+        cls,
+        p_values: np.ndarray,
+        *,
+        n_calibration: int,
+        confidence: float = 0.95,
+        method: str = "mc_thc",
+        n_resamples: int | None = None,
+        seed: int | None = None,
+        boost: bool = True,
+        lower: float | None = None,
+        upper: float | None = None,
+        beta: float | None = None,
+        precision: float | None = None,
+    ) -> FDPCertificate:
+        """Certify external p-values; the caller owns provenance assumptions.
+
+        Requires unweighted empirical split-conformal p-values from a fixed
+        scoring map and the reference method's exchangeability assumptions.
+        Native detector/snapshot entry points check supported scope; this expert
+        route cannot. Scientific exchangeability is never established by code.
+
+        Args:
+            p_values: Nonempty 1D testing family in [0, 1], in original order.
+            n_calibration: Positive calibration size shared by all p-values.
+            confidence: Simultaneous coverage probability in (0, 1).
+            method: mc_thc (default), mc_hc, mc_ks, ks, or mc_bj.
+            n_resamples: Monte Carlo draws; defaults to 1000 for MC methods.
+            seed: Monte Carlo seed only. None draws fresh randomness once.
+            boost: Apply threshold-specific sharpening (default True).
+            lower: THC lower truncation, default 0.01.
+            upper: THC upper truncation, default 0.99.
+            beta: THC exponent, default 0.5.
+            precision: BJ inversion tolerance, default 1e-8.
+
+        Method-specific options must be omitted or None when inapplicable.
+        Deterministic ks accepts neither n_resamples nor seed.
+
+        References:
+            Song, Jin, and Candès, "Everywhere Valid Bounds on False Discovery
+            Proportions in Conformal Inference" (2026), arXiv:2605.20726.
+        """
+        values = _fdp_bounds.as_p_values("p_values", p_values)
+        envelope = _fdp_bounds.prepare_envelope(
+            n_calibration=n_calibration,
+            n_test=values.size,
+            confidence=confidence,
+            method=method,
+            n_resamples=n_resamples,
+            seed=seed,
+            boost=boost,
+            lower=lower,
+            upper=upper,
+            beta=beta,
+            precision=precision,
+        )
+        support, counts = np.unique(values, return_counts=True)
+        counts = np.cumsum(counts)
+        minima = None
+        if boost:
+            minima = _fdp_bounds.immutable_array(
+                np.minimum.accumulate(
+                    np.minimum(
+                        values.size, values.size * envelope.evaluate(support) - counts
+                    )
+                )
+            )
+        certificate = object.__new__(cls)
+        object.__setattr__(
+            certificate, "_p_values", _fdp_bounds.immutable_array(values)
+        )
+        object.__setattr__(
+            certificate, "_support", _fdp_bounds.immutable_array(support)
+        )
+        object.__setattr__(certificate, "_counts", _fdp_bounds.immutable_array(counts))
+        object.__setattr__(certificate, "_prefix_minima", minima)
+        object.__setattr__(certificate, "_envelope", envelope)
+        return certificate
+
+    def _query(self, thresholds: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return counts and bounds using prepared inclusive support ranks."""
+        positions = np.searchsorted(self._support, thresholds, side="right") - 1
+        counts = np.where(positions >= 0, self._counts[positions], 0)
+        if self._prefix_minima is not None:
+            numerator = self._prefix_minima[positions] + counts
+        else:
+            numerator = self.n_test * self._envelope.evaluate(thresholds)
+        bounds = np.divide(
+            numerator,
+            counts,
+            out=np.zeros_like(numerator, dtype=float),
+            where=counts > 0,
+        )
+        return counts, np.clip(bounds, 0.0, 1.0)
 
     def bound_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
-        """Evaluate the simultaneous FDP upper envelope at thresholds."""
-        threshold_arr, scalar_input = _fdp_bounds.as_threshold_query(threshold)
-        bounds = _fdp_bounds.evaluate_fdp_upper_bound(
-            self.p_values,
-            threshold_arr,
-            ecdf_upper_bound=self._ecdf_upper_bound,
-            boost=self.boost,
-        )
-        if scalar_input:
-            return float(bounds[0])
-        return bounds
+        """Evaluate the simultaneous FDP bound at scalar or vector cutoffs."""
+        thresholds, scalar = _fdp_bounds.as_threshold_query(threshold)
+        _, bounds = self._query(thresholds)
+        return float(bounds[0]) if scalar else bounds
 
     def precision_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
-        """Return ``1 - bound_at(threshold)`` as a precision lower bound."""
+        """Return 1 - bound_at(threshold), a simultaneous precision lower bound."""
         return 1.0 - self.bound_at(threshold)
 
+    def select(self, threshold: float) -> np.ndarray:
+        """Return an original-order Boolean NumPy mask for p <= threshold."""
+        thresholds, scalar = _fdp_bounds.as_threshold_query(threshold)
+        if not scalar:
+            raise ValueError("threshold must be a scalar for select().")
+        return self._p_values <= thresholds[0]
+
     def to_frame(self, thresholds: np.ndarray | None = None) -> pd.DataFrame:
-        """Return threshold-level FDP certificates as a DataFrame."""
-        if thresholds is None:
-            threshold_arr = self.thresholds
-            fdp_bounds = self.fdp_upper_bounds
-            precision_bounds = self.precision_lower_bounds
-        else:
-            threshold_arr = _fdp_bounds.as_thresholds(thresholds, self.p_values)
-            fdp_bounds = self.bound_at(threshold_arr)
-            precision_bounds = 1.0 - fdp_bounds
-        rejection_counts = np.searchsorted(
-            np.sort(self.p_values),
-            threshold_arr,
-            side="right",
+        """Report a grid; default to sorted unique observed p-values.
+
+        Explicit grids preserve order and duplicates and may be empty.
+        Returned tables are independent of the certificate.
+        """
+        grid = (
+            self._support
+            if thresholds is None
+            else _fdp_bounds.as_thresholds(thresholds)
         )
+        counts, bounds = self._query(grid)
         return pd.DataFrame(
             {
-                "threshold": threshold_arr,
-                "discoveries": rejection_counts,
-                "fdp_upper_bound": fdp_bounds,
-                "precision_lower_bound": precision_bounds,
+                "threshold": grid.copy(),
+                "discoveries": counts,
+                "fdp_upper_bound": bounds,
+                "precision_lower_bound": 1.0 - bounds,
             }
         )
 
-    def select(self, threshold: float) -> np.ndarray:
-        """Return the mask induced by ``p_values <= threshold``."""
-        threshold_arr, scalar_input = _fdp_bounds.as_threshold_query(threshold)
-        if not scalar_input:
-            raise ValueError("threshold must be a scalar for select().")
-        return self.p_values <= threshold_arr[0]
+    @property
+    def p_values(self) -> np.ndarray:
+        """Read-only evidence in original observation order."""
+        return _fdp_bounds.immutable_array(self._p_values)
+
+    @property
+    def thresholds(self) -> np.ndarray:
+        """Read-only default grid of sorted unique observed p-values."""
+        return _fdp_bounds.immutable_array(self._support)
+
+    @property
+    def rejection_counts(self) -> np.ndarray:
+        """Read-only discovery counts on the default grid."""
+        return _fdp_bounds.immutable_array(self._counts)
+
+    @property
+    def fdp_upper_bounds(self) -> np.ndarray:
+        """Read-only FDP upper bounds on the default grid."""
+        return _fdp_bounds.immutable_array(self.bound_at(self._support))
+
+    @property
+    def precision_lower_bounds(self) -> np.ndarray:
+        """Read-only precision lower bounds on the default grid."""
+        return _fdp_bounds.immutable_array(self.precision_at(self._support))
+
+    @property
+    def n_calibration(self) -> int:
+        """Calibration sample size."""
+        return self._envelope.n_calibration
+
+    @property
+    def n_test(self) -> int:
+        """Fixed testing-family size."""
+        return self._envelope.n_test
+
+    @property
+    def confidence(self) -> float:
+        """Simultaneous coverage probability."""
+        return self._envelope.confidence
+
+    @property
+    def method(self) -> str:
+        """Normalized envelope method."""
+        return self._envelope.method
+
+    @property
+    def n_resamples(self) -> int | None:
+        """Effective Monte Carlo draws; None for deterministic KS."""
+        return self._envelope.n_resamples
+
+    @property
+    def seed(self) -> int | None:
+        """Monte Carlo seed supplied at construction, or None."""
+        return self._envelope.seed
+
+    @property
+    def boost(self) -> bool:
+        """Whether threshold-specific sharpening is enabled."""
+        return self._envelope.boost
+
+    @property
+    def lower(self) -> float | None:
+        """Effective THC lower truncation; otherwise None."""
+        return self._envelope.lower
+
+    @property
+    def upper(self) -> float | None:
+        """Effective THC upper truncation; otherwise None."""
+        return self._envelope.upper
+
+    @property
+    def beta(self) -> float | None:
+        """Effective THC exponent; otherwise None."""
+        return self._envelope.beta
+
+    @property
+    def precision(self) -> float | None:
+        """Effective BJ inversion tolerance; otherwise None."""
+        return self._envelope.precision
 
 
 def conformal_e_values(
@@ -296,208 +439,6 @@ def _select_conformal_e_values_from_scores(
     )
 
 
-def conformal_fdp_upper_bound(
-    p_values: np.ndarray,
-    *,
-    n_calibration: int,
-    confidence: float = 0.95,
-    n_resamples: int = 1000,
-    method: str = _fdp_bounds.DEFAULT_METHOD,
-    seed: int | None = None,
-    boost: bool = True,
-    lower: float = 0.01,
-    upper: float = 0.99,
-    beta: float = 0.5,
-    precision: float = 1e-8,
-    thresholds: np.ndarray | None = None,
-) -> FDPBoundResult:
-    """Compute post-hoc simultaneous FDP upper bounds for conformal p-values.
-
-    This implements simultaneous FDP envelopes from Song, Jin, and Candès for
-    unweighted conformal p-values from a fixed scoring map. Choose ``method``
-    before inspecting the resulting curve. This array-level entry point cannot
-    inspect how its p-values were produced, so the caller is responsible for the
-    reference method's assumptions.
-
-    Args:
-        p_values: Non-empty one-dimensional testing-family p-values in
-            ``[0, 1]``.
-        n_calibration: Number of calibration scores used for every p-value.
-        confidence: Simultaneous coverage probability in ``(0, 1)``.
-        n_resamples: Positive Monte Carlo sample size for ``"mc_"`` methods.
-        method: One of ``"mc_thc"``, ``"mc_hc"``, ``"mc_ks"``, ``"ks"``, or
-            ``"mc_bj"``.
-        seed: Non-negative Monte Carlo seed, or None.
-        boost: Whether to apply threshold-specific envelope sharpening.
-        lower: Lower truncation point for ``method="mc_thc"``.
-        upper: Upper truncation point for ``method="mc_thc"``.
-        beta: Positive truncation exponent for ``method="mc_thc"``.
-        precision: Positive numerical tolerance for ``"mc_bj"`` inversion.
-        thresholds: Optional one-dimensional thresholds in ``[0, 1]``.
-
-    Returns:
-        A simultaneous threshold-indexed FDP certificate.
-
-    References:
-        Song, Jin, and Candès, "Everywhere Valid Bounds on False Discovery
-        Proportions in Conformal Inference" (2026), arXiv:2605.20726.
-    """
-    p_values_arr = _fdp_bounds.as_p_values("p_values", p_values)
-    n_calibration = _fdp_bounds.validate_positive_integer(
-        "n_calibration",
-        n_calibration,
-    )
-    n_resamples = _fdp_bounds.validate_positive_integer(
-        "n_resamples",
-        n_resamples,
-    )
-    confidence = _fdp_bounds.validate_probability("confidence", confidence)
-    method = _fdp_bounds.validate_method(method)
-    seed = _fdp_bounds.validate_optional_seed("seed", seed)
-    if not isinstance(boost, bool):
-        raise TypeError("boost must be a boolean value.")
-    lower, upper, beta = _fdp_bounds.validate_truncation(lower, upper, beta)
-    precision = _fdp_bounds.validate_positive_finite("precision", precision)
-
-    evaluated_thresholds = _fdp_bounds.as_thresholds(thresholds, p_values_arr)
-    summary_quantile, bj_lower_bounds = _fdp_bounds.build_ecdf_upper_bound(
-        method=method,
-        n_calibration=n_calibration,
-        n_test=p_values_arr.size,
-        confidence=confidence,
-        n_resamples=n_resamples,
-        seed=seed,
-        lower=lower,
-        upper=upper,
-        beta=beta,
-        precision=precision,
-    )
-
-    def ecdf_upper_bound(x: np.ndarray) -> np.ndarray:
-        return _fdp_bounds.ecdf_upper_bound_from_params(
-            x,
-            method=method,
-            summary_quantile=summary_quantile,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-            bj_lower_bounds=bj_lower_bounds,
-            n_test=p_values_arr.size,
-        )
-
-    fdp_bounds = _fdp_bounds.evaluate_fdp_upper_bound(
-        p_values_arr,
-        evaluated_thresholds,
-        ecdf_upper_bound=ecdf_upper_bound,
-        boost=boost,
-    )
-    rejection_counts = np.searchsorted(
-        np.sort(p_values_arr),
-        evaluated_thresholds,
-        side="right",
-    )
-    return FDPBoundResult(
-        p_values=p_values_arr,
-        thresholds=evaluated_thresholds,
-        rejection_counts=rejection_counts,
-        fdp_upper_bounds=fdp_bounds,
-        n_calibration=n_calibration,
-        n_test=p_values_arr.size,
-        confidence=confidence,
-        method=method,
-        n_resamples=n_resamples,
-        boost=boost,
-        seed=seed,
-        _summary_quantile=summary_quantile,
-        _lower=lower,
-        _upper=upper,
-        _beta=beta,
-        _precision=precision,
-        _bj_lower_bounds=bj_lower_bounds,
-    )
-
-
-def conformal_fdp_upper_bound_from_result(
-    result: ConformalResult | None,
-    *,
-    confidence: float = 0.95,
-    n_resamples: int = 1000,
-    method: str = _fdp_bounds.DEFAULT_METHOD,
-    seed: int | None = None,
-    boost: bool = True,
-    lower: float = 0.01,
-    upper: float = 0.99,
-    beta: float = 0.5,
-    precision: float = 1e-8,
-    thresholds: np.ndarray | None = None,
-) -> FDPBoundResult:
-    """Compute simultaneous FDP bounds from a compatible result bundle.
-
-    The result must contain unweighted ``Empirical`` p-values from ``Split`` or
-    detached calibration. Weighted, KDE, conditionally calibrated, and
-    resampling-strategy bundles are rejected.
-
-    Args:
-        result: Result produced by ``compute_p_values()`` or ``select()``.
-        confidence: Simultaneous coverage probability in ``(0, 1)``.
-        n_resamples: Positive Monte Carlo sample size for ``"mc_"`` methods.
-        method: ECDF-envelope method accepted by
-            :func:`conformal_fdp_upper_bound`.
-        seed: Non-negative Monte Carlo seed, or None.
-        boost: Whether to apply threshold-specific envelope sharpening.
-        lower: Lower truncation point for ``method="mc_thc"``.
-        upper: Upper truncation point for ``method="mc_thc"``.
-        beta: Positive truncation exponent for ``method="mc_thc"``.
-        precision: Positive numerical tolerance for ``"mc_bj"`` inversion.
-        thresholds: Optional one-dimensional thresholds in ``[0, 1]``.
-
-    Returns:
-        A simultaneous threshold-indexed FDP certificate.
-    """
-    if result is None:
-        raise ValueError(
-            "result must be a ConformalResult, got None. Run compute_p_values(...) "
-            "before calling conformal_fdp_upper_bound_from_result()."
-        )
-    if result.p_values is None:
-        raise ValueError(
-            "result is missing p_values. Run compute_p_values(...) before calling "
-            "conformal_fdp_upper_bound_from_result()."
-        )
-    if result.calib_scores is None:
-        raise ValueError(
-            "result is missing calib_scores. The FDP bound requires the number "
-            "of calibration scores."
-        )
-    if result.test_weights is not None or result.calib_weights is not None:
-        raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports only unweighted "
-            "conformal p-values in this release."
-        )
-    _fdp_bounds.validate_result_scope(result)
-
-    calib_scores = _fdp_bounds.as_1d_numeric(
-        "result.calib_scores",
-        result.calib_scores,
-    )
-    if calib_scores.size == 0:
-        raise ValueError("result.calib_scores must contain at least one score.")
-    return conformal_fdp_upper_bound(
-        result.p_values,
-        n_calibration=calib_scores.size,
-        confidence=confidence,
-        n_resamples=n_resamples,
-        method=method,
-        seed=seed,
-        boost=boost,
-        lower=lower,
-        upper=upper,
-        beta=beta,
-        precision=precision,
-        thresholds=thresholds,
-    )
-
-
 def weighted_false_discovery_control(
     result: ConformalResult | None,
     *,
@@ -583,11 +524,9 @@ def weighted_false_discovery_control_from_arrays(
 
 __all__ = [
     "EValueSelectionResult",
-    "FDPBoundResult",
+    "FDPCertificate",
     "Pruning",
     "conformal_e_values",
-    "conformal_fdp_upper_bound",
-    "conformal_fdp_upper_bound_from_result",
     "e_value_false_discovery_control",
     "select_conformal_e_values",
     "weighted_false_discovery_control",

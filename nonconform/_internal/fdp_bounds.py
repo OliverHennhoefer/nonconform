@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
 from nonconform.structures import ConformalResult
 
 from .provenance import (
+    CalibrationMode,
     EstimationFamily,
+    ResultProvenance,
     StrategyFamily,
     parse_result_provenance,
 )
 from .validation import (
     as_1d_numeric,
+    validate_finite,
     validate_optional_seed,
     validate_p_values,
     validate_positive_finite,
@@ -22,7 +26,6 @@ from .validation import (
     validate_probability,
 )
 
-DEFAULT_METHOD = "mc_thc"
 _METHODS = frozenset({"mc_thc", "mc_hc", "mc_ks", "ks", "mc_bj"})
 
 
@@ -60,14 +63,8 @@ def as_p_values(name: str, values: np.ndarray) -> np.ndarray:
     return np.clip(p_values, 0.0, 1.0)
 
 
-def as_thresholds(
-    thresholds: np.ndarray | None,
-    p_values: np.ndarray,
-) -> np.ndarray:
-    """Return evaluated thresholds, preserving explicit user order."""
-    if thresholds is None:
-        return np.unique(np.sort(p_values)).astype(float, copy=True)
-
+def as_thresholds(thresholds: np.ndarray) -> np.ndarray:
+    """Validate an explicit query grid, preserving order and duplicates."""
     arr = as_1d_numeric("thresholds", thresholds).astype(float, copy=True)
     validate_p_values(arr)
     return np.clip(arr, 0.0, 1.0)
@@ -89,26 +86,175 @@ def as_threshold_query(threshold: float | np.ndarray) -> tuple[np.ndarray, bool]
     return np.clip(arr, 0.0, 1.0), scalar_input
 
 
-def validate_result_scope(result: ConformalResult) -> None:
-    """Reject result scopes known to fall outside the FDP-bound guarantee."""
-    provenance = parse_result_provenance(result, allow_legacy_metadata=True)
+def validate_scope(provenance: ResultProvenance | None) -> None:
+    """Require native facts for the supported split-conformal construction."""
     if provenance is None:
-        return
+        raise ValueError(
+            "fdp_bounds() requires native provenance. For external p-values, use "
+            "FDPCertificate.from_p_values() and verify its assumptions."
+        )
     if provenance.weighted:
-        raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports only unweighted "
-            "conformal p-values in this release."
-        )
+        raise ValueError("fdp_bounds() supports only unweighted conformal p-values.")
     if provenance.estimation_family is not EstimationFamily.EMPIRICAL:
-        raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports empirical conformal "
-            "p-values only."
-        )
+        raise ValueError("fdp_bounds() supports empirical conformal p-values only.")
     if provenance.strategy_family is not StrategyFamily.SPLIT:
+        raise ValueError("fdp_bounds() supports split or detached calibration only.")
+    if provenance.calibration_mode not in {
+        CalibrationMode.INTEGRATED,
+        CalibrationMode.DETACHED,
+    }:
+        raise ValueError("fdp_bounds() requires a fitted or calibrated native result.")
+
+
+def validate_result_scope(result: ConformalResult) -> int:
+    """Validate snapshot scope and dimensions; return calibration size.
+
+    Native provenance is a scope check, not proof that arrays are unmodified.
+    """
+    if result.p_values is None:
+        raise ValueError("result is missing p_values. Run compute_p_values() first.")
+    if result.calib_scores is None:
         raise ValueError(
-            "conformal_fdp_upper_bound_from_result() supports split or detached "
-            "calibration results only."
+            "result is missing calib_scores. Run compute_p_values() first."
         )
+    if result.test_weights is not None or result.calib_weights is not None:
+        raise ValueError("fdp_bounds() supports only unweighted conformal p-values.")
+    provenance = parse_result_provenance(result)
+    validate_scope(provenance)
+    p_values = as_p_values("result.p_values", result.p_values)
+    calib_scores = as_1d_numeric("result.calib_scores", result.calib_scores)
+    validate_finite("result.calib_scores", calib_scores)
+    if calib_scores.size == 0:
+        raise ValueError("result.calib_scores must contain at least one score.")
+    signature = provenance.test_batch_signature
+    if signature is None or not signature.shape or signature.shape[0] != p_values.size:
+        raise ValueError(
+            "result.p_values are inconsistent with recorded batch dimensions."
+        )
+    if result.test_scores is not None:
+        scores = as_1d_numeric("result.test_scores", result.test_scores)
+        validate_finite("result.test_scores", scores)
+        if scores.size != p_values.size:
+            raise ValueError("result.test_scores must match the p_values batch size.")
+    return calib_scores.size
+
+
+def immutable_array(values: np.ndarray) -> np.ndarray:
+    """Own an array in immutable bytes, preventing write-flag escalation."""
+    arr = np.ascontiguousarray(values)
+    return np.frombuffer(arr.tobytes(), dtype=arr.dtype).reshape(arr.shape)
+
+
+@dataclass(frozen=True, slots=True)
+class Envelope:
+    """Realized envelope and effective, method-specific configuration."""
+
+    method: str
+    n_calibration: int
+    n_test: int
+    confidence: float
+    n_resamples: int | None
+    seed: int | None
+    boost: bool
+    lower: float | None
+    upper: float | None
+    beta: float | None
+    precision: float | None
+    summary_quantile: float
+    bj_lower_bounds: np.ndarray | None
+
+    def evaluate(self, x: np.ndarray) -> np.ndarray:
+        """Evaluate the already calibrated envelope without resampling."""
+        return ecdf_upper_bound_from_params(
+            x,
+            method=self.method,
+            summary_quantile=self.summary_quantile,
+            lower=self.lower,
+            upper=self.upper,
+            beta=self.beta,
+            bj_lower_bounds=self.bj_lower_bounds,
+            n_test=self.n_test,
+        )
+
+
+def prepare_envelope(
+    *,
+    n_calibration: int,
+    n_test: int,
+    confidence: float,
+    method: str,
+    n_resamples: int | None,
+    seed: int | None,
+    boost: bool,
+    lower: float | None,
+    upper: float | None,
+    beta: float | None,
+    precision: float | None,
+) -> Envelope:
+    """Resolve applicable options and calibrate one immutable envelope."""
+    method = validate_method(method)
+    n_calibration = validate_positive_integer("n_calibration", n_calibration)
+    confidence = validate_probability("confidence", confidence)
+    if not isinstance(boost, bool):
+        raise TypeError("boost must be a boolean value.")
+    options = {
+        "n_resamples": n_resamples,
+        "seed": seed,
+        "lower": lower,
+        "upper": upper,
+        "beta": beta,
+        "precision": precision,
+    }
+    applicable = {"n_resamples", "seed"} if method.startswith("mc_") else set()
+    if method == "mc_thc":
+        applicable.update({"lower", "upper", "beta"})
+    if method == "mc_bj":
+        applicable.add("precision")
+    for name, value in options.items():
+        if value is not None and name not in applicable:
+            raise ValueError(f"{name} does not apply to method={method!r}; omit it.")
+    if "n_resamples" in applicable:
+        n_resamples = validate_positive_integer(
+            "n_resamples", 1000 if n_resamples is None else n_resamples
+        )
+        seed = validate_optional_seed("seed", seed)
+    if method == "mc_thc":
+        lower, upper, beta = validate_truncation(
+            0.01 if lower is None else lower,
+            0.99 if upper is None else upper,
+            0.5 if beta is None else beta,
+        )
+    if method == "mc_bj":
+        precision = validate_positive_finite(
+            "precision", 1e-8 if precision is None else precision
+        )
+    summary, bj_bounds = build_ecdf_upper_bound(
+        method=method,
+        n_calibration=n_calibration,
+        n_test=n_test,
+        confidence=confidence,
+        n_resamples=n_resamples,
+        seed=seed,
+        lower=lower,
+        upper=upper,
+        beta=beta,
+        precision=precision,
+    )
+    return Envelope(
+        method,
+        n_calibration,
+        n_test,
+        confidence,
+        n_resamples,
+        seed,
+        boost,
+        lower,
+        upper,
+        beta,
+        precision,
+        summary,
+        None if bj_bounds is None else immutable_array(bj_bounds),
+    )
 
 
 def build_ecdf_upper_bound(
@@ -218,51 +364,6 @@ def ecdf_upper_bound_from_params(
             n_test=n_test,
         )
     raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
-
-
-def evaluate_fdp_upper_bound(
-    p_values: np.ndarray,
-    thresholds: np.ndarray,
-    *,
-    ecdf_upper_bound: Callable[[np.ndarray], np.ndarray],
-    boost: bool,
-) -> np.ndarray:
-    """Evaluate simultaneous FDP upper bounds at thresholds."""
-    sorted_p_values = np.sort(p_values)
-    n_test = sorted_p_values.size
-
-    if boost:
-        max_p_under_threshold = np.zeros(thresholds.size, dtype=float)
-        numerator = np.full(thresholds.size, fill_value=n_test, dtype=float)
-
-        for p_value in sorted_p_values:
-            mask = p_value <= thresholds
-            max_p_under_threshold[mask] = np.maximum(
-                max_p_under_threshold[mask],
-                p_value,
-            )
-            ecdf_bound = float(ecdf_upper_bound(np.array([p_value], dtype=float))[0])
-            second_term = n_test * ecdf_bound - np.count_nonzero(
-                sorted_p_values <= p_value
-            )
-            numerator[mask] = np.minimum(numerator[mask], second_term)
-
-        numerator += np.searchsorted(
-            sorted_p_values,
-            max_p_under_threshold,
-            side="right",
-        )
-    else:
-        numerator = n_test * ecdf_upper_bound(thresholds)
-
-    denominator = np.searchsorted(sorted_p_values, thresholds, side="right")
-    raw = np.divide(
-        numerator,
-        denominator,
-        out=np.zeros_like(numerator, dtype=float),
-        where=denominator > 0,
-    )
-    return np.clip(raw, 0.0, 1.0)
 
 
 def _custom_quantile(values: np.ndarray, q: float) -> float:
@@ -450,6 +551,8 @@ def _hc_ecdf_upper_bound(
 ) -> np.ndarray:
     """Evaluate the HC upper envelope for the null p-value ECDF."""
     x_arr = np.asarray(x, dtype=float)
+    if np.isposinf(summary_quantile):
+        return np.ones_like(x_arr)
     return np.clip(
         x_arr + np.sqrt(np.clip(x_arr * (1.0 - x_arr), 0.0, None)) * summary_quantile,
         0.0,
@@ -510,22 +613,3 @@ def _bj_ecdf_upper_bound(
         return np.ones_like(x_arr, dtype=float)
     indices = np.searchsorted(lower_bounds, x_arr, side="left")
     return np.where(indices == lower_bounds.size, 1.0, indices / n_test)
-
-
-__all__ = [
-    "DEFAULT_METHOD",
-    "as_1d_numeric",
-    "as_p_values",
-    "as_threshold_query",
-    "as_thresholds",
-    "build_ecdf_upper_bound",
-    "ecdf_upper_bound_from_params",
-    "evaluate_fdp_upper_bound",
-    "validate_method",
-    "validate_optional_seed",
-    "validate_positive_finite",
-    "validate_positive_integer",
-    "validate_probability",
-    "validate_result_scope",
-    "validate_truncation",
-]

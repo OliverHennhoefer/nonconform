@@ -174,7 +174,7 @@ def _native_test_batch_signature(
     label: str,
 ) -> BatchSignature:
     """Validate native scope facts and return the stamped batch signature."""
-    provenance = parse_result_provenance(result, allow_legacy_metadata=False)
+    provenance = parse_result_provenance(result)
     if provenance is None:
         raise ValueError(
             f"{label} has no native detector provenance.{_RAW_ARRAY_GUIDANCE}"

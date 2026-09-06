@@ -12,7 +12,11 @@ rules:
 - Benjamini-Yekutieli (BY), applied manually through SciPy.
 
 It then constructs a simultaneous post-hoc upper bound for realized FDP over a
-prespecified threshold grid.
+queried threshold grid.
+
+For certification directly from a fitted detector, use
+`certificate = detector.fdp_bounds(x_family, confidence=0.95, seed=42)`.
+The example below reuses the snapshot already computed for the BH comparison.
 
 ## Complete example
 
@@ -22,7 +26,6 @@ from scipy.stats import false_discovery_control
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformal_fdp_upper_bound_from_result
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 rng = np.random.default_rng(42)
@@ -63,14 +66,12 @@ for name, selected in {
         },
     )
 
-certificate = conformal_fdp_upper_bound_from_result(
-    result,
+certificate = result.fdp_bounds(
     confidence=0.95,
     n_resamples=500,
     seed=42,
-    thresholds=np.array([0.005, 0.01, 0.025, 0.05, 0.1]),
 )
-print(certificate.to_frame().to_string(index=False))
+print(certificate.to_frame([0.005, 0.01, 0.025, 0.05, 0.1]).to_string(index=False))
 ```
 
 The pointwise rule does not account for the 100 simultaneous tests. BH is less
@@ -89,7 +90,7 @@ scope. This supports post-hoc threshold exploration while attaching a
 high-confidence realized-FDP upper bound. It does not select by BH and does not
 replace the expected-FDR target.
 
-The result-based API accepts unweighted `Split` or detached calibration with
+The native snapshot API requires unmodified snapshots from unweighted `Split` or detached calibration with
 `Empirical` p-values. It rejects weighted, KDE, conditional-calibration, and
 resampling-strategy result bundles.
 
