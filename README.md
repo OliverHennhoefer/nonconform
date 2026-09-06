@@ -38,18 +38,12 @@ or a custom detector:
 ## Why nonconform?
 
 - **Calibrate anomaly scores** into conformal p-values using reference data.
-- **Control batch discoveries** with `ConformalDetector.select(...)`, which
-  combines calibration and FDR control in one workflow.
-- **Combine repeated split evidence** with `DerandomizedSplits`, automatic
-  model fitting, and e-value-based selection through the same `select(...)` API.
+- **Control batch discoveries** by accounting for multiple tests within a
+  fixed family.
 - **Monitor streams for change** with conformal martingales, anytime evidence
   against exchangeability, and configurable alarms.
 - **Keep your detector** through support for PyOD, recognized scikit-learn
   estimators, and protocol-compliant custom models.
-- **Adapt the calibration** with split, cross-validation, and
-  jackknife+-after-bootstrap strategies.
-- **Handle advanced settings** with weighted conformal methods and post-hoc FDP
-  bounds.
 
 <p align="center">
   <strong>Works with</strong>
@@ -191,7 +185,7 @@ for the full guarantee scope and other alarm statistics.
 | Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
 | Account for covariate shift | [Weighted conformal inference](https://oliverhennhoefer.github.io/nonconform/user_guide/weighted_conformal/) |
-| Certify realized FDP across p-value thresholds with `detector.fdp_bounds(x)` | [FDP upper bounds](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/) |
+| Certify realized FDP across p-value thresholds | [`fdp_bounds(...)` and FDP certificates](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds) |
 | Bring a custom or third-party detector | [Detector compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
 ## Statistical scope
@@ -220,14 +214,14 @@ If you use `nonconform` in academic work, please cite the
 [accompanying paper](https://arxiv.org/abs/2605.13642):
 
 ```bibtex
-@misc{hennhoefer2026,
-  title={Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with 'nonconform'},
-  author={Oliver Hennhöfer and Maximilian Kirsch and Christine Preisach},
-  year={2026},
-  eprint={2605.13642},
-  archivePrefix={arXiv},
-  primaryClass={stat.ML},
-  url={https://arxiv.org/abs/2605.13642},
+@inproceedings{Hennhofer_Conformal_Anomaly_Detection_2026,
+author = {Hennhöfer, Oliver and Kirsch, Maximilian and Preisach, Christine},
+booktitle = {Proceedings of the Fifteenth Symposium on Conformal and Probabilistic Prediction with Applications},
+pages = {613--632},
+publisher = {PMLR},
+title = {{Conformal Anomaly Detection in Python: Moving Beyond Heuristic Thresholds with nonconform}},
+url = {https://proceedings.mlr.press/v329/hennhofer26a.html},
+year = {2026}
 }
 ```
 
