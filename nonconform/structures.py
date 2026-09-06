@@ -17,6 +17,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from nonconform._internal.provenance import ResultProvenance
+    from nonconform.fdr import FDPCertificate
 
 
 def _array_summary(arr: np.ndarray | None) -> str:
@@ -167,6 +168,49 @@ class ConformalResult:
             f"test_weights={_array_summary(self.test_weights)}, "
             f"calib_weights={_array_summary(self.calib_weights)}, "
             f"metadata_keys={metadata_repr})"
+        )
+
+    def fdp_bounds(
+        self,
+        *,
+        confidence: float = 0.95,
+        method: str = "mc_thc",
+        n_resamples: int | None = None,
+        seed: int | None = None,
+        boost: bool = True,
+        lower: float | None = None,
+        upper: float | None = None,
+        beta: float | None = None,
+        precision: float | None = None,
+    ) -> FDPCertificate:
+        """Certify this snapshot without rescoring.
+
+        Requires an unmodified native snapshot of unweighted empirical Split
+        inference, including detached calibration. Scope and batch dimensions
+        are checked; these checks do not prove array integrity or scientific
+        exchangeability. For external p-values use FDPCertificate.from_p_values.
+
+        Options and defaults match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
+        Confidence is simultaneous coverage, not an FDR target. The Monte Carlo
+        seed is independent of the detector seed. Query cutoffs on the returned
+        immutable certificate; later edits to this snapshot cannot affect it.
+        """
+        from nonconform._internal.fdp_bounds import validate_result_scope
+        from nonconform.fdr import FDPCertificate
+
+        n_calibration = validate_result_scope(self)
+        return FDPCertificate.from_p_values(
+            self.p_values,
+            n_calibration=n_calibration,
+            confidence=confidence,
+            method=method,
+            n_resamples=n_resamples,
+            seed=seed,
+            boost=boost,
+            lower=lower,
+            upper=upper,
+            beta=beta,
+            precision=precision,
         )
 
     def copy(self) -> ConformalResult:

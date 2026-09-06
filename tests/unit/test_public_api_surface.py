@@ -66,11 +66,9 @@ PUBLIC_MODULE_EXPORTS = {
     ],
     "nonconform.fdr": [
         "EValueSelectionResult",
-        "FDPBoundResult",
+        "FDPCertificate",
         "Pruning",
         "conformal_e_values",
-        "conformal_fdp_upper_bound",
-        "conformal_fdp_upper_bound_from_result",
         "e_value_false_discovery_control",
         "select_conformal_e_values",
         "weighted_false_discovery_control",

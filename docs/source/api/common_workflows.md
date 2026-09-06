@@ -360,6 +360,24 @@ thresholds are change-evidence triggers and need separate calibration; they do
 not automatically inherit the Ville guarantee. See
 [Exchangeability martingales](../user_guide/exchangeability_martingales.md).
 
+## Certify realized FDP across thresholds
+
+For a fitted unweighted empirical `Split` detector and one fixed test family:
+
+```python
+certificate = detector.fdp_bounds(x_test, confidence=0.95, seed=42)
+print(certificate.to_frame(thresholds=[0.01, 0.05, 0.1]))
+mask = certificate.select(0.05)  # p-value cutoff; returns a NumPy mask
+```
+
+If p-values were already computed, `detector.last_result.fdp_bounds(...)`
+certifies that native snapshot without rescoring. Certificates own immutable
+state and survive refitting. `confidence` is simultaneous coverage of realized
+FDP bounds, while `select(x, alpha=...)` targets expected FDR. Fix the scoring
+rule, family, and certificate method before inspecting the curve. See the
+[FDP guide](../user_guide/fdr_control.md#post-hoc-simultaneous-fdp-bounds) for assumptions,
+method options, and migration from the removed FDP functions.
+
 ## Score direction for custom detectors
 
 `nonconform` normalizes scores internally so that larger values mean more

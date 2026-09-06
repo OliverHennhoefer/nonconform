@@ -19,6 +19,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   split-conformal provenance and exact test batch identity, rejects score ties
   by default, and supports reproducible randomized tie-breaking through `tie_seed`.
 
+### Changed
+
+- **Breaking: FDP certification API replacement.** Use
+  `ConformalDetector.fdp_bounds(x, ...)`, `ConformalResult.fdp_bounds(...)`, or
+  `nonconform.fdr.FDPCertificate.from_p_values(...)`. Certificates are immutable
+  and prepare threshold queries once. Move `thresholds=` from construction to
+  `to_frame(thresholds=...)` or `bound_at(...)`; omit inapplicable method options.
+  Native entry points require unmodified native empirical Split/detached,
+  unweighted snapshots. External p-values use the explicit expert factory.
+  This intentional API break is limited to FDP certification; other workflows
+  and finite numerical reference outputs are unchanged. No version bump is
+  included in this change.
+
+### Removed
+
+- Removed `FDPBoundResult`, `conformal_fdp_upper_bound`, and
+  `conformal_fdp_upper_bound_from_result` without compatibility aliases.
+
+### Fixed
+
+- HC certificates with a positive infinite Monte Carlo cutoff now use a
+  conservative unit ECDF envelope instead of producing endpoint `NaN`s:
+  nonempty selections have FDP bound 1, empty selections have bound 0.
+  Sampling, the quantile convention, and finite-cutoff formulas are unchanged.
+
 ## [1.1.1] - 2026-08-19
 
 ### Changed

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -75,53 +75,9 @@ def batch_signature(x: np.ndarray) -> BatchSignature:
     )
 
 
-def parse_result_provenance(
-    result: ConformalResult,
-    *,
-    allow_legacy_metadata: bool,
-) -> ResultProvenance | None:
-    """Return native provenance or a compatibility view of legacy metadata."""
+def parse_result_provenance(result: ConformalResult) -> ResultProvenance | None:
+    """Return native provenance; manually populated metadata is not trusted."""
     native = result._provenance
-    if native is not None:
-        if not isinstance(native, ResultProvenance):
-            raise ValueError("result contains invalid internal provenance.")
-        return native
-    if not allow_legacy_metadata:
-        return None
-    return _parse_legacy_metadata(result.metadata)
-
-
-def _parse_legacy_metadata(metadata: Any) -> ResultProvenance | None:
-    """Parse the released best-effort metadata contract for FDP compatibility."""
-    if not isinstance(metadata, dict):
-        return None
-    if "kde" in metadata:
-        return ResultProvenance(
-            strategy_family=StrategyFamily.OTHER,
-            estimation_family=EstimationFamily.OTHER,
-            weighted=False,
-            calibration_mode=None,
-            test_batch_signature=None,
-        )
-
-    scope = metadata.get("nonconform")
-    if scope is None:
-        return None
-    if not isinstance(scope, dict):
-        raise ValueError("result.metadata['nonconform'] must be a dictionary.")
-
-    return ResultProvenance(
-        strategy_family=(
-            StrategyFamily.SPLIT
-            if scope.get("strategy") == "Split"
-            else StrategyFamily.OTHER
-        ),
-        estimation_family=(
-            EstimationFamily.EMPIRICAL
-            if scope.get("estimation") == "Empirical"
-            else EstimationFamily.OTHER
-        ),
-        weighted=bool(scope.get("weighted")),
-        calibration_mode=None,
-        test_batch_signature=None,
-    )
+    if native is not None and not isinstance(native, ResultProvenance):
+        raise ValueError("result contains invalid internal provenance.")
+    return native

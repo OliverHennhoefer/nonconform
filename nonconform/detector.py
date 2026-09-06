@@ -55,7 +55,7 @@ from ._internal.provenance import (
 )
 
 if TYPE_CHECKING:
-    from nonconform.fdr import EValueSelectionResult
+    from nonconform.fdr import EValueSelectionResult, FDPCertificate
     from nonconform.resampling import BaseStrategy
     from nonconform.scoring import BaseEstimation
 
@@ -738,7 +738,7 @@ class ConformalDetector(BaseConformalDetector):
 
     def _result_provenance(
         self,
-        test_batch_signature: BatchSignature,
+        test_batch_signature: BatchSignature | None,
     ) -> ResultProvenance:
         """Return typed provenance for a detector-produced result snapshot."""
         if isinstance(self.estimation, ConditionalEmpirical):
@@ -1131,6 +1131,50 @@ class ConformalDetector(BaseConformalDetector):
         if index is not None:
             return pd.Series(p_values, index=index, name="p_value")
         return p_values
+
+    def fdp_bounds(
+        self,
+        x: pd.DataFrame | pd.Series | np.ndarray,
+        *,
+        confidence: float = 0.95,
+        method: str = "mc_thc",
+        n_resamples: int | None = None,
+        seed: int | None = None,
+        boost: bool = True,
+        lower: float | None = None,
+        upper: float | None = None,
+        beta: float | None = None,
+        precision: float | None = None,
+    ) -> FDPCertificate:
+        """Compute p-values once and return a simultaneous FDP certificate.
+
+        Supports unweighted empirical Split inference, including detached
+        calibration. Choose the method before inspecting its curve and keep
+        the testing family fixed. Confidence is coverage, not an FDR target.
+        Scientific exchangeability remains the caller's responsibility.
+
+        Options match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
+        The seed controls certificate Monte Carlo sampling only and does not
+        inherit the fitting seed. The returned certificate is independent of
+        subsequent detector operations; its select() returns a NumPy mask.
+        """
+        from nonconform._internal.fdp_bounds import validate_scope
+
+        if not self.is_fitted:
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
+        validate_scope(self._result_provenance(None))
+        self.compute_p_values(x)
+        return self._last_result.fdp_bounds(
+            confidence=confidence,
+            method=method,
+            n_resamples=n_resamples,
+            seed=seed,
+            boost=boost,
+            lower=lower,
+            upper=upper,
+            beta=beta,
+            precision=precision,
+        )
 
     @property
     def detector_set(self) -> list[AnomalyDetector]:

@@ -254,7 +254,7 @@ See the [Shuttle example and advanced result-list workflow](../examples/derandom
 ## Post-hoc simultaneous FDP bounds
 
 FDR control selects by a procedure fixed in advance and controls expected FDP.
-`conformal_fdp_upper_bound_from_result(...)` answers a different question: it
+`detector.fdp_bounds(x, ...)` answers a different question: it
 constructs a high-confidence upper envelope for realized FDP that is
 simultaneous over p-value thresholds. This permits threshold exploration within
 the returned certificate's scope.
@@ -264,7 +264,6 @@ import numpy as np
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
-from nonconform.fdr import conformal_fdp_upper_bound_from_result
 
 rng = np.random.default_rng(42)
 x_reference = rng.normal(size=(5_000, 3))
@@ -277,25 +276,53 @@ detector = ConformalDetector(
     strategy=Split(n_calib=0.3),
     seed=42,
 ).fit(x_reference)
-detector.compute_p_values(x_family)
-
-certificate = conformal_fdp_upper_bound_from_result(
-    detector.last_result,
+certificate = detector.fdp_bounds(
+    x_family,
     confidence=0.95,
     n_resamples=500,
     seed=42,
-    thresholds=np.array([0.001, 0.005, 0.01, 0.025, 0.05, 0.1]),
 )
 
-print(certificate.to_frame())
+print(certificate.to_frame(thresholds=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1]))
 print("FDP upper bound at 0.05:", certificate.bound_at(0.05))
 ```
 
-The result-based API deliberately accepts only unweighted `Split` or detached
-calibration results with `Empirical` p-values. It rejects weighted,
-probabilistic/KDE, conditional-calibration, and resampling-strategy results.
-The certificate does not cover changing the detector or model after looking at
-the curve.
+The detector and snapshot APIs require native provenance for unweighted `Split`
+inference with `Empirical` p-values, including detached calibration. They reject
+unknown provenance, weighted, probabilistic/KDE, conditional, CV/bootstrap, and
+`DerandomizedSplits` scopes. Native checks assume unmodified snapshots: they
+check scope and batch dimensions, but cannot prove array integrity or establish
+scientific exchangeability. The reference construction requires a fixed scoring
+map and exchangeability of the calibration and null test observations.
+
+An existing snapshot can be certified without scoring again:
+
+```python
+result = detector.last_result
+certificate = result.fdp_bounds(confidence=0.95, seed=42)
+mask = certificate.select(0.05)  # p-value cutoff, not a target FDP
+```
+
+`select()` returns a Boolean NumPy mask in the original observation order,
+including for pandas input. The certificate owns immutable evidence and prepared
+query state. Editing the source snapshot, refitting the detector, or editing a
+returned table cannot change it. `to_frame()` defaults to sorted unique observed
+p-values; custom grids preserve order and duplicates. Scalar/vector `bound_at()`
+and `precision_at()` reuse the realized envelope without resampling.
+
+For external p-values, the explicit expert route is:
+
+```python
+from nonconform.fdr import FDPCertificate
+
+certificate = FDPCertificate.from_p_values(
+    result.p_values, n_calibration=len(result.calib_scores), seed=42
+)
+```
+
+The caller must verify the expert route's provenance and statistical assumptions.
+None of these entry points covers changing the detector, scoring map, or testing
+family after inspecting the curve.
 
 An upper bound of `1.0` is valid but uninformative, not a build or API failure.
 Certificate tightness depends on the calibration count, family size, observed
@@ -304,6 +331,43 @@ post hoc solely to obtain a more attractive bound.
 
 Choose the envelope `method` before inspecting the bound. Supported values are
 `"mc_thc"`, `"mc_hc"`, `"mc_ks"`, `"ks"`, and `"mc_bj"`.
+
+Method-specific keywords default to `None` and are resolved centrally:
+
+| Method | Applicable options and effective defaults |
+| --- | --- |
+| `mc_thc` | `n_resamples=1000`, `seed=None`, `lower=0.01`, `upper=0.99`, `beta=0.5` |
+| `mc_hc`, `mc_ks` | `n_resamples=1000`, `seed=None` |
+| `mc_bj` | `n_resamples=1000`, `seed=None`, `precision=1e-8` |
+| `ks` | No method-specific options; deterministic |
+
+All methods accept `confidence=0.95` and `boost=True`. Non-`None` inapplicable
+options raise an error. Method aliases such as `MC-THC` remain accepted. The
+certificate's seed controls Monte Carlo draws only; it does not inherit or alter
+the fitting seed. `seed=None` draws fresh randomness at construction, and repeated
+queries reuse those draws. Prepared queries use additional linear memory to avoid
+repeated sorting and quadratic scans.
+
+### Migration from the previous FDP API
+
+This is an intentional clean break for FDP certification. Replace
+`conformal_fdp_upper_bound_from_result(result, ...)` with
+`result.fdp_bounds(...)`, or use `detector.fdp_bounds(x, ...)` directly. Replace
+`conformal_fdp_upper_bound(p_values, ...)` with
+`FDPCertificate.from_p_values(p_values, ...)`. `FDPCertificate` replaces
+`FDPBoundResult`; the old names have been removed without aliases.
+
+Move construction-time `thresholds=` to `certificate.to_frame(thresholds=...)`
+or `bound_at(...)`. Omit unused method-specific options (in particular `seed`
+and `n_resamples` for `ks`). Native entry points now reject unknown provenance;
+use the expert route for external p-values. Certificate state is read-only.
+Other selection and e-value APIs retain their behavior.
+
+The only numerical correction concerns HC with a positive infinite Monte Carlo
+cutoff: endpoint arithmetic previously could produce `NaN`; it now yields the
+conservative unit envelope, so nonempty selections have bound 1 and empty ones
+have bound 0. Finite-cutoff formulas, Monte Carlo sampling, and the quantile
+convention are unchanged.
 
 !!! note "FDR target and FDP confidence are different"
 
@@ -373,7 +437,7 @@ multiple-testing problem.
 | Adjust standard p-values manually | SciPy BH or BY, after checking assumptions |
 | Select under modeled covariate shift | Weighted `detector.select(...)`, which uses WCS |
 | Aggregate repeated split-conformal evidence | `DerandomizedSplits` with `select(...)` and e-BH |
-| Explore p-value thresholds with a simultaneous realized-FDP certificate | `conformal_fdp_upper_bound_from_result(...)` |
+| Explore p-value thresholds with a simultaneous realized-FDP certificate | `detector.fdp_bounds(x, ...)` |
 | Test an open-ended sequence of distinct hypotheses | A justified online FDR procedure |
 | Detect loss of exchangeability in one stream | `ExchangeabilityMonitor` and a conformal martingale |
 
