@@ -65,6 +65,13 @@ No substantial task is complete without validation evidence.
 
 # API and Architecture Discipline
 
+- Before implementing a feature, demonstrate its simplest idiomatic workflow
+  using existing package conventions.
+- Identify responsibility and state ownership. Justify every new public concept
+  and explain why existing abstractions cannot accommodate it cleanly.
+- Review API coherence separately from statistical correctness. Do not approve
+  architecture solely because tests pass.
+- Aim for fewer concepts and clearer ownership, not merely fewer lines or classes.
 - Keep boundaries explicit across detector interfacing, strategy, estimation, weighting, FDR, and metrics.
 - Avoid hidden coupling and dead abstractions.
 - Make API surface changes explicit and intentional.
