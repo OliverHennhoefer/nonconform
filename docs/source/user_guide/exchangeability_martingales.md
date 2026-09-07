@@ -24,6 +24,7 @@ Implemented methods in this release:
 - `PowerMartingale`
 - `SimpleMixtureMartingale`
 - `SimpleJumperMartingale`
+- `MixtureMartingale`
 
 ## Why P-values (Not Raw Scores)
 
@@ -218,6 +219,79 @@ from nonconform.martingales import SimpleJumperMartingale
 martingale = SimpleJumperMartingale(jump=0.01)
 ```
 
+### MixtureMartingale
+
+Combines existing martingales using fixed normalized weights. Each expert
+receives the same p-value and maintains its own ordinary capital, harmonic
+restart evidence, CUSUM, and Shiryaev-Roberts (SR) statistic. The mixture averages
+each corresponding statistic separately:
+
+$$
+M_t = \sum_j w_j M_{t,j},\quad
+E_t^{\mathrm{restart}} = \sum_j w_j E_{t,j}^{\mathrm{restart}},\quad
+C_t = \sum_j w_j C_{t,j},\quad R_t = \sum_j w_j R_{t,j}.
+$$
+
+For a fitted unweighted `Split` detector:
+
+```python
+from nonconform.martingales import AlarmConfig, MixtureMartingale, PowerMartingale
+from nonconform.monitoring import ExchangeabilityMonitor
+
+mixture = MixtureMartingale(
+    [PowerMartingale(epsilon=0.25), PowerMartingale(epsilon=0.5)],
+    weights=[1, 1],
+    alarm_config=AlarmConfig(shiryaev_roberts_threshold=1_000),
+)
+monitor = ExchangeabilityMonitor.from_split_detector(
+    detector, martingale=mixture, seed=42
+)
+```
+
+With valid component e-detectors, this SR threshold gives an average run length
+of at least 1,000 observations under the null. It is not a 0.1% lifetime
+false-alarm probability. Alarms use only the mixture's `AlarmConfig`; component
+alarm names are not forwarded.
+
+Components must be reset at construction and are deep-copied. Equal weights are
+the default; supplied finite nonnegative weights are normalized once and stay
+fixed. Zero-weight components do not participate. Jumper, custom
+`BaseMartingale` implementations, and nested mixtures are supported. The
+mixture owns all component state. Aggregation adds O(J) work and storage on top
+of the J components' costs.
+
+#### Difference from SimpleMixtureMartingale
+
+`SimpleMixtureMartingale` averages power capitals accumulated since the start,
+then feeds that mixture's capital ratios into its alarm recurrences.
+`MixtureMartingale` with separate power experts instead averages independently
+maintained alarm statistics. The ordinary capitals agree for equal weights and
+the same epsilon grid, but their restart, CUSUM, and SR statistics generally do
+not. In particular, a mixture of CUSUM statistics is not a CUSUM computed from
+mixture-capital ratios.
+
+For example, with experts at `epsilon=0.5` and `epsilon=1`, a long stable history
+can leave the all-history mixture dominated by the neutral expert. Subsequent
+small p-values then produce almost unit mixture factors. In the per-expert
+construction, the `epsilon=0.5` expert's SR recurrence still starts a fresh
+candidate every step, and its SR statistic retains its fixed mixture weight.
+This addresses that composition mechanism; it does not guarantee uniform
+late-change power or remove inertia inside an adaptive component.
+
+Fixed normalized mixtures inherit the corresponding martingale/e-process or
+e-detector guarantee only if all participating components satisfy it under a
+common null and information history (filtration). The same condition applies
+to custom and nested components; numeric validation cannot establish validity.
+This is an established mixture construction, described in Section 3 of
+[Shin, Ramdas, and Rinaldo](https://arxiv.org/html/2203.03532v4#S3).
+
+If a component raises an error or returns invalid log statistics during an
+update, the mixture retains its last completed state and blocks further
+updates until `reset()`. Its components may have partially advanced. When used
+in a monitor, reset the **whole monitor**, since rank history may also have
+advanced. A reset starts a new episode with the error-accounting implications
+described below.
+
 ## Alarm Semantics
 
 Alarms are disabled by default.
@@ -235,9 +309,18 @@ Set thresholds with `AlarmConfig`:
 exceeded.
 It can be empty when no alarms are active.
 
-`MartingaleState.e_value` and `MartingaleState.log_e_value` expose the current
-betting factor $e_n=M_n/M_{n-1}$ in linear and log scale. `MonitorState` also
-exposes these values directly.
+`MartingaleState.e_value` and `MartingaleState.log_e_value` expose the ordinary
+capital ratio $e_n=M_n/M_{n-1}$ in linear and log scale. `MonitorState` also
+exposes these values directly. For `MixtureMartingale`, this ratio does not
+reproduce its other statistics: SR, CUSUM, and harmonic restart evidence are
+averaged independently. Feed the mixture itself to the monitor rather than
+reconstructing those statistics from its `e_value` sequence.
+
+For consecutive exact zero capitals or consecutive infinite log-capitals,
+`MixtureMartingale` reports the undefined ratio as a neutral diagnostic factor
+one (`log_e_value=0`). The combined capital itself remains zero or infinite.
+Finite log-capitals retain their actual log ratio even if their linear-scale
+values underflow or overflow.
 
 ### Interpreting `ville_threshold`
 
@@ -283,15 +366,29 @@ of the e-process accounting and keeps the process initialized at 1.
 
 ### Interpreting CUSUM and Shiryaev-Roberts Thresholds
 
-`cusum_threshold` applies to the CUSUM/e-CUSUM statistic. It is useful as a
-changepoint evidence statistic, but it is not a Ville threshold. Interpret it
-through ARL/FAR guarantees or empirical calibration unless a separate theorem is
-provided for the exact implementation.
+`cusum_threshold` and `shiryaev_roberts_threshold` apply to CUSUM/e-CUSUM and
+SR/e-SR statistics. For the implemented recurrences with conditionally valid
+nonnegative betting increments, each is an e-detector. At threshold $A>1$, the
+first crossing time $T$ satisfies the average-run-length (ARL) bound
 
-`shiryaev_roberts_threshold` applies to the SR/e-SR statistic. Depending on the
-procedure, SR variants can have ARL/e-detector interpretations, but this
-threshold should not be documented as a probability-of-ever-crossing Ville
-control unless the implemented statistic is itself an e-process.
+$$
+\mathbb{E}_{\infty}[T] \ge A.
+$$
+
+The same bound applies to fixed normalized mixtures of component e-detectors.
+This follows from the e-detector stopping-time property; see
+[Shin, Ramdas, and Rinaldo, Sections 2–3](https://arxiv.org/html/2203.03532v4#S2).
+It does **not** imply that the probability of ever raising a false alarm is at
+most $1/A$. An ARL lower bound also does not promise the same remaining waiting
+time conditional on having survived to an arbitrary age.
+
+For the classical randomized-rank conformal construction, the required
+filtration is the past conformal p-values (and an independently fixed training
+construction), not arbitrary access to the raw score/reference history. Betting
+choices must be predictable from the permitted past information. Custom
+components using additional information require their own argument. Ordinary
+fixed-calibration marginal p-values do not suffice. If these conditions are not
+established, the raw thresholds alone confer no theoretical ARL guarantee.
 
 Scope of this guarantee:
 
@@ -336,3 +433,6 @@ Scope of this guarantee:
 - **Shafer, G., & Vovk, V. (2008)**.
   *[A Tutorial on Conformal Prediction](https://jmlr.org/papers/v9/shafer08a.html)*.
   Journal of Machine Learning Research, 9, 371-421.
+- **Shin, J., Ramdas, A., & Rinaldo, A. (2024)**.
+  *[E-detectors: a nonparametric framework for sequential change detection](https://arxiv.org/abs/2203.03532)*.
+  New England Journal of Statistics in Data Science, 2(2), 229-260.

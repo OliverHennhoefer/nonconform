@@ -213,12 +213,12 @@ class MonitorState:
 
     @property
     def e_value(self) -> float:
-        """Stepwise betting factor used for this update."""
+        """Ordinary capital ratio; mixtures aggregate alarm statistics separately."""
         return self.martingale_state.e_value
 
     @property
     def log_e_value(self) -> float:
-        """Natural logarithm of the stepwise betting factor."""
+        """Natural logarithm of the ordinary capital ratio."""
         return self.martingale_state.log_e_value
 
     @property

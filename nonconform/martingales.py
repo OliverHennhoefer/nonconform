@@ -8,16 +8,18 @@ Implemented martingales:
     - PowerMartingale
     - SimpleMixtureMartingale
     - SimpleJumperMartingale
+    - MixtureMartingale
 
 All classes consume conformal p-values in ``[0, 1]``. Alarm statistics are
-computed from martingale ratio increments and exposed together with the current
-martingale value in :class:`MartingaleState`.
+computed from martingale ratio increments or mixed component statistics and
+exposed together with the current martingale value in :class:`MartingaleState`.
 """
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 
 import numpy as np
@@ -162,6 +164,9 @@ class MartingaleState:
     overflow; the corresponding ``log_*`` field preserves the log-scale state.
     ``triggered_alarms`` reports thresholds crossed at this step and is not a
     latched alarm history.
+
+    ``e_value`` is the ordinary capital ratio, not necessarily an increment
+    that reproduces the other statistics (see :class:`MixtureMartingale`).
     """
 
     step: int
@@ -182,8 +187,9 @@ class MartingaleState:
 class BaseMartingale(ABC):
     """Abstract base class for p-value-driven sequential evidence.
 
-    Built-in subclasses turn each input p-value into a non-negative betting
-    factor and multiply capital over time. Ville-threshold interpretation
+    The default update multiplies capital by a non-negative betting factor and
+    updates alarm statistics from that factor. Composite subclasses may instead
+    aggregate component statistics. Ville-threshold interpretation
     requires the resulting process to be an e-process under the null, which in
     turn depends on the conditional validity of the input p-values. Merely
     passing values in ``[0, 1]`` does not establish that property.
@@ -227,6 +233,11 @@ class BaseMartingale(ABC):
         self._step += 1
         self._last_p_value = p_value_validated
         self._last_log_increment = log_increment
+        self._update_statistics(log_increment)
+        return self._current_state()
+
+    def _update_statistics(self, log_increment: float) -> None:
+        """Advance evidence statistics after the step and increment are recorded."""
         self._log_martingale += log_increment
         self._log_active_restarted_mass = float(
             log_increment
@@ -245,7 +256,6 @@ class BaseMartingale(ABC):
         self._log_shiryaev_roberts = float(
             log_increment + np.logaddexp(0.0, self._log_shiryaev_roberts)
         )
-        return self._current_state()
 
     @abstractmethod
     def _reset_method_state(self) -> None:
@@ -332,6 +342,10 @@ class SimpleMixtureMartingale(BaseMartingale):
     When ``epsilons`` is omitted, the grid contains ``n_grid`` evenly spaced
     values from ``min_epsilon`` through one. The mixture tracks the arithmetic
     mean of component capitals, evaluated stably in log space.
+
+    Its alarm statistics use ratios of that all-history mixture capital. For
+    fixed-weight averages of independently maintained alarm statistics, use
+    :class:`MixtureMartingale` with separate :class:`PowerMartingale` experts.
     """
 
     def __init__(
@@ -384,6 +398,137 @@ class SimpleMixtureMartingale(BaseMartingale):
         return log_increment
 
 
+class MixtureMartingale(BaseMartingale):
+    """Fixed-weight averages of independently updated martingale evidence.
+
+    Each component receives the same p-value. Ordinary capital, harmonic
+    restart evidence, CUSUM, and Shiryaev-Roberts statistics are averaged
+    separately; alarm statistics are not computed from mixture capital ratios.
+    Fixed normalized mixtures inherit the corresponding validity guarantees
+    only when every participating component satisfies those guarantees under
+    the common null and filtration. Composition does not remove learning inertia
+    inside an individual expert.
+
+    Args:
+        martingales: Nonempty sequence of reset ``BaseMartingale`` instances.
+            Components are deep-copied and exclusively owned by this mixture.
+            Custom martingales and nested mixtures are supported.
+        weights: Finite nonnegative weights with positive total. Normalized
+            once; omitted weights give equal allocation. Zero-weight components
+            are excluded from copying and updates.
+        alarm_config: Thresholds applied to the combined statistics. Component
+            alarms are not propagated.
+
+    Notes:
+        ``state.e_value`` and ``state.log_e_value`` describe the ordinary
+        mixture capital ratio only. They cannot reproduce the combined CUSUM,
+        SR, or restart statistics through a shared-increment recursion. For
+        consecutive zero capitals or consecutive infinite log-capitals, the
+        undefined ratio is reported as the neutral diagnostic factor one.
+        Finite log-capitals retain their ratio even when linear values overflow.
+
+        A component failure blocks further updates until ``reset()``; the
+        mixture state remains at its last completed update. When used inside
+        an ``ExchangeabilityMonitor``, reset the whole monitor after failure.
+        Aggregation adds O(J) work and storage beyond the J component costs.
+    """
+
+    def __init__(
+        self,
+        martingales: Sequence[BaseMartingale],
+        *,
+        weights: Sequence[float] | None = None,
+        alarm_config: AlarmConfig | None = None,
+    ) -> None:
+        components = tuple(martingales)
+        if not components:
+            raise ValueError("martingales must be a nonempty sequence.")
+        for component in components:
+            if not isinstance(component, BaseMartingale):
+                raise TypeError("Every component must be a BaseMartingale.")
+            if component.state.step != 0:
+                raise ValueError("Every component must be reset at construction.")
+
+        try:
+            raw_weights = (
+                np.ones(len(components), dtype=float)
+                if weights is None
+                else np.asarray(weights, dtype=float)
+            )
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("weights must be a finite numeric sequence.") from exc
+        if raw_weights.shape != (len(components),):
+            raise ValueError("weights must have one entry per component.")
+        if not np.all(np.isfinite(raw_weights)) or np.any(raw_weights < 0):
+            raise ValueError("weights must be finite and nonnegative.")
+        active = raw_weights > 0
+        if not np.any(active):
+            raise ValueError("weights must have positive total.")
+        # Normalize in log space to preserve tiny positive weights and avoid
+        # overflow when several individually finite weights have a huge sum.
+        log_weights = np.log(raw_weights[active])
+        self._log_weights = log_weights - _logsumexp(log_weights)
+        try:
+            self._martingales = tuple(
+                deepcopy(component)
+                for component, participates in zip(components, active, strict=True)
+                if participates
+            )
+        except Exception as exc:
+            raise TypeError("martingales must support deep copying.") from exc
+        super().__init__(alarm_config=alarm_config)
+
+    def _reset_method_state(self) -> None:
+        """Reset all owned components and clear the failure latch."""
+        self._failed = True
+        for component in self._martingales:
+            component.reset()
+        self._next_log_statistics = np.array([0.0, 0.0, -np.inf, -np.inf])
+        self._failed = False
+
+    def _compute_log_increment(self, p_value: float) -> float:
+        """Advance experts and prepare their combined statistics for commit."""
+        if self._failed:
+            raise RuntimeError("A mixture component failed; reset() before updating.")
+        try:
+            states = [component.update(p_value) for component in self._martingales]
+            if any(state.step != self._step + 1 for state in states):
+                raise ValueError("Component steps must advance together.")
+            log_statistics = np.array(
+                [
+                    [
+                        state.log_martingale,
+                        state.log_restarted_martingale,
+                        state.log_cusum,
+                        state.log_shiryaev_roberts,
+                    ]
+                    for state in states
+                ]
+            ).T
+            if np.any(np.isnan(log_statistics)):
+                raise ValueError("Component log statistics must not contain NaN.")
+            self._next_log_statistics = np.array(
+                [_logsumexp(row + self._log_weights) for row in log_statistics]
+            )
+        except Exception:
+            self._failed = True
+            raise
+
+        log_capital = float(self._next_log_statistics[0])
+        if np.isinf(log_capital) and log_capital == self._log_martingale:
+            return 0.0
+        return float(log_capital - self._log_martingale)
+
+    def _update_statistics(self, log_increment: float) -> None:
+        """Commit each averaged statistic independently of the capital ratio."""
+        (
+            self._log_martingale,
+            self._log_restarted_martingale,
+            self._log_cusum,
+            self._log_shiryaev_roberts,
+        ) = map(float, self._next_log_statistics)
+
+
 class SimpleJumperMartingale(BaseMartingale):
     """Simple Jumper martingale (Algorithm 1 in Vovk et al.).
 
@@ -434,6 +579,7 @@ __all__ = [
     "AlarmConfig",
     "BaseMartingale",
     "MartingaleState",
+    "MixtureMartingale",
     "PowerMartingale",
     "SimpleJumperMartingale",
     "SimpleMixtureMartingale",

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `nonconform.martingales.MixtureMartingale` for fixed-weight composition
+  of independently maintained martingale, harmonic restart, CUSUM, and
+  Shiryaev-Roberts evidence, including direct `ExchangeabilityMonitor` support.
+  Existing `SimpleMixtureMartingale` behavior is unchanged.
 - Added `DerandomizedSplits` for repeated split-conformal e-value selection
   through `ConformalDetector.fit()` and `select()`, with automatic randomized
   tie handling and defensive diagnostics in `last_selection_result`. Existing

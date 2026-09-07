@@ -237,8 +237,15 @@ also repeat training and calibration draws.
 |---|---|---|
 | `ville_threshold` | Product martingale | Ville probability-of-ever-crossing bound under a valid null martingale |
 | `restarted_ville_threshold` | Harmonic restart-mixture e-process | Ville bound for the implemented restart mixture |
-| `cusum_threshold` | CUSUM of log betting increments | Change-evidence trigger requiring separate calibration |
-| `shiryaev_roberts_threshold` | Shiryaev-Roberts statistic | Change-evidence trigger requiring separate calibration |
+| `cusum_threshold` | CUSUM statistic, or a fixed mixture of component CUSUM statistics | ARL at least the threshold when the statistic is a valid e-detector |
+| `shiryaev_roberts_threshold` | SR statistic, or a fixed mixture of component SR statistics | ARL at least the threshold when the statistic is a valid e-detector |
+
+These ARL statements require valid component betting constructions; they are
+not lifetime false-alarm probability bounds. See
+[Exchangeability Martingales](exchangeability_martingales.md#interpreting-cusum-and-shiryaev-roberts-thresholds)
+for the conditional-validity and filtration assumptions. `MixtureMartingale`
+averages component statistics independently; its ordinary capital ratio is not
+a shared increment for its SR/CUSUM statistics.
 
 If action is taken when either of two Ville-valid alarms fires, allocate error
 across them. Enabling several alarms does not leave each one with the full

@@ -78,6 +78,7 @@ PUBLIC_MODULE_EXPORTS = {
         "AlarmConfig",
         "BaseMartingale",
         "MartingaleState",
+        "MixtureMartingale",
         "PowerMartingale",
         "SimpleJumperMartingale",
         "SimpleMixtureMartingale",
