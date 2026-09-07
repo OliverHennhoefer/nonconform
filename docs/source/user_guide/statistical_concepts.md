@@ -53,14 +53,10 @@ stronger evidence against a null hypothesis. Unlike p-values, e-values are
 designed to be averaged across certain dependent analyses when their validity
 conditions hold.
 
-**In nonconform**: `DerandomizedSplits` manages repeated split-conformal fitting
-through the detector. `select(...)` uniformly averages per-split evidence and
-applies e-BH, with diagnostics in `last_selection_result`. Tied scores are
-randomized automatically using a separate fitting-derived stream.
-`select_conformal_e_values(...)` remains available for existing split-result
-snapshots, and the lower-level `conformal_e_values(...)` accepts arrays when
-experts have independently verified score provenance. These standalone
-functions still require an explicit `tie_seed` to handle ties.
+**In nonconform**: `DerandomizedSplits` uniformly averages evidence from repeated
+conformal splits and selects discoveries using e-BH. See the
+[derandomized e-value guide](fdr_control.md#derandomized-conformal-e-values)
+for usage, tie handling, diagnostics, and expert interfaces.
 
 **Guarantee**: The construction targets an aggregate null-evidence condition
 that is sufficient for e-BH FDR control under the method assumptions; it does
@@ -70,8 +66,8 @@ randomized score ordering, one fixed test family in consistent row order, valid
 integrated unweighted `Split` score maps, and one final e-BH filtering step.
 
 **Common mistake**: Do not treat e-values as p-values or threshold them at
-ordinary p-value cutoffs. Use `detector.select(...)` with `DerandomizedSplits`,
-or the standalone e-value selection functions, for FDR decisions.
+ordinary p-value cutoffs. E-BH selects using the ordering and scale of the
+evidence together with a target FDR level.
 
 ---
 
@@ -87,10 +83,11 @@ look anomalous by chance. FDR control targets the expected false-positive
 proportion among discoveries, for example at most 5% in expectation when the
 assumptions hold.
 
-**In nonconform**: `detector.select(X_test, alpha=...)` applies BH in standard
-mode and WCS in weighted mode. `alpha` is a nominal FDR target, not a bound on
-the FDP of every realized family. The corresponding guarantee requires valid
-p-values and the assumptions of the selected procedure. The historical
+**In nonconform**: `detector.select(X_test, alpha=...)` applies BH for p-value
+strategies, e-BH for `DerandomizedSplits`, and WCS in weighted mode. `alpha` is a
+nominal FDR target, not a bound on the FDP of every realized family. The
+corresponding guarantee requires the evidence conditions and assumptions of
+the selected procedure. The historical
 `false_discovery_rate(...)` metric returns realized FDP for supplied labels.
 
 ---
