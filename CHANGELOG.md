@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `FDPCertificate.threshold_for(max_fdp=...)` to maximize discoveries
+  among observed p-value cutoffs whose simultaneous FDP bound meets a target.
+  It returns `None` when no nonempty selection qualifies and reuses certificate
+  state without rescoring or Monte Carlo resampling.
 - Added `nonconform.martingales.MixtureMartingale` for fixed-weight composition
   of independently maintained martingale, harmonic restart, CUSUM, and
   Shiryaev-Roberts evidence, including direct `ExchangeabilityMonitor` support.
@@ -25,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking, targeting 2.0: supported FDP certificate configurations.** THC
+  now requires `0 < beta <= 1`. Native certification requires immutable recorded
+  empirical tie-mode provenance; randomized certification additionally requires
+  finite stored test scores and rejects exact calibration/test score ties.
+  Classical tied-score certification remains supported, including snapshots
+  without test scores. Choose classical tie handling before computing p-values
+  for discrete scoring rules, and recompute snapshots missing tie provenance.
+  Expert `from_p_values(...)` callers remain responsible for the supported score
+  construction. These checks replace previously accepted unsupported
+  configurations; supported certificate numerics, p-value computation, and
+  ordinary selection are unchanged. See the FDP guide for migration and
+  statistical rationale. No version bump or publication is included.
 - **Breaking: FDP certification API replacement.** Use
   `ConformalDetector.fdp_bounds(x, ...)`, `ConformalResult.fdp_bounds(...)`, or
   `nonconform.fdr.FDPCertificate.from_p_values(...)`. Certificates are immutable

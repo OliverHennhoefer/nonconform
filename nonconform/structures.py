@@ -189,6 +189,9 @@ class ConformalResult:
         inference, including detached calibration. Scope and batch dimensions
         are checked; these checks do not prove array integrity or scientific
         exchangeability. For external p-values use FDPCertificate.from_p_values.
+        Native empirical tie-mode provenance is required. Classical score ties
+        are supported; randomized certification additionally requires test
+        scores and rejects exact calibration/test score equalities.
 
         Options and defaults match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
         Confidence is simultaneous coverage, not an FDR target. The Monte Carlo

@@ -285,7 +285,23 @@ certificate = detector.fdp_bounds(
 
 print(certificate.to_frame(thresholds=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1]))
 print("FDP upper bound at 0.05:", certificate.bound_at(0.05))
+
+threshold = certificate.threshold_for(max_fdp=0.10)
+selected = (
+    certificate.select(threshold)
+    if threshold is not None
+    else np.zeros(certificate.n_test, dtype=bool)
+)
+print("discoveries at target FDP 0.10:", selected.sum())
 ```
+
+`threshold_for(max_fdp=...)` finds the largest observed p-value cutoff whose
+bound is at most the requested target. This maximizes discoveries among
+qualifying threshold selections. It checks the entire observed curve because
+FDP bounds need not be monotone. The target must be a finite numeric scalar in
+`[0, 1]`; booleans and vectors are rejected. `None` means no nonempty selection
+qualifies. Use `is not None`: zero is a valid cutoff. Queries reuse prepared
+certificate state without rescoring, sorting again, or resampling.
 
 The detector and snapshot APIs require native provenance for unweighted `Split`
 inference with `Empirical` p-values, including detached calibration. They reject
@@ -294,6 +310,14 @@ unknown provenance, weighted, probabilistic/KDE, conditional, CV/bootstrap, and
 check scope and batch dimensions, but cannot prove array integrity or establish
 scientific exchangeability. The reference construction requires a fixed scoring
 map and exchangeability of the calibration and null test observations.
+
+Native certification also requires a recognized empirical tie mode recorded
+when the p-values were computed. This private provenance is immutable and is
+preserved in defensive snapshots. Classical empirical p-values support tied
+scores and do not require stored test scores. Randomized empirical p-values
+require finite test scores of the correct shape and reject exact score ties
+between the calibration and test sets. Duplicates confined to either set are
+allowed; equal p-values alone are not evidence of cross-set score ties.
 
 An existing snapshot can be certified without scoring again:
 
@@ -320,9 +344,53 @@ certificate = FDPCertificate.from_p_values(
 )
 ```
 
-The caller must verify the expert route's provenance and statistical assumptions.
+The caller must verify the expert route's provenance and statistical assumptions,
+including the supported score and tie construction described below. P-values
+alone cannot establish tie provenance; the expert factory does not bypass
+these statistical requirements.
 None of these entry points covers changing the detector, scoring map, or testing
 family after inspecting the curve.
+
+### Why selecting a target FDP is valid
+
+Write the simultaneous bound as `B(t)` and let `delta = 1 - confidence`. On the
+event that `FDP(t) <= B(t)` at every threshold, any chosen threshold with
+`B(t) <= max_fdp` also has `FDP(t) <= max_fdp`. Selecting nothing when no cutoff
+qualifies has FDP zero. Consequently, under the certificate's assumptions,
+
+$$
+\Pr\{\operatorname{FDP}(\widehat{t}) > \texttt{max\_fdp}\}
+\le 1 - \texttt{confidence}.
+$$
+
+Searching the curve needs no additional multiplicity correction. At target
+`0.10` and confidence `0.95`, the probability of realized FDP exceeding 10% is
+at most 5%. This is different from expected-FDR control at 10%.
+
+[Song, Jin, and Candès (2026), Theorem 5.4 and Proposition 5.5](https://arxiv.org/html/2605.20726v2#S5)
+provide the conformal simultaneous envelope and its self-refinement. Threshold
+inversion above is a direct consequence of simultaneous coverage.
+[Goeman and Solari (2011)](https://doi.org/10.1214/11-STS356) establish the general
+post hoc inference principle with a different construction. The conformal
+reference is an arXiv preprint.
+
+The paper assumes no score ties. The supported extension to tied scores follows
+by assigning independent continuous secondary keys to all observations,
+ordering first by score and then by key, and constructing auxiliary randomized
+conformal ranks with independent uniform offsets. Exchangeability is preserved.
+Classical empirical p-values are at least these auxiliary ranks, so their null
+rejection counts are bounded by the auxiliary counts. Randomized empirical
+p-values coincide with the auxiliary ranks when no calibration/test score ties
+occur, regardless of duplicates confined to either set. This is why the native
+randomized workflow checks cross-set score equality.
+
+For Monte Carlo methods, coverage averages jointly over the data, empirical
+randomization when applicable, and independent envelope simulations. A seed
+reproduces a draw; it does not establish coverage conditional on that draw.
+The randomized tie check likewise does not establish coverage conditional on
+passing the check. If certification is rejected, make no certified discoveries;
+repeatedly changing the data or seed until certification succeeds is outside
+this guarantee.
 
 An upper bound of `1.0` is valid but uninformative, not a build or API failure.
 Certificate tightness depends on the calibration count, family size, observed
@@ -341,12 +409,34 @@ Method-specific keywords default to `None` and are resolved centrally:
 | `mc_bj` | `n_resamples=1000`, `seed=None`, `precision=1e-8` |
 | `ks` | No method-specific options; deterministic |
 
-All methods accept `confidence=0.95` and `boost=True`. Non-`None` inapplicable
-options raise an error. Method aliases such as `MC-THC` remain accepted. The
+All methods accept `confidence=0.95` and `boost=True`. THC requires
+`0 < beta <= 1`; unsupported values are rejected before Monte Carlo sampling.
+Non-`None` inapplicable options raise an error. Method aliases such as `MC-THC`
+remain accepted. The
 certificate's seed controls Monte Carlo draws only; it does not inherit or alter
 the fitting seed. `seed=None` draws fresh randomness at construction, and repeated
 queries reuse those draws. Prepared queries use additional linear memory to avoid
 repeated sorting and quadratic scans.
+
+### Migration for 2.0 certificate restrictions
+
+The stricter certificate checks are intentional behavioral breaks targeting
+**2.0**, not a patch or minor release. Previously, certification accepted THC
+`beta > 1` and randomized calibration/test score ties without a supported
+justification. These configurations now raise errors. Supported certificate
+numerics, empirical p-value computation, and ordinary selection are unchanged.
+
+- For THC, use `0 < beta <= 1` (default `0.5`) and fix it before inspecting the
+  curve; the implemented computational argument covers this range.
+- For discrete or tied scoring rules, configure `Empirical(tie_break="classical")`
+  before computing p-values. Randomized certification requires finite stored
+  test scores and no exact calibration/test score ties. Do not edit scores or
+  provenance on an existing snapshot to obtain certification.
+- Recompute native p-values when snapshots lack recognized tie-mode provenance.
+  External arrays still use `FDPCertificate.from_p_values(...)`, with the caller
+  responsible for establishing the supported score construction.
+
+This integration does not bump the package version or publish a release.
 
 ### Migration from the previous FDP API
 
@@ -438,6 +528,7 @@ multiple-testing problem.
 | Select under modeled covariate shift | Weighted `detector.select(...)`, which uses WCS |
 | Aggregate repeated split-conformal evidence | `DerandomizedSplits` with `select(...)` and e-BH |
 | Explore p-value thresholds with a simultaneous realized-FDP certificate | `detector.fdp_bounds(x, ...)` |
+| Maximize threshold discoveries below a certified FDP target | `certificate.threshold_for(max_fdp=...)`, then `select(...)` |
 | Test an open-ended sequence of distinct hypotheses | A justified online FDR procedure |
 | Detect loss of exchangeability in one stream | `ExchangeabilityMonitor` and a conformal martingale |
 
@@ -457,6 +548,10 @@ multiple-testing problem.
 - [Jin and Candès (2023)](https://arxiv.org/abs/2307.09291)
   introduces weighted conformal p-values and WCS under covariate shift.
 - [Song, Jin, and Candès (2026)](https://arxiv.org/abs/2605.20726)
-  develops simultaneous FDP bounds over conformal-p-value thresholds.
+  develops simultaneous FDP bounds over conformal-p-value thresholds
+  (arXiv preprint, Theorem 5.4 and Proposition 5.5).
+- [Goeman and Solari (2011)](https://doi.org/10.1214/11-STS356),
+  *Multiple Testing for Exploratory Research*, develops simultaneous confidence
+  statements that remain valid after selecting a rejection set post hoc.
 - [Javanmard and Montanari (2018)](https://doi.org/10.1214/17-AOS1629)
   develops LORD-style online FDR control.

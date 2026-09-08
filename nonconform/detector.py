@@ -757,6 +757,11 @@ class ConformalDetector(BaseConformalDetector):
             weighted=self._is_weighted_mode,
             calibration_mode=self._calibration_mode,
             test_batch_signature=test_batch_signature,
+            empirical_tie_break=(
+                getattr(self.estimation, "_tie_break", None)
+                if estimation_family is EstimationFamily.EMPIRICAL
+                else None
+            ),
         )
 
     def _resolve_weights(
@@ -1152,6 +1157,12 @@ class ConformalDetector(BaseConformalDetector):
         calibration. Choose the method before inspecting its curve and keep
         the testing family fixed. Confidence is coverage, not an FDR target.
         Scientific exchangeability remains the caller's responsibility.
+
+        Classical score ties are supported. Randomized empirical inference
+        requires no exact equality between calibration and test scores;
+        unsupported cross-ties raise ValueError before envelope sampling.
+        The returned certificate's threshold_for(max_fdp=...) finds the largest
+        observed cutoff meeting a requested FDP bound, or None if none qualifies.
 
         Options match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
         The seed controls certificate Monte Carlo sampling only and does not

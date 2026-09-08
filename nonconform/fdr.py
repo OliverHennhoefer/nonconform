@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from numbers import Real
 
 import numpy as np
 import pandas as pd
@@ -62,7 +63,8 @@ class FDPCertificate:
 
     Evidence and default-grid diagnostics are read-only arrays. Queries never
     resample. ``select(t)`` returns an original-order NumPy mask for p <= t;
-    t is a p-value cutoff, not a requested FDP bound.
+    t is a p-value cutoff, not a requested FDP bound. Use
+    ``threshold_for(max_fdp=...)`` to find a cutoff meeting an FDP target.
     """
 
     _p_values: np.ndarray = field(repr=False)
@@ -116,6 +118,11 @@ class FDPCertificate:
         scoring map and the reference method's exchangeability assumptions.
         Native detector/snapshot entry points check supported scope; this expert
         route cannot. Scientific exchangeability is never established by code.
+        The caller must verify classical empirical ranks (ties are allowed),
+        or randomized ranks without calibration/test score equalities. P-values
+        alone cannot establish the score construction or its tie provenance.
+        Monte Carlo coverage averages over data and independent simulations,
+        rather than conditioning on a particular realized envelope.
 
         Args:
             p_values: Nonempty 1D testing family in [0, 1], in original order.
@@ -127,7 +134,7 @@ class FDPCertificate:
             boost: Apply threshold-specific sharpening (default True).
             lower: THC lower truncation, default 0.01.
             upper: THC upper truncation, default 0.99.
-            beta: THC exponent, default 0.5.
+            beta: THC exponent in (0, 1], default 0.5.
             precision: BJ inversion tolerance, default 1e-8.
 
         Method-specific options must be omitted or None when inapplicable.
@@ -199,6 +206,49 @@ class FDPCertificate:
     def precision_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
         """Return 1 - bound_at(threshold), a simultaneous precision lower bound."""
         return 1.0 - self.bound_at(threshold)
+
+    def threshold_for(self, *, max_fdp: float) -> float | None:
+        """Find the largest observed cutoff whose FDP bound is at most max_fdp.
+
+        Examines every observed cutoff because FDP bounds need not be monotone.
+        The returned cutoff maximizes discoveries among qualifying threshold
+        selections and can be passed to select(). No scores or Monte Carlo
+        samples are recomputed, and the certificate remains unchanged.
+
+        Under the certificate's simultaneous coverage assumptions, choosing a
+        qualifying cutoff (or selecting nothing if none qualifies) yields
+        P(realized FDP > max_fdp) <= 1 - confidence. This is a direct consequence
+        of simultaneous coverage, distinct from expected-FDR control. Keep the
+        scoring rule, testing family, and envelope configuration fixed.
+
+        Args:
+            max_fdp: Finite real numeric scalar in [0, 1]. No target is assumed.
+
+        Returns:
+            Largest qualifying observed p-value as a float, or None when no
+            nonempty selection qualifies. Zero is a valid returned cutoff.
+
+        Raises:
+            ValueError: If max_fdp is a boolean, nonnumeric, nonscalar, nonfinite,
+                or outside [0, 1].
+
+        References:
+            Song, Jin, and Candès (2026), arXiv:2605.20726v2, Theorem 5.4 and
+            Proposition 5.5. Goeman and Solari (2011), "Multiple Testing for
+            Exploratory Research", doi:10.1214/11-STS356.
+        """
+        message = "max_fdp must be a finite numeric scalar in [0, 1]."
+        if isinstance(max_fdp, (bool, np.bool_)) or not isinstance(max_fdp, Real):
+            raise ValueError(message)
+        try:
+            target = float(max_fdp)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise ValueError(message) from exc
+        if not np.isfinite(target) or not 0.0 <= target <= 1.0:
+            raise ValueError(message)
+        _, bounds = self._query(self._support)
+        qualifying = np.flatnonzero(bounds <= target)
+        return float(self._support[qualifying[-1]]) if qualifying.size else None
 
     def select(self, threshold: float) -> np.ndarray:
         """Return an original-order Boolean NumPy mask for p <= threshold."""

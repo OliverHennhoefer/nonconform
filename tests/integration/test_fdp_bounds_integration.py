@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import numpy as np
 import pandas as pd
 import pytest
 from pyod.models.iforest import IForest
 from scipy.stats import false_discovery_control
+from sklearn.base import BaseEstimator
 from sklearn.ensemble import IsolationForest
 from sklearn.exceptions import NotFittedError
 
 from nonconform import ConformalDetector, Split
+from nonconform._internal import TieBreakMode
 from nonconform._internal.provenance import (
     CalibrationMode,
     EstimationFamily,
@@ -22,8 +26,29 @@ from nonconform.resampling import (
     DerandomizedSplits,
     JackknifeBootstrap,
 )
-from nonconform.scoring import ConditionalEmpirical, Probabilistic
+from nonconform.scoring import ConditionalEmpirical, Empirical, Probabilistic
 from nonconform.structures import ConformalResult
+
+
+class ScoreDetector(BaseEstimator):
+    """Expose the first input column as scores to control exact tie patterns."""
+
+    def fit(self, X, y=None):
+        self.n_features_in_ = X.shape[1]
+        return self
+
+    def decision_function(self, X):
+        return np.asarray(X)[:, 0]
+
+
+def _detached_score_detector(calibration_scores, tie_break):
+    model = ScoreDetector().fit(np.zeros((2, 1)))
+    return ConformalDetector(
+        model,
+        strategy=Split(),
+        estimation=Empirical(tie_break=tie_break),
+        seed=4,
+    ).calibrate(np.asarray(calibration_scores).reshape(-1, 1))
 
 
 def test_fdp_bounds_do_not_change_existing_unweighted_selection(simple_dataset):
@@ -93,6 +118,11 @@ def test_native_entry_points_equivalent_and_independent(
     raw = FDPCertificate.from_p_values(snapshot.p_values, n_calibration=25, **options)
     np.testing.assert_array_equal(direct.to_frame(), cached.to_frame())
     np.testing.assert_array_equal(direct.to_frame(), raw.to_frame())
+    for target in [0, 0.1, 0.5, 1]:
+        assert direct.threshold_for(max_fdp=target) == cached.threshold_for(
+            max_fdp=target
+        )
+        assert direct.threshold_for(max_fdp=target) == raw.threshold_for(max_fdp=target)
     assert isinstance(direct.select(0.1), np.ndarray)
     expected = direct.to_frame()
     snapshot.p_values[:] = 0
@@ -159,6 +189,9 @@ def test_unknown_and_forged_legacy_metadata_are_rejected():
         ({"weighted": True}, "unweighted"),
         ({"test_batch_signature": None}, "batch dimensions"),
         ({"calibration_mode": None}, "fitted or calibrated"),
+        ({"empirical_tie_break": None}, "tie"),
+        ({"empirical_tie_break": "classical"}, "tie"),
+        ({"empirical_tie_break": "unknown"}, "tie"),
     ],
 )
 def test_native_scope_cannot_be_overridden_by_metadata(fitted_batch, change, match):
@@ -169,6 +202,16 @@ def test_native_scope_cannot_be_overridden_by_metadata(fitted_batch, change, mat
     result = detector.last_result
     result._provenance = replace(result._provenance, **change)
     with pytest.raises(ValueError, match=match):
+        result.fdp_bounds(method="ks")
+
+
+def test_legacy_native_provenance_without_tie_mode_is_rejected(fitted_batch):
+    detector, _, batch = fitted_batch
+    detector.compute_p_values(batch)
+    result = detector.last_result
+    # Emulate a legacy native snapshot whose slotted provenance predates this field.
+    object.__delattr__(result._provenance, "empirical_tie_break")
+    with pytest.raises(ValueError, match="tie"):
         result.fdp_bounds(method="ks")
 
 
@@ -249,3 +292,157 @@ def test_weighted_detector_rejected_before_scoring(fitted_batch, monkeypatch):
     monkeypatch.setattr(detector, "compute_p_values", forbidden)
     with pytest.raises(ValueError, match="unweighted"):
         detector.fdp_bounds(batch)
+
+
+@pytest.mark.parametrize("tie_break", ["classical", "randomized"])
+@pytest.mark.parametrize("detached", [False, True])
+def test_tie_mode_provenance_and_target_selection_across_native_workflows(
+    tie_break, detached, monkeypatch
+):
+    reference = np.arange(30.0).reshape(-1, 1)
+    batch = np.array([[40.0], [45.0], [50.0]])
+    if detached:
+        detector = _detached_score_detector(reference.ravel(), tie_break)
+    else:
+        detector = ConformalDetector(
+            ScoreDetector(),
+            strategy=Split(n_calib=15),
+            estimation=Empirical(tie_break=tie_break),
+            seed=4,
+        ).fit(reference)
+    direct = detector.fdp_bounds(batch, method="ks")
+    result = detector.last_result
+    expected_mode = (
+        TieBreakMode.CLASSICAL if tie_break == "classical" else TieBreakMode.RANDOMIZED
+    )
+    assert result._provenance.empirical_tie_break is expected_mode
+    assert result._provenance.calibration_mode is (
+        CalibrationMode.DETACHED if detached else CalibrationMode.INTEGRATED
+    )
+    copied = result.copy()
+    assert copied._provenance is result._provenance
+    with pytest.raises(FrozenInstanceError):
+        result._provenance.empirical_tie_break = None
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("certificate reuse rescored the test family")
+
+    monkeypatch.setattr(detector, "compute_p_values", forbidden)
+    detector.estimation = Empirical(
+        tie_break="randomized" if tie_break == "classical" else "classical"
+    )
+    assert copied._provenance.empirical_tie_break is expected_mode
+    snapshot = copied.fdp_bounds(method="ks")
+    expert = FDPCertificate.from_p_values(
+        result.p_values, n_calibration=len(result.calib_scores), method="ks"
+    )
+    for certificate in [snapshot, expert]:
+        np.testing.assert_array_equal(certificate.to_frame(), direct.to_frame())
+        for target in [0, 0.1, 0.5, 1]:
+            assert certificate.threshold_for(max_fdp=target) == direct.threshold_for(
+                max_fdp=target
+            )
+
+
+def test_classical_certification_allows_cross_ties_and_absent_test_scores():
+    detector = _detached_score_detector([0, 1, 1, 2], "classical")
+    batch = np.array([[1], [1], [3]])
+    expected_p_values = detector.compute_p_values(batch)
+    certificate = detector.fdp_bounds(batch, method="ks")
+    np.testing.assert_array_equal(certificate.p_values, expected_p_values)
+    np.testing.assert_array_equal(expected_p_values, [0.8, 0.8, 0.2])
+    result = detector.last_result
+    result.test_scores = None
+    np.testing.assert_array_equal(
+        result.fdp_bounds(method="ks").to_frame(), certificate.to_frame()
+    )
+
+
+def test_randomized_cross_ties_rejected_even_when_p_values_are_distinct(monkeypatch):
+    from nonconform._internal import fdp_bounds as core
+
+    detector = _detached_score_detector([0, 1, 1, 2], "randomized")
+    batch = np.array([[1], [1], [3]])
+    p_values = detector.compute_p_values(batch)
+    assert len(np.unique(p_values)) == len(batch)
+    snapshot = detector.last_result
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("unsupported randomized cross-ties reached Monte Carlo sampling")
+
+    monkeypatch.setattr(core, "_sample_conformal_null_p_values", forbidden)
+    for certify in [snapshot.fdp_bounds, lambda: detector.fdp_bounds(batch)]:
+        with pytest.raises(ValueError, match="tie"):
+            certify()
+    # Rejecting certification does not change the already supported p-value API.
+    np.testing.assert_array_equal(detector.compute_p_values(batch), p_values)
+
+
+@pytest.mark.parametrize(
+    "calibration_scores,test_scores",
+    [
+        ([0, 0, 2, 2], [1, 3]),
+        ([0, 2, 4], [1, 1, 3]),
+        ([0, 0, 2, 2], [1, 1, 3]),
+        ([0.0, 1.0], [np.nextafter(1.0, 2.0), 2.0]),
+    ],
+)
+def test_randomized_certification_allows_within_set_duplicates_and_near_cross_ties(
+    calibration_scores, test_scores
+):
+    detector = _detached_score_detector(calibration_scores, "randomized")
+    batch = np.asarray(test_scores).reshape(-1, 1)
+    certificate = detector.fdp_bounds(batch, method="ks")
+    result = detector.last_result
+    np.testing.assert_array_equal(certificate.p_values, result.p_values)
+    np.testing.assert_array_equal(
+        certificate.to_frame(), result.copy().fdp_bounds(method="ks").to_frame()
+    )
+
+
+def test_randomized_cross_tie_check_preserves_large_integer_score_precision():
+    reference = (2**53 + np.arange(0, 80, 2, dtype=np.int64)).reshape(-1, 1)
+    detector = ConformalDetector(
+        ScoreDetector(),
+        strategy=Split(n_calib=0.5),
+        estimation=Empirical(tie_break="randomized"),
+        aggregation="maximum",
+        score_polarity="higher_is_anomalous",
+        seed=1,
+    ).fit(reference)
+    batch = np.array([[detector.calibration_set[0] + 1]], dtype=np.int64)
+    detector.compute_p_values(batch)
+    result = detector.last_result
+    assert result.calib_scores.dtype == np.int64
+    assert result.test_scores.dtype == np.int64
+    assert not np.any(result.calib_scores == result.test_scores[0])
+    certificate = result.fdp_bounds(method="ks")
+    np.testing.assert_array_equal(certificate.p_values, result.p_values)
+
+
+@pytest.mark.parametrize(
+    "test_scores,match",
+    [
+        (None, "test_scores"),
+        ([1.0], "batch size"),
+        ([[1.0, 3.0]], "1D"),
+        ([np.nan, 3.0], "finite"),
+        ([1.0, np.inf], "finite"),
+    ],
+)
+def test_randomized_certification_requires_complete_valid_test_scores(
+    monkeypatch, test_scores, match
+):
+    from nonconform._internal import fdp_bounds as core
+
+    detector = _detached_score_detector([0, 2, 4], "randomized")
+    detector.compute_p_values(np.array([[1], [3]]))
+    result = detector.last_result
+    result.test_scores = test_scores
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid randomized scores reached Monte Carlo sampling")
+
+    monkeypatch.setattr(core, "_sample_conformal_null_p_values", forbidden)
+    with pytest.raises(ValueError, match=match):
+        result.fdp_bounds()

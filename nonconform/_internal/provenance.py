@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from .constants import TieBreakMode
+
 if TYPE_CHECKING:
     from nonconform.structures import ConformalResult
 
@@ -54,6 +56,7 @@ class ResultProvenance:
     weighted: bool
     calibration_mode: CalibrationMode | None
     test_batch_signature: BatchSignature | None
+    empirical_tie_break: TieBreakMode | None = None
 
 
 def batch_signature(x: np.ndarray) -> BatchSignature:

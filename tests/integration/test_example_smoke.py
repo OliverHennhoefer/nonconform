@@ -8,6 +8,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Self
 
 import numpy as np
+import pytest
 
 
 class FakeIForest:
@@ -82,3 +83,65 @@ def test_derandomized_e_values_notebook_smoke(monkeypatch, capsys):
     assert result.tie_seed is not None
     np.testing.assert_array_equal(namespace["decisions"], result.selected)
     assert detector.last_result is None
+
+
+@pytest.mark.parametrize("n_anomalies", [0, 80])
+def test_fdp_bounds_notebook_smoke(monkeypatch, capsys, n_anomalies):
+    rng = np.random.default_rng(1)
+    x_train = rng.normal(size=(1_200, 3))
+    x_test = np.vstack(
+        [rng.normal(size=(20, 3)), rng.normal(loc=4.0, size=(n_anomalies, 3))]
+    )
+    y_test = np.array([0] * 20 + [1] * n_anomalies)
+    oddball = ModuleType("oddball")
+    oddball.Dataset = SimpleNamespace(SHUTTLE="shuttle")
+    oddball.load = lambda *args, **kwargs: (x_train, x_test, y_test)
+    pyod = ModuleType("pyod")
+    pyod_models = ModuleType("pyod.models")
+    pyod_iforest = ModuleType("pyod.models.iforest")
+    pyod_iforest.IForest = FakeIForest
+    for name, module in [
+        ("oddball", oddball),
+        ("pyod", pyod),
+        ("pyod.models", pyod_models),
+        ("pyod.models.iforest", pyod_iforest),
+    ]:
+        monkeypatch.setitem(sys.modules, name, module)
+
+    example_path = Path(__file__).parents[2] / "examples" / "fdp_bounds.ipynb"
+    notebook = json.loads(example_path.read_text(encoding="utf-8"))
+    namespace = {"__name__": "__main__"}
+    root_logger = logging.getLogger("nonconform")
+    original_level = root_logger.level
+    original_handlers = list(root_logger.handlers)
+    try:
+        for cell in notebook["cells"]:
+            if cell["cell_type"] == "code":
+                source = "".join(cell["source"])
+                exec(compile(source, str(example_path), "exec"), namespace)
+    finally:
+        root_logger.setLevel(original_level)
+        root_logger.handlers[:] = original_handlers
+
+    assert (
+        "Detector, snapshot, and expert certificates agree." in capsys.readouterr().out
+    )
+    certificate = namespace["certificate"]
+    threshold = namespace["threshold"]
+    selected = namespace["selected"]
+    assert certificate.n_calibration == 1_000
+    assert threshold == certificate.threshold_for(max_fdp=namespace["max_fdp"])
+    assert selected.dtype == bool
+    assert selected.shape == (len(x_test),)
+    if n_anomalies:
+        assert threshold is not None
+        assert selected.any()
+        assert certificate.bound_at(threshold) <= namespace["max_fdp"]
+        np.testing.assert_array_equal(selected, certificate.select(threshold))
+    else:
+        assert threshold is None
+        assert not selected.any()
+    for name in ["snapshot_certificate", "expert_certificate"]:
+        np.testing.assert_array_equal(
+            namespace[name].to_frame(), certificate.to_frame()
+        )

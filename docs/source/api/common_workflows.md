@@ -365,18 +365,40 @@ not automatically inherit the Ville guarantee. See
 For a fitted unweighted empirical `Split` detector and one fixed test family:
 
 ```python
+import numpy as np
+
 certificate = detector.fdp_bounds(x_test, confidence=0.95, seed=42)
 print(certificate.to_frame(thresholds=[0.01, 0.05, 0.1]))
 mask = certificate.select(0.05)  # p-value cutoff; returns a NumPy mask
+
+threshold = certificate.threshold_for(max_fdp=0.10)
+selected = (
+    certificate.select(threshold)
+    if threshold is not None
+    else np.zeros(certificate.n_test, dtype=bool)
+)
+print("discoveries at target FDP 0.10:", selected.sum())
 ```
+
+`threshold_for(...)` checks every observed cutoff and returns the largest whose
+FDP bound is at most the target, maximizing qualifying discoveries. The target
+is a finite numeric scalar in `[0, 1]`. `None` means no nonempty selection
+qualifies; zero is a valid cutoff. Simultaneous coverage permits this choice
+without an additional multiplicity correction: under the certificate's
+assumptions, `P(realized FDP > max_fdp) <= 1 - confidence` when `None` leads to
+an empty selection.
 
 If p-values were already computed, `detector.last_result.fdp_bounds(...)`
 certifies that native snapshot without rescoring. Certificates own immutable
 state and survive refitting. `confidence` is simultaneous coverage of realized
 FDP bounds, while `select(x, alpha=...)` targets expected FDR. Fix the scoring
-rule, family, and certificate method before inspecting the curve. See the
+rule, family, and certificate method before inspecting the curve. Classical
+empirical ties are supported. Randomized certification requires finite stored
+test scores and rejects exact calibration/test score ties; duplicates within
+either set are allowed. Monte Carlo coverage is joint over data and independent
+simulations, not conditional on the realized seed or a passed tie check. See the
 [FDP guide](../user_guide/fdr_control.md#post-hoc-simultaneous-fdp-bounds) for assumptions,
-method options, and migration from the removed FDP functions.
+references, method options, and the 2.0 migration restrictions.
 
 ## Score direction for custom detectors
 

@@ -9,6 +9,7 @@ import numpy as np
 
 from nonconform.structures import ConformalResult
 
+from .constants import TieBreakMode
 from .provenance import (
     CalibrationMode,
     EstimationFamily,
@@ -51,6 +52,8 @@ def validate_truncation(
     if lower_value >= upper_value:
         raise ValueError("lower must be strictly smaller than upper.")
     beta_value = validate_positive_finite("beta", beta)
+    if beta_value > 1.0:
+        raise ValueError("beta must be in (0, 1] for mc_thc certification.")
     return lower_value, upper_value, beta_value
 
 
@@ -104,6 +107,11 @@ def validate_scope(provenance: ResultProvenance | None) -> None:
         CalibrationMode.DETACHED,
     }:
         raise ValueError("fdp_bounds() requires a fitted or calibrated native result.")
+    if not isinstance(getattr(provenance, "empirical_tie_break", None), TieBreakMode):
+        raise ValueError(
+            "fdp_bounds() requires native empirical tie-mode provenance. "
+            "Recompute p-values with the current detector before certifying."
+        )
 
 
 def validate_result_scope(result: ConformalResult) -> int:
@@ -131,11 +139,37 @@ def validate_result_scope(result: ConformalResult) -> int:
         raise ValueError(
             "result.p_values are inconsistent with recorded batch dimensions."
         )
+    randomized = provenance.empirical_tie_break is TieBreakMode.RANDOMIZED
+    if randomized and result.test_scores is None:
+        raise ValueError(
+            "randomized FDP certification requires result.test_scores to check "
+            "calibration/test score ties. Recompute the unmodified snapshot."
+        )
     if result.test_scores is not None:
         scores = as_1d_numeric("result.test_scores", result.test_scores)
         validate_finite("result.test_scores", scores)
         if scores.size != p_values.size:
             raise ValueError("result.test_scores must match the p_values batch size.")
+        # Append independent continuous secondary keys to exchangeable scores.
+        # Without calibration/test cross-ties, those keys cannot change any
+        # comparison used by randomized p-values, so these equal valid auxiliary
+        # randomized ranks. Within-set duplicates are harmless. Classical
+        # p-values dominate the auxiliary ranks even when cross-ties occur.
+        # Refusing cross-ties preserves unconditional failure control; it does
+        # not establish coverage conditional on this check passing.
+        if randomized:
+            # Preserve the score dtypes used by Empirical's rank comparisons:
+            # validation's float conversion can merge distinct large integers.
+            sorted_calib = np.sort(np.asarray(result.calib_scores))
+            left = np.searchsorted(sorted_calib, result.test_scores, side="left")
+            right = np.searchsorted(sorted_calib, result.test_scores, side="right")
+            if np.any(left != right):
+                raise ValueError(
+                    "randomized FDP certification does not support "
+                    "calibration/test score ties. Use classical empirical p-values "
+                    "with the same fixed scoring rule, or a separately justified "
+                    "rank construction."
+                )
     return calib_scores.size
 
 

@@ -216,6 +216,120 @@ def test_select_rejects_vector_thresholds():
         result.select(np.array([0.1, 0.2]))
 
 
+@pytest.mark.parametrize("method", SUPPORTED_METHODS)
+@pytest.mark.parametrize("boost", [False, True])
+def test_threshold_for_matches_exhaustive_observed_cutoff_search(method, boost):
+    certificate = _bounds(
+        np.array([0.8, 0.001, 0.01, 0.03, 0.08, 0.03, 0.25, 0.6]),
+        n_calibration=50,
+        confidence=0.5,
+        n_resamples=20,
+        seed=3,
+        method=method,
+        boost=boost,
+    )
+    cutoffs = np.unique(certificate.p_values)
+    # Include each attained bound to check inclusive target comparison.
+    targets = [0.0, 0.1, 0.25, 0.5, 1.0, *certificate.bound_at(cutoffs)]
+    for target in targets:
+        qualifying = [
+            cutoff for cutoff in cutoffs if certificate.bound_at(cutoff) <= target
+        ]
+        expected = max(qualifying) if qualifying else None
+        actual = certificate.threshold_for(max_fdp=target)
+        assert actual == expected
+        if actual is not None:
+            assert isinstance(actual, float)
+            np.testing.assert_array_equal(
+                certificate.select(actual), certificate.p_values <= expected
+            )
+            assert all(
+                certificate.select(actual).sum() >= certificate.select(cutoff).sum()
+                for cutoff in qualifying
+            )
+
+
+def test_threshold_for_scans_past_nonqualifying_cutoffs_and_includes_equality():
+    certificate = _bounds(
+        np.array([0.001, 0.01, 0.03, 0.08, 0.25, 0.6]),
+        n_calibration=50,
+        confidence=0.5,
+        n_resamples=20,
+        seed=3,
+        method="mc_bj",
+    )
+    # The curve has separated qualifying regions: 0, 0, 1/3, 1/4, 2/5, 1/2.
+    assert certificate.bound_at(0.03) > 0.25
+    assert certificate.bound_at(0.08) == 0.25
+    assert certificate.threshold_for(max_fdp=0.25) == 0.08
+    assert certificate.threshold_for(max_fdp=np.nextafter(0.25, 0.0)) == 0.01
+
+
+def test_threshold_for_zero_cutoff_selects_all_ties_in_original_order():
+    certificate = _bounds(
+        np.array([0.8, 0.0, 0.1, 0.0]),
+        n_calibration=50,
+        confidence=0.5,
+        n_resamples=20,
+        seed=3,
+        method="mc_bj",
+    )
+    cutoff = certificate.threshold_for(max_fdp=0)
+    assert cutoff is not None
+    assert cutoff == 0.0
+    np.testing.assert_array_equal(
+        certificate.select(cutoff), [False, True, False, True]
+    )
+    assert certificate.threshold_for(max_fdp=1) == 0.8
+
+
+def test_threshold_for_returns_none_instead_of_an_unobserved_empty_cutoff():
+    certificate = _bounds(np.array([0.2, 0.8]), method="ks")
+    assert certificate.bound_at(0.0) == 0.0
+    assert np.all(certificate.fdp_upper_bounds > 0.0)
+    assert certificate.threshold_for(max_fdp=0.0) is None
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        -0.1,
+        1.1,
+        np.nan,
+        np.inf,
+        -np.inf,
+        True,
+        False,
+        np.bool_(True),
+        [],
+        [0.1],
+        np.array([0.1, 0.2]),
+        np.array([[0.1]]),
+        "0.1",
+        "invalid",
+        None,
+        0.1 + 0j,
+        {},
+    ],
+)
+def test_threshold_for_rejects_invalid_targets(target):
+    with pytest.raises(ValueError, match="max_fdp"):
+        _bounds().threshold_for(max_fdp=target)
+
+
+@pytest.mark.parametrize("target", [0, 1, np.int64(1), np.float32(0.5), np.float64(1)])
+def test_threshold_for_accepts_real_numeric_scalars(target):
+    certificate = _bounds()
+    assert certificate.threshold_for(max_fdp=target) == certificate.threshold_for(
+        max_fdp=float(target)
+    )
+
+
+def test_threshold_for_requires_keyword_target():
+    with pytest.raises(TypeError):
+        _bounds().threshold_for(0.1)
+
+
 def test_same_seed_gives_identical_bounds():
     first = _bounds(seed=11, method="mc_bj")
     second = _bounds(seed=11, method="mc_bj")
@@ -426,6 +540,8 @@ def test_infinite_hc_cutoff_is_conservative_at_endpoints(boost):
 @pytest.mark.parametrize("method", SUPPORTED_METHODS)
 def test_queries_never_sort_or_resample(monkeypatch, boost, method):
     certificate = _bounds(method=method, boost=boost)
+    expected_frame = certificate.to_frame()
+    expected_p_values = certificate.p_values.copy()
 
     def forbidden(*args, **kwargs):
         pytest.fail("query sorted or resampled after certificate construction")
@@ -439,7 +555,30 @@ def test_queries_never_sort_or_resample(monkeypatch, boost, method):
         certificate.to_frame()
         certificate.to_frame([0, 0.1, 1])
         certificate.select(0.2)
+        for target in [0, 0.1, 0.5, 1]:
+            certificate.threshold_for(max_fdp=target)
         _ = certificate.fdp_upper_bounds, certificate.precision_lower_bounds
+    np.testing.assert_array_equal(certificate.to_frame(), expected_frame)
+    np.testing.assert_array_equal(certificate.p_values, expected_p_values)
+
+
+@pytest.mark.parametrize(
+    "beta", [0, -0.1, np.nextafter(1.0, np.inf), 2, np.inf, np.nan]
+)
+def test_thc_rejects_unsupported_beta_before_monte_carlo(monkeypatch, beta):
+    def forbidden(*args, **kwargs):
+        pytest.fail("unsupported THC exponent reached Monte Carlo sampling")
+
+    monkeypatch.setattr(core, "_sample_conformal_null_p_values", forbidden)
+    with pytest.raises(ValueError, match="beta"):
+        _bounds(beta=beta, method="mc_thc")
+
+
+@pytest.mark.parametrize("beta", [0.01, 0.5, 1.0])
+def test_thc_accepts_supported_beta_endpoints(beta):
+    certificate = _bounds(beta=beta, method="mc_thc")
+    assert certificate.beta == beta
+    assert np.all(np.isfinite(certificate.fdp_upper_bounds))
 
 
 @pytest.mark.parametrize(
