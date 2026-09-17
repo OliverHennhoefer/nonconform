@@ -1,13 +1,14 @@
 ---
-description: "Run nonconform's two primary workflows: FDR-targeted batch discovery and exchangeability-martingale change monitoring."
+description: "Run nonconform's batch discovery, raw-score FPR, and exchangeability-martingale workflows."
 ---
 
 # Quick Start
 
 Get started with nonconform in minutes.
 
-This guide runs both primary workflows: batch discovery control and sequential
-change monitoring. Both examples use only the core installation.
+This guide runs the batch discovery and sequential change-monitoring workflows.
+Both examples use only the core installation. For raw-score false-alarm
+thresholds, see [Common API Workflows](api/common_workflows.md#raw-score-false-alarm-control).
 
 ## What You'll Learn
 
