@@ -46,7 +46,7 @@ For the v1 public compatibility contract, see
 
 ## FDR Control
 
-Includes post-hoc FDP bounds, derandomized e-value selection, and weighted
+Includes raw-score FPR certificates, post-hoc FDP bounds, derandomized e-value selection, and weighted
 low-level expert APIs (`weighted_false_discovery_control`).
 For batch workflows, prefer `ConformalDetector.select(...)`. With
 `DerandomizedSplits`, it applies e-BH and exposes evidence through
@@ -55,6 +55,10 @@ expert use.
 For simultaneous realized-FDP certification, use `detector.fdp_bounds(x, ...)`
 or `result.fdp_bounds(...)`; both return an immutable `FDPCertificate`.
 `FDPCertificate.from_p_values(...)` is the explicit expert array interface.
+For a simultaneous raw-score false-positive-rate curve, use
+`detector.fpr_bounds()` or `result.fpr_bounds()`; both return an immutable
+`FPRCertificate`. `FPRCertificate.from_scores(...)` is the explicit expert
+calibration-score interface.
 See the [FDP migration notes](../user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
 for the intentional replacement of the previous FDP-specific API.
 

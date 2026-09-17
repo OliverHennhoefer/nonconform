@@ -25,19 +25,23 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-`nonconform` turns anomaly scores into conformal evidence for two primary
-workflows: batch discovery control and sequential change monitoring. Wrap a
+`nonconform` turns anomaly scores into conformal evidence for batch discovery,
+raw-score risk control, and sequential change monitoring. Wrap a
 supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
 or a custom detector:
 
 - **Batch:** Use calibrated p-values directly or call `select(...)` to apply
   false discovery rate (FDR) control.
+- **Raw-score risk:** Build a simultaneous false-alarm/FPR certificate and
+  choose a score threshold for future inliers.
 - **Stream:** Use conformal martingales to accumulate evidence against
   exchangeability and trigger configured alarms.
 
 ## Why nonconform?
 
 - **Calibrate anomaly scores** into conformal p-values using reference data.
+- **Control raw-score false alarms** with simultaneous FPR certificates and
+  target-driven threshold inversion.
 - **Control batch discoveries** by accounting for multiple tests within a
   fixed family.
 - **Monitor streams for change** with conformal martingales, anytime evidence
@@ -120,6 +124,24 @@ print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
 > not a per-observation score threshold. The underlying conformal p-values remain
 > available through `last_result` for inspection or downstream analysis.
 
+### Raw-score false-alarm control
+
+If the operational requirement is “flag no more than 5% of future inliers,” use
+the raw-score certificate instead of treating an FDR target as a score
+threshold:
+
+```python
+certificate = detector.fpr_bounds(confidence=0.95, seed=42)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+print(f"Certified threshold: {certificate.threshold_for(0.05)}")
+```
+
+This is a marginal per-inlier false-alarm guarantee. It is distinct from FDR,
+realized FDP, and sequential Ville control. It requires clean calibration and
+future inlier scores that are i.i.d. from the same distribution, conditional on
+a score map fixed independently of calibration.
+
 ### Sequential change monitoring
 
 A fitted `Split` detector can initialize the stream lane without refitting its
@@ -181,6 +203,7 @@ for the full guarantee scope and other alarm statistics.
 | Goal | Start with |
 | --- | --- |
 | Calibrate and select anomalies in a batch | [`Split` and `select(...)`](https://oliverhennhoefer.github.io/nonconform/quickstart/) |
+| Set a per-inlier raw-score false-alarm target | [`fpr_bounds(...)` and FPR certificates](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#raw-score-false-alarm-control) |
 | Aggregate evidence across random splits | [`DerandomizedSplits` and e-BH](https://oliverhennhoefer.github.io/nonconform/examples/derandomized_e_values/) |
 | Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |

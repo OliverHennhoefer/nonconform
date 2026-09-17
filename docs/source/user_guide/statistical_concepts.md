@@ -92,6 +92,33 @@ the selected procedure. The historical
 
 ---
 
+## Raw-score False-Positive Rate (FPR)
+
+**What it is**: For an anomalous-higher score $S$, the FPR at threshold $t$ is
+$\Pr(S\ge t)$ when the future observation is a genuine inlier. It is a
+per-inlier false-alarm probability, not the fraction of false discoveries among
+all selected observations.
+
+**In nonconform**: `detector.fpr_bounds()` returns an immutable
+`FPRCertificate`. Its simultaneous upper curve can be queried with
+`bound_at(t)` and inverted with `threshold_for(target_fpr)`. Apply the resulting
+rule with `certificate.select(scores, target_fpr=...)`.
+
+**Guarantee**: Calibration and future inlier scores must be independent and
+identically distributed (i.i.d.) conditional on a scoring map fixed independently
+of the calibration data. Calibration observations must be clean inliers from
+the deployment inlier distribution; exchangeability alone is insufficient.
+Under these assumptions, the certificate bounds the FPR curve simultaneously
+at the requested confidence level. The initial implementation supports
+unweighted empirical `Split` calibration and uses a Monte Carlo one-sided KS band.
+
+**Common mistake**: A 5% FPR target does not imply 5% FDR in a batch containing
+anomalies, and it does not bound the probability of at least one false alarm in
+an arbitrarily large batch. It also provides no recall, FNR, or total-cost
+guarantee.
+
+---
+
 ## Anytime False-Alarm Control (Ville Bound)
 
 **What it is**: A sequential false-alarm guarantee for nonnegative evidence
@@ -204,6 +231,7 @@ anomaly mechanism changes, weighting alone does not restore the guarantees. See
 |---------|----------|-------------|
 | **p-value** | Supports a level-$a$ test through null super-uniformity | Null and calibration assumptions; calibration size sets rank resolution |
 | **FDR** | Expected FDP of a declared testing family | Null p-value validity, dependence, family definition, and selection procedure |
+| **FPR certificate** | Simultaneous upper bound on raw-score false alarms for future inliers | Score map fixed independently of calibration, i.i.d. calibration and future inlier scores, confidence, and supported Split scope |
 | **Ville threshold** | Bounds ever-crossing probability for one valid stream | e-process validity and threshold choice |
 | **Restarted Ville threshold** | Applies the Ville bound to a restart-mixture e-process | Component e-process validity and restart prior |
 | **Power** | Rejection probability under an alternative | Alternative distribution, scorer, calibration, and decision rule |
@@ -223,7 +251,7 @@ For mathematical foundations and implementation context:
 - [Shafer & Vovk (2008)](https://jmlr.org/papers/v9/shafer08a.html) -
   conformal prediction tutorial.
 - [Bates et al. (2023)](https://projecteuclid.org/journals/annals-of-statistics/volume-51/issue-1/Testing-for-outliers-with-conformal-p-values/10.1214/22-AOS2244.short) -
-  conformal p-values for outlier testing.
+  conformal p-values for outlier testing and a uniform raw-score FPR bound.
 - [Benjamini & Hochberg (1995)](https://www.math.tau.ac.il/~ybenja/MyPapers/benjamini_hochberg1995.pdf) -
   the original FDR procedure.
 - [Jin & Candès (2023)](https://arxiv.org/abs/2307.09291) -

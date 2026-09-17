@@ -44,6 +44,48 @@ observation has a 95% probability of being anomalous. The FDR guarantee is a
 property of the selection procedure under its assumptions and across the
 declared testing family.
 
+## Raw-score false-alarm control
+
+Use an `FPRCertificate` when the deployment requirement is a per-inlier
+false-alarm target rather than an expected false-discovery proportion.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(800, 4))
+x_test = np.vstack(
+    [rng.normal(size=(18, 4)), rng.normal(loc=5.0, size=(2, 4))]
+)
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
+
+certificate = detector.fpr_bounds(confidence=0.95, seed=42)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+
+print("threshold:", certificate.threshold_for(0.05))
+print("selected indices:", np.flatnonzero(selected))
+print(certificate.to_frame())
+```
+
+The certificate is simultaneous over raw-score thresholds, so threshold
+inversion is part of the certified workflow. It controls the probability that
+one future inlier crosses the selected threshold; it does not control FDR,
+realized FDP, recall, or the probability of at least one false alarm in an
+arbitrarily large batch. Native FPR certificates currently support unweighted
+empirical `Split` calibration only. Coverage requires clean calibration and
+future inlier scores that are i.i.d. from the same deployment inlier distribution,
+conditional on a scoring map fixed independently of calibration. Exchangeability
+alone is insufficient; native scope checks do not establish these assumptions.
+
 ## Inspect p-values and scores
 
 Call `compute_p_values(...)` when you need the p-values themselves. The
