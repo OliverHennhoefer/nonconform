@@ -59,6 +59,15 @@ _bootstrap_logger = logging.getLogger("nonconform.resampling.bootstrap")
 ConformalModeInput = ConformalMode | Literal["plus", "single_model"]
 
 
+def _try_set_random_state(detector: AnomalyDetector, seed: int | None) -> None:
+    """Set the resampling seed when the detector supports random_state."""
+    if hasattr(detector, "set_params"):
+        try:
+            detector.set_params(random_state=seed)
+        except (TypeError, ValueError):
+            pass  # Detector may not support random_state parameter
+
+
 def _normalize_mode(mode: ConformalModeInput) -> ConformalMode:
     """Normalize user-facing mode inputs into ConformalMode enums."""
     if isinstance(mode, ConformalMode):
@@ -213,11 +222,7 @@ class Split(BaseStrategy):
             x_id, test_size=self._calib_size, shuffle=True, random_state=seed
         )
 
-        if hasattr(detector, "set_params"):
-            try:
-                detector.set_params(random_state=seed)
-            except (TypeError, ValueError):
-                pass  # Detector may not support random_state parameter
+        _try_set_random_state(detector, seed)
 
         detector.fit(x[train_id])
         calibration_set = detector.decision_function(x[calib_id])
@@ -547,11 +552,7 @@ class CrossValidation(BaseStrategy):
             self._calibration_ids.extend(calib_idx.tolist())
 
             model = copy(detector_)
-            if hasattr(model, "set_params"):
-                try:
-                    model.set_params(random_state=seed)
-                except (TypeError, ValueError):
-                    pass  # Detector may not support random_state parameter
+            _try_set_random_state(model, seed)
             model.fit(x[train_idx])
 
             if self._mode is ConformalMode.PLUS:
@@ -565,11 +566,7 @@ class CrossValidation(BaseStrategy):
 
         if self._mode is ConformalMode.SINGLE_MODEL:
             model = copy(detector_)
-            if hasattr(model, "set_params"):
-                try:
-                    model.set_params(random_state=seed)
-                except (TypeError, ValueError):
-                    pass  # Detector may not support random_state parameter
+            _try_set_random_state(model, seed)
             model.fit(x)
             self._detector_list.append(deepcopy(model))
 
@@ -613,11 +610,7 @@ def _train_bootstrap_model(
         Trained detector model.
     """
     model = deepcopy(detector)
-    if hasattr(model, "set_params"):
-        try:
-            model.set_params(random_state=seed)
-        except (TypeError, ValueError):
-            pass  # Detector may not support random_state parameter
+    _try_set_random_state(model, seed)
     model.fit(x[bootstrap_indices])
     return model
 
@@ -752,11 +745,7 @@ class JackknifeBootstrap(BaseStrategy):
             self._detector_list = self._bootstrap_models.copy()
         else:
             final_model = deepcopy(detector)
-            if hasattr(final_model, "set_params"):
-                try:
-                    final_model.set_params(random_state=seed)
-                except (TypeError, ValueError):
-                    pass  # Detector may not support random_state parameter
+            _try_set_random_state(final_model, seed)
             final_model.fit(x)
             self._detector_list = [final_model]
 
