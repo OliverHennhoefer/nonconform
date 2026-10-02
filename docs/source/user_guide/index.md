@@ -4,10 +4,12 @@ description: "Navigate nonconform concepts, batch discovery control, weighted co
 
 # User guide
 
-`nonconform` supports two primary workflows built on anomaly scores:
+`nonconform` supports batch and sequential workflows built on anomaly scores:
 
 - **Batch discovery control:** construct p-values or e-values for a fixed family and select
   anomalies with a justified FDR procedure.
+- **Raw-score risk control:** construct a simultaneous false-alarm/FPR curve
+  and select a score threshold for future inliers.
 - **Sequential change monitoring:** generate randomized sequential conformal
   p-values, accumulate evidence with a martingale, and trigger configured
   alarms.
@@ -20,6 +22,7 @@ are different.
 | Task | Read first | Then |
 |---|---|---|
 | Select anomalies in one batch | [Conformal inference](conformal_inference.md) | [FDR control](fdr_control.md) |
+| Set a per-inlier raw-score false-alarm target | [FDR control](fdr_control.md#raw-score-false-alarm-control) | [Common workflows](../api/common_workflows.md#raw-score-false-alarm-control) |
 | Stabilize repeated split selections | [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | [Batch evaluation](batch_evaluation.md) |
 | Monitor an ordered stream for change | [Exchangeability martingales](exchangeability_martingales.md) | [Streaming evaluation](streaming_evaluation.md) |
 | Handle modeled covariate shift | [Weighted conformal](weighted_conformal.md) | [FDR control](fdr_control.md#weighted-conformalized-selection) |
@@ -42,7 +45,7 @@ are different.
 |---|---|
 | [Detector compatibility](detector_compatibility.md) | scikit-learn, PyOD, custom protocols, blocked batch-adaptive models, and score polarity |
 | [Weighted conformal](weighted_conformal.md) | Covariate-shift assumptions, density-ratio estimators, weight diagnostics, and WCS |
-| [FDR control](fdr_control.md) | BH, BY, WCS, derandomized e-values, post-hoc FDP certificates, repeated batches, and online FDR distinctions |
+| [FDR control](fdr_control.md) | Raw-score FPR certificates, BH, BY, WCS, derandomized e-values, post-hoc FDP certificates, repeated batches, and online FDR distinctions |
 | [Derandomized e-values](fdr_control.md#derandomized-conformal-e-values) | `DerandomizedSplits` with automatic repetitions, e-values, and e-BH |
 | [Exchangeability martingales](exchangeability_martingales.md) | Sequential randomized ranks, betting martingales, alarms, and Ville scope |
 

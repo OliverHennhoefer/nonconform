@@ -11,11 +11,13 @@ description: "Calibrate anomaly scores, control batch discoveries, and monitor s
 
 **Calibrate scores. Control discoveries. Monitor change.**
 
-`nonconform` turns anomaly scores into conformal evidence for two primary
-workflows:
+`nonconform` turns anomaly scores into conformal evidence for batch and
+sequential workflows:
 
 - **Batch discovery control:** compute conformal p-values and select anomalies
   with false discovery rate (FDR) control.
+- **Raw-score risk control:** build a simultaneous false-alarm/FPR certificate
+  and select a score threshold for future inliers.
 - **Sequential change monitoring:** transform a stream into randomized
   sequential conformal p-values and accumulate evidence against exchangeability
   with conformal martingales.
@@ -58,6 +60,26 @@ print(f"Smallest p-value: {p_values.min():.4f}")
 `alpha=0.05` is the target FDR level for this batch, not an anomaly-score
 threshold and not a promise about the realized false discovery proportion in
 this particular run.
+
+## Raw-score false-alarm control
+
+When the requirement is to limit false alarms among future inliers, use the
+raw-score certificate rather than interpreting an FDR target as a score
+threshold:
+
+```python
+certificate = detector.fpr_bounds(confidence=0.95, seed=42)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+
+print(f"Certified threshold: {certificate.threshold_for(0.05)}")
+print(f"Selected {selected.sum()} observations")
+```
+
+This simultaneous marginal FPR guarantee requires clean calibration and future
+inlier scores that are i.i.d. from the same distribution, conditional on a scoring
+map fixed independently of calibration. It is distinct from FDR, realized FDP,
+recall, and sequential Ville false-alarm control.
 
 ## Sequential change monitoring
 
@@ -126,6 +148,7 @@ by 0.05 on one valid null stream. It does not control FDR across streams.
 | Workflow | Start here | Main output |
 |---|---|---|
 | Fixed batch of anomaly candidates | [Quick Start](quickstart.md#batch-discovery-control) | Conformal p-values and an FDR-controlled Boolean mask |
+| Fixed raw-score false-alarm target | [FDR Control](user_guide/fdr_control.md#raw-score-false-alarm-control) | A simultaneous FPR curve and target-driven threshold |
 | Ordered stream monitored for change | [Exchangeability Martingales](user_guide/exchangeability_martingales.md) | Sequential p-values, e-values, evidence statistics, and configured alarms |
 | Covariate shift between calibration and test | [Weighted Conformal](user_guide/weighted_conformal.md) | Weighted p-values and WCS selections |
 | Custom or third-party detector | [Detector Compatibility](user_guide/detector_compatibility.md) | A validated, anomaly-oriented score interface |

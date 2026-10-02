@@ -67,6 +67,7 @@ PUBLIC_MODULE_EXPORTS = {
     "nonconform.fdr": [
         "EValueSelectionResult",
         "FDPCertificate",
+        "FPRCertificate",
         "Pruning",
         "conformal_e_values",
         "e_value_false_discovery_control",

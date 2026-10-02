@@ -17,7 +17,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from nonconform._internal.provenance import ResultProvenance
-    from nonconform.fdr import FDPCertificate
+    from nonconform.fdr import FDPCertificate, FPRCertificate
 
 
 def _array_summary(arr: np.ndarray | None) -> str:
@@ -211,6 +211,42 @@ class ConformalResult:
             upper=upper,
             beta=beta,
             precision=precision,
+        )
+
+    def fpr_bounds(
+        self,
+        *,
+        confidence: float = 0.95,
+        n_resamples: int | None = None,
+        seed: int | None = None,
+    ) -> FPRCertificate:
+        """Certify the raw-score false-positive rate without rescoring.
+
+        Requires an unmodified native snapshot of unweighted empirical Split
+        inference, including detached calibration. Calibration and future
+        inlier scores must be i.i.d. conditional on a scoring map fixed
+        independently of calibration; exchangeability alone is insufficient.
+        Scope checks do not prove that arrays were not edited or that these
+        sampling and clean-inlier assumptions hold. For external scores use
+        ``FPRCertificate.from_scores``.
+
+        Args:
+            confidence: Simultaneous coverage probability in ``(0, 1)``.
+            n_resamples: Monte Carlo KS draws; defaults to ``1000``.
+            seed: Monte Carlo seed only. ``None`` draws fresh randomness once.
+
+        Returns:
+            An immutable simultaneous raw-score FPR certificate.
+        """
+        from nonconform._internal.fpr_bounds import validate_result_scope
+        from nonconform.fdr import FPRCertificate
+
+        calibration_scores = validate_result_scope(self)
+        return FPRCertificate.from_scores(
+            calibration_scores,
+            confidence=confidence,
+            n_resamples=n_resamples,
+            seed=seed,
         )
 
     def copy(self) -> ConformalResult:

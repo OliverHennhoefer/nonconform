@@ -1,5 +1,5 @@
 ---
-description: "Use batch FDR control, derandomized conformal e-values, weighted conformalized selection, simultaneous post-hoc FDP bounds, and online FDR with their distinct assumptions."
+description: "Use raw-score FPR certificates, batch FDR control, derandomized conformal e-values, weighted conformalized selection, simultaneous post-hoc FDP bounds, and online FDR with their distinct assumptions."
 ---
 
 # False discovery rate control
@@ -69,6 +69,69 @@ print("smallest p-values:", np.sort(result.p_values)[:5])
 The input to one `select(...)` call is one testing family. Calling it separately
 on several chunks applies separate procedures. It does not reproduce BH on the
 combined p-values.
+
+## Raw-score false-alarm control
+
+Sometimes the operational question is simpler than FDR: “How high should the
+anomaly score threshold be so that at most 5% of future inliers are flagged?”
+`FPRCertificate` answers this question directly from the raw calibration-score
+distribution. It produces one simultaneous upper bound for every raw-score
+threshold, so the threshold can be chosen after inspecting the curve.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(3_000, 4))
+x_test = np.vstack(
+    [rng.normal(size=(195, 4)), rng.normal(loc=4.5, size=(5, 4))]
+)
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=0.3),
+    seed=42,
+).fit(x_reference)
+
+certificate = detector.fpr_bounds(
+    confidence=0.95,
+    n_resamples=1_000,
+    seed=42,
+)
+scores = detector.score_samples(x_test)
+threshold = certificate.threshold_for(target_fpr=0.05)
+selected = scores >= threshold
+
+print("certified threshold:", threshold)
+print("selected:", np.flatnonzero(selected))
+print(certificate.to_frame())
+```
+
+Here `confidence=0.95` is the simultaneous coverage of the whole FPR curve;
+`target_fpr=0.05` is the allowed false-alarm rate for a future inlier. The
+decision rule is `score >= threshold`, and scores are normalized so that larger
+values mean more anomalous. `threshold_for()` returns a `numpy.float64` scalar
+that preserves precision when compared with float16 or float32 NumPy scores.
+Keep that scalar dtype for direct comparisons, or use
+`certificate.select(scores, target_fpr=0.05)`. A target below the certificate's
+finite-sample band floor returns `numpy.inf`, which gives an empty selection for
+finite scores.
+
+Coverage requires clean calibration and future inlier scores that are i.i.d.
+conditional on a scoring map fixed independently of the calibration data. They
+must come from the same deployment inlier distribution. Exchangeability alone
+is insufficient, and native scope checks cannot verify these assumptions.
+
+This is a marginal per-inlier guarantee, not FDR, realized FDP, or a guarantee
+that a whole batch contains no false alarms. It also does not say anything
+about recall, missed anomalies, or total cost. The native entry points require
+clean, unweighted empirical `Split` calibration, including detached calibration.
+For an existing snapshot, use `result.fpr_bounds()`; for externally supplied
+anomalous-higher calibration scores, use `FPRCertificate.from_scores(...)` and
+verify the independent calibration, fixed-score-map, and inlier assumptions yourself.
 
 ## How BH selects
 
