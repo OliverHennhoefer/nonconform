@@ -759,6 +759,24 @@ class ConformalDetector(BaseConformalDetector):
             test_batch_signature=test_batch_signature,
         )
 
+    def _fit_weights_for_batch(
+        self,
+        x: np.ndarray,
+        *,
+        test_batch_signature: BatchSignature | None = None,
+    ) -> None:
+        """Fit batch weights and record the size and optional reuse signature."""
+        self.weight_estimator.fit(self._calibration_samples, x)
+        self._prepared_weight_batch_size = len(x)
+        if self.verify_prepared_batch_content:
+            self._prepared_weight_batch_signature = (
+                test_batch_signature
+                if test_batch_signature is not None
+                else batch_signature(x)
+            )
+        else:
+            self._prepared_weight_batch_signature = None
+
     def _resolve_weights(
         self,
         x: np.ndarray,
@@ -771,12 +789,7 @@ class ConformalDetector(BaseConformalDetector):
             return None
 
         if refit_weights:
-            self.weight_estimator.fit(self._calibration_samples, x)
-            self._prepared_weight_batch_size = len(x)
-            if self.verify_prepared_batch_content:
-                self._prepared_weight_batch_signature = test_batch_signature
-            else:
-                self._prepared_weight_batch_signature = None
+            self._fit_weights_for_batch(x, test_batch_signature=test_batch_signature)
             return self.weight_estimator.get_weights()
 
         if self._prepared_weight_batch_size is None:
@@ -955,12 +968,7 @@ class ConformalDetector(BaseConformalDetector):
                 "prepare_weights_for() requires weighted mode with a weight_estimator."
             )
 
-        self.weight_estimator.fit(self._calibration_samples, x)
-        self._prepared_weight_batch_size = len(x)
-        if self.verify_prepared_batch_content:
-            self._prepared_weight_batch_signature = batch_signature(x)
-        else:
-            self._prepared_weight_batch_signature = None
+        self._fit_weights_for_batch(x)
         return self
 
     def score_samples(

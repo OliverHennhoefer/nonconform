@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
@@ -271,54 +272,36 @@ def build_ecdf_upper_bound(
     precision: float,
 ) -> tuple[float, np.ndarray | None]:
     """Build method-specific ECDF envelope state."""
-    bj_lower_bounds = None
-    if method == "mc_thc":
-        summary_quantile = _mc_summary_quantile(
+    if method == "ks":
+        return _dkw_lambda(
             n_calibration=n_calibration,
             n_test=n_test,
             confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=lambda sampled: _higher_criticism_statistic(
-                sampled,
-                lower=lower,
-                upper=upper,
-                beta=beta,
-            ),
+        ), None
+
+    if method == "mc_thc":
+        statistic = partial(
+            _higher_criticism_statistic, lower=lower, upper=upper, beta=beta
         )
     elif method == "mc_hc":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_higher_criticism_statistic,
-        )
+        statistic = _higher_criticism_statistic
     elif method == "mc_ks":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_ks_statistic,
-        )
-    elif method == "ks":
-        summary_quantile = _dkw_lambda(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-        )
+        statistic = _ks_statistic
     elif method == "mc_bj":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_berk_jones_statistic,
-        )
+        statistic = _berk_jones_statistic
+    else:
+        raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
+
+    summary_quantile = _mc_summary_quantile(
+        n_calibration=n_calibration,
+        n_test=n_test,
+        confidence=confidence,
+        n_resamples=n_resamples,
+        seed=seed,
+        statistic=statistic,
+    )
+    bj_lower_bounds = None
+    if method == "mc_bj":
         targets = np.arange(1, n_test // 2 + 1, dtype=float) / n_test
         bj_lower_bounds = _solve_bernoulli_kl_lower_bounds(
             targets,
@@ -326,8 +309,6 @@ def build_ecdf_upper_bound(
             n_test=n_test,
             precision=precision,
         )
-    else:
-        raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
     return summary_quantile, bj_lower_bounds
 
 
