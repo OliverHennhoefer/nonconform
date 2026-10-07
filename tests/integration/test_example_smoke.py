@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Self
 
 import numpy as np
+import pytest
 
 
 class FakeIForest:
@@ -82,3 +84,108 @@ def test_derandomized_e_values_notebook_smoke(monkeypatch, capsys):
     assert result.tie_seed is not None
     np.testing.assert_array_equal(namespace["decisions"], result.selected)
     assert detector.last_result is None
+
+
+def test_fdp_notebook_smoke(monkeypatch, capsys):
+    """Execute the real detector and certificate against a labeled fixture."""
+    rng = np.random.default_rng(42)
+    x_train = rng.normal(size=(3_000, 3))
+    x_normal = rng.normal(size=(800, 3))
+    x_anomaly = rng.normal(loc=5.0, size=(200, 3))
+    x_test = np.vstack([x_normal, x_anomaly])
+    y_test = np.r_[np.zeros(800, dtype=int), np.ones(200, dtype=int)]
+    oddball = ModuleType("oddball")
+    oddball.Dataset = SimpleNamespace(SHUTTLE="shuttle")
+    oddball.load = lambda *args, **kwargs: (x_train, x_test, y_test)
+    monkeypatch.setitem(sys.modules, "oddball", oddball)
+    example_path = Path(__file__).parents[2] / "examples" / "fdp_bounds.ipynb"
+    notebook = json.loads(example_path.read_text(encoding="utf-8"))
+    namespace = {"__name__": "__main__"}
+    logger = logging.getLogger("nonconform")
+    original_level = logger.level
+    original_handlers = list(logger.handlers)
+    try:
+        for cell in notebook["cells"]:
+            if cell["cell_type"] == "code":
+                exec(
+                    compile("".join(cell["source"]), str(example_path), "exec"),
+                    namespace,
+                )
+    finally:
+        logger.setLevel(original_level)
+        logger.handlers[:] = original_handlers
+    certificate = namespace["certificate"]
+    assert certificate.n_calibration == 1_000
+    assert certificate.n_test == 1_000
+    assert certificate.method == "mc_thc"
+    assert certificate.seed is None
+    assert certificate.n_resamples == 1_000
+    assert certificate.boost
+    selected = certificate.select(0.01)
+    assert np.all(selected[-200:])
+    assert np.isfinite(certificate.bound_at(0.01))
+    assert certificate.bound_at(0.01) < 0.5
+    assert "Certified FDP upper bound:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "relative_path,n_calibration,n_anomalies",
+    [
+        ("README.md", 1_000, 20),
+        ("docs/source/api/common_workflows.md", 1_000, 40),
+        ("docs/source/examples/fdr_control.md", 1_000, 40),
+        ("docs/source/user_guide/fdr_control.md", 1_500, 20),
+    ],
+)
+def test_fdp_documentation_snippets(
+    monkeypatch, relative_path, n_calibration, n_anomalies
+):
+    """Run the actual documented workflow under reproducible test sampling."""
+    from nonconform._internal import fdp_bounds as core
+
+    original = core._mc_summary_quantile
+
+    def sampled(**kwargs):
+        assert kwargs["seed"] is None
+        return original(**{**kwargs, "seed": 123})
+
+    monkeypatch.setattr(core, "_mc_summary_quantile", sampled)
+    path = Path(__file__).parents[2] / relative_path
+    text = path.read_text(encoding="utf-8")
+    blocks = re.findall(r"```python\n(.*?)```", text, re.S)
+    if relative_path == "README.md":
+        code = next(
+            block
+            for block in blocks
+            if "import numpy" in block and ".fit(x_train)" in block
+        )
+        construction = re.search(r"`(certificate = detector\.fdp_bounds[^`]+)`", text)
+        assert construction is not None
+        code += "\n" + construction.group(1) + "\ncutoff = 0.01\n"
+    else:
+        code = next(
+            block
+            for block in blocks
+            if "import numpy" in block
+            and "certificate =" in block
+            and ".fdp_bounds(" in block
+        )
+    namespace = {"__name__": "__main__"}
+    exec(compile(code, str(path), "exec"), namespace)
+    certificate = namespace["certificate"]
+    assert certificate.n_calibration == n_calibration
+    assert certificate.seed is None
+    assert certificate.boost
+    assert certificate.n_resamples == 1_000
+    assert namespace["cutoff"] == 0.01
+    selected = certificate.select(namespace["cutoff"])
+    assert np.all(selected[-n_anomalies:])
+    bound = certificate.bound_at(namespace["cutoff"])
+    assert np.isfinite(bound)
+    assert bound < 0.5
+    labels = np.r_[
+        np.zeros(certificate.n_test - n_anomalies, dtype=int),
+        np.ones(n_anomalies, dtype=int),
+    ]
+    realized = np.count_nonzero(selected & (labels == 0)) / np.count_nonzero(selected)
+    assert realized <= bound

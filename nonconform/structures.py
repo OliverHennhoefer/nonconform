@@ -170,30 +170,22 @@ class ConformalResult:
             f"metadata_keys={metadata_repr})"
         )
 
-    def fdp_bounds(
-        self,
-        *,
-        confidence: float = 0.95,
-        method: str = "mc_thc",
-        n_resamples: int | None = None,
-        seed: int | None = None,
-        boost: bool = True,
-        lower: float | None = None,
-        upper: float | None = None,
-        beta: float | None = None,
-        precision: float | None = None,
-    ) -> FDPCertificate:
+    def fdp_bounds(self, *, confidence: float = 0.95) -> FDPCertificate:
         """Certify this snapshot without rescoring.
 
         Requires an unmodified native snapshot of unweighted empirical Split
         inference, including detached calibration. Scope and batch dimensions
         are checked; these checks do not prove array integrity or scientific
-        exchangeability. For external p-values use FDPCertificate.from_p_values.
+        exchangeability. For external p-values or advanced envelope settings,
+        use FDPCertificate.from_p_values and verify its assumptions.
 
-        Options and defaults match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
-        Confidence is simultaneous coverage, not an FDR target. The Monte Carlo
-        seed is independent of the detector seed. Query cutoffs on the returned
-        immutable certificate; later edits to this snapshot cannot affect it.
+        Uses 1000 fresh Monte Carlo draws with the default truncated
+        higher-criticism envelope and threshold-specific sharpening. Confidence
+        is simultaneous coverage jointly over data and independent envelope
+        sampling, not an FDR target or a guarantee conditional on every realized
+        envelope. Do not repeatedly construct certificates to cherry-pick bounds.
+        Queries on the returned immutable certificate never resample. Later
+        edits to this snapshot cannot affect it.
         """
         from nonconform._internal.fdp_bounds import validate_result_scope
         from nonconform.fdr import FDPCertificate
@@ -203,14 +195,6 @@ class ConformalResult:
             self.p_values,
             n_calibration=n_calibration,
             confidence=confidence,
-            method=method,
-            n_resamples=n_resamples,
-            seed=seed,
-            boost=boost,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-            precision=precision,
         )
 
     def copy(self) -> ConformalResult:

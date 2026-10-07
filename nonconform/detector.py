@@ -1145,26 +1145,22 @@ class ConformalDetector(BaseConformalDetector):
         x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         confidence: float = 0.95,
-        method: str = "mc_thc",
-        n_resamples: int | None = None,
-        seed: int | None = None,
-        boost: bool = True,
-        lower: float | None = None,
-        upper: float | None = None,
-        beta: float | None = None,
-        precision: float | None = None,
     ) -> FDPCertificate:
         """Compute p-values once and return a simultaneous FDP certificate.
 
         Supports unweighted empirical Split inference, including detached
-        calibration. Choose the method before inspecting its curve and keep
-        the testing family fixed. Confidence is coverage, not an FDR target.
-        Scientific exchangeability remains the caller's responsibility.
+        calibration. Keep the testing family fixed. Scientific exchangeability
+        remains the caller's responsibility. Confidence is simultaneous coverage
+        jointly over data and independent Monte Carlo sampling, not an FDR target
+        or a guarantee conditional on every realized envelope.
 
-        Options match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
-        The seed controls certificate Monte Carlo sampling only and does not
-        inherit the fitting seed. The returned certificate is independent of
-        subsequent detector operations; its select() returns a NumPy mask.
+        Uses 1000 fresh Monte Carlo draws with the default truncated
+        higher-criticism envelope and threshold-specific sharpening. The fitting
+        seed does not control envelope sampling. Choose advanced settings via
+        :meth:`nonconform.fdr.FDPCertificate.from_p_values` before inspecting
+        bounds. Do not cherry-pick repeated certificate constructions. The
+        returned certificate is independent of subsequent detector operations;
+        queries never resample and select() returns a NumPy mask.
         """
         from nonconform._internal.fdp_bounds import validate_scope
 
@@ -1172,17 +1168,7 @@ class ConformalDetector(BaseConformalDetector):
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
         validate_scope(self._result_provenance(None))
         self.compute_p_values(x)
-        return self._last_result.fdp_bounds(
-            confidence=confidence,
-            method=method,
-            n_resamples=n_resamples,
-            seed=seed,
-            boost=boost,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-            precision=precision,
-        )
+        return self._last_result.fdp_bounds(confidence=confidence)
 
     @property
     def detector_set(self) -> list[AnomalyDetector]:
