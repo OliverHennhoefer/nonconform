@@ -40,11 +40,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `nonconform.fdr.FDPCertificate.from_p_values(...)`. Certificates are immutable
   and prepare threshold queries once. Move `thresholds=` from construction to
   `to_frame(thresholds=...)` or `bound_at(...)`; omit inapplicable method options.
+  Native entry points expose only `confidence` and use the default boosted
+  Monte Carlo THC envelope; advanced settings belong to the expert factory.
+  Berk-Jones numerical tolerance is internal. Monte Carlo confidence covers
+  data and independent envelope sampling jointly, not every fixed seed or
+  realized envelope; settings must be chosen before inspecting bounds.
   Native entry points require unmodified native empirical Split/detached,
   unweighted snapshots. External p-values use the explicit expert factory.
   This intentional API break is limited to FDP certification; other workflows
-  and finite numerical reference outputs are unchanged. No version bump is
-  included in this change.
+  are unchanged. Replacement of the released FDP helpers is planned for the
+  next major release; no version metadata is bumped in this change. The
+  certificate factories and their simplified signatures are unreleased.
 
 ### Removed
 
@@ -53,6 +59,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FDP higher-criticism shape parameters now reject `beta > 1`, outside the
+  range supported by the jump-point statistic calculation. Berk-Jones
+  inversion now returns conservative lower endpoints, includes p-values equal
+  to those endpoints, handles unreachable lower roots, and terminates when
+  floating-point bisection stalls. Previously,
+  accepted expert settings could understate FDP bounds or hang construction;
+  Berk-Jones bounds can increase to preserve coverage.
 - HC certificates with a positive infinite Monte Carlo cutoff now use a
   conservative unit ECDF envelope instead of producing endpoint `NaN`s:
   nonempty selections have FDP bound 1, empty selections have bound 0.

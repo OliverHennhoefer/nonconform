@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
 from nonconform.structures import ConformalResult
 
 from .certificates import (
-    conservative_mc_quantile,
     immutable_array,
     validate_scope,
 )
@@ -26,6 +26,9 @@ from .validation import (
 )
 
 _METHODS = frozenset({"mc_thc", "mc_hc", "mc_ks", "ks", "mc_bj"})
+_BJ_PRECISION = 1e-8
+# Enough halvings to reach the smallest binary64 subnormal from [0, 1].
+_BJ_MAX_ITERATIONS = 1075
 
 
 def validate_method(method: str) -> str:
@@ -50,6 +53,8 @@ def validate_truncation(
     if lower_value >= upper_value:
         raise ValueError("lower must be strictly smaller than upper.")
     beta_value = validate_positive_finite("beta", beta)
+    if beta_value > 1.0:
+        raise ValueError("beta must lie within (0, 1].")
     return lower_value, upper_value, beta_value
 
 
@@ -132,7 +137,6 @@ class Envelope:
     lower: float | None
     upper: float | None
     beta: float | None
-    precision: float | None
     summary_quantile: float
     bj_lower_bounds: np.ndarray | None
 
@@ -162,7 +166,6 @@ def prepare_envelope(
     lower: float | None,
     upper: float | None,
     beta: float | None,
-    precision: float | None,
 ) -> Envelope:
     """Resolve applicable options and calibrate one immutable envelope."""
     method = validate_method(method)
@@ -176,13 +179,10 @@ def prepare_envelope(
         "lower": lower,
         "upper": upper,
         "beta": beta,
-        "precision": precision,
     }
     applicable = {"n_resamples", "seed"} if method.startswith("mc_") else set()
     if method == "mc_thc":
         applicable.update({"lower", "upper", "beta"})
-    if method == "mc_bj":
-        applicable.add("precision")
     for name, value in options.items():
         if value is not None and name not in applicable:
             raise ValueError(f"{name} does not apply to method={method!r}; omit it.")
@@ -197,10 +197,6 @@ def prepare_envelope(
             0.99 if upper is None else upper,
             0.5 if beta is None else beta,
         )
-    if method == "mc_bj":
-        precision = validate_positive_finite(
-            "precision", 1e-8 if precision is None else precision
-        )
     summary, bj_bounds = build_ecdf_upper_bound(
         method=method,
         n_calibration=n_calibration,
@@ -211,7 +207,6 @@ def prepare_envelope(
         lower=lower,
         upper=upper,
         beta=beta,
-        precision=precision,
     )
     return Envelope(
         method,
@@ -224,7 +219,6 @@ def prepare_envelope(
         lower,
         upper,
         beta,
-        precision,
         summary,
         None if bj_bounds is None else immutable_array(bj_bounds),
     )
@@ -241,66 +235,45 @@ def build_ecdf_upper_bound(
     lower: float,
     upper: float,
     beta: float,
-    precision: float,
 ) -> tuple[float, np.ndarray | None]:
     """Build method-specific ECDF envelope state."""
-    bj_lower_bounds = None
-    if method == "mc_thc":
-        summary_quantile = _mc_summary_quantile(
+    if method == "ks":
+        return _dkw_lambda(
             n_calibration=n_calibration,
             n_test=n_test,
             confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=lambda sampled: _higher_criticism_statistic(
-                sampled,
-                lower=lower,
-                upper=upper,
-                beta=beta,
-            ),
+        ), None
+
+    if method == "mc_thc":
+        statistic = partial(
+            _higher_criticism_statistic, lower=lower, upper=upper, beta=beta
         )
     elif method == "mc_hc":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_higher_criticism_statistic,
-        )
+        statistic = _higher_criticism_statistic
     elif method == "mc_ks":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_ks_statistic,
-        )
-    elif method == "ks":
-        summary_quantile = _dkw_lambda(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-        )
+        statistic = _ks_statistic
     elif method == "mc_bj":
-        summary_quantile = _mc_summary_quantile(
-            n_calibration=n_calibration,
-            n_test=n_test,
-            confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
-            statistic=_berk_jones_statistic,
-        )
+        statistic = _berk_jones_statistic
+    else:
+        raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
+
+    summary_quantile = _mc_summary_quantile(
+        n_calibration=n_calibration,
+        n_test=n_test,
+        confidence=confidence,
+        n_resamples=n_resamples,
+        seed=seed,
+        statistic=statistic,
+    )
+    bj_lower_bounds = None
+    if method == "mc_bj":
         targets = np.arange(1, n_test // 2 + 1, dtype=float) / n_test
         bj_lower_bounds = _solve_bernoulli_kl_lower_bounds(
             targets,
             summary_quantile,
             n_test=n_test,
-            precision=precision,
+            precision=_BJ_PRECISION,
         )
-    else:
-        raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
     return summary_quantile, bj_lower_bounds
 
 
@@ -337,6 +310,16 @@ def ecdf_upper_bound_from_params(
             n_test=n_test,
         )
     raise RuntimeError(f"Internal error: unsupported FDP method {method!r}.")
+
+
+def _custom_quantile(values: np.ndarray, q: float) -> float:
+    """Return the Monte Carlo quantile used by Song, Jin, and Candes."""
+    n = len(values)
+    sorted_values = np.sort(values)
+    index = q * (n + 1)
+    if index <= n:
+        return float(sorted_values[int(np.ceil(index)) - 1])
+    return float("inf")
 
 
 def _sample_conformal_null_p_values(
@@ -423,14 +406,31 @@ def _solve_bernoulli_kl_lower_bounds(
     n_test: int,
     precision: float,
 ) -> np.ndarray:
-    """Solve KL(x, target) = statistic / n_test below each target."""
+    """Conservatively bracket KL(x, target) = statistic / n_test below target.
+
+    A root below the endpoint clipping used by ``_bernoulli_kl`` is represented
+    by zero. Returning the lower bracket keeps the inverted ECDF envelope above
+    the one obtained with the exact root, even for a coarse internal tolerance.
+    """
+    precision = validate_positive_finite("precision", precision)
     target_level = statistic / n_test
+    if np.isnan(target_level):
+        raise RuntimeError("Internal error: Berk-Jones cutoff must not be NaN.")
     solutions = np.zeros_like(targets, dtype=float)
+    if target_level <= 0.0:
+        return targets.astype(float, copy=True)
+    endpoint_divergences = _bernoulli_kl(np.zeros_like(targets), targets)
     for i, target in enumerate(targets):
+        if target_level >= endpoint_divergences[i]:
+            continue
         lower = 0.0
         upper = float(target)
-        while upper - lower > precision:
-            midpoint = (lower + upper) / 2.0
+        for _ in range(_BJ_MAX_ITERATIONS):
+            if upper - lower <= precision:
+                break
+            midpoint = lower + (upper - lower) / 2.0
+            if midpoint <= lower or midpoint >= upper:
+                break
             divergence = float(
                 _bernoulli_kl(
                     np.array([midpoint], dtype=float),
@@ -441,7 +441,7 @@ def _solve_bernoulli_kl_lower_bounds(
                 upper = midpoint
             else:
                 lower = midpoint
-        solutions[i] = (lower + upper) / 2.0
+        solutions[i] = lower
     return solutions
 
 
@@ -504,7 +504,7 @@ def _mc_summary_quantile(
             rng=rng,
         )
         summary_stats[i] = statistic(sampled)
-    return conservative_mc_quantile(summary_stats, confidence)
+    return _custom_quantile(summary_stats, confidence)
 
 
 def _hc_ecdf_upper_bound(
@@ -574,5 +574,5 @@ def _bj_ecdf_upper_bound(
     x_arr = np.asarray(x, dtype=float)
     if lower_bounds.size == 0:
         return np.ones_like(x_arr, dtype=float)
-    indices = np.searchsorted(lower_bounds, x_arr, side="left")
+    indices = np.searchsorted(lower_bounds, x_arr, side="right")
     return np.where(indices == lower_bounds.size, 1.0, indices / n_test)

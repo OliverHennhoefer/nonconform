@@ -20,15 +20,6 @@ def immutable_array(values: np.ndarray) -> np.ndarray:
     return np.frombuffer(arr.tobytes(), dtype=arr.dtype).reshape(arr.shape)
 
 
-def conservative_mc_quantile(values: np.ndarray, confidence: float) -> float:
-    """Return the finite-Monte-Carlo order-statistic quantile."""
-    sorted_values = np.sort(values)
-    index = confidence * (len(sorted_values) + 1)
-    if index > len(sorted_values):
-        return float("inf")
-    return float(sorted_values[int(np.ceil(index)) - 1])
-
-
 def validate_scope(
     provenance: ResultProvenance | None,
     *,

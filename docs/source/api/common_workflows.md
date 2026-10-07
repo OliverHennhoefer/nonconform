@@ -416,16 +416,50 @@ not automatically inherit the Ville guarantee. See
 For a fitted unweighted empirical `Split` detector and one fixed test family:
 
 ```python
-certificate = detector.fdp_bounds(x_test, confidence=0.95, seed=42)
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(3_000, 4))
+x_family = np.vstack(
+    [rng.normal(size=(160, 4)), rng.normal(loc=5.0, size=(40, 4))]
+)
+y_family = np.r_[np.zeros(160, dtype=int), np.ones(40, dtype=int)]
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=1_000),
+    seed=42,
+).fit(x_reference)
+
+certificate = detector.fdp_bounds(x_family, confidence=0.95)
 print(certificate.to_frame(thresholds=[0.01, 0.05, 0.1]))
-mask = certificate.select(0.05)  # p-value cutoff; returns a NumPy mask
+cutoff = 0.01
+mask = certificate.select(cutoff)  # p-value cutoff; returns a NumPy mask
+print("discoveries:", mask.sum())
+print("FDP upper bound:", certificate.bound_at(cutoff))
 ```
 
-If p-values were already computed, `detector.last_result.fdp_bounds(...)`
+Labels are included only to inspect the synthetic example; certification does
+not use them. Reserving 1,000 calibration observations and including 40 shifted
+points gives this example enough information for a useful nonempty bound.
+The printed bound can vary because certificate sampling is fresh.
+
+If p-values were already computed, `detector.last_result.fdp_bounds(confidence=...)`
 certifies that native snapshot without rescoring. Certificates own immutable
-state and survive refitting. `confidence` is simultaneous coverage of realized
-FDP bounds, while `select(x, alpha=...)` targets expected FDR. Fix the scoring
-rule, family, and certificate method before inspecting the curve. See the
+state and survive refitting. The detector and result calls accept only
+`confidence`; they prepare one default MC-THC envelope with 1,000 fresh draws
+and boosting enabled. Threshold queries reuse it without resampling.
+`confidence` is simultaneous coverage of realized FDP bounds jointly over data
+and fresh Monte Carlo sampling, while `select(x, alpha=...)` targets expected
+FDR. It is not a guarantee conditional on every realized simulated envelope.
+Keep the scoring rule and family fixed, and do not cherry-pick repeated
+certificate constructions. Expert settings belong to
+`FDPCertificate.from_p_values(...)` and must be chosen before inspecting the
+curve; a fixed simulation seed gives reproducibility, not a separate
+conditional coverage guarantee. See the
 [FDP guide](../user_guide/fdr_control.md#post-hoc-simultaneous-fdp-bounds) for assumptions,
 method options, and migration from the removed FDP functions.
 

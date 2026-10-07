@@ -336,7 +336,7 @@ See the [Shuttle example and advanced result-list workflow](../examples/derandom
 ## Post-hoc simultaneous FDP bounds
 
 FDR control selects by a procedure fixed in advance and controls expected FDP.
-`detector.fdp_bounds(x, ...)` answers a different question: it
+`detector.fdp_bounds(x, confidence=0.95)` answers a different question: it
 constructs a high-confidence upper envelope for realized FDP that is
 simultaneous over p-value thresholds. This permits threshold exploration within
 the returned certificate's scope.
@@ -355,19 +355,31 @@ x_family = np.vstack(
 
 detector = ConformalDetector(
     detector=IsolationForest(n_estimators=50, random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_500),
     seed=42,
 ).fit(x_reference)
-certificate = detector.fdp_bounds(
-    x_family,
-    confidence=0.95,
-    n_resamples=500,
-    seed=42,
-)
+certificate = detector.fdp_bounds(x_family, confidence=0.95)
 
 print(certificate.to_frame(thresholds=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1]))
-print("FDP upper bound at 0.05:", certificate.bound_at(0.05))
+cutoff = 0.01
+mask = certificate.select(cutoff)
+print("discoveries:", mask.sum())
+print("FDP upper bound at cutoff:", certificate.bound_at(cutoff))
 ```
+
+This family contains 20 planted anomalies and uses 1,500 held-out calibration
+observations, so the example can produce a useful nonempty bound. Labels are
+not used for certification. The printed bound can vary because the native API
+uses fresh sampling. `select(cutoff)` applies a p-value cutoff, not an FDP target.
+
+The detector and result calls accept only `confidence`. They prepare one
+default truncated higher-criticism (`mc_thc`) envelope using 1,000 fresh Monte
+Carlo draws, `boost=True`, `lower=0.01`, `upper=0.99`, and `beta=0.5`.
+Confidence is simultaneous coverage jointly over data and that independent
+Monte Carlo sampling. It is not a guarantee conditional on every realized
+envelope or fixed seed. The detector's fitting seed does not control certificate
+sampling. Keep one construction and query it; do not repeat constructions and
+choose whichever gives the most favorable bound.
 
 The detector and snapshot APIs require native provenance for unweighted `Split`
 inference with `Empirical` p-values, including detached calibration. They reject
@@ -381,7 +393,7 @@ An existing snapshot can be certified without scoring again:
 
 ```python
 result = detector.last_result
-certificate = result.fdp_bounds(confidence=0.95, seed=42)
+certificate = result.fdp_bounds(confidence=0.95)
 mask = certificate.select(0.05)  # p-value cutoff, not a target FDP
 ```
 
@@ -392,15 +404,27 @@ returned table cannot change it. `to_frame()` defaults to sorted unique observed
 p-values; custom grids preserve order and duplicates. Scalar/vector `bound_at()`
 and `precision_at()` reuse the realized envelope without resampling.
 
-For external p-values, the explicit expert route is:
+Each construction draws its own envelope. Certifying the same snapshot again
+can therefore give different bounds while preserving the same evidence.
+
+### Expert envelope configuration
+
+Use the explicit expert route for external p-values or advanced settings:
 
 ```python
 from nonconform.fdr import FDPCertificate
 
 certificate = FDPCertificate.from_p_values(
-    result.p_values, n_calibration=len(result.calib_scores), seed=42
+    result.p_values,
+    n_calibration=len(result.calib_scores),
+    confidence=0.95,
+    method="ks",
 )
 ```
+
+This deterministic `ks` method uses the dependent-law transductive DKW
+construction for conformal p-values sharing one calibration sample. It is not
+the ordinary i.i.d. one-sample KS distribution or its `ksone` critical value.
 
 The caller must verify the expert route's provenance and statistical assumptions.
 None of these entry points covers changing the detector, scoring map, or testing
@@ -420,17 +444,29 @@ Method-specific keywords default to `None` and are resolved centrally:
 | --- | --- |
 | `mc_thc` | `n_resamples=1000`, `seed=None`, `lower=0.01`, `upper=0.99`, `beta=0.5` |
 | `mc_hc`, `mc_ks` | `n_resamples=1000`, `seed=None` |
-| `mc_bj` | `n_resamples=1000`, `seed=None`, `precision=1e-8` |
+| `mc_bj` | `n_resamples=1000`, `seed=None` |
 | `ks` | No method-specific options; deterministic |
 
-All methods accept `confidence=0.95` and `boost=True`. Non-`None` inapplicable
+These expert settings are not parameters of the detector or result methods.
+All expert methods accept `confidence=0.95` and `boost=True`. For `mc_thc`,
+`beta` must be in `(0, 1]`. Berk-Jones inversion tolerance is an internal
+implementation detail, not a public tuning parameter. Non-`None` inapplicable
 options raise an error. Method aliases such as `MC-THC` remain accepted. The
 certificate's seed controls Monte Carlo draws only; it does not inherit or alter
 the fitting seed. `seed=None` draws fresh randomness at construction, and repeated
-queries reuse those draws. Prepared queries use additional linear memory to avoid
-repeated sorting and quadratic scans.
+queries reuse those draws. An explicit seed reproduces an expert envelope; the
+nominal confidence statement is joint over data and independent Monte Carlo
+sampling, not conditional on every fixed seed. Choose the method, seed, and all
+other settings before inspection. Do not cherry-pick seeds, methods, or repeated
+constructions. Prepared queries use additional linear memory to avoid repeated
+sorting and quadratic scans.
 
 ### Migration from the previous FDP API
+
+Replacement of the released FDP helpers is planned for the next major release;
+there is no version bump in this branch. `FDPCertificate` and the detector/result
+factory methods are unreleased, so simplifying their signatures does not add
+another change to a released API.
 
 This is an intentional clean break for FDP certification. Replace
 `conformal_fdp_upper_bound_from_result(result, ...)` with
@@ -440,22 +476,28 @@ This is an intentional clean break for FDP certification. Replace
 `FDPBoundResult`; the old names have been removed without aliases.
 
 Move construction-time `thresholds=` to `certificate.to_frame(thresholds=...)`
-or `bound_at(...)`. Omit unused method-specific options (in particular `seed`
-and `n_resamples` for `ks`). Native entry points now reject unknown provenance;
+or `bound_at(...)`. The detector and result methods now take only `confidence`;
+move method and simulation settings to `FDPCertificate.from_p_values(...)`.
+Remove the public `precision` argument; solver tolerance is managed internally.
+Omit unused method-specific options (in particular `seed` and `n_resamples` for
+`ks`). Native entry points now reject unknown provenance;
 use the expert route for external p-values. Certificate state is read-only.
 Other selection and e-value APIs retain their behavior.
 
-The only numerical correction concerns HC with a positive infinite Monte Carlo
-cutoff: endpoint arithmetic previously could produce `NaN`; it now yields the
-conservative unit envelope, so nonempty selections have bound 1 and empty ones
-have bound 0. Finite-cutoff formulas, Monte Carlo sampling, and the quantile
-convention are unchanged.
+HC with a positive infinite Monte Carlo cutoff uses the conservative unit
+envelope instead of endpoint `NaN`s. Berk-Jones inversion now uses conservative
+lower endpoints, includes equality at those endpoints, and terminates at
+floating-point limits. Its bounds can increase to preserve coverage. THC rejects
+`beta > 1`, outside the range supported by its statistic calculation. Monte
+Carlo sampling, the quantile convention, and the other envelope formulas are
+unchanged.
 
 !!! note "FDR target and FDP confidence are different"
 
     `alpha` is the target expected false discovery proportion for a selection
     procedure. `confidence=0.95` is the simultaneous coverage probability of
-    an FDP upper-bound certificate. Neither can be substituted for the other.
+    an FDP upper-bound certificate, jointly over data and independent Monte
+    Carlo sampling for simulated methods. Neither can be substituted for the other.
 
 ## Repeated and online testing
 

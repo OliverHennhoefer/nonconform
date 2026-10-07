@@ -759,6 +759,24 @@ class ConformalDetector(BaseConformalDetector):
             test_batch_signature=test_batch_signature,
         )
 
+    def _fit_weights_for_batch(
+        self,
+        x: np.ndarray,
+        *,
+        test_batch_signature: BatchSignature | None = None,
+    ) -> None:
+        """Fit batch weights and record the size and optional reuse signature."""
+        self.weight_estimator.fit(self._calibration_samples, x)
+        self._prepared_weight_batch_size = len(x)
+        if self.verify_prepared_batch_content:
+            self._prepared_weight_batch_signature = (
+                test_batch_signature
+                if test_batch_signature is not None
+                else batch_signature(x)
+            )
+        else:
+            self._prepared_weight_batch_signature = None
+
     def _resolve_weights(
         self,
         x: np.ndarray,
@@ -771,12 +789,7 @@ class ConformalDetector(BaseConformalDetector):
             return None
 
         if refit_weights:
-            self.weight_estimator.fit(self._calibration_samples, x)
-            self._prepared_weight_batch_size = len(x)
-            if self.verify_prepared_batch_content:
-                self._prepared_weight_batch_signature = test_batch_signature
-            else:
-                self._prepared_weight_batch_signature = None
+            self._fit_weights_for_batch(x, test_batch_signature=test_batch_signature)
             return self.weight_estimator.get_weights()
 
         if self._prepared_weight_batch_size is None:
@@ -955,12 +968,7 @@ class ConformalDetector(BaseConformalDetector):
                 "prepare_weights_for() requires weighted mode with a weight_estimator."
             )
 
-        self.weight_estimator.fit(self._calibration_samples, x)
-        self._prepared_weight_batch_size = len(x)
-        if self.verify_prepared_batch_content:
-            self._prepared_weight_batch_signature = batch_signature(x)
-        else:
-            self._prepared_weight_batch_signature = None
+        self._fit_weights_for_batch(x)
         return self
 
     def score_samples(
@@ -1137,26 +1145,22 @@ class ConformalDetector(BaseConformalDetector):
         x: pd.DataFrame | pd.Series | np.ndarray,
         *,
         confidence: float = 0.95,
-        method: str = "mc_thc",
-        n_resamples: int | None = None,
-        seed: int | None = None,
-        boost: bool = True,
-        lower: float | None = None,
-        upper: float | None = None,
-        beta: float | None = None,
-        precision: float | None = None,
     ) -> FDPCertificate:
         """Compute p-values once and return a simultaneous FDP certificate.
 
         Supports unweighted empirical Split inference, including detached
-        calibration. Choose the method before inspecting its curve and keep
-        the testing family fixed. Confidence is coverage, not an FDR target.
-        Scientific exchangeability remains the caller's responsibility.
+        calibration. Keep the testing family fixed. Scientific exchangeability
+        remains the caller's responsibility. Confidence is simultaneous coverage
+        jointly over data and independent Monte Carlo sampling, not an FDR target
+        or a guarantee conditional on every realized envelope.
 
-        Options match :meth:`nonconform.fdr.FDPCertificate.from_p_values`.
-        The seed controls certificate Monte Carlo sampling only and does not
-        inherit the fitting seed. The returned certificate is independent of
-        subsequent detector operations; its select() returns a NumPy mask.
+        Uses 1000 fresh Monte Carlo draws with the default truncated
+        higher-criticism envelope and threshold-specific sharpening. The fitting
+        seed does not control envelope sampling. Choose advanced settings via
+        :meth:`nonconform.fdr.FDPCertificate.from_p_values` before inspecting
+        bounds. Do not cherry-pick repeated certificate constructions. The
+        returned certificate is independent of subsequent detector operations;
+        queries never resample and select() returns a NumPy mask.
         """
         from nonconform._internal.certificates import validate_scope
 
@@ -1164,17 +1168,7 @@ class ConformalDetector(BaseConformalDetector):
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
         validate_scope(self._result_provenance(None), procedure="fdp_bounds")
         self.compute_p_values(x)
-        return self._last_result.fdp_bounds(
-            confidence=confidence,
-            method=method,
-            n_resamples=n_resamples,
-            seed=seed,
-            boost=boost,
-            lower=lower,
-            upper=upper,
-            beta=beta,
-            precision=precision,
-        )
+        return self._last_result.fdp_bounds(confidence=confidence)
 
     def fpr_bounds(
         self,

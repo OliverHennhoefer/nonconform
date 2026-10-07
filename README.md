@@ -124,6 +124,16 @@ print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
 > not a per-observation score threshold. The underlying conformal p-values remain
 > available through `last_result` for inspection or downstream analysis.
 
+For threshold exploration in one fixed batch, use
+`certificate = detector.fdp_bounds(x_test, confidence=0.95)` and query its
+realized-FDP upper curve. `certificate.select(0.01)` applies the p-value cutoff
+0.01; it does not request FDP at most 1%. The ordinary call prepares one
+default envelope using fresh Monte Carlo sampling, and subsequent queries
+reuse it. Coverage is joint over data and that sampling. Keep the scoring rule
+and family fixed, and do not cherry-pick repeated constructions. The
+[FDP guide](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds)
+shows a complete example and the separate expert interface for method settings.
+
 ### Raw-score false-alarm control
 
 If the operational requirement is “flag no more than 5% of future inliers,” use

@@ -90,6 +90,17 @@ corresponding guarantee requires the evidence conditions and assumptions of
 the selected procedure. The historical
 `false_discovery_rate(...)` metric returns realized FDP for supplied labels.
 
+`detector.fdp_bounds(x, confidence=0.95)` instead prepares an immutable
+simultaneous upper curve for realized FDP across p-value thresholds in one
+fixed family. Its default envelope is sampled once using 1,000 fresh Monte Carlo
+draws; queries reuse it. Coverage is joint over the data and independent
+sampling, not conditional on every fixed seed or realized envelope. A seed in
+the expert `FDPCertificate.from_p_values(...)` factory gives reproducibility;
+it does not establish a separate conditional guarantee. Keep the scoring map,
+family, and construction settings fixed, and do not cherry-pick repeated
+constructions. `certificate.select(0.05)` applies a p-value cutoff, not an FDP
+target. See the [FDP guide](fdr_control.md#post-hoc-simultaneous-fdp-bounds).
+
 ---
 
 ## Raw-score False-Positive Rate (FPR)
