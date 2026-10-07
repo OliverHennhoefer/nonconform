@@ -97,7 +97,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
 
 rng = np.random.default_rng(42)
-x_train = rng.normal(size=(1_000, 2))
+x_train = rng.normal(size=(3_000, 2))
 x_test = np.vstack([
     rng.normal(size=(200, 2)),
     rng.normal(loc=5.0, size=(20, 2)),
@@ -105,7 +105,7 @@ x_test = np.vstack([
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_000),
     seed=42,
 ).fit(x_train)
 
@@ -119,6 +119,16 @@ print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
 > `discoveries` is a Boolean mask. Here, `alpha=0.05` is the target FDR level,
 > not a per-observation score threshold. The underlying conformal p-values remain
 > available through `last_result` for inspection or downstream analysis.
+
+For threshold exploration in one fixed batch, use
+`certificate = detector.fdp_bounds(x_test, confidence=0.95)` and query its
+realized-FDP upper curve. `certificate.select(0.01)` applies the p-value cutoff
+0.01; it does not request FDP at most 1%. The ordinary call prepares one
+default envelope using fresh Monte Carlo sampling, and subsequent queries
+reuse it. Coverage is joint over data and that sampling. Keep the scoring rule
+and family fixed, and do not cherry-pick repeated constructions. The
+[FDP guide](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds)
+shows a complete example and the separate expert interface for method settings.
 
 ### Sequential change monitoring
 

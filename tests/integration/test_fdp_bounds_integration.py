@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,11 +43,7 @@ def test_fdp_bounds_do_not_change_existing_unweighted_selection(simple_dataset):
     assert result is not None
 
     bh_mask = false_discovery_control(p_values, method="bh") <= 0.2
-    bounds = result.fdp_bounds(
-        confidence=0.8,
-        n_resamples=25,
-        seed=14,
-    )
+    bounds = result.fdp_bounds(confidence=0.8)
     select_mask = detector.select(x_test, alpha=0.2)
 
     np.testing.assert_array_equal(select_mask, bh_mask)
@@ -64,9 +62,22 @@ def fitted_batch():
     return detector, reference, batch
 
 
+@pytest.fixture
+def fixed_envelope(monkeypatch):
+    """Compare entry points under the same realized Monte Carlo envelope."""
+    from nonconform._internal import fdp_bounds as core
+
+    original = core._mc_summary_quantile
+
+    def fixed(**kwargs):
+        return original(**{**kwargs, "seed": 5})
+
+    monkeypatch.setattr(core, "_mc_summary_quantile", fixed)
+
+
 @pytest.mark.parametrize("pandas_input", [False, True])
 def test_native_entry_points_equivalent_and_independent(
-    fitted_batch, monkeypatch, pandas_input
+    fitted_batch, fixed_envelope, monkeypatch, pandas_input
 ):
     detector, reference, batch = fitted_batch
     if pandas_input:
@@ -80,7 +91,7 @@ def test_native_entry_points_equivalent_and_independent(
         return original(*args, **kwargs)
 
     monkeypatch.setattr(detector, "compute_p_values", counted)
-    options = dict(confidence=0.8, n_resamples=25, seed=5)
+    options = dict(confidence=0.8)
     direct = detector.fdp_bounds(batch, **options)
     assert calls == 1
     snapshot = detector.last_result
@@ -102,16 +113,16 @@ def test_native_entry_points_equivalent_and_independent(
     np.testing.assert_array_equal(cached.to_frame(), expected)
 
 
-def test_detached_scope_and_snapshot_validation(fitted_batch):
+def test_detached_scope_and_snapshot_validation(fitted_batch, fixed_envelope):
     _, reference, batch = fitted_batch
     fitted_model = IsolationForest(n_estimators=5, random_state=4).fit(reference[:50])
     detached = ConformalDetector(fitted_model, strategy=Split(), seed=4)
     detached.calibrate(reference[50:])
-    certificate = detached.fdp_bounds(batch, method="ks")
+    certificate = detached.fdp_bounds(batch)
     result = detached.last_result
     assert result._provenance.calibration_mode is CalibrationMode.DETACHED
     np.testing.assert_array_equal(
-        certificate.to_frame(), result.fdp_bounds(method="ks").to_frame()
+        certificate.to_frame(), result.fdp_bounds().to_frame()
     )
     assert certificate.n_calibration == 50
     for field, value, match in [
@@ -129,7 +140,7 @@ def test_detached_scope_and_snapshot_validation(fitted_batch):
         invalid = result.copy()
         setattr(invalid, field, value)
         with pytest.raises(ValueError, match=match):
-            invalid.fdp_bounds(method="ks")
+            invalid.fdp_bounds()
 
 
 def test_unknown_and_forged_legacy_metadata_are_rejected():
@@ -147,7 +158,7 @@ def test_unknown_and_forged_legacy_metadata_are_rejected():
             p_values=np.array([0.1]), calib_scores=np.arange(10), metadata=metadata
         )
         with pytest.raises(ValueError, match="native provenance"):
-            result.fdp_bounds(method="ks")
+            result.fdp_bounds()
 
 
 @pytest.mark.parametrize(
@@ -169,7 +180,7 @@ def test_native_scope_cannot_be_overridden_by_metadata(fitted_batch, change, mat
     result = detector.last_result
     result._provenance = replace(result._provenance, **change)
     with pytest.raises(ValueError, match=match):
-        result.fdp_bounds(method="ks")
+        result.fdp_bounds()
 
 
 @pytest.mark.parametrize(
@@ -221,8 +232,11 @@ def test_certificate_seed_is_independent_of_fitting_seed(fitted_batch, monkeypat
     monkeypatch.setattr(core, "_mc_summary_quantile", recorded)
     models = detector.detector_set
     calibration = detector.calibration_set
-    fresh = detector.fdp_bounds(batch, n_resamples=25)
-    seeded = detector.fdp_bounds(batch, n_resamples=25, seed=8)
+    fresh = detector.fdp_bounds(batch)
+    snapshot = detector.last_result
+    seeded = FDPCertificate.from_p_values(
+        snapshot.p_values, n_calibration=25, n_resamples=25, seed=8
+    )
     assert seen == [None, 8]
     assert fresh.seed is None
     assert seeded.seed == 8
@@ -249,3 +263,63 @@ def test_weighted_detector_rejected_before_scoring(fitted_batch, monkeypatch):
     monkeypatch.setattr(detector, "compute_p_values", forbidden)
     with pytest.raises(ValueError, match="unweighted"):
         detector.fdp_bounds(batch)
+
+
+def test_native_api_exposes_only_confidence(fitted_batch):
+    detector, _, batch = fitted_batch
+    detector.compute_p_values(batch)
+    snapshot = detector.last_result
+    for method, names in [
+        (ConformalDetector.fdp_bounds, ["self", "x", "confidence"]),
+        (ConformalResult.fdp_bounds, ["self", "confidence"]),
+    ]:
+        signature = inspect.signature(method)
+        assert list(signature.parameters) == names
+        confidence = signature.parameters["confidence"]
+        assert confidence.kind is inspect.Parameter.KEYWORD_ONLY
+        assert confidence.default == 0.95
+    for name, value in [
+        ("method", "ks"),
+        ("seed", 42),
+        ("n_resamples", 25),
+        ("boost", False),
+        ("lower", 0.02),
+        ("upper", 0.9),
+        ("beta", 0.5),
+        ("precision", 1e-8),
+    ]:
+        with pytest.raises(TypeError, match=name):
+            detector.fdp_bounds(batch, **{name: value})
+        with pytest.raises(TypeError, match=name):
+            snapshot.fdp_bounds(**{name: value})
+
+
+def test_native_defaults_use_fresh_sampling_and_sharpening(fitted_batch, monkeypatch):
+    from nonconform._internal import fdp_bounds as core
+
+    detector, _, batch = fitted_batch
+    observed = []
+    original = core._mc_summary_quantile
+
+    def recorded(**kwargs):
+        observed.append(kwargs)
+        return original(**kwargs)
+
+    monkeypatch.setattr(core, "_mc_summary_quantile", recorded)
+    direct = detector.fdp_bounds(batch, confidence=0.8)
+    snapshot = detector.last_result.fdp_bounds(confidence=0.8)
+    for options in observed:
+        assert options["seed"] is None
+        assert options["n_resamples"] == 1000
+        assert options["confidence"] == 0.8
+        assert options["n_calibration"] == 25
+        assert options["n_test"] == len(batch)
+    assert len(observed) == 2
+    for certificate in [direct, snapshot]:
+        assert certificate.method == "mc_thc"
+        assert certificate.boost
+        assert (certificate.lower, certificate.upper, certificate.beta) == (
+            0.01,
+            0.99,
+            0.5,
+        )

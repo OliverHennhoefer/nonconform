@@ -59,6 +59,10 @@ class FDPCertificate:
     expert ``from_p_values()`` factory. Choose the envelope method before
     inspecting its curve. Thresholds may then be explored within this fixed
     testing family. Confidence is simultaneous coverage, not an FDR target.
+    Monte Carlo coverage is joint over the data and independent envelope
+    sampling, not conditional on every fixed seed or realized envelope. Choose
+    settings before inspecting bounds; do not cherry-pick seeds or repeated
+    constructions. The deterministic ``ks`` method has no sampling randomness.
 
     Evidence and default-grid diagnostics are read-only arrays. Queries never
     resample. ``select(t)`` returns an original-order NumPy mask for p <= t;
@@ -108,7 +112,6 @@ class FDPCertificate:
         lower: float | None = None,
         upper: float | None = None,
         beta: float | None = None,
-        precision: float | None = None,
     ) -> FDPCertificate:
         """Certify external p-values; the caller owns provenance assumptions.
 
@@ -120,18 +123,22 @@ class FDPCertificate:
         Args:
             p_values: Nonempty 1D testing family in [0, 1], in original order.
             n_calibration: Positive calibration size shared by all p-values.
-            confidence: Simultaneous coverage probability in (0, 1).
+            confidence: Simultaneous coverage probability in (0, 1), jointly
+                over data and independent sampling for Monte Carlo methods.
             method: mc_thc (default), mc_hc, mc_ks, ks, or mc_bj.
             n_resamples: Monte Carlo draws; defaults to 1000 for MC methods.
             seed: Monte Carlo seed only. None draws fresh randomness once.
             boost: Apply threshold-specific sharpening (default True).
             lower: THC lower truncation, default 0.01.
             upper: THC upper truncation, default 0.99.
-            beta: THC exponent, default 0.5.
-            precision: BJ inversion tolerance, default 1e-8.
+            beta: THC exponent in (0, 1], default 0.5.
 
         Method-specific options must be omitted or None when inapplicable.
-        Deterministic ks accepts neither n_resamples nor seed.
+        Deterministic ks accepts neither n_resamples nor seed. A fixed Monte
+        Carlo seed gives reproducibility, not a separate conditional coverage
+        guarantee. Choose all settings before inspecting the curve; do not
+        cherry-pick seeds or reconstruct certificates to improve their bounds.
+        Berk-Jones inversion uses a conservative internal numerical tolerance.
 
         References:
             Song, Jin, and Candès, "Everywhere Valid Bounds on False Discovery
@@ -149,7 +156,6 @@ class FDPCertificate:
             lower=lower,
             upper=upper,
             beta=beta,
-            precision=precision,
         )
         support, counts = np.unique(values, return_counts=True)
         counts = np.cumsum(counts)
@@ -265,7 +271,7 @@ class FDPCertificate:
 
     @property
     def confidence(self) -> float:
-        """Simultaneous coverage probability."""
+        """Coverage level, joint over data and sampling for Monte Carlo methods."""
         return self._envelope.confidence
 
     @property
@@ -302,11 +308,6 @@ class FDPCertificate:
     def beta(self) -> float | None:
         """Effective THC exponent; otherwise None."""
         return self._envelope.beta
-
-    @property
-    def precision(self) -> float | None:
-        """Effective BJ inversion tolerance; otherwise None."""
-        return self._envelope.precision
 
 
 def conformal_e_values(

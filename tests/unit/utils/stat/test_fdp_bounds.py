@@ -1,3 +1,5 @@
+import inspect
+
 import numpy as np
 import pytest
 
@@ -36,7 +38,8 @@ def _bounds(
         ({"n_resamples": 0}, ValueError, "positive"),
         ({"lower": 0.2, "upper": 0.1}, ValueError, "lower"),
         ({"beta": 0.0}, ValueError, "beta"),
-        ({"precision": 0.0, "method": "mc_bj"}, ValueError, "precision"),
+        ({"beta": np.nextafter(1.0, np.inf)}, ValueError, "beta"),
+        ({"beta": 3.0}, ValueError, "beta"),
         ({"method": "marginal_mc"}, ValueError, "method"),
     ],
 )
@@ -56,6 +59,13 @@ def test_conformal_fdp_upper_bound_validates_inputs(kwargs, error_type, match):
 def test_conformal_fdp_upper_bound_rejects_non_string_method():
     with pytest.raises(TypeError, match="method"):
         _bounds(method=1)
+
+
+def test_thc_accepts_the_supported_beta_upper_boundary():
+    certificate = _bounds(beta=1.0)
+
+    assert certificate.beta == 1.0
+    assert np.all(np.isfinite(certificate.fdp_upper_bounds))
 
 
 @pytest.mark.parametrize(
@@ -423,6 +433,76 @@ def test_infinite_hc_cutoff_is_conservative_at_endpoints(boost):
 
 
 @pytest.mark.parametrize("boost", [False, True])
+def test_infinite_bj_cutoff_is_conservative_at_endpoints(boost):
+    certificate = _bounds(
+        np.array([0.0, 1e-12, 0.1, 1.0]),
+        confidence=0.95,
+        n_resamples=10,
+        method="mc_bj",
+        boost=boost,
+    )
+
+    assert np.isposinf(certificate._envelope.summary_quantile)
+    np.testing.assert_array_equal(certificate._envelope.bj_lower_bounds, [0, 0])
+    np.testing.assert_array_equal(certificate.bound_at([0, 1e-12, 0.1, 1]), 1)
+
+
+@pytest.mark.parametrize("statistic", [2 * np.log(2), np.inf])
+def test_bj_inversion_below_reachable_kl_returns_zero(statistic):
+    lower_bounds = core._solve_bernoulli_kl_lower_bounds(
+        np.array([0.1, 0.25, 0.5]),
+        statistic,
+        n_test=2,
+        precision=1e-8,
+    )
+
+    np.testing.assert_array_equal(lower_bounds, 0)
+    np.testing.assert_array_equal(
+        core._bj_ecdf_upper_bound(
+            np.array([0, 1e-12, 0.5, 1]), lower_bounds=lower_bounds, n_test=2
+        ),
+        1,
+    )
+
+
+def test_bj_envelope_includes_atoms_at_lower_brackets():
+    lower_bounds = np.array([0.125, 0.25])
+    thresholds = np.array([np.nextafter(0.125, 0), 0.125, np.nextafter(0.25, 0), 0.25])
+
+    np.testing.assert_array_equal(
+        core._bj_ecdf_upper_bound(thresholds, lower_bounds=lower_bounds, n_test=4),
+        [0, 0.25, 0.25, 1],
+    )
+
+
+def test_bj_zero_cutoff_covers_exact_classical_rank_atoms(monkeypatch):
+    # These classical ranks are an all-null configuration with zero BJ statistic.
+    # Its first atom must retain a null ECDF upper bound of at least 1 / 4.
+    p_values = np.array([0.25, 0.5, 0.75, 1.0])
+    assert core._berk_jones_statistic(p_values) == 0
+    monkeypatch.setattr(core, "_mc_summary_quantile", lambda **kwargs: 0.0)
+    certificate = _bounds(p_values, n_calibration=3, method="mc_bj", boost=False)
+
+    np.testing.assert_array_equal(certificate._envelope.bj_lower_bounds, [0.25, 0.5])
+    np.testing.assert_array_equal(certificate.fdp_upper_bounds, 1)
+
+
+@pytest.mark.parametrize("precision", [0, -1, np.nan, np.inf])
+def test_internal_bj_solver_rejects_invalid_precision(precision):
+    with pytest.raises(ValueError, match="precision"):
+        core._solve_bernoulli_kl_lower_bounds(
+            np.array([0.5]), 1.0, n_test=2, precision=precision
+        )
+
+
+def test_internal_bj_solver_rejects_nan_cutoff():
+    with pytest.raises(RuntimeError, match="cutoff"):
+        core._solve_bernoulli_kl_lower_bounds(
+            np.array([0.5]), np.nan, n_test=2, precision=1e-8
+        )
+
+
+@pytest.mark.parametrize("boost", [False, True])
 @pytest.mark.parametrize("method", SUPPORTED_METHODS)
 def test_queries_never_sort_or_resample(monkeypatch, boost, method):
     certificate = _bounds(method=method, boost=boost)
@@ -450,7 +530,6 @@ def test_queries_never_sort_or_resample(monkeypatch, boost, method):
         ("mc_hc", {"lower": 0.1}),
         ("mc_ks", {"upper": 0.5}),
         ("mc_bj", {"beta": 0.5}),
-        ("mc_thc", {"precision": 1e-8}),
     ],
 )
 def test_reject_inapplicable_options(method, option):
@@ -476,17 +555,24 @@ def test_effective_options_and_removed_api():
         True,
     )
     assert (certificate.lower, certificate.upper, certificate.beta) == (0.01, 0.99, 0.5)
-    assert certificate.precision is None
+    assert not hasattr(certificate, "precision")
+    assert "precision" not in inspect.signature(FDPCertificate.from_p_values).parameters
+    assert "precision" not in inspect.signature(core.prepare_envelope).parameters
     ks = FDPCertificate.from_p_values([0.1], n_calibration=10, method="ks")
-    assert (ks.n_resamples, ks.seed, ks.lower, ks.upper, ks.beta, ks.precision) == (
-        None,
-    ) * 6
+    assert (ks.n_resamples, ks.seed, ks.lower, ks.upper, ks.beta) == (None,) * 5
     bj = _bounds(method="mc_bj")
-    assert bj.precision == 1e-8
+    assert not hasattr(bj, "precision")
+    assert not hasattr(bj._envelope, "precision")
     with pytest.raises(TypeError, match="from_p_values"):
         FDPCertificate()
     with pytest.raises(TypeError, match="thresholds"):
         _bounds(thresholds=[0.1])
+
+
+@pytest.mark.parametrize("method", SUPPORTED_METHODS)
+def test_public_factories_reject_the_removed_bj_precision_option(method):
+    with pytest.raises(TypeError, match="precision"):
+        _bounds(method=method, precision=1e-8)
 
 
 @pytest.mark.parametrize("threshold", [-0.1, 1.1, np.nan, [[0.1]], "invalid"])

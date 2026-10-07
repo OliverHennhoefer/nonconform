@@ -52,9 +52,14 @@ For batch workflows, prefer `ConformalDetector.select(...)`. With
 `DerandomizedSplits`, it applies e-BH and exposes evidence through
 `last_selection_result`; standalone e-value functions remain available for
 expert use.
-For simultaneous realized-FDP certification, use `detector.fdp_bounds(x, ...)`
-or `result.fdp_bounds(...)`; both return an immutable `FDPCertificate`.
-`FDPCertificate.from_p_values(...)` is the explicit expert array interface.
+For simultaneous realized-FDP certification, use
+`detector.fdp_bounds(x, confidence=0.95)` or
+`result.fdp_bounds(confidence=0.95)`; both return an immutable `FDPCertificate`
+using the default MC-THC envelope with fresh sampling once. The confidence
+statement is joint over data and independent Monte Carlo sampling.
+`FDPCertificate.from_p_values(...)` is the explicit expert array interface for
+method settings and reproducible simulations. A fixed seed does not confer a
+separate conditional coverage guarantee; do not cherry-pick constructions.
 See the [FDP migration notes](../user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
 for the intentional replacement of the previous FDP-specific API.
 

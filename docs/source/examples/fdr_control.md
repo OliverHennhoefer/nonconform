@@ -15,7 +15,7 @@ It then constructs a simultaneous post-hoc upper bound for realized FDP over a
 queried threshold grid.
 
 For certification directly from a fitted detector, use
-`certificate = detector.fdp_bounds(x_family, confidence=0.95, seed=42)`.
+`certificate = detector.fdp_bounds(x_family, confidence=0.95)`.
 The example below reuses the snapshot already computed for the BH comparison.
 
 ## Complete example
@@ -29,16 +29,16 @@ from nonconform import ConformalDetector, Split
 from nonconform.metrics import false_discovery_rate, statistical_power
 
 rng = np.random.default_rng(42)
-x_reference = rng.normal(size=(800, 4))
+x_reference = rng.normal(size=(3_000, 4))
 x_family = np.vstack(
-    [rng.normal(size=(95, 4)), rng.normal(loc=5.0, size=(5, 4))]
+    [rng.normal(size=(160, 4)), rng.normal(loc=5.0, size=(40, 4))]
 )
-y_family = np.r_[np.zeros(95, dtype=int), np.ones(5, dtype=int)]
+y_family = np.r_[np.zeros(160, dtype=int), np.ones(40, dtype=int)]
 alpha = 0.1
 
 detector = ConformalDetector(
     detector=IsolationForest(n_estimators=100, random_state=42),
-    strategy=Split(n_calib=0.4),
+    strategy=Split(n_calib=1_000),
     seed=42,
 ).fit(x_reference)
 
@@ -66,15 +66,15 @@ for name, selected in {
         },
     )
 
-certificate = result.fdp_bounds(
-    confidence=0.95,
-    n_resamples=500,
-    seed=42,
-)
+certificate = result.fdp_bounds(confidence=0.95)
 print(certificate.to_frame([0.005, 0.01, 0.025, 0.05, 0.1]).to_string(index=False))
+cutoff = 0.01
+mask = certificate.select(cutoff)
+print("FDP upper bound at cutoff:", certificate.bound_at(cutoff))
+print("Discoveries at cutoff:", int(mask.sum()))
 ```
 
-The pointwise rule does not account for the 100 simultaneous tests. BH is less
+The pointwise rule does not account for the 200 simultaneous tests. BH is less
 conservative than BY when its independence or positive-dependence conditions
 apply. BY supports a broader dependence class, but neither procedure repairs
 invalid p-values or adaptive family construction.
@@ -94,9 +94,22 @@ The native snapshot API requires unmodified snapshots from unweighted `Split` or
 `Empirical` p-values. It rejects weighted, KDE, conditional-calibration, and
 resampling-strategy result bundles.
 
-The example uses 500 Monte Carlo resamples for speed. A reported analysis
-should assess resampling stability and fix the envelope method before viewing
-the final curve.
+The ordinary call accepts only `confidence` and prepares one default MC-THC
+envelope with 1,000 fresh Monte Carlo draws and boosting enabled. Its
+simultaneous coverage probability is joint over the data and independent
+sampling, not conditional on every realized envelope or fixed seed. Repeated
+queries reuse the envelope; repeated constructions can vary and must not be
+cherry-picked for more favorable bounds. The synthetic family contains 40
+planted anomalies and uses 1,000 held-out calibration observations so that the
+example shows a useful nonempty certificate. Labels evaluate the example;
+one favorable batch does not establish coverage.
+
+For advanced envelope settings, use `FDPCertificate.from_p_values(...)` and
+choose the method and all settings before inspecting the final curve. A fixed
+Monte Carlo seed gives reproducibility, not a separate conditional coverage
+guarantee. The expert deterministic `method="ks"` uses the dependent-law
+transductive DKW construction, rather than the ordinary i.i.d. one-sample KS
+distribution.
 
 For weighted covariate shift, use the separate
 [weighted WCS example](weighted_conformal.md). For online hypotheses and
