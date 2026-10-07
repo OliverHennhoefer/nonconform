@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `nonconform.fdr.FPRCertificate` with immutable simultaneous raw-score
   false-positive-rate bounds, target-FPR threshold inversion, and native
   `ConformalDetector.fpr_bounds()` / `ConformalResult.fpr_bounds()` integration
-  for unweighted empirical `Split` calibration. Coverage requires i.i.d.
-  calibration and future inlier scores conditional on a scoring map fixed
-  independently of calibration. Returned thresholds preserve NumPy precision
+  for unweighted `Split` calibration independently of the p-value estimator.
+  A deterministic finite-sample one-sided KS band covers the population inlier
+  false-alarm curve with the requested probability over the calibration draw,
+  conditional on a scoring map fixed independently of calibration. Coverage
+  requires clean, i.i.d. calibration and future inlier scores from the same
+  distribution. Returned thresholds preserve NumPy precision
   when compared with lower-precision score arrays.
 - Added `nonconform.martingales.MixtureMartingale` for fixed-weight composition
   of independently maintained martingale, harmonic restart, CUSUM, and

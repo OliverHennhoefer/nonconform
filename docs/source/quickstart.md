@@ -1,5 +1,5 @@
 ---
-description: "Run nonconform's batch discovery, raw-score FPR, and exchangeability-martingale workflows."
+description: "Run nonconform's batch discovery and exchangeability-martingale workflows, and find raw-score threshold certification examples."
 ---
 
 # Quick Start

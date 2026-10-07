@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+from scipy.stats import ksone
 
 from nonconform.structures import ConformalResult
 
-from .certificates import conservative_mc_quantile, validate_scope
+from .certificates import validate_scope
 from .provenance import parse_result_provenance
 from .validation import (
     as_1d_numeric,
     validate_finite,
-    validate_optional_seed,
     validate_positive_integer,
     validate_probability,
 )
@@ -75,12 +75,10 @@ def validate_result_scope(result: ConformalResult) -> np.ndarray:
 
 @dataclass(frozen=True, slots=True)
 class KSBand:
-    """Prepared one-sided Monte Carlo KS configuration."""
+    """Prepared finite-sample one-sided KS configuration."""
 
     n_calibration: int
     confidence: float
-    n_resamples: int
-    seed: int | None
     critical_value: float
 
 
@@ -88,30 +86,22 @@ def prepare_ks_band(
     *,
     n_calibration: int,
     confidence: float,
-    n_resamples: int | None,
-    seed: int | None,
 ) -> KSBand:
-    """Prepare a conservative one-sided KS critical value by simulation."""
+    """Prepare a deterministic finite-sample one-sided KS critical value.
+
+    The continuous-score KS distribution gives exact simultaneous coverage;
+    for discrete scores, the same cutoff is conservative.
+    """
     n_calibration = validate_positive_integer("n_calibration", n_calibration)
     confidence = validate_probability("confidence", confidence)
-    n_resamples = validate_positive_integer(
-        "n_resamples", 1000 if n_resamples is None else n_resamples
-    )
-    seed = validate_optional_seed("seed", seed)
-
-    rng = np.random.default_rng(seed)
-    ranks = np.arange(1, n_calibration + 1, dtype=float) / n_calibration
-    statistics = np.empty(n_resamples, dtype=float)
-    for index in range(n_resamples):
-        uniforms = np.sort(rng.random(n_calibration))
-        statistics[index] = np.max(ranks - uniforms)
-
-    critical_value = conservative_mc_quantile(statistics, confidence)
+    critical_value = float(ksone.ppf(confidence, n_calibration))
+    if not np.isfinite(critical_value) or not 0.0 <= critical_value <= 1.0:
+        raise RuntimeError(
+            "Could not compute a finite one-sided KS critical value in [0, 1]."
+        )
     return KSBand(
         n_calibration=n_calibration,
         confidence=confidence,
-        n_resamples=n_resamples,
-        seed=seed,
         critical_value=critical_value,
     )
 

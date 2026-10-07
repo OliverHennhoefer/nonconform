@@ -25,14 +25,14 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-`nonconform` turns anomaly scores into conformal evidence for batch discovery,
-raw-score risk control, and sequential change monitoring. Wrap a
+`nonconform` calibrates anomaly scores for batch discovery, threshold
+certification, and sequential change monitoring. Wrap a
 supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
 or a custom detector:
 
 - **Batch:** Use calibrated p-values directly or call `select(...)` to apply
   false discovery rate (FDR) control.
-- **Raw-score risk:** Build a simultaneous false-alarm/FPR certificate and
+- **Score thresholds:** Build a simultaneous false-alarm/FPR certificate and
   choose a score threshold for future inliers.
 - **Stream:** Use conformal martingales to accumulate evidence against
   exchangeability and trigger configured alarms.
@@ -40,7 +40,7 @@ or a custom detector:
 ## Why nonconform?
 
 - **Calibrate anomaly scores** into conformal p-values using reference data.
-- **Control raw-score false alarms** with simultaneous FPR certificates and
+- **Certify raw-score thresholds** with simultaneous FPR certificates and
   target-driven threshold inversion.
 - **Control batch discoveries** by accounting for multiple tests within a
   fixed family.
@@ -101,7 +101,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
 
 rng = np.random.default_rng(42)
-x_train = rng.normal(size=(1_000, 2))
+x_train = rng.normal(size=(3_000, 2))
 x_test = np.vstack([
     rng.normal(size=(200, 2)),
     rng.normal(loc=5.0, size=(20, 2)),
@@ -109,7 +109,7 @@ x_test = np.vstack([
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_000),
     seed=42,
 ).fit(x_train)
 
@@ -131,16 +131,26 @@ the raw-score certificate instead of treating an FDR target as a score
 threshold:
 
 ```python
-certificate = detector.fpr_bounds(confidence=0.95, seed=42)
+certificate = detector.fpr_bounds(confidence=0.95)
 scores = detector.score_samples(x_test)
 selected = certificate.select(scores, target_fpr=0.05)
 print(f"Certified threshold: {certificate.threshold_for(0.05)}")
 ```
 
-This is a marginal per-inlier false-alarm guarantee. It is distinct from FDR,
-realized FDP, and sequential Ville control. It requires clean calibration and
-future inlier scores that are i.i.d. from the same distribution, conditional on
-a score map fixed independently of calibration.
+With probability at least 95% over the clean calibration draw, the certificate
+bounds the population inlier false-alarm rate at every threshold, conditional
+on the independently fitted score map. On that event, the chosen threshold has
+a future-inlier false-alarm probability at most 5%. Calibration and future
+inlier scores must be i.i.d. from the same distribution; exchangeability alone
+is insufficient.
+
+The certificate uses the deterministic finite-sample one-sided KS distribution.
+With 1,000 calibration scores at 95% confidence, its finite-threshold band floor
+is about 3.85%, allowing the 5% target here. Smaller targets can produce an
+infinite threshold and an empty selection. Native certificates support
+unweighted `Split` calibration independently of the p-value estimator. This
+does not guarantee a realized false-alarm proportion in a finite batch, FDR,
+FDP, recall, or sequential Ville control.
 
 ### Sequential change monitoring
 
@@ -218,6 +228,8 @@ for the full guarantee scope and other alarm statistics.
 > calibration data and null test cases to be exchangeable. FDR claims additionally
 > require valid p-values or the applicable aggregate null-evidence condition,
 > together with the assumptions of the selected multiple-testing procedure.
+> FPR certificates require clean, i.i.d. calibration and future inlier scores
+> from the same distribution, conditional on an independently fitted score map.
 > Weighted workflows require a plausible covariate-shift model, support
 > overlap, and reliable weights. Sequential martingales require valid sequential
 > conformal p-values; Ville thresholds provide false-alarm control for one valid

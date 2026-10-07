@@ -217,26 +217,30 @@ class ConformalResult:
         self,
         *,
         confidence: float = 0.95,
-        n_resamples: int | None = None,
-        seed: int | None = None,
     ) -> FPRCertificate:
         """Certify the raw-score false-positive rate without rescoring.
 
-        Requires an unmodified native snapshot of unweighted empirical Split
-        inference, including detached calibration. Calibration and future
-        inlier scores must be i.i.d. conditional on a scoring map fixed
-        independently of calibration; exchangeability alone is insufficient.
+        Requires an unmodified native snapshot of unweighted Split inference,
+        including detached calibration, independently of the p-value estimator.
+        Calibration and future inlier scores must be i.i.d. conditional on a
+        scoring map fixed independently of calibration; exchangeability alone
+        is insufficient.
         Scope checks do not prove that arrays were not edited or that these
         sampling and clean-inlier assumptions hold. For external scores use
         ``FPRCertificate.from_scores``.
 
+        The finite-sample one-sided KS band is deterministic. Confidence is
+        simultaneous coverage over the calibration draw, conditional on the
+        independently fitted scoring map.
+
         Args:
             confidence: Simultaneous coverage probability in ``(0, 1)``.
-            n_resamples: Monte Carlo KS draws; defaults to ``1000``.
-            seed: Monte Carlo seed only. ``None`` draws fresh randomness once.
 
         Returns:
             An immutable simultaneous raw-score FPR certificate.
+
+        Raises:
+            RuntimeError: If the numerical KS cutoff is invalid.
         """
         from nonconform._internal.fpr_bounds import validate_result_scope
         from nonconform.fdr import FPRCertificate
@@ -245,8 +249,6 @@ class ConformalResult:
         return FPRCertificate.from_scores(
             calibration_scores,
             confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
         )
 
     def copy(self) -> ConformalResult:

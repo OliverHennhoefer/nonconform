@@ -34,17 +34,15 @@ def validate_scope(
     *,
     procedure: Literal["fdp_bounds", "fpr_bounds"],
 ) -> None:
-    """Require unweighted empirical Split provenance for native certificates."""
+    """Require unweighted Split provenance and procedure-specific evidence."""
     if procedure == "fdp_bounds":
         external_evidence = "p-values"
         factory = "FDPCertificate.from_p_values()"
         weighted_evidence = "conformal p-values"
-        empirical_evidence = "conformal p-values"
     else:
         external_evidence = "scores"
         factory = "FPRCertificate.from_scores()"
         weighted_evidence = "calibration scores"
-        empirical_evidence = "conformal calibration"
 
     if provenance is None:
         raise ValueError(
@@ -53,8 +51,11 @@ def validate_scope(
         )
     if provenance.weighted:
         raise ValueError(f"{procedure}() supports only unweighted {weighted_evidence}.")
-    if provenance.estimation_family is not EstimationFamily.EMPIRICAL:
-        raise ValueError(f"{procedure}() supports empirical {empirical_evidence} only.")
+    if (
+        procedure == "fdp_bounds"
+        and provenance.estimation_family is not EstimationFamily.EMPIRICAL
+    ):
+        raise ValueError(f"{procedure}() supports empirical conformal p-values only.")
     if provenance.strategy_family is not StrategyFamily.SPLIT:
         raise ValueError(f"{procedure}() supports split or detached calibration only.")
     if provenance.calibration_mode not in {

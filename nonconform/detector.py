@@ -1180,17 +1180,19 @@ class ConformalDetector(BaseConformalDetector):
         self,
         *,
         confidence: float = 0.95,
-        n_resamples: int | None = None,
-        seed: int | None = None,
     ) -> FPRCertificate:
         """Return a simultaneous raw-score false-positive-rate certificate.
 
         The certificate is built from the fitted detector's calibration scores
         and does not score a test batch or mutate ``last_result``. It supports
-        unweighted empirical ``Split`` calibration, including detached
-        calibration. Confidence is simultaneous coverage, not an FPR target.
+        unweighted ``Split`` calibration, including detached calibration,
+        independently of the configured p-value estimator.
         The returned certificate uses anomalous-higher scores and can be
         inverted with ``threshold_for()`` or applied with ``select()``.
+
+        The finite-sample one-sided KS band is deterministic. Confidence is
+        simultaneous coverage over the calibration draw, conditional on the
+        independently fitted scoring map, not an FPR target.
 
         Coverage requires clean calibration and future inlier scores that are
         i.i.d. conditional on a scoring map fixed independently of calibration.
@@ -1199,8 +1201,6 @@ class ConformalDetector(BaseConformalDetector):
 
         Args:
             confidence: Simultaneous coverage probability in ``(0, 1)``.
-            n_resamples: Monte Carlo KS draws; defaults to ``1000``.
-            seed: Monte Carlo seed only. ``None`` draws fresh randomness once.
 
         Returns:
             An immutable simultaneous raw-score FPR certificate.
@@ -1208,7 +1208,8 @@ class ConformalDetector(BaseConformalDetector):
         Raises:
             NotFittedError: If the detector has not been fitted or calibrated.
             ValueError: If the fitted construction is outside the supported
-                unweighted empirical Split scope.
+                unweighted Split scope.
+            RuntimeError: If the numerical KS cutoff is invalid.
         """
         from nonconform._internal.certificates import validate_scope
         from nonconform.fdr import FPRCertificate
@@ -1219,8 +1220,6 @@ class ConformalDetector(BaseConformalDetector):
         return FPRCertificate.from_scores(
             self._calibration_set,
             confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
         )
 
     @property

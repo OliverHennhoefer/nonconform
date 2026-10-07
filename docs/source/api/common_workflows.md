@@ -56,18 +56,18 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
 
 rng = np.random.default_rng(42)
-x_reference = rng.normal(size=(800, 4))
+x_reference = rng.normal(size=(3_000, 4))
 x_test = np.vstack(
     [rng.normal(size=(18, 4)), rng.normal(loc=5.0, size=(2, 4))]
 )
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_000),
     seed=42,
 ).fit(x_reference)
 
-certificate = detector.fpr_bounds(confidence=0.95, seed=42)
+certificate = detector.fpr_bounds(confidence=0.95)
 scores = detector.score_samples(x_test)
 selected = certificate.select(scores, target_fpr=0.05)
 
@@ -76,13 +76,22 @@ print("selected indices:", np.flatnonzero(selected))
 print(certificate.to_frame())
 ```
 
-The certificate is simultaneous over raw-score thresholds, so threshold
-inversion is part of the certified workflow. It controls the probability that
-one future inlier crosses the selected threshold; it does not control FDR,
-realized FDP, recall, or the probability of at least one false alarm in an
-arbitrarily large batch. Native FPR certificates currently support unweighted
-empirical `Split` calibration only. Coverage requires clean calibration and
-future inlier scores that are i.i.d. from the same deployment inlier distribution,
+With probability at least `confidence` over the clean calibration draw,
+conditional on the independently fitted score map, the certificate covers the
+population inlier false-alarm rate simultaneously at every raw-score threshold.
+Threshold inversion is therefore part of the certified workflow: on that event,
+the selected threshold has a future-inlier false-alarm probability at most
+`target_fpr`. This does not control FDR, realized FDP, recall, realized
+finite-batch proportions, or the probability of at least one false alarm in an
+arbitrarily large batch.
+
+The band uses the deterministic finite-sample one-sided KS distribution. With
+1,000 calibration scores at 95% confidence, its finite-threshold floor is about
+3.85%, so the 5% target is feasible. A target below the floor returns an infinite
+threshold and an empty selection. Native FPR certificates support unweighted
+`Split` calibration, including detached calibration, independently of the
+configured p-value estimator. Coverage requires clean calibration and future
+inlier scores that are i.i.d. from the same deployment inlier distribution,
 conditional on a scoring map fixed independently of calibration. Exchangeability
 alone is insufficient; native scope checks do not establish these assumptions.
 

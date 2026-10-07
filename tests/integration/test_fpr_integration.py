@@ -14,7 +14,7 @@ from nonconform import (
     Split,
     logistic_weight_estimator,
 )
-from nonconform.scoring import ConditionalEmpirical
+from nonconform.scoring import ConditionalEmpirical, Empirical, Probabilistic
 
 
 class DistanceDetector:
@@ -52,27 +52,29 @@ def _data(seed: int = 42):
     return x_reference, x_test
 
 
-def test_integrated_detector_and_result_certificates_match():
+@pytest.mark.parametrize(
+    "estimation_factory",
+    [
+        Empirical,
+        lambda: ConditionalEmpirical(method="dkwm"),
+        lambda: Probabilistic(n_trials=0),
+    ],
+    ids=["empirical", "conditional", "probabilistic"],
+)
+def test_integrated_detector_and_result_certificates_match(estimation_factory):
     x_reference, x_test = _data()
     detector = ConformalDetector(
         detector=DistanceDetector(),
         strategy=Split(n_calib=0.25),
+        estimation=estimation_factory(),
         seed=7,
     ).fit(x_reference)
 
-    detector_certificate = detector.fpr_bounds(
-        confidence=0.8,
-        n_resamples=30,
-        seed=11,
-    )
+    detector_certificate = detector.fpr_bounds(confidence=0.8)
     scores = detector.score_samples(x_test)
     result = detector.last_result
     assert result is not None
-    result_certificate = result.fpr_bounds(
-        confidence=0.8,
-        n_resamples=30,
-        seed=11,
-    )
+    result_certificate = result.fpr_bounds(confidence=0.8)
 
     np.testing.assert_allclose(
         detector_certificate.to_frame(), result_certificate.to_frame()
@@ -93,27 +95,41 @@ def test_detector_fpr_bounds_does_not_replace_last_result():
     before = detector.last_result
     assert before is not None and before.p_values is not None
 
-    certificate = detector.fpr_bounds(n_resamples=20, seed=11)
+    certificate = detector.fpr_bounds()
     after = detector.last_result
 
-    assert certificate.method == "mc_ks"
+    assert certificate.method == "ks"
     assert after is not None and after.p_values is not None
     np.testing.assert_array_equal(after.p_values, before.p_values)
 
 
-def test_detached_calibration_produces_native_certificate():
+@pytest.mark.parametrize(
+    "estimation_factory",
+    [
+        Empirical,
+        lambda: ConditionalEmpirical(method="dkwm"),
+        lambda: Probabilistic(n_trials=0),
+    ],
+    ids=["empirical", "conditional", "probabilistic"],
+)
+def test_detached_calibration_produces_native_certificate(estimation_factory):
     x_fit, x_calibration = _data(1)[0], _data(2)[0]
     base_detector = DistanceDetector().fit(x_fit)
     detector = ConformalDetector(
         detector=base_detector,
         strategy=Split(n_calib=0.25),
+        estimation=estimation_factory(),
         seed=9,
     ).calibrate(x_calibration)
 
-    certificate = detector.fpr_bounds(n_resamples=20, seed=4)
+    certificate = detector.fpr_bounds()
+    detector.score_samples(_data(3)[1])
+    result = detector.last_result
 
     assert certificate.n_calibration == len(x_calibration)
     assert certificate.calibration_scores.shape == (len(x_calibration),)
+    assert result is not None
+    np.testing.assert_allclose(certificate.to_frame(), result.fpr_bounds().to_frame())
 
 
 def test_native_score_polarity_is_normalized_before_certification():
@@ -131,8 +147,8 @@ def test_native_score_polarity_is_normalized_before_certification():
     ).fit(x_reference)
 
     np.testing.assert_allclose(
-        normality_detector.fpr_bounds(n_resamples=20, seed=4).calibration_scores,
-        anomaly_detector.fpr_bounds(n_resamples=20, seed=4).calibration_scores,
+        normality_detector.fpr_bounds().calibration_scores,
+        anomaly_detector.fpr_bounds().calibration_scores,
     )
 
 
@@ -162,17 +178,31 @@ def test_unsupported_native_strategy_is_rejected(strategy):
         detector.fpr_bounds()
 
 
-def test_conditional_estimation_is_rejected():
-    x_reference, _ = _data()
+@pytest.mark.parametrize(
+    "estimation_factory",
+    [
+        lambda: ConditionalEmpirical(method="dkwm"),
+        lambda: Probabilistic(n_trials=0),
+    ],
+    ids=["conditional", "probabilistic"],
+)
+def test_fdp_certificate_still_rejects_nonempirical_estimation(estimation_factory):
+    x_reference, x_test = _data()
     detector = ConformalDetector(
         detector=DistanceDetector(),
         strategy=Split(n_calib=0.25),
-        estimation=ConditionalEmpirical(method="dkwm"),
+        estimation=estimation_factory(),
         seed=7,
     ).fit(x_reference)
 
-    with pytest.raises(ValueError, match="empirical conformal calibration"):
-        detector.fpr_bounds()
+    detector.compute_p_values(x_test)
+    result = detector.last_result
+    assert result is not None
+
+    with pytest.raises(ValueError, match="empirical conformal p-values"):
+        detector.fdp_bounds(x_test)
+    with pytest.raises(ValueError, match="empirical conformal p-values"):
+        result.fdp_bounds()
 
 
 def test_weighted_calibration_is_rejected():

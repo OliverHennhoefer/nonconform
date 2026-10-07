@@ -92,15 +92,11 @@ x_test = np.vstack(
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_000),
     seed=42,
 ).fit(x_reference)
 
-certificate = detector.fpr_bounds(
-    confidence=0.95,
-    n_resamples=1_000,
-    seed=42,
-)
+certificate = detector.fpr_bounds(confidence=0.95)
 scores = detector.score_samples(x_test)
 threshold = certificate.threshold_for(target_fpr=0.05)
 selected = scores >= threshold
@@ -110,28 +106,51 @@ print("selected:", np.flatnonzero(selected))
 print(certificate.to_frame())
 ```
 
-Here `confidence=0.95` is the simultaneous coverage of the whole FPR curve;
-`target_fpr=0.05` is the allowed false-alarm rate for a future inlier. The
-decision rule is `score >= threshold`, and scores are normalized so that larger
-values mean more anomalous. `threshold_for()` returns a `numpy.float64` scalar
+Here `confidence=0.95` refers to probability over the calibration draw,
+conditional on the independently fitted score map. With probability at least
+95%, the certificate bounds the population inlier false-alarm rate
+simultaneously at every threshold. On that event, a threshold chosen from the
+curve has a future-inlier false-alarm probability at most `target_fpr=0.05`.
+The decision rule is `score >= threshold`, and scores are normalized so that
+larger values mean more anomalous. `threshold_for()` returns a `numpy.float64` scalar
 that preserves precision when compared with float16 or float32 NumPy scores.
 Keep that scalar dtype for direct comparisons, or use
 `certificate.select(scores, target_fpr=0.05)`. A target below the certificate's
-finite-sample band floor returns `numpy.inf`, which gives an empty selection for
-finite scores.
+finite-threshold band floor returns `numpy.inf`, which gives an empty selection
+for finite scores.
+
+The certificate uses the exact finite-sample one-sided KS distribution,
+evaluated deterministically; it has no Monte Carlo seed or resample count.
+For $n$ calibration scores, its upper curve is the empirical inclusive score
+tail plus the KS critical value, capped at one. The construction is exact for
+continuous score distributions and conservative when scores have ties. With
+1,000 calibration scores at 95% confidence, the finite-threshold band floor is
+about 3.85%, allowing a nonempty rule to meet the 5% target in this example.
+More calibration data lowers this floor; certification alone cannot ensure
+that the chosen rule detects anomalies.
 
 Coverage requires clean calibration and future inlier scores that are i.i.d.
 conditional on a scoring map fixed independently of the calibration data. They
 must come from the same deployment inlier distribution. Exchangeability alone
 is insufficient, and native scope checks cannot verify these assumptions.
 
-This is a marginal per-inlier guarantee, not FDR, realized FDP, or a guarantee
-that a whole batch contains no false alarms. It also does not say anything
+The guarantee concerns the population FPR conditional on the realized
+calibration sample, rather than merely averaging false alarms over calibration
+samples as marginal conformal validity does. It does not constrain the realized
+false-alarm proportion in every finite batch, FDR, realized FDP, or the probability
+of at least one false alarm in an arbitrarily large batch. It also does not say anything
 about recall, missed anomalies, or total cost. The native entry points require
-clean, unweighted empirical `Split` calibration, including detached calibration.
+clean, unweighted `Split` calibration, including detached calibration, and are
+independent of the configured p-value estimator.
 For an existing snapshot, use `result.fpr_bounds()`; for externally supplied
 anomalous-higher calibration scores, use `FPRCertificate.from_scores(...)` and
 verify the independent calibration, fixed-score-map, and inlier assumptions yourself.
+
+[`ConditionalEmpirical`](conformal_inference.md#conditionally-calibrated-p-values)
+instead transforms empirical conformal p-values before downstream tests, using
+one of the package's conditional calibration maps. An FPR certificate works
+directly on calibration scores and supplies a reusable raw-score threshold;
+it does not call or change the detector's p-value estimator.
 
 ## How BH selects
 

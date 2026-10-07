@@ -1,7 +1,7 @@
 """Conformal evidence for anomaly detection and change monitoring.
 
 ``nonconform`` wraps PyOD, recognized scikit-learn, and custom anomaly scorers
-for batch conformal evidence, raw-score false-alarm control, and sequential
+for batch conformal evidence, raw-score threshold certification, and sequential
 randomized ranks with exchangeability martingales.
 Guarantees depend on the assumptions of the selected workflow.
 

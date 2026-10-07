@@ -8,7 +8,7 @@ description: "Navigate nonconform concepts, batch discovery control, weighted co
 
 - **Batch discovery control:** construct p-values or e-values for a fixed family and select
   anomalies with a justified FDR procedure.
-- **Raw-score risk control:** construct a simultaneous false-alarm/FPR curve
+- **Threshold certification:** construct a simultaneous false-alarm/FPR curve
   and select a score threshold for future inliers.
 - **Sequential change monitoring:** generate randomized sequential conformal
   p-values, accumulate evidence with a martingale, and trigger configured
@@ -66,7 +66,9 @@ are different.
     and true-null test scores conditional on a fixed training-only scorer. FDR
     control additionally requires the dependence assumptions of the selection
     procedure. Weighted workflows require a correct shift model, overlap, and
-    suitable weights. Sequential Ville guarantees require conditionally valid
+    suitable weights. FPR certificates require clean, i.i.d. calibration and
+    future inlier scores from the same distribution conditional on an
+    independently fitted score map. Sequential Ville guarantees require conditionally valid
     sequential p-values and a valid e-process. Passing API validation does not
     establish any of these assumptions.
 

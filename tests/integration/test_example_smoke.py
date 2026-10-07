@@ -8,6 +8,7 @@ from types import ModuleType, SimpleNamespace
 from typing import Self
 
 import numpy as np
+from sklearn.ensemble import IsolationForest
 
 
 class FakeIForest:
@@ -82,3 +83,27 @@ def test_derandomized_e_values_notebook_smoke(monkeypatch, capsys):
     assert result.tie_seed is not None
     np.testing.assert_array_equal(namespace["decisions"], result.selected)
     assert detector.last_result is None
+
+
+def test_fpr_bounds_notebook_smoke():
+    example_path = Path(__file__).parents[2] / "examples" / "fpr_bounds.ipynb"
+    notebook = json.loads(example_path.read_text(encoding="utf-8"))
+    namespace = {"__name__": "__main__"}
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            source = "".join(cell["source"])
+            exec(compile(source, str(example_path), "exec"), namespace)
+
+    assert namespace["IsolationForest"] is IsolationForest
+    certificate = namespace["certificate"]
+    threshold = namespace["threshold"]
+    scores = namespace["scores"]
+    mask = namespace["mask"]
+
+    assert certificate.n_calibration == 1_000
+    assert np.isfinite(threshold)
+    assert certificate.bound_at(threshold) <= 0.05
+    assert np.any(mask)
+    assert np.all(mask[-5:])
+    np.testing.assert_array_equal(mask, scores >= threshold)
+    np.testing.assert_array_equal(mask, certificate.select(scores, threshold=threshold))

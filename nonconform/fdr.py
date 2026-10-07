@@ -327,8 +327,12 @@ class FPRCertificate:
     i.i.d. conditional on a scoring map fixed independently of calibration.
     Exchangeability alone is insufficient.
 
-    Confidence is simultaneous coverage, not the requested false-positive rate.
-    The certificate is prepared once: threshold queries never resample.
+    With probability at least ``confidence`` over the calibration draw,
+    conditional on the independently fitted scoring map, the upper band covers
+    the population inlier false-alarm rate simultaneously at every threshold.
+    On that event, a threshold selected for ``target_fpr`` has future-inlier
+    false-alarm probability at most that target. The deterministic finite-sample
+    one-sided KS band is prepared once and reused by all threshold queries.
     """
 
     _calibration_scores: np.ndarray = field(repr=False)
@@ -356,8 +360,7 @@ class FPRCertificate:
         return (
             f"FPRCertificate(method={self.method!r}, "
             f"confidence={self.confidence}, "
-            f"n_calibration={self.n_calibration}, "
-            f"n_resamples={self.n_resamples})"
+            f"n_calibration={self.n_calibration})"
         )
 
     @classmethod
@@ -366,8 +369,6 @@ class FPRCertificate:
         calibration_scores: np.ndarray,
         *,
         confidence: float = 0.95,
-        n_resamples: int | None = None,
-        seed: int | None = None,
     ) -> FPRCertificate:
         """Certify an external anomalous-higher calibration-score sample.
 
@@ -375,18 +376,22 @@ class FPRCertificate:
         that are i.i.d. from the deployment inlier distribution, conditional on
         a scoring map fixed independently of calibration. Future inlier scores
         must be independent draws from that same distribution. Exchangeability
-        alone is insufficient. It constructs a simultaneous one-sided Monte
-        Carlo KS band for the false-positive rate of every raw-score threshold.
+        alone is insufficient. It constructs a deterministic finite-sample
+        one-sided KS band for the false-positive rate of every raw-score
+        threshold. Confidence is simultaneous coverage over the calibration
+        draw, conditional on the independently fitted scoring map.
 
         Args:
             calibration_scores: Nonempty, finite, one-dimensional scores for
                 calibration observations known to represent inliers.
             confidence: Simultaneous coverage probability in ``(0, 1)``.
-            n_resamples: Monte Carlo draws; defaults to ``1000``.
-            seed: Monte Carlo seed only. ``None`` draws fresh randomness once.
 
         Returns:
             An immutable raw-score FPR certificate.
+
+        Raises:
+            RuntimeError: If the numerical KS cutoff is not finite or lies
+                outside ``[0, 1]``.
 
         Note:
             The score convention is anomalous-higher. Native detector entry
@@ -399,8 +404,6 @@ class FPRCertificate:
         band = _fpr_bounds.prepare_ks_band(
             n_calibration=scores.size,
             confidence=confidence,
-            n_resamples=n_resamples,
-            seed=seed,
         )
         sorted_scores = np.sort(scores)
         support, counts = np.unique(sorted_scores, return_counts=True)
@@ -543,7 +546,7 @@ class FPRCertificate:
 
     @property
     def critical_value(self) -> float:
-        """Prepared one-sided Monte Carlo KS critical value."""
+        """Prepared finite-sample one-sided KS critical value and band floor."""
         return self._band.critical_value
 
     @property
@@ -553,23 +556,13 @@ class FPRCertificate:
 
     @property
     def confidence(self) -> float:
-        """Simultaneous coverage probability."""
+        """Simultaneous coverage probability over the clean calibration draw."""
         return self._band.confidence
-
-    @property
-    def n_resamples(self) -> int:
-        """Effective Monte Carlo draws."""
-        return self._band.n_resamples
-
-    @property
-    def seed(self) -> int | None:
-        """Monte Carlo seed supplied at construction, or None."""
-        return self._band.seed
 
     @property
     def method(self) -> str:
         """The fixed certificate construction method."""
-        return "mc_ks"
+        return "ks"
 
 
 def conformal_e_values(
