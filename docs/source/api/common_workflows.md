@@ -44,6 +44,65 @@ observation has a 95% probability of being anomalous. The FDR guarantee is a
 property of the selection procedure under its assumptions and across the
 declared testing family.
 
+## Raw-score false-alarm control
+
+Use an `FPRCertificate` when the deployment requirement is a per-inlier
+false-alarm target rather than an expected false-discovery proportion.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(3_000, 4))
+x_test = np.vstack(
+    [rng.normal(size=(18, 4)), rng.normal(loc=5.0, size=(2, 4))]
+)
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=42),
+    strategy=Split(n_calib=1_000),
+    seed=42,
+).fit(x_reference)
+
+certificate = detector.fpr_bounds(confidence=0.95)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+
+print("threshold:", certificate.threshold_for(0.05))
+print("selected indices:", np.flatnonzero(selected))
+print(certificate.to_frame())
+```
+
+The default table includes every decision considered by `threshold_for()`,
+including a threshold above the largest calibration score when representable,
+and the empty rule at `inf`, whose FPR upper bound is zero. Use
+`certificate.select(...)` when applying a threshold reloaded from storage so
+lower-precision score ties remain
+excluded. Certificates can also be copied or pickled while retaining their
+prepared KS band and immutable calibration evidence.
+
+With probability at least `confidence` over the clean calibration draw,
+conditional on the independently fitted score map, the certificate covers the
+population inlier false-alarm rate simultaneously at every raw-score threshold.
+Threshold inversion is therefore part of the certified workflow: on that event,
+the selected threshold has a future-inlier false-alarm probability at most
+`target_fpr`. This does not control FDR, realized FDP, recall, realized
+finite-batch proportions, or the probability of at least one false alarm in an
+arbitrarily large batch.
+
+The band uses the deterministic finite-sample one-sided KS distribution. With
+1,000 calibration scores at 95% confidence, its finite-threshold floor is about
+3.85%, so the 5% target is feasible. A target below the floor returns an infinite
+threshold and an empty selection. Native FPR certificates support unweighted
+`Split` calibration, including detached calibration, independently of the
+configured p-value estimator. Coverage requires clean calibration and future
+inlier scores that are i.i.d. from the same deployment inlier distribution,
+conditional on a scoring map fixed independently of calibration. Exchangeability
+alone is insufficient; native scope checks do not establish these assumptions.
+
 ## Inspect p-values and scores
 
 Call `compute_p_values(...)` when you need the p-values themselves. The

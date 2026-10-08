@@ -55,7 +55,7 @@ from ._internal.provenance import (
 )
 
 if TYPE_CHECKING:
-    from nonconform.fdr import EValueSelectionResult, FDPCertificate
+    from nonconform.fdr import EValueSelectionResult, FDPCertificate, FPRCertificate
     from nonconform.resampling import BaseStrategy
     from nonconform.scoring import BaseEstimation
 
@@ -1162,13 +1162,59 @@ class ConformalDetector(BaseConformalDetector):
         returned certificate is independent of subsequent detector operations;
         queries never resample and select() returns a NumPy mask.
         """
-        from nonconform._internal.fdp_bounds import validate_scope
+        from nonconform._internal.certificates import validate_scope
 
         if not self.is_fitted:
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
-        validate_scope(self._result_provenance(None))
+        validate_scope(self._result_provenance(None), procedure="fdp_bounds")
         self.compute_p_values(x)
         return self._last_result.fdp_bounds(confidence=confidence)
+
+    def fpr_bounds(
+        self,
+        *,
+        confidence: float = 0.95,
+    ) -> FPRCertificate:
+        """Return a simultaneous raw-score false-positive-rate certificate.
+
+        The certificate is built from the fitted detector's calibration scores
+        and does not score a test batch or mutate ``last_result``. It supports
+        unweighted ``Split`` calibration, including detached calibration,
+        independently of the configured p-value estimator.
+        The returned certificate uses anomalous-higher scores and can be
+        inverted with ``threshold_for()`` or applied with ``select()``.
+
+        The finite-sample one-sided KS band is deterministic. Confidence is
+        simultaneous coverage over the calibration draw, conditional on the
+        independently fitted scoring map, not an FPR target.
+
+        Coverage requires clean calibration and future inlier scores that are
+        i.i.d. conditional on a scoring map fixed independently of calibration.
+        Native scope checks do not establish these distributional assumptions;
+        exchangeability alone is insufficient.
+
+        Args:
+            confidence: Simultaneous coverage probability in ``(0, 1)``.
+
+        Returns:
+            An immutable simultaneous raw-score FPR certificate.
+
+        Raises:
+            NotFittedError: If the detector has not been fitted or calibrated.
+            ValueError: If the fitted construction is outside the supported
+                unweighted Split scope.
+            RuntimeError: If the numerical KS cutoff is invalid.
+        """
+        from nonconform._internal.certificates import validate_scope
+        from nonconform.fdr import FPRCertificate
+
+        if not self.is_fitted:
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
+        validate_scope(self._result_provenance(None), procedure="fpr_bounds")
+        return FPRCertificate.from_scores(
+            self._calibration_set,
+            confidence=confidence,
+        )
 
     @property
     def detector_set(self) -> list[AnomalyDetector]:

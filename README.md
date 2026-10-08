@@ -25,20 +25,24 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-`nonconform` turns anomaly scores into conformal evidence for two primary
-workflows: batch discovery control and sequential change monitoring. Wrap a
+`nonconform` calibrates anomaly scores for discovery, threshold
+certification, and sequential change monitoring. Wrap a
 supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
 or a custom detector:
 
-- **Batch:** Use calibrated p-values directly or call `select(...)` to apply
+- **Discovery:** Use calibrated p-values directly or call `select(...)` to apply
   false discovery rate (FDR) control.
+- **Score thresholds:** Build a simultaneous false-alarm/FPR certificate and
+  choose a score threshold for future inliers.
 - **Stream:** Use conformal martingales to accumulate evidence against
   exchangeability and trigger configured alarms.
 
 ## Why nonconform?
 
 - **Calibrate anomaly scores** into conformal p-values using reference data.
-- **Control batch discoveries** by accounting for multiple tests within a
+- **Certify raw-score thresholds** with simultaneous FPR certificates and
+  target-driven threshold inversion.
+- **Control discoveries** by accounting for multiple tests within a
   fixed family.
 - **Monitor streams for change** with conformal martingales, anytime evidence
   against exchangeability, and configurable alarms.
@@ -57,7 +61,7 @@ or a custom detector:
 
 ## Installation
 
-`nonconform` requires Python 3.12 or newer. Both batch discovery control and
+`nonconform` requires Python 3.12 or newer. Both discovery control and
 sequential monitoring are included in the core installation.
 
 ```bash
@@ -130,6 +134,34 @@ and family fixed, and do not cherry-pick repeated constructions. The
 [FDP guide](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds)
 shows a complete example and the separate expert interface for method settings.
 
+### Raw-score false-alarm control
+
+If the operational requirement is “flag no more than 5% of future inliers,” use
+the raw-score certificate instead of treating an FDR target as a score
+threshold:
+
+```python
+certificate = detector.fpr_bounds(confidence=0.95)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+print(f"Certified threshold: {certificate.threshold_for(0.05)}")
+```
+
+With probability at least 95% over the clean calibration draw, the certificate
+bounds the population inlier false-alarm rate at every threshold, conditional
+on the independently fitted score map. On that event, the chosen threshold has
+a future-inlier false-alarm probability at most 5%. Calibration and future
+inlier scores must be i.i.d. from the same distribution; exchangeability alone
+is insufficient.
+
+The certificate uses the deterministic finite-sample one-sided KS distribution.
+With 1,000 calibration scores at 95% confidence, its finite-threshold band floor
+is about 3.85%, allowing the 5% target here. Smaller targets can produce an
+infinite threshold and an empty selection. Native certificates support
+unweighted `Split` calibration independently of the p-value estimator. This
+does not guarantee a realized false-alarm proportion in a finite batch, FDR,
+FDP, recall, or sequential Ville control.
+
 ### Sequential change monitoring
 
 A fitted `Split` detector can initialize the stream lane without refitting its
@@ -191,6 +223,7 @@ for the full guarantee scope and other alarm statistics.
 | Goal | Start with |
 | --- | --- |
 | Calibrate and select anomalies in a batch | [`Split` and `select(...)`](https://oliverhennhoefer.github.io/nonconform/quickstart/) |
+| Set a per-inlier raw-score false-alarm target | [`fpr_bounds(...)` and FPR certificates](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#raw-score-false-alarm-control) |
 | Aggregate evidence across random splits | [`DerandomizedSplits` and e-BH](https://oliverhennhoefer.github.io/nonconform/examples/derandomized_e_values/) |
 | Monitor a stream for change | [Exchangeability martingales](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/) |
 | Reuse more data for fitting and calibration | [`CrossValidation` or `JackknifeBootstrap`](https://oliverhennhoefer.github.io/nonconform/user_guide/conformalization_strategies/) |
@@ -205,6 +238,8 @@ for the full guarantee scope and other alarm statistics.
 > calibration data and null test cases to be exchangeable. FDR claims additionally
 > require valid p-values or the applicable aggregate null-evidence condition,
 > together with the assumptions of the selected multiple-testing procedure.
+> FPR certificates require clean, i.i.d. calibration and future inlier scores
+> from the same distribution, conditional on an independently fitted score map.
 > Weighted workflows require a plausible covariate-shift model, support
 > overlap, and reliable weights. Sequential martingales require valid sequential
 > conformal p-values; Ville thresholds provide false-alarm control for one valid

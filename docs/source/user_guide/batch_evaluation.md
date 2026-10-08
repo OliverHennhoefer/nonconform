@@ -1,5 +1,5 @@
 ---
-description: "Generate labeled anomaly batches with oddball and evaluate nonconform discovery procedures without confusing realized metrics with guarantees."
+description: "Generate labeled anomaly batches with oddball and evaluate discovery procedures with nonconform without confusing realized metrics with guarantees."
 ---
 
 # Batch evaluation

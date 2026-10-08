@@ -10,13 +10,11 @@ import numpy as np
 
 from nonconform.structures import ConformalResult
 
-from .provenance import (
-    CalibrationMode,
-    EstimationFamily,
-    ResultProvenance,
-    StrategyFamily,
-    parse_result_provenance,
+from .certificates import (
+    immutable_array,
+    validate_scope,
 )
+from .provenance import parse_result_provenance
 from .validation import (
     as_1d_numeric,
     validate_finite,
@@ -92,26 +90,6 @@ def as_threshold_query(threshold: float | np.ndarray) -> tuple[np.ndarray, bool]
     return np.clip(arr, 0.0, 1.0), scalar_input
 
 
-def validate_scope(provenance: ResultProvenance | None) -> None:
-    """Require native facts for the supported split-conformal construction."""
-    if provenance is None:
-        raise ValueError(
-            "fdp_bounds() requires native provenance. For external p-values, use "
-            "FDPCertificate.from_p_values() and verify its assumptions."
-        )
-    if provenance.weighted:
-        raise ValueError("fdp_bounds() supports only unweighted conformal p-values.")
-    if provenance.estimation_family is not EstimationFamily.EMPIRICAL:
-        raise ValueError("fdp_bounds() supports empirical conformal p-values only.")
-    if provenance.strategy_family is not StrategyFamily.SPLIT:
-        raise ValueError("fdp_bounds() supports split or detached calibration only.")
-    if provenance.calibration_mode not in {
-        CalibrationMode.INTEGRATED,
-        CalibrationMode.DETACHED,
-    }:
-        raise ValueError("fdp_bounds() requires a fitted or calibrated native result.")
-
-
 def validate_result_scope(result: ConformalResult) -> int:
     """Validate snapshot scope and dimensions; return calibration size.
 
@@ -126,7 +104,7 @@ def validate_result_scope(result: ConformalResult) -> int:
     if result.test_weights is not None or result.calib_weights is not None:
         raise ValueError("fdp_bounds() supports only unweighted conformal p-values.")
     provenance = parse_result_provenance(result)
-    validate_scope(provenance)
+    validate_scope(provenance, procedure="fdp_bounds")
     p_values = as_p_values("result.p_values", result.p_values)
     calib_scores = as_1d_numeric("result.calib_scores", result.calib_scores)
     validate_finite("result.calib_scores", calib_scores)
@@ -143,12 +121,6 @@ def validate_result_scope(result: ConformalResult) -> int:
         if scores.size != p_values.size:
             raise ValueError("result.test_scores must match the p_values batch size.")
     return calib_scores.size
-
-
-def immutable_array(values: np.ndarray) -> np.ndarray:
-    """Own an array in immutable bytes, preventing write-flag escalation."""
-    arr = np.ascontiguousarray(values)
-    return np.frombuffer(arr.tobytes(), dtype=arr.dtype).reshape(arr.shape)
 
 
 @dataclass(frozen=True, slots=True)

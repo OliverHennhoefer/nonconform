@@ -1,12 +1,12 @@
 ---
-description: "Public API reference for nonconform batch discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
+description: "Public API reference for nonconform, covering discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
 ---
 
 # API Reference
 
-Reference documentation for the complete v1 public module surface. For the
-statistical assumptions and decision context behind an API, follow the linked
-user-guide page before relying on a guarantee.
+Reference documentation for the complete v1 public module surface of `nonconform`.
+For the statistical assumptions and decision context behind an API, follow the
+linked user-guide page before relying on a guarantee.
 
 ## Start Here
 
@@ -46,8 +46,8 @@ For the v1 public compatibility contract, see
 
 ## FDR Control
 
-Includes post-hoc FDP bounds, derandomized e-value selection, and weighted
-low-level expert APIs (`weighted_false_discovery_control`).
+Includes raw-score FPR certificates, post-hoc FDP bounds, derandomized e-value
+selection, and weighted low-level expert APIs (`weighted_false_discovery_control`).
 For batch workflows, prefer `ConformalDetector.select(...)`. With
 `DerandomizedSplits`, it applies e-BH and exposes evidence through
 `last_selection_result`; standalone e-value functions remain available for
@@ -60,6 +60,14 @@ statement is joint over data and independent Monte Carlo sampling.
 `FDPCertificate.from_p_values(...)` is the explicit expert array interface for
 method settings and reproducible simulations. A fixed seed does not confer a
 separate conditional coverage guarantee; do not cherry-pick constructions.
+For a simultaneous raw-score false-positive-rate curve, use
+`detector.fpr_bounds()` or `result.fpr_bounds()`; both return an immutable
+`FPRCertificate`. `FPRCertificate.from_scores(...)` is the explicit expert
+calibration-score interface. The certificate uses the deterministic finite-sample
+one-sided KS distribution and supports unweighted `Split` calibration independently
+of the p-value estimator. See the
+[FPR guarantee scope](../user_guide/fdr_control.md#raw-score-false-alarm-control)
+for its calibration-conditional coverage and sample-size requirements.
 See the [FDP migration notes](../user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
 for the intentional replacement of the previous FDP-specific API.
 

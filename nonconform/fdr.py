@@ -1,8 +1,8 @@
-"""Public false-discovery procedures for conformal anomaly evidence."""
+"""Public false-discovery and false-alarm procedures for anomaly evidence."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -11,8 +11,10 @@ import pandas as pd
 from nonconform.structures import ConformalResult
 
 from ._internal import Pruning
+from ._internal import certificates as _certificates
 from ._internal import e_values as _e_value_core
 from ._internal import fdp_bounds as _fdp_bounds
+from ._internal import fpr_bounds as _fpr_bounds
 from ._internal import wcs as _wcs
 
 
@@ -161,7 +163,7 @@ class FDPCertificate:
         counts = np.cumsum(counts)
         minima = None
         if boost:
-            minima = _fdp_bounds.immutable_array(
+            minima = _certificates.immutable_array(
                 np.minimum.accumulate(
                     np.minimum(
                         values.size, values.size * envelope.evaluate(support) - counts
@@ -170,12 +172,14 @@ class FDPCertificate:
             )
         certificate = object.__new__(cls)
         object.__setattr__(
-            certificate, "_p_values", _fdp_bounds.immutable_array(values)
+            certificate, "_p_values", _certificates.immutable_array(values)
         )
         object.__setattr__(
-            certificate, "_support", _fdp_bounds.immutable_array(support)
+            certificate, "_support", _certificates.immutable_array(support)
         )
-        object.__setattr__(certificate, "_counts", _fdp_bounds.immutable_array(counts))
+        object.__setattr__(
+            certificate, "_counts", _certificates.immutable_array(counts)
+        )
         object.__setattr__(certificate, "_prefix_minima", minima)
         object.__setattr__(certificate, "_envelope", envelope)
         return certificate
@@ -237,27 +241,27 @@ class FDPCertificate:
     @property
     def p_values(self) -> np.ndarray:
         """Read-only evidence in original observation order."""
-        return _fdp_bounds.immutable_array(self._p_values)
+        return _certificates.immutable_array(self._p_values)
 
     @property
     def thresholds(self) -> np.ndarray:
         """Read-only default grid of sorted unique observed p-values."""
-        return _fdp_bounds.immutable_array(self._support)
+        return _certificates.immutable_array(self._support)
 
     @property
     def rejection_counts(self) -> np.ndarray:
         """Read-only discovery counts on the default grid."""
-        return _fdp_bounds.immutable_array(self._counts)
+        return _certificates.immutable_array(self._counts)
 
     @property
     def fdp_upper_bounds(self) -> np.ndarray:
         """Read-only FDP upper bounds on the default grid."""
-        return _fdp_bounds.immutable_array(self.bound_at(self._support))
+        return _certificates.immutable_array(self.bound_at(self._support))
 
     @property
     def precision_lower_bounds(self) -> np.ndarray:
         """Read-only precision lower bounds on the default grid."""
-        return _fdp_bounds.immutable_array(self.precision_at(self._support))
+        return _certificates.immutable_array(self.precision_at(self._support))
 
     @property
     def n_calibration(self) -> int:
@@ -308,6 +312,272 @@ class FDPCertificate:
     def beta(self) -> float | None:
         """Effective THC exponent; otherwise None."""
         return self._envelope.beta
+
+
+@dataclass(slots=True, init=False, eq=False)
+class FPRCertificate:
+    """Immutable simultaneous certificate for raw-score false-positive rates.
+
+    Construct via ``detector.fpr_bounds()``, ``result.fpr_bounds()``, or the
+    expert ``from_scores()`` factory. Calibration scores must be finite and use
+    the anomalous-higher convention. The certificate's uniform upper band can
+    be queried at arbitrary score thresholds and inverted to choose a threshold
+    for a target false-positive rate.
+
+    Coverage requires clean calibration and future inlier scores that are
+    i.i.d. conditional on a scoring map fixed independently of calibration.
+    Exchangeability alone is insufficient.
+
+    With probability at least ``confidence`` over the calibration draw,
+    conditional on the independently fitted scoring map, the upper band covers
+    the population inlier false-alarm rate simultaneously at every threshold.
+    On that event, a threshold selected for ``target_fpr`` has future-inlier
+    false-alarm probability at most that target. The deterministic finite-sample
+    one-sided KS band is prepared once and reused by all threshold queries.
+    Copying and pickle roundtrips preserve this band and immutable evidence.
+    """
+
+    _calibration_scores: np.ndarray = field(repr=False)
+    _thresholds: np.ndarray = field(repr=False)
+    _alarm_counts: np.ndarray = field(repr=False)
+    _band: _fpr_bounds.KSBand = field(repr=False)
+
+    def __init__(self) -> None:
+        """Require validated construction through the certificate factories."""
+        raise TypeError(
+            "Use detector.fpr_bounds(), result.fpr_bounds(), or "
+            "FPRCertificate.from_scores()."
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Prevent mutation after validated factory construction."""
+        raise AttributeError("FPRCertificate is immutable.")
+
+    def __delattr__(self, name: str) -> None:
+        """Prevent deletion of certificate state."""
+        raise AttributeError("FPRCertificate is immutable.")
+
+    def __repr__(self) -> str:
+        """Summarize configuration without dumping calibration scores."""
+        return (
+            f"FPRCertificate(method={self.method!r}, "
+            f"confidence={self.confidence}, "
+            f"n_calibration={self.n_calibration})"
+        )
+
+    def __reduce__(
+        self,
+    ) -> tuple[
+        Callable[[np.ndarray, _fpr_bounds.KSBand], FPRCertificate],
+        tuple[np.ndarray, _fpr_bounds.KSBand],
+    ]:
+        """Rebuild immutable evidence while retaining the prepared KS band."""
+        return self._from_calibration, (self._calibration_scores, self._band)
+
+    @classmethod
+    def from_scores(
+        cls,
+        calibration_scores: np.ndarray,
+        *,
+        confidence: float = 0.95,
+    ) -> FPRCertificate:
+        """Certify an external anomalous-higher calibration-score sample.
+
+        This expert route trusts the caller to provide clean calibration scores
+        that are i.i.d. from the deployment inlier distribution, conditional on
+        a scoring map fixed independently of calibration. Future inlier scores
+        must be independent draws from that same distribution. Exchangeability
+        alone is insufficient. It constructs a deterministic finite-sample
+        one-sided KS band for the false-positive rate of every raw-score
+        threshold. Confidence is simultaneous coverage over the calibration
+        draw, conditional on the independently fitted scoring map.
+
+        Args:
+            calibration_scores: Nonempty, finite, one-dimensional scores for
+                calibration observations known to represent inliers.
+            confidence: Simultaneous coverage probability in ``(0, 1)``.
+
+        Returns:
+            An immutable raw-score FPR certificate.
+
+        Raises:
+            RuntimeError: If the numerical KS cutoff is not finite or lies
+                outside ``[0, 1]``.
+
+        Note:
+            The score convention is anomalous-higher. Native detector entry
+            points normalize detector polarity before constructing the
+            certificate; external callers must do so themselves.
+        """
+        scores = _fpr_bounds.as_calibration_scores(
+            "calibration_scores", calibration_scores
+        )
+        band = _fpr_bounds.prepare_ks_band(
+            n_calibration=scores.size,
+            confidence=confidence,
+        )
+        return cls._from_calibration(scores, band)
+
+    @classmethod
+    def _from_calibration(
+        cls, scores: np.ndarray, band: _fpr_bounds.KSBand
+    ) -> FPRCertificate:
+        """Own validated evidence and derive its complete decision grid."""
+        sorted_scores = np.sort(scores)
+        with np.errstate(over="ignore"):
+            thresholds = np.unique(
+                np.r_[-np.inf, np.nextafter(sorted_scores, np.inf), np.inf]
+            )
+        alarm_counts = scores.size - np.searchsorted(
+            sorted_scores, thresholds, side="left"
+        )
+
+        certificate = object.__new__(cls)
+        object.__setattr__(
+            certificate,
+            "_calibration_scores",
+            _certificates.immutable_array(scores),
+        )
+        object.__setattr__(
+            certificate,
+            "_thresholds",
+            _certificates.immutable_array(thresholds),
+        )
+        object.__setattr__(
+            certificate,
+            "_alarm_counts",
+            _certificates.immutable_array(alarm_counts),
+        )
+        object.__setattr__(certificate, "_band", band)
+        return certificate
+
+    def _query(self, thresholds: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return inclusive calibration tail counts and upper bounds."""
+        positions = np.searchsorted(self._thresholds, thresholds, side="right") - 1
+        counts = self._alarm_counts[positions]
+        bounds = _fpr_bounds.upper_bound(
+            counts,
+            thresholds=thresholds,
+            n_calibration=self.n_calibration,
+            critical_value=self.critical_value,
+        )
+        return counts, bounds
+
+    def bound_at(self, threshold: float | np.ndarray) -> float | np.ndarray:
+        """Evaluate the simultaneous FPR upper bound at score thresholds."""
+        thresholds, scalar = _fpr_bounds.as_threshold_query(threshold)
+        _, bounds = self._query(thresholds)
+        return float(bounds[0]) if scalar else bounds
+
+    def threshold_for(self, target_fpr: float) -> np.float64:
+        """Return the least-conservative threshold certified for ``target_fpr``.
+
+        The returned threshold uses the inclusive ``score >= threshold`` rule.
+        It is a ``numpy.float64`` scalar to preserve precision when comparing
+        with lower-precision NumPy scores. Keep this scalar dtype for direct
+        comparisons, or use ``select()``.
+        If no finite threshold supported by the calibration scores can satisfy
+        the target, ``numpy.inf`` is returned; applying it to finite scores
+        produces an empty selection with certified FPR zero.
+        """
+        target = _fpr_bounds.validate_target_fpr(target_fpr)
+        _, bounds = self._query(self._thresholds)
+        return self._thresholds[np.flatnonzero(bounds <= target)[0]]
+
+    def select(
+        self,
+        scores: np.ndarray,
+        *,
+        threshold: float | None = None,
+        target_fpr: float | None = None,
+    ) -> np.ndarray:
+        """Return an original-order mask for an explicit or certified threshold.
+
+        Exactly one of ``threshold`` or ``target_fpr`` must be supplied. Scores
+        must use the anomalous-higher convention and are classified with the
+        inclusive rule ``score >= threshold``.
+        """
+        if (threshold is None) == (target_fpr is None):
+            raise ValueError("Supply exactly one of threshold or target_fpr.")
+        if target_fpr is not None:
+            threshold_value = self.threshold_for(target_fpr)
+        else:
+            thresholds, scalar = _fpr_bounds.as_threshold_query(threshold)
+            if not scalar:
+                raise ValueError("threshold must be a scalar for select().")
+            threshold_value = float(thresholds[0])
+        return _fpr_bounds.as_scores("scores", scores) >= threshold_value
+
+    def to_frame(self, thresholds: np.ndarray | None = None) -> pd.DataFrame:
+        """Report empirical and certified FPR on a threshold grid.
+
+        The default grid starts at ``-inf``, steps just above each unique
+        calibration score, and ends at ``inf`` for the empty rule. It includes
+        every threshold considered by ``threshold_for()``.
+        Explicit grids preserve their order and duplicates.
+        """
+        if thresholds is None:
+            grid = self._thresholds
+        else:
+            grid, scalar = _fpr_bounds.as_threshold_query(thresholds)
+            if scalar:
+                raise ValueError("thresholds must be a 1D array.")
+        counts, bounds = self._query(grid)
+        return pd.DataFrame(
+            {
+                "threshold": grid.copy(),
+                "alarm_counts": counts,
+                "empirical_fpr": counts / self.n_calibration,
+                "fpr_upper_bound": bounds,
+            }
+        )
+
+    @property
+    def calibration_scores(self) -> np.ndarray:
+        """Read-only calibration scores in their original order."""
+        return _certificates.immutable_array(self._calibration_scores)
+
+    @property
+    def thresholds(self) -> np.ndarray:
+        """Read-only complete decision grid, including both infinite endpoints."""
+        return _certificates.immutable_array(self._thresholds)
+
+    @property
+    def alarm_counts(self) -> np.ndarray:
+        """Read-only inclusive calibration alarm counts on the default grid."""
+        return _certificates.immutable_array(self._alarm_counts)
+
+    @property
+    def empirical_fpr(self) -> np.ndarray:
+        """Empirical calibration FPR on the default threshold grid."""
+        return _certificates.immutable_array(
+            self._alarm_counts.astype(float) / self.n_calibration
+        )
+
+    @property
+    def fpr_upper_bounds(self) -> np.ndarray:
+        """Simultaneous FPR upper bounds on the default threshold grid."""
+        return _certificates.immutable_array(self.bound_at(self._thresholds))
+
+    @property
+    def critical_value(self) -> float:
+        """Prepared finite-sample one-sided KS critical value and band floor."""
+        return self._band.critical_value
+
+    @property
+    def n_calibration(self) -> int:
+        """Calibration sample size."""
+        return self._band.n_calibration
+
+    @property
+    def confidence(self) -> float:
+        """Simultaneous coverage probability over the clean calibration draw."""
+        return self._band.confidence
+
+    @property
+    def method(self) -> str:
+        """The fixed certificate construction method."""
+        return "ks"
 
 
 def conformal_e_values(
@@ -526,6 +796,7 @@ def weighted_false_discovery_control_from_arrays(
 __all__ = [
     "EValueSelectionResult",
     "FDPCertificate",
+    "FPRCertificate",
     "Pruning",
     "conformal_e_values",
     "e_value_false_discovery_control",

@@ -1,6 +1,6 @@
 ---
 title: "nonconform: Conformal Anomaly Detection"
-description: "Calibrate anomaly scores, control batch discoveries, and monitor streams for change with conformal methods in Python."
+description: "Calibrate anomaly scores, control discoveries, and monitor streams for change with conformal methods in Python."
 ---
 
 <p align="center">
@@ -11,16 +11,18 @@ description: "Calibrate anomaly scores, control batch discoveries, and monitor s
 
 **Calibrate scores. Control discoveries. Monitor change.**
 
-`nonconform` turns anomaly scores into conformal evidence for two primary
-workflows:
+`nonconform` turns anomaly scores into conformal evidence for discovery and
+sequential workflows:
 
-- **Batch discovery control:** compute conformal p-values and select anomalies
+- **Discovery control:** compute conformal p-values and select anomalies
   with false discovery rate (FDR) control.
+- **Threshold certification:** build a simultaneous false-alarm/FPR certificate
+  and select a score threshold for future inliers.
 - **Sequential change monitoring:** transform a stream into randomized
   sequential conformal p-values and accumulate evidence against exchangeability
   with conformal martingales.
 
-Both workflows can wrap supported scikit-learn estimators, PyOD models, or a
+These workflows can wrap supported scikit-learn estimators, PyOD models, or a
 custom detector that implements the documented protocol.
 
 ## Batch discovery control
@@ -35,7 +37,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
 
 rng = np.random.default_rng(42)
-x_train = rng.normal(size=(1_000, 2))
+x_train = rng.normal(size=(3_000, 2))
 x_test = np.vstack([
     rng.normal(size=(200, 2)),
     rng.normal(loc=5.0, size=(20, 2)),
@@ -43,7 +45,7 @@ x_test = np.vstack([
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=0.3),
+    strategy=Split(n_calib=1_000),
     score_polarity="auto",
     seed=42,
 ).fit(x_train)
@@ -58,6 +60,35 @@ print(f"Smallest p-value: {p_values.min():.4f}")
 `alpha=0.05` is the target FDR level for this batch, not an anomaly-score
 threshold and not a promise about the realized false discovery proportion in
 this particular run.
+
+## Raw-score false-alarm control
+
+When the requirement is to limit false alarms among future inliers, use the
+raw-score certificate rather than interpreting an FDR target as a score
+threshold:
+
+```python
+certificate = detector.fpr_bounds(confidence=0.95)
+scores = detector.score_samples(x_test)
+selected = certificate.select(scores, target_fpr=0.05)
+
+print(f"Certified threshold: {certificate.threshold_for(0.05)}")
+print(f"Selected {selected.sum()} observations")
+```
+
+With probability at least 95% over the clean calibration draw, conditional on
+the independently fitted score map, the certificate bounds the population
+inlier false-alarm rate simultaneously at every threshold. On that event, the
+chosen threshold has a future-inlier false-alarm probability at most 5%.
+Calibration and future inlier scores must be i.i.d. from the same distribution;
+exchangeability alone is insufficient.
+
+The deterministic finite-sample one-sided KS band has a finite-threshold floor
+of about 3.85% with 1,000 calibration scores at 95% confidence. A target below
+that floor yields an infinite threshold and an empty selection. Native
+certificates support unweighted `Split` calibration independently of the
+p-value estimator. They do not guarantee realized finite-batch proportions,
+FDR, FDP, recall, or sequential Ville false-alarm control.
 
 ## Sequential change monitoring
 
@@ -116,8 +147,10 @@ by 0.05 on one valid null stream. It does not control FDR across streams.
     calibration or test outcomes. BH selection additionally requires valid
     p-values and its dependence conditions. Weighted workflows require the
     stated covariate-shift model, support overlap, and reliable importance
-    weights. Sequential Ville guarantees require conditionally valid sequential
-    conformal p-values.
+    weights. FPR certificates require clean, i.i.d. calibration and future inlier
+    scores from the same distribution conditional on an independently fitted
+    score map. Sequential Ville guarantees require conditionally valid
+    sequential conformal p-values.
 
     `nonconform` calibrates detector scores. It cannot make an unsuitable
     detector, contaminated reference set, adaptive analysis, or mismatched data
@@ -126,6 +159,7 @@ by 0.05 on one valid null stream. It does not control FDR across streams.
 | Workflow | Start here | Main output |
 |---|---|---|
 | Fixed batch of anomaly candidates | [Quick Start](quickstart.md#batch-discovery-control) | Conformal p-values and an FDR-controlled Boolean mask |
+| Fixed raw-score false-alarm target | [FDR Control](user_guide/fdr_control.md#raw-score-false-alarm-control) | A simultaneous FPR curve and target-driven threshold |
 | Ordered stream monitored for change | [Exchangeability Martingales](user_guide/exchangeability_martingales.md) | Sequential p-values, e-values, evidence statistics, and configured alarms |
 | Covariate shift between calibration and test | [Weighted Conformal](user_guide/weighted_conformal.md) | Weighted p-values and WCS selections |
 | Custom or third-party detector | [Detector Compatibility](user_guide/detector_compatibility.md) | A validated, anomaly-oriented score interface |

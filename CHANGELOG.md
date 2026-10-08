@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `nonconform.fdr.FPRCertificate` with immutable simultaneous raw-score
+  false-positive-rate bounds, target-FPR threshold inversion, and native
+  `ConformalDetector.fpr_bounds()` / `ConformalResult.fpr_bounds()` integration
+  for unweighted `Split` calibration independently of the p-value estimator.
+  A deterministic finite-sample one-sided KS band covers the population inlier
+  false-alarm curve with the requested probability over the calibration draw,
+  conditional on a scoring map fixed independently of calibration. Coverage
+  requires clean, i.i.d. calibration and future inlier scores from the same
+  distribution. Returned thresholds preserve NumPy precision
+  when compared with lower-precision score arrays.
 - Added `nonconform.martingales.MixtureMartingale` for fixed-weight composition
   of independently maintained martingale, harmonic restart, CUSUM, and
   Shiryaev-Roberts evidence, including direct `ExchangeabilityMonitor` support.
@@ -49,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FPR certificates now support copying and pickle roundtrips while retaining
+  the prepared KS band and immutable evidence. Default diagnostics and target
+  inversion share a complete decision grid, including thresholds above tied
+  calibration scores and the empty rule at positive infinity. Its FPR bound
+  is now exactly zero instead of the KS margin; finite-threshold bounds and
+  the statistical assumptions are unchanged.
 - FDP higher-criticism shape parameters now reject `beta > 1`, outside the
   range supported by the jump-point statistic calculation. Berk-Jones
   inversion now returns conservative lower endpoints, includes p-values equal
