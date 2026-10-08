@@ -1,5 +1,5 @@
 ---
-description: "Public API reference for nonconform batch discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
+description: "Public API reference for nonconform discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
 ---
 
 # API Reference

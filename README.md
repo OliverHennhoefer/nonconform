@@ -25,12 +25,12 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-`nonconform` calibrates anomaly scores for batch discovery, threshold
+`nonconform` calibrates anomaly scores for discovery, threshold
 certification, and sequential change monitoring. Wrap a
 supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
 or a custom detector:
 
-- **Batch:** Use calibrated p-values directly or call `select(...)` to apply
+- **Discovery:** Use calibrated p-values directly or call `select(...)` to apply
   false discovery rate (FDR) control.
 - **Score thresholds:** Build a simultaneous false-alarm/FPR certificate and
   choose a score threshold for future inliers.
@@ -42,7 +42,7 @@ or a custom detector:
 - **Calibrate anomaly scores** into conformal p-values using reference data.
 - **Certify raw-score thresholds** with simultaneous FPR certificates and
   target-driven threshold inversion.
-- **Control batch discoveries** by accounting for multiple tests within a
+- **Control discoveries** by accounting for multiple tests within a
   fixed family.
 - **Monitor streams for change** with conformal martingales, anytime evidence
   against exchangeability, and configurable alarms.
@@ -61,7 +61,7 @@ or a custom detector:
 
 ## Installation
 
-`nonconform` requires Python 3.12 or newer. Both batch discovery control and
+`nonconform` requires Python 3.12 or newer. Both discovery control and
 sequential monitoring are included in the core installation.
 
 ```bash

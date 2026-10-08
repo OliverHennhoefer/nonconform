@@ -1,12 +1,12 @@
 ---
-description: "Navigate nonconform concepts, batch discovery control, weighted conformal inference, sequential monitoring, evaluation, and API guidance."
+description: "Navigate nonconform concepts, discovery control, weighted conformal inference, sequential monitoring, evaluation, and API guidance."
 ---
 
 # User guide
 
-`nonconform` supports batch and sequential workflows built on anomaly scores:
+`nonconform` supports discovery and sequential workflows built on anomaly scores:
 
-- **Batch discovery control:** construct p-values or e-values for a fixed family and select
+- **Discovery control:** construct p-values or e-values for a fixed family and select
   anomalies with a justified FDR procedure.
 - **Threshold certification:** construct a simultaneous false-alarm/FPR curve
   and select a score threshold for future inliers.

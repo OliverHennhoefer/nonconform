@@ -1,6 +1,6 @@
 ---
 title: "nonconform: Conformal Anomaly Detection"
-description: "Calibrate anomaly scores, control batch discoveries, and monitor streams for change with conformal methods in Python."
+description: "Calibrate anomaly scores, control discoveries, and monitor streams for change with conformal methods in Python."
 ---
 
 <p align="center">
@@ -11,10 +11,10 @@ description: "Calibrate anomaly scores, control batch discoveries, and monitor s
 
 **Calibrate scores. Control discoveries. Monitor change.**
 
-`nonconform` turns anomaly scores into conformal evidence for batch and
+`nonconform` turns anomaly scores into conformal evidence for discovery and
 sequential workflows:
 
-- **Batch discovery control:** compute conformal p-values and select anomalies
+- **Discovery control:** compute conformal p-values and select anomalies
   with false discovery rate (FDR) control.
 - **Threshold certification:** build a simultaneous false-alarm/FPR certificate
   and select a score threshold for future inliers.
