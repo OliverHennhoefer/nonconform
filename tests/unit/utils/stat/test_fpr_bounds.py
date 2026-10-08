@@ -1,6 +1,10 @@
 """Unit tests for raw-score false-positive-rate certificates."""
 
+import copy
 import inspect
+import json
+import pickle
+from functools import partial
 from math import comb, sqrt
 
 import numpy as np
@@ -19,6 +23,10 @@ def _certificate(calibration_scores=None, **kwargs) -> FPRCertificate:
     params = {"confidence": 0.8}
     params.update(kwargs)
     return FPRCertificate.from_scores(calibration_scores, **params)
+
+
+def _pickle_roundtrip(certificate, *, protocol):
+    return pickle.loads(pickle.dumps(certificate, protocol=protocol))
 
 
 @pytest.mark.parametrize(
@@ -152,12 +160,15 @@ def test_certificate_configuration_has_no_monte_carlo_controls():
     assert "n_resamples" not in repr(certificate)
 
 
-def test_default_grid_uses_sorted_unique_scores_and_inclusive_tail_counts():
+def test_default_grid_covers_every_decision_and_inclusive_tail_count():
     certificate = _certificate()
 
-    np.testing.assert_allclose(certificate.thresholds, [-1.0, 0.0, 2.0])
-    np.testing.assert_array_equal(certificate.alarm_counts, [4, 3, 2])
-    np.testing.assert_allclose(certificate.empirical_fpr, [1.0, 0.75, 0.5])
+    np.testing.assert_array_equal(
+        certificate.thresholds,
+        np.r_[-np.inf, np.nextafter([-1.0, 0.0, 2.0], np.inf), np.inf],
+    )
+    np.testing.assert_array_equal(certificate.alarm_counts, [4, 3, 2, 0, 0])
+    np.testing.assert_allclose(certificate.empirical_fpr, [1.0, 0.75, 0.5, 0.0, 0.0])
 
 
 def test_bound_queries_are_monotone_and_support_extreme_thresholds():
@@ -173,6 +184,42 @@ def test_bound_queries_are_monotone_and_support_extreme_thresholds():
     np.testing.assert_allclose(
         certificate.bound_at(thresholds), table.fpr_upper_bound.to_numpy()
     )
+
+
+@pytest.mark.parametrize(
+    "calibration_scores",
+    [
+        np.array([1.0]),
+        np.array([-1.0, 0.0, 2.0, 2.0]),
+        np.array([np.nextafter(0.0, -np.inf), 0.0, np.nextafter(0.0, np.inf)]),
+        np.array([-np.finfo(float).max, np.finfo(float).max]),
+    ],
+    ids=["one-score", "ties", "adjacent-floats", "finite-extremes"],
+)
+def test_queries_match_direct_inclusive_counts(calibration_scores):
+    with np.errstate(over="ignore"):
+        thresholds = np.r_[
+            -np.inf,
+            calibration_scores,
+            np.nextafter(calibration_scores, np.inf),
+            0.123,
+            np.inf,
+        ]
+    with np.errstate(over="raise"):
+        certificate = _certificate(calibration_scores)
+    expected_counts = np.count_nonzero(
+        calibration_scores[:, None] >= thresholds, axis=0
+    )
+    expected_bounds = np.minimum(
+        1.0, expected_counts / len(calibration_scores) + certificate.critical_value
+    )
+    expected_bounds[np.isposinf(thresholds)] = 0.0
+
+    table = certificate.to_frame(thresholds)
+
+    np.testing.assert_array_equal(table.alarm_counts, expected_counts)
+    np.testing.assert_allclose(table.fpr_upper_bound, expected_bounds)
+    assert np.all(certificate.thresholds[1:] > certificate.thresholds[:-1])
 
 
 def test_select_uses_anomalous_higher_inclusive_threshold_rule():
@@ -216,9 +263,48 @@ def test_threshold_for_returns_infinity_when_target_is_below_band_floor():
     threshold = certificate.threshold_for(target)
 
     assert np.isinf(threshold)
+    assert certificate.bound_at(threshold) == 0.0
     np.testing.assert_array_equal(
         certificate.select(np.array([-10.0, 0.0, 10.0]), target_fpr=target),
         [False, False, False],
+    )
+
+
+def test_default_grid_exposes_feasible_thresholds_above_tied_scores():
+    certificate = FPRCertificate.from_scores(np.ones(1000))
+    table = certificate.to_frame()
+    threshold = certificate.threshold_for(0.05)
+
+    assert np.isfinite(threshold)
+    assert threshold in table.threshold.to_numpy()
+    assert np.any(table.fpr_upper_bound <= 0.05)
+    assert table.iloc[-1].threshold == np.inf
+    assert table.iloc[-1].fpr_upper_bound == 0.0
+    np.testing.assert_array_equal(table.threshold, certificate.thresholds)
+    np.testing.assert_array_equal(table.alarm_counts, certificate.alarm_counts)
+    np.testing.assert_array_equal(table.empirical_fpr, certificate.empirical_fpr)
+    np.testing.assert_array_equal(table.fpr_upper_bound, certificate.fpr_upper_bounds)
+
+
+@pytest.mark.parametrize("target", [0.001, 0.05, 0.5, 0.99])
+def test_threshold_inversion_matches_the_default_grid(target):
+    certificate = FPRCertificate.from_scores(np.ones(1000))
+    table = certificate.to_frame()
+    eligible = table.loc[table.fpr_upper_bound <= target, "threshold"]
+
+    threshold = certificate.threshold_for(target)
+
+    assert threshold == eligible.iloc[0]
+    assert certificate.bound_at(threshold) <= target
+
+
+def test_select_preserves_tie_exclusion_after_json_threshold_roundtrip():
+    certificate = FPRCertificate.from_scores(np.ones(1000, dtype=np.float32))
+    threshold = json.loads(json.dumps(certificate.threshold_for(0.05)))
+    scores = np.array([1.0, 2.0, 0.0, 1.0], dtype=np.float32)
+
+    np.testing.assert_array_equal(
+        certificate.select(scores, threshold=threshold), [False, True, False, False]
     )
 
 
@@ -267,6 +353,63 @@ def test_certificate_is_immutable_and_isolates_source_arrays():
         certificate.confidence = 0.5
     with pytest.raises(AttributeError):
         certificate.calibration_scores = np.array([0.0])
+
+
+@pytest.mark.parametrize(
+    "transfer",
+    [
+        copy.copy,
+        copy.deepcopy,
+        *[
+            partial(_pickle_roundtrip, protocol=protocol)
+            for protocol in range(pickle.HIGHEST_PROTOCOL + 1)
+        ],
+    ],
+    ids=[
+        "copy",
+        "deepcopy",
+        *[f"pickle-{p}" for p in range(pickle.HIGHEST_PROTOCOL + 1)],
+    ],
+)
+def test_certificate_transfer_preserves_evidence_band_and_immutability(
+    transfer, monkeypatch
+):
+    certificate = _certificate(np.array([2.0, -1.0, 2.0, 0.0]))
+    expected = certificate.to_frame()
+    monkeypatch.setattr(
+        core,
+        "prepare_ks_band",
+        lambda **_: pytest.fail("copying must preserve the prepared KS band"),
+    )
+
+    restored = transfer(certificate)
+
+    assert isinstance(restored, FPRCertificate)
+    assert restored.critical_value == certificate.critical_value
+    assert restored.confidence == certificate.confidence
+    np.testing.assert_array_equal(
+        restored.calibration_scores, certificate.calibration_scores
+    )
+    np.testing.assert_array_equal(restored.to_frame(), expected)
+    np.testing.assert_array_equal(
+        restored.select(np.array([-1.0, 0.0, 3.0]), target_fpr=0.8),
+        certificate.select(np.array([-1.0, 0.0, 3.0]), target_fpr=0.8),
+    )
+    for name in [
+        "calibration_scores",
+        "thresholds",
+        "alarm_counts",
+        "fpr_upper_bounds",
+    ]:
+        with pytest.raises(ValueError):
+            getattr(restored, name).flags.writeable = True
+    for name in ["_calibration_scores", "_thresholds", "_alarm_counts"]:
+        with pytest.raises(ValueError):
+            getattr(restored, name).flags.writeable = True
+    with pytest.raises(AttributeError):
+        restored.confidence = 0.5
+    with pytest.raises(AttributeError):
+        del restored._band
 
 
 def test_construction_and_queries_use_no_randomness_or_repeated_preparation(

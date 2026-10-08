@@ -99,7 +99,7 @@ detector = ConformalDetector(
 certificate = detector.fpr_bounds(confidence=0.95)
 scores = detector.score_samples(x_test)
 threshold = certificate.threshold_for(target_fpr=0.05)
-selected = scores >= threshold
+selected = certificate.select(scores, threshold=threshold)
 
 print("certified threshold:", threshold)
 print("selected:", np.flatnonzero(selected))
@@ -112,12 +112,26 @@ conditional on the independently fitted score map. With probability at least
 simultaneously at every threshold. On that event, a threshold chosen from the
 curve has a future-inlier false-alarm probability at most `target_fpr=0.05`.
 The decision rule is `score >= threshold`, and scores are normalized so that
-larger values mean more anomalous. `threshold_for()` returns a `numpy.float64` scalar
-that preserves precision when compared with float16 or float32 NumPy scores.
-Keep that scalar dtype for direct comparisons, or use
-`certificate.select(scores, target_fpr=0.05)`. A target below the certificate's
-finite-threshold band floor returns `numpy.inf`, which gives an empty selection
-for finite scores.
+larger values mean more anomalous. Prefer `certificate.select(...)` to apply
+the rule: it preserves tie exclusion for float16 and float32 scores, including
+when a stored threshold is reloaded as a Python float. For direct NumPy
+comparisons, keep the `numpy.float64` scalar returned by `threshold_for()`;
+converting it to a Python float, including through JSON, can round the threshold
+back onto a tied lower-precision score. A target below the certificate's
+finite-threshold band floor returns `numpy.inf`. This gives an empty selection
+for finite scores, and `certificate.bound_at(numpy.inf)` is exactly zero.
+
+The default `to_frame()` grid and the diagnostic arrays use the same decision
+thresholds as `threshold_for()`: `-inf`, the next representable float64 value
+above each unique calibration score, and `inf`. This includes the finite rule
+above the largest observed score when representable, even when every calibration
+score is tied, and the empty rule at `inf`. Explicit grids preserve their supplied
+thresholds, order, and duplicates.
+
+Certificates support `copy.copy`, `copy.deepcopy`, and pickle roundtrips.
+Restoring a certificate retains its prepared KS critical value and restores
+immutable evidence; it does not recalculate the band. The scoring map used for
+future observations must still be the same one used for calibration.
 
 The certificate uses the exact finite-sample one-sided KS distribution,
 evaluated deterministically; it has no Monte Carlo seed or resample count.

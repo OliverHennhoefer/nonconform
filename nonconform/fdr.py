@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -334,10 +334,11 @@ class FPRCertificate:
     On that event, a threshold selected for ``target_fpr`` has future-inlier
     false-alarm probability at most that target. The deterministic finite-sample
     one-sided KS band is prepared once and reused by all threshold queries.
+    Copying and pickle roundtrips preserve this band and immutable evidence.
     """
 
     _calibration_scores: np.ndarray = field(repr=False)
-    _support: np.ndarray = field(repr=False)
+    _thresholds: np.ndarray = field(repr=False)
     _alarm_counts: np.ndarray = field(repr=False)
     _band: _fpr_bounds.KSBand = field(repr=False)
 
@@ -363,6 +364,15 @@ class FPRCertificate:
             f"confidence={self.confidence}, "
             f"n_calibration={self.n_calibration})"
         )
+
+    def __reduce__(
+        self,
+    ) -> tuple[
+        Callable[[np.ndarray, _fpr_bounds.KSBand], FPRCertificate],
+        tuple[np.ndarray, _fpr_bounds.KSBand],
+    ]:
+        """Rebuild immutable evidence while retaining the prepared KS band."""
+        return self._from_calibration, (self._calibration_scores, self._band)
 
     @classmethod
     def from_scores(
@@ -406,9 +416,21 @@ class FPRCertificate:
             n_calibration=scores.size,
             confidence=confidence,
         )
+        return cls._from_calibration(scores, band)
+
+    @classmethod
+    def _from_calibration(
+        cls, scores: np.ndarray, band: _fpr_bounds.KSBand
+    ) -> FPRCertificate:
+        """Own validated evidence and derive its complete decision grid."""
         sorted_scores = np.sort(scores)
-        support, counts = np.unique(sorted_scores, return_counts=True)
-        alarm_counts = np.cumsum(counts[::-1])[::-1]
+        with np.errstate(over="ignore"):
+            thresholds = np.unique(
+                np.r_[-np.inf, np.nextafter(sorted_scores, np.inf), np.inf]
+            )
+        alarm_counts = scores.size - np.searchsorted(
+            sorted_scores, thresholds, side="left"
+        )
 
         certificate = object.__new__(cls)
         object.__setattr__(
@@ -418,8 +440,8 @@ class FPRCertificate:
         )
         object.__setattr__(
             certificate,
-            "_support",
-            _certificates.immutable_array(support),
+            "_thresholds",
+            _certificates.immutable_array(thresholds),
         )
         object.__setattr__(
             certificate,
@@ -431,15 +453,11 @@ class FPRCertificate:
 
     def _query(self, thresholds: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return inclusive calibration tail counts and upper bounds."""
-        positions = np.searchsorted(self._support, thresholds, side="left")
-        safe_positions = np.minimum(positions, self._support.size - 1)
-        counts = np.where(
-            positions < self._support.size,
-            self._alarm_counts[safe_positions],
-            0,
-        )
+        positions = np.searchsorted(self._thresholds, thresholds, side="right") - 1
+        counts = self._alarm_counts[positions]
         bounds = _fpr_bounds.upper_bound(
             counts,
+            thresholds=thresholds,
             n_calibration=self.n_calibration,
             critical_value=self.critical_value,
         )
@@ -460,17 +478,11 @@ class FPRCertificate:
         comparisons, or use ``select()``.
         If no finite threshold supported by the calibration scores can satisfy
         the target, ``numpy.inf`` is returned; applying it to finite scores
-        produces an empty selection.
+        produces an empty selection with certified FPR zero.
         """
         target = _fpr_bounds.validate_target_fpr(target_fpr)
-        candidates = np.empty(self._support.size + 1, dtype=float)
-        candidates[0] = -np.inf
-        candidates[1:] = np.nextafter(self._support, np.inf)
-        _, bounds = self._query(candidates)
-        eligible = np.flatnonzero(bounds <= target)
-        if eligible.size == 0:
-            return np.float64(np.inf)
-        return candidates[eligible[0]]
+        _, bounds = self._query(self._thresholds)
+        return self._thresholds[np.flatnonzero(bounds <= target)[0]]
 
     def select(
         self,
@@ -499,11 +511,13 @@ class FPRCertificate:
     def to_frame(self, thresholds: np.ndarray | None = None) -> pd.DataFrame:
         """Report empirical and certified FPR on a threshold grid.
 
-        The default grid is the sorted unique calibration-score support.
+        The default grid starts at ``-inf``, steps just above each unique
+        calibration score, and ends at ``inf`` for the empty rule. It includes
+        every threshold considered by ``threshold_for()``.
         Explicit grids preserve their order and duplicates.
         """
         if thresholds is None:
-            grid = self._support.copy()
+            grid = self._thresholds
         else:
             grid, scalar = _fpr_bounds.as_threshold_query(thresholds)
             if scalar:
@@ -525,8 +539,8 @@ class FPRCertificate:
 
     @property
     def thresholds(self) -> np.ndarray:
-        """Read-only sorted unique calibration-score support."""
-        return _certificates.immutable_array(self._support)
+        """Read-only complete decision grid, including both infinite endpoints."""
+        return _certificates.immutable_array(self._thresholds)
 
     @property
     def alarm_counts(self) -> np.ndarray:
@@ -543,7 +557,7 @@ class FPRCertificate:
     @property
     def fpr_upper_bounds(self) -> np.ndarray:
         """Simultaneous FPR upper bounds on the default threshold grid."""
-        return _certificates.immutable_array(self.bound_at(self._support))
+        return _certificates.immutable_array(self.bound_at(self._thresholds))
 
     @property
     def critical_value(self) -> float:

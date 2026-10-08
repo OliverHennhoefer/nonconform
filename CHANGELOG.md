@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- FPR certificates now support copying and pickle roundtrips while retaining
+  the prepared KS band and immutable evidence. Default diagnostics and target
+  inversion share a complete decision grid, including thresholds above tied
+  calibration scores and the empty rule at positive infinity. Its FPR bound
+  is now exactly zero instead of the KS margin; finite-threshold bounds and
+  the statistical assumptions are unchanged.
 - FDP higher-criticism shape parameters now reject `beta > 1`, outside the
   range supported by the jump-point statistic calculation. Berk-Jones
   inversion now returns conservative lower endpoints, includes p-values equal

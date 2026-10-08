@@ -109,12 +109,15 @@ def prepare_ks_band(
 def upper_bound(
     alarm_counts: np.ndarray,
     *,
+    thresholds: np.ndarray,
     n_calibration: int,
     critical_value: float,
 ) -> np.ndarray:
-    """Evaluate the simultaneous upper bound from inclusive tail counts."""
+    """Bound inclusive tails, with exact zero for the empty rule at +inf."""
     empirical_fpr = alarm_counts.astype(float) / n_calibration
-    return np.minimum(1.0, empirical_fpr + critical_value)
+    return np.where(
+        np.isposinf(thresholds), 0.0, np.minimum(1.0, empirical_fpr + critical_value)
+    )
 
 
 __all__ = [

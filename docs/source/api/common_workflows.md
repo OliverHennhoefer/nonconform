@@ -76,6 +76,14 @@ print("selected indices:", np.flatnonzero(selected))
 print(certificate.to_frame())
 ```
 
+The default table includes every decision considered by `threshold_for()`,
+including a threshold above the largest calibration score when representable,
+and the empty rule at `inf`, whose FPR upper bound is zero. Use
+`certificate.select(...)` when applying a threshold reloaded from storage so
+lower-precision score ties remain
+excluded. Certificates can also be copied or pickled while retaining their
+prepared KS band and immutable calibration evidence.
+
 With probability at least `confidence` over the clean calibration draw,
 conditional on the independently fitted score map, the certificate covers the
 population inlier false-alarm rate simultaneously at every raw-score threshold.
