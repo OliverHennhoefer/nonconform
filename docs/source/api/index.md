@@ -1,12 +1,12 @@
 ---
-description: "Public API reference for nonconform discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
+description: "Public API reference for nonconform, covering discovery, sequential monitoring, calibration, weighting, FDR control, metrics, and shared types."
 ---
 
 # API Reference
 
-Reference documentation for the complete v1 public module surface. For the
-statistical assumptions and decision context behind an API, follow the linked
-user-guide page before relying on a guarantee.
+Reference documentation for the complete v1 public module surface of `nonconform`.
+For the statistical assumptions and decision context behind an API, follow the
+linked user-guide page before relying on a guarantee.
 
 ## Start Here
 

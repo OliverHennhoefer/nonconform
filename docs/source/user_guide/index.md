@@ -1,5 +1,5 @@
 ---
-description: "Navigate nonconform concepts, discovery control, weighted conformal inference, sequential monitoring, evaluation, and API guidance."
+description: "Guide to nonconform: concepts, discovery control, weighted conformal inference, sequential monitoring, evaluation, and API guidance."
 ---
 
 # User guide
