@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.18"
+
+jobs:
+  build:
+    name: Validate and build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+
+      - name: Install Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --locked --group dev --all-extras --python 3.12
+
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          uv run --locked python - <<'PY'
+          import os
+          from importlib.metadata import version
+
+          expected_tag = f"v{version('nonconform')}"
+          actual_tag = os.environ["GITHUB_REF_NAME"]
+          if actual_tag != expected_tag:
+              raise SystemExit(
+                  f"Release tag {actual_tag!r} does not match package version; "
+                  f"expected {expected_tag!r}."
+              )
+          PY
+
+      - name: Check formatting
+        run: uv run --locked ruff format --check .
+
+      - name: Lint
+        run: uv run --locked ruff check .
+
+      - name: Test suite
+        run: uv run --locked pytest
+
+      - name: Build distributions
+        run: uv build
+
+      - name: Check distribution metadata
+        run: uvx twine check --strict dist/*
+
+      - name: Wheel smoke test
+        run: |
+          uv venv .smoke --python 3.12
+          uv pip install --python .smoke/bin/python dist/*.whl
+          .smoke/bin/python -I - <<'PY'
+          import sys
+          from pathlib import Path
+
+          import nonconform
+          import numpy as np
+          from sklearn.ensemble import IsolationForest
+
+          from nonconform import ConformalDetector, Empirical, Split
+
+          package_path = Path(nonconform.__file__).resolve()
+          assert package_path.is_relative_to(Path(sys.prefix).resolve()), package_path
+          rng = np.random.default_rng(0)
+          detector = ConformalDetector(
+              detector=IsolationForest(n_estimators=20, random_state=0),
+              strategy=Split(n_calib=50),
+              estimation=Empirical(),
+              seed=0,
+          )
+          detector.fit(rng.standard_normal((200, 4)))
+          p_values = detector.compute_p_values(rng.standard_normal((40, 4)))
+          assert p_values.shape == (40,)
+          assert np.all(np.isfinite(p_values))
+          assert np.all((0.0 <= p_values) & (p_values <= 1.0))
+          print(f"nonconform {nonconform.__version__}: isolated wheel smoke passed")
+          PY
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/nonconform
+    permissions:
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          attestations: true
