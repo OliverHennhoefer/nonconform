@@ -6,7 +6,7 @@ This module provides logging and decorator utilities used throughout the package
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -49,7 +49,7 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def ensure_numpy_array(func: Callable) -> Callable:
+def ensure_numpy_array[**P, R](func: Callable[P, R]) -> Callable[P, R]:
     """Ensure a specific input argument is a numpy array.
 
     **Internal use only.** This decorator is designed for methods where the first
@@ -78,7 +78,9 @@ def ensure_numpy_array(func: Callable) -> Callable:
             x_converted = x
         return func(self, x_converted, *args, **kwargs)
 
-    return wrapper
+    # Only the array representation changes; the method's call signature stays
+    # intact. Keep that signature visible to consumers of the py.typed package.
+    return cast(Callable[P, R], wrapper)
 
 
 __all__ = [

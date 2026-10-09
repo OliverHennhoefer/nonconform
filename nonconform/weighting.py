@@ -20,7 +20,6 @@ Factory functions:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
@@ -32,6 +31,7 @@ from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression
 from tqdm import tqdm
 
+from nonconform._internal.provenance import BatchSignature, batch_signature
 from nonconform._internal.random_utils import derive_seed
 
 if TYPE_CHECKING:
@@ -498,25 +498,9 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
 
         self._w_calib: np.ndarray | None = None
         self._w_test: np.ndarray | None = None
-        self._calibration_signature: tuple[tuple[int, ...], str, str] | None = None
-        self._test_signature: tuple[tuple[int, ...], str, str] | None = None
+        self._calibration_signature: BatchSignature | None = None
+        self._test_signature: BatchSignature | None = None
         self._is_fitted = False
-
-    @staticmethod
-    def _sample_signature(samples: np.ndarray) -> tuple[tuple[int, ...], str, str]:
-        """Return a signature for exact in-process batch identity checks.
-
-        This is intentionally used for ``scoring_mode="frozen"`` comparisons
-        within the same runtime. It is not intended as a persisted/cross-platform
-        fingerprint because raw-byte digests can vary across different dtype
-        representations or byte orders.
-        """
-        contiguous = np.ascontiguousarray(samples)
-        digest = hashlib.blake2b(
-            contiguous.tobytes(),
-            digest_size=16,
-        ).hexdigest()
-        return contiguous.shape, str(contiguous.dtype), digest
 
     def fit(self, calibration_samples: np.ndarray, test_samples: np.ndarray) -> None:
         """Fit the bagged weight estimator with perfect instance coverage.
@@ -592,8 +576,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
             self._w_calib = np.clip(w_calib_final, clip_min, clip_max)
             self._w_test = np.clip(w_test_final, clip_min, clip_max)
 
-        self._calibration_signature = self._sample_signature(calibration_samples)
-        self._test_signature = self._sample_signature(test_samples)
+        self._calibration_signature = batch_signature(calibration_samples)
+        self._test_signature = batch_signature(test_samples)
         self._is_fitted = True
 
     def _get_stored_weights(self) -> tuple[np.ndarray, np.ndarray]:
@@ -608,8 +592,8 @@ class BootstrapBaggedWeightEstimator(BaseWeightEstimator):
         Raises:
             NotImplementedError: ``scoring_mode='frozen'`` cannot rescore new data.
         """
-        requested_calibration_signature = self._sample_signature(calibration_samples)
-        requested_test_signature = self._sample_signature(test_samples)
+        requested_calibration_signature = batch_signature(calibration_samples)
+        requested_test_signature = batch_signature(test_samples)
         if (
             requested_calibration_signature != self._calibration_signature
             or requested_test_signature != self._test_signature

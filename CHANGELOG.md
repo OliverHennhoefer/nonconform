@@ -49,11 +49,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   realized envelope; settings must be chosen before inspecting bounds.
   Native entry points require unmodified native empirical Split/detached,
   unweighted snapshots. External p-values use the explicit expert factory.
-  This intentional API break is limited to FDP certification; other workflows
-  are unchanged. Version 2.0.0 is a major release because it replaces the
+  Version 2.0.0 is a major release because it replaces the
   released FDP helpers without compatibility aliases. See the
   [FDP migration guide](docs/source/user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
   for the replacement entry points and query options.
+- Failed fits and supported detached calibration attempts now leave every
+  strategy unfitted, with results and prepared weights cleared. Fit or calibrate
+  again before requesting evidence. Rejected `set_params` updates preserve the
+  existing configuration and calibration; constructor snapshots returned by
+  `get_params` are detached copies.
+  Recreate and refit detector objects serialized with 1.x, whose internal fitted
+  state uses the previous layout.
+- Validate non-negative integer seeds and two-dimensional batches consistently;
+  scoring requires the fitted feature count and one score per input row.
 
 ### Removed
 
@@ -62,6 +70,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Nested parameter updates no longer mutate stored clone parameters before
+  validation, and rejected updates no longer mix old calibration with a new
+  configuration.
+- Prepared weight batches own their arrays, so external estimator refits cannot
+  replace weights for the recorded batch. Failed weight preparation invalidates
+  earlier prepared weights. Frozen bootstrap weighting shares the detector's
+  value-based batch identity, including independently allocated object arrays.
+- Array-conversion decorators preserve public method signatures for typed
+  consumers instead of erasing arguments and return values to `Any`.
 - FPR certificates now support copying and pickle roundtrips while retaining
   the prepared KS band and immutable evidence. Default diagnostics and target
   inversion share a complete decision grid, including thresholds above tied

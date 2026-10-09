@@ -464,3 +464,26 @@ class TestFactoryHelpers:
         assert estimator.base_estimator.n_estimators == 7
         assert estimator.base_estimator.max_depth == 4
         assert estimator.base_estimator.min_samples_leaf == 2
+
+
+def test_frozen_bagged_weights_compare_object_values_instead_of_memory_addresses():
+    def object_batch(values):
+        return np.array([[int(str(value))] for value in values], dtype=object)
+
+    calibration = object_batch([2**60 + 1, 2**60 + 2, 2**60 + 3])
+    test = object_batch([2**60 + 4, 2**60 + 5])
+    estimator = BootstrapBaggedWeightEstimator(
+        SklearnWeightEstimator(FixedProbClassifier()),
+        n_bootstraps=2,
+        clip_quantile=None,
+    )
+    estimator.fit(calibration, test)
+    expected = estimator.get_weights()
+    independent_calibration = object_batch([2**60 + 1, 2**60 + 2, 2**60 + 3])
+    independent_test = object_batch([2**60 + 4, 2**60 + 5])
+    actual = estimator.get_weights(independent_calibration, independent_test)
+    for weights, reference in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(weights, reference)
+    independent_test[0, 0] += 1
+    with pytest.raises(NotImplementedError, match="cannot rescore new data"):
+        estimator.get_weights(independent_calibration, independent_test)

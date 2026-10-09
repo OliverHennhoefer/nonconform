@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 from sklearn.exceptions import NotFittedError
@@ -21,7 +20,7 @@ class _SplitMonitoringSnapshot:
     n_features_in: int
 
 
-def _snapshot_split_detector(detector: Any) -> _SplitMonitoringSnapshot:
+def _snapshot_split_detector(detector: object) -> _SplitMonitoringSnapshot:
     """Validate and copy the fitted state needed by a sequential monitor."""
     from nonconform.detector import ConformalDetector
     from nonconform.resampling import Split
@@ -35,13 +34,10 @@ def _snapshot_split_detector(detector: Any) -> _SplitMonitoringSnapshot:
     if detector._is_weighted_mode:
         raise ValueError("from_split_detector does not support weighted mode.")
 
-    fitted_models = detector.detector_set
+    calibration = detector._require_calibration()
+    fitted_models = calibration.models
     if len(fitted_models) != 1:
         raise ValueError("from_split_detector requires exactly one fitted model.")
-    if detector._n_features_in is None:
-        raise RuntimeError(
-            "Fitted feature count is unavailable. Refit or recalibrate the detector."
-        )
 
     try:
         owned_detector = deepcopy(fitted_models[0])
@@ -50,6 +46,6 @@ def _snapshot_split_detector(detector: Any) -> _SplitMonitoringSnapshot:
 
     return _SplitMonitoringSnapshot(
         detector=owned_detector,
-        calibration_scores=detector.calibration_set,
-        n_features_in=int(detector._n_features_in),
+        calibration_scores=calibration.scores.copy(),
+        n_features_in=calibration.n_features,
     )
