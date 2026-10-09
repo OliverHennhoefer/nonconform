@@ -268,6 +268,11 @@ The default content check rejects a same-sized but different batch. Disabling
 `verify_prepared_batch_content` removes the digest check and leaves identity
 enforcement to the caller.
 
+Prepared weights own their arrays. Refitting the original weight estimator
+elsewhere does not replace an already prepared batch. If preparation fails,
+the old batch is invalidated; prepare weights successfully again before calling
+with `refit_weights=False`.
+
 Arbitrarily splitting one target family into chunks changes the fitted density
 ratio, the weighted p-values, and the WCS problem. Do not describe chunking as
 an equivalent memory optimization.

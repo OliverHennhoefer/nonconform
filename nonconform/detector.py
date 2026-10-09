@@ -26,24 +26,26 @@ from scipy.stats import false_discovery_control
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
-from nonconform.adapters import (
-    adapt,
-    apply_score_polarity,
-    resolve_implicit_score_polarity,
-    resolve_score_polarity,
-)
 from nonconform.resampling import Split
 from nonconform.scoring import ConditionalEmpirical, Empirical
 from nonconform.structures import AnomalyDetector, ConformalResult
-from nonconform.weighting import BaseWeightEstimator, IdentityWeightEstimator
+from nonconform.weighting import BaseWeightEstimator
 
 from ._internal import (
     Pruning,
     ScorePolarity,
     aggregate,
     ensure_numpy_array,
-    normalize_aggregation_method,
-    set_params,
+)
+from ._internal.detector_config import (
+    NESTED_COMPONENTS,
+    prepare_configuration,
+    updated_parameters,
+)
+from ._internal.detector_state import (
+    FittedCalibration,
+    PreparedWeights,
+    as_feature_batch,
 )
 from ._internal.provenance import (
     BatchSignature,
@@ -65,11 +67,6 @@ _WCS_PRUNING_SEED_DOMAIN = 0x574353  # ASCII "WCS"
 def _safe_copy(arr: np.ndarray | None) -> np.ndarray | None:
     """Return a copy of array or None if None."""
     return None if arr is None else arr.copy()
-
-
-def _snapshot_param(value: Any) -> Any:
-    """Return an immutable constructor-parameter snapshot."""
-    return deepcopy(value)
 
 
 def _derive_wcs_pruning_seed(seed: int | None) -> int | None:
@@ -343,8 +340,6 @@ class ConformalDetector(BaseConformalDetector):
         CD, COF, COPOD, ECOD, LMDD, LOCI, RGraph, SOD, SOS.
     """
 
-    _NESTED_COMPONENTS = ("detector", "strategy", "estimation", "weight_estimator")
-
     def __init__(
         self,
         detector: Any,
@@ -373,15 +368,37 @@ class ConformalDetector(BaseConformalDetector):
 
     def _reset_fit_state(self) -> None:
         """Clear all learned state derived from fit()."""
-        self._detector_set: list[AnomalyDetector] = []
-        self._calibration_set: np.ndarray = np.array([])
-        self._calibration_samples: np.ndarray = np.array([])
-        self._calibration_mode: CalibrationMode | None = None
-        self._n_features_in: int | None = None
-        self._prepared_weight_batch_size: int | None = None
-        self._prepared_weight_batch_signature: BatchSignature | None = None
+        self._calibration: FittedCalibration | None = None
+        self._prepared_weights: PreparedWeights | None = None
         self._last_result: ConformalResult | None = None
         self._last_selection_result: EValueSelectionResult | None = None
+
+    def _require_calibration(self) -> FittedCalibration:
+        """Return complete learned state or reject an unfitted operation."""
+        if self._calibration is None:
+            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
+        return self._calibration
+
+    def _publish_calibration(
+        self,
+        models: list[AnomalyDetector],
+        scores: np.ndarray,
+        samples: np.ndarray,
+        *,
+        n_features: int,
+        mode: CalibrationMode,
+    ) -> None:
+        """Own and commit all fitted facts only after calibration succeeds."""
+        scores = np.asarray(scores)
+        if not models or scores.size == 0:
+            raise ValueError("Calibration requires fitted models and nonempty scores.")
+        self._calibration = FittedCalibration(
+            models=tuple(models),
+            scores=scores.copy(),
+            samples=samples.copy(),
+            n_features=n_features,
+            mode=mode,
+        )
 
     def _configure(
         self,
@@ -399,70 +416,28 @@ class ConformalDetector(BaseConformalDetector):
         verify_prepared_batch_content: bool,
     ) -> None:
         """Apply constructor parameters and reset learned state."""
-        if strategy._uses_e_values or getattr(
-            getattr(self, "strategy", None), "_uses_e_values", False
-        ):
-            self._reset_fit_state()
-        self._init_detector = _snapshot_param(detector)
-        self._init_strategy = _snapshot_param(strategy)
-        self._init_estimation = _snapshot_param(estimation)
-        self._init_weight_estimator = _snapshot_param(weight_estimator)
-        self._init_aggregation = aggregation
-        self._init_score_polarity = score_polarity
-        self._init_seed = seed
-        self._init_verbose = verbose
-        self._init_verify_prepared_batch_content = verify_prepared_batch_content
-
-        if seed is not None and seed < 0:
-            raise ValueError(f"seed must be a non-negative integer or None, got {seed}")
-        if not isinstance(verbose, bool):
-            raise TypeError(
-                f"verbose must be a boolean value, got {type(verbose).__name__}."
-            )
-        if not isinstance(verify_prepared_batch_content, bool):
-            raise TypeError("verify_prepared_batch_content must be a boolean value.")
-        normalized_aggregation = normalize_aggregation_method(aggregation)
-
-        adapted_detector = adapt(detector)
-        if score_polarity is None:
-            resolved_polarity = resolve_implicit_score_polarity(adapted_detector)
-        else:
-            resolved_polarity = resolve_score_polarity(adapted_detector, score_polarity)
-        normalized_detector = apply_score_polarity(adapted_detector, resolved_polarity)
-
-        self.detector = set_params(deepcopy(normalized_detector), seed)
-        # Keep an internal strategy copy so external mutations after construction
-        # do not alter detector behavior.
-        self.strategy = deepcopy(strategy)
-        self.weight_estimator = weight_estimator
-        self.estimation = estimation if estimation is not None else Empirical()
-
-        # Propagate seed to estimation and weight_estimator
-        if seed is not None and hasattr(self.estimation, "set_seed"):
-            self.estimation.set_seed(seed)
-        if (
-            seed is not None
-            and self.weight_estimator is not None
-            and hasattr(self.weight_estimator, "set_seed")
-        ):
-            self.weight_estimator.set_seed(seed)
-
-        self.aggregation = normalized_aggregation
-        self._score_polarity = resolved_polarity
-        self.seed = seed
-        self.verbose = verbose
-        self.verify_prepared_batch_content = verify_prepared_batch_content
-        self._is_weighted_mode = weight_estimator is not None and not isinstance(
-            weight_estimator, IdentityWeightEstimator
+        configuration = prepare_configuration(
+            detector=detector,
+            strategy=strategy,
+            estimation=estimation,
+            weight_estimator=weight_estimator,
+            aggregation=aggregation,
+            score_polarity=score_polarity,
+            seed=seed,
+            verbose=verbose,
+            verify_prepared_batch_content=verify_prepared_batch_content,
         )
-        if self.strategy._uses_e_values:
-            if self._is_weighted_mode:
-                raise ValueError("DerandomizedSplits does not support weighting.")
-            if estimation is not None and type(estimation) is not Empirical:
-                raise ValueError(
-                    "DerandomizedSplits constructs e-values directly; p-value "
-                    "estimation is unused. Omit estimation or use ordinary Empirical()."
-                )
+        self.detector = configuration.detector
+        self.strategy = configuration.strategy
+        self.estimation = configuration.estimation
+        self.weight_estimator = configuration.weight_estimator
+        self.aggregation = configuration.aggregation
+        self._score_polarity = configuration.score_polarity
+        self.seed = configuration.seed
+        self.verbose = configuration.verbose
+        self.verify_prepared_batch_content = configuration.verify_prepared_batch_content
+        self._is_weighted_mode = configuration.weighted
+        self._constructor_params = configuration.constructor_params
         self._reset_fit_state()
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
@@ -470,85 +445,47 @@ class ConformalDetector(BaseConformalDetector):
 
         Notes:
             - ``deep=False`` returns constructor-facing parameters used for
-              sklearn clone compatibility.
+              sklearn clone compatibility. Returned component snapshots are
+              detached; change this estimator with ``set_params``.
             - ``deep=True`` also includes nested ``component__param`` entries
               read from the current runtime components (effective/internal state),
               which may differ from originally passed constructor objects after
               adaptation/normalization.
         """
-        params: dict[str, Any] = {
-            "detector": self._init_detector,
-            "strategy": self._init_strategy,
-            "estimation": self._init_estimation,
-            "weight_estimator": self._init_weight_estimator,
-            "aggregation": self._init_aggregation,
-            "score_polarity": self._init_score_polarity,
-            "seed": self._init_seed,
-            "verbose": self._init_verbose,
-            "verify_prepared_batch_content": self._init_verify_prepared_batch_content,
-        }
-        if not deep:
-            return params
-
-        for component_name in self._NESTED_COMPONENTS:
-            component = getattr(self, component_name)
-            if component is None or not hasattr(component, "get_params"):
-                continue
-            try:
-                component_params = component.get_params(deep=True)
-            except TypeError:
-                component_params = component.get_params()
-            for key, value in component_params.items():
-                params[f"{component_name}__{key}"] = value
+        params = deepcopy(self._constructor_params)
+        if deep:
+            for name in NESTED_COMPONENTS:
+                component = getattr(self, name)
+                if component is None or not hasattr(component, "get_params"):
+                    continue
+                try:
+                    nested = component.get_params(deep=True)
+                except TypeError:
+                    nested = component.get_params()
+                params.update(
+                    {f"{name}__{key}": value for key, value in nested.items()}
+                )
         return params
 
     def set_params(self, **params: Any) -> Self:
-        """Set estimator parameters following sklearn conventions."""
-        if not params:
-            return self
+        """Commit valid parameter updates and clear learned state.
 
-        updated_params = self.get_params(deep=False)
-        nested_updates: dict[str, dict[str, Any]] = {}
-
-        for key, value in params.items():
-            if "__" in key:
-                component_name, nested_key = key.split("__", 1)
-                if component_name not in self._NESTED_COMPONENTS:
-                    raise ValueError(f"Invalid parameter {component_name!r}.")
-                nested_updates.setdefault(component_name, {})[nested_key] = value
-                continue
-
-            if key not in updated_params:
-                raise ValueError(
-                    f"Invalid parameter {key!r} for estimator {type(self).__name__}."
-                )
-            updated_params[key] = value
-
-        for component_name, component_params in nested_updates.items():
-            component = updated_params[component_name]
-            if component is None:
-                raise ValueError(
-                    f"Cannot set nested parameters for {component_name!r}: "
-                    "component is None."
-                )
-            if not hasattr(component, "set_params"):
-                raise ValueError(
-                    f"Cannot set nested parameters for {component_name!r}: "
-                    "component does not implement set_params()."
-                )
-            component.set_params(**component_params)
-
-        self._configure(**updated_params)
+        Rejected updates leave configuration, calibration, and prepared weights
+        intact, including when several nested components are updated together.
+        """
+        if params:
+            self._configure(**updated_parameters(self._constructor_params, params))
         return self
 
     def __sklearn_clone__(self) -> Self:
         """Return sklearn-compatible unfitted clone from constructor snapshots."""
-        params = self.get_params(deep=False)
-        cloned_params = {key: _snapshot_param(value) for key, value in params.items()}
-        return type(self)(**cloned_params)
+        return type(self)(**self.get_params(deep=False))
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly detector summary."""
+        calibration = self._calibration
+        n_models = 0 if calibration is None else len(calibration.models)
+        n_calibration = 0 if calibration is None else calibration.scores.shape[-1]
         return (
             "ConformalDetector("
             f"detector={type(self.detector).__name__}, "
@@ -557,11 +494,8 @@ class ConformalDetector(BaseConformalDetector):
             f"aggregation={self.aggregation!r}, "
             f"score_polarity={self._score_polarity.name}, "
             f"weighted_mode={self._is_weighted_mode}, "
-            f"seed={self.seed}, "
-            f"verbose={self.verbose}, "
-            f"fitted={self.is_fitted}, "
-            f"n_models={len(self._detector_set)}, "
-            f"n_calibration={self._calibration_set.shape[-1]})"
+            f"seed={self.seed}, verbose={self.verbose}, fitted={self.is_fitted}, "
+            f"n_models={n_models}, n_calibration={n_calibration})"
         )
 
     @ensure_numpy_array
@@ -577,6 +511,10 @@ class ConformalDetector(BaseConformalDetector):
         Uses the specified strategy to train the base detector(s) and calculate
         non-conformity scores on the calibration set.
 
+        A new fit clears previous calibration, results, and prepared weights.
+        If training fails, this detector remains unfitted; fit again before
+        requesting evidence.
+
         Args:
             x: The dataset used for fitting and calibration.
             y: Ignored. Present for sklearn API compatibility.
@@ -588,9 +526,8 @@ class ConformalDetector(BaseConformalDetector):
             The fitted detector instance (for method chaining).
         """
         _ = y
-        self._last_selection_result = None
-        if self.strategy._uses_e_values:
-            self._reset_fit_state()
+        self._reset_fit_state()
+        x = as_feature_batch(x)
         fit_kwargs: dict[str, Any] = {
             "x": x,
             "detector": self.detector,
@@ -606,25 +543,16 @@ class ConformalDetector(BaseConformalDetector):
                     "such as JackknifeBootstrap."
                 )
             fit_kwargs["n_jobs"] = n_jobs
-
-        self._detector_set, self._calibration_set = self.strategy.fit_calibrate(
-            **fit_kwargs
+        models, scores = self.strategy.fit_calibrate(**fit_kwargs)
+        ids = self.strategy.calibration_ids if self._is_weighted_mode else None
+        samples = x[ids] if self._is_weighted_mode and ids else np.array([])
+        self._publish_calibration(
+            models,
+            scores,
+            samples,
+            n_features=x.shape[1],
+            mode=CalibrationMode.INTEGRATED,
         )
-        self._calibration_mode = CalibrationMode.INTEGRATED
-        self._n_features_in = int(x.shape[1])
-
-        if (
-            self._is_weighted_mode
-            and self.strategy.calibration_ids is not None
-            and len(self.strategy.calibration_ids) > 0
-        ):
-            self._calibration_samples = x[self.strategy.calibration_ids]
-        else:
-            self._calibration_samples = np.array([])
-
-        self._prepared_weight_batch_size = None
-        self._prepared_weight_batch_signature = None
-        self._last_result = None
         return self
 
     @ensure_numpy_array
@@ -637,6 +565,9 @@ class ConformalDetector(BaseConformalDetector):
 
         This detached workflow is currently supported only for ``Split`` strategy,
         where a single pre-fitted model is calibrated on a dedicated dataset.
+
+        A supported calibration attempt clears previous learned state. If it
+        fails, supply valid calibration data and call ``calibrate`` again.
 
         Args:
             x: Calibration dataset used to compute calibration scores.
@@ -653,16 +584,14 @@ class ConformalDetector(BaseConformalDetector):
         self._last_selection_result = None
         if not isinstance(self.strategy, Split):
             raise ValueError(
-                "calibrate() is supported only with Split strategy. "
-                f"Got {type(self.strategy).__name__}. Use fit(x_reference) for "
-                "integrated calibration."
+                f"calibrate() is supported only with Split strategy. "
+                f"Got {type(self.strategy).__name__}. "
+                "Use fit(x_reference) for integrated calibration."
             )
-
+        self._reset_fit_state()
+        x = as_feature_batch(x)
         try:
-            calibration_set = np.asarray(
-                self.detector.decision_function(x),
-                dtype=float,
-            ).ravel()
+            scores = np.asarray(self.detector.decision_function(x), dtype=float).ravel()
         except Exception as exc:
             message = str(exc).lower()
             if (
@@ -671,52 +600,38 @@ class ConformalDetector(BaseConformalDetector):
                 or (isinstance(exc, AttributeError) and "has no attribute" in message)
             ):
                 raise NotFittedError(
-                    "Base detector is not fitted. Fit the base detector before "
-                    "calling calibrate()."
+                    "Base detector is not fitted. Fit the base detector "
+                    "before calling calibrate()."
                 ) from exc
             raise
-
-        if calibration_set.shape[0] != len(x):
+        if scores.shape[0] != len(x):
             raise ValueError(
                 "calibration scores must have one value per calibration sample. "
-                f"Got {calibration_set.shape[0]} scores for {len(x)} samples."
+                f"Got {scores.shape[0]} scores for {len(x)} samples."
             )
-
-        self._detector_set = [self.detector]
-        self._calibration_set = calibration_set
-        self._calibration_mode = CalibrationMode.DETACHED
-        self._n_features_in = int(x.shape[1])
-        if self._is_weighted_mode:
-            self._calibration_samples = x.copy()
-        else:
-            self._calibration_samples = np.array([])
-
-        self._prepared_weight_batch_size = None
-        self._prepared_weight_batch_signature = None
-        self._last_result = None
+        self._publish_calibration(
+            [self.detector],
+            scores,
+            x if self._is_weighted_mode else np.array([]),
+            n_features=x.shape[1],
+            mode=CalibrationMode.DETACHED,
+        )
         return self
 
     def _score_models(self, x: np.ndarray) -> np.ndarray:
         """Score one batch with every replica, preserving model order."""
-        if not self.is_fitted:
-            raise NotFittedError("This ConformalDetector instance is not fitted yet.")
-        if self.strategy._uses_e_values:
-            x = np.asarray(x)
-            if x.ndim != 2 or x.shape[1] != self._n_features_in:
-                raise ValueError(
-                    "x must be a two-dimensional batch with the fitted feature count."
-                )
-
+        calibration = self._require_calibration()
+        x = as_feature_batch(x, n_features=calibration.n_features)
+        models = calibration.models
         iterable = (
-            tqdm(self._detector_set, total=len(self._detector_set), desc="Aggregation")
+            tqdm(models, total=len(models), desc="Aggregation")
             if self.verbose
-            else self._detector_set
+            else models
         )
-
         rows = []
         for model in iterable:
             row = np.asarray(model.decision_function(x))
-            if self.strategy._uses_e_values and row.shape != (len(x),):
+            if row.shape != (len(x),):
                 raise ValueError("Each model must return one score per test row.")
             rows.append(row)
         return np.vstack(rows)
@@ -755,7 +670,9 @@ class ConformalDetector(BaseConformalDetector):
             ),
             estimation_family=estimation_family,
             weighted=self._is_weighted_mode,
-            calibration_mode=self._calibration_mode,
+            calibration_mode=(
+                None if self._calibration is None else self._calibration.mode
+            ),
             test_batch_signature=test_batch_signature,
         )
 
@@ -766,16 +683,26 @@ class ConformalDetector(BaseConformalDetector):
         test_batch_signature: BatchSignature | None = None,
     ) -> None:
         """Fit batch weights and record the size and optional reuse signature."""
-        self.weight_estimator.fit(self._calibration_samples, x)
-        self._prepared_weight_batch_size = len(x)
-        if self.verify_prepared_batch_content:
-            self._prepared_weight_batch_signature = (
+        self._prepared_weights = None
+        calibration = self._require_calibration()
+        x = as_feature_batch(x, n_features=calibration.n_features)
+        self.weight_estimator.fit(calibration.samples, x)
+        calib_weights, test_weights = self.weight_estimator.get_weights()
+        signature = (
+            (
                 test_batch_signature
                 if test_batch_signature is not None
                 else batch_signature(x)
             )
-        else:
-            self._prepared_weight_batch_signature = None
+            if self.verify_prepared_batch_content
+            else None
+        )
+        self._prepared_weights = PreparedWeights(
+            calibration=calib_weights.copy(),
+            test=test_weights.copy(),
+            batch_size=len(x),
+            signature=signature,
+        )
 
     def _resolve_weights(
         self,
@@ -787,29 +714,28 @@ class ConformalDetector(BaseConformalDetector):
         """Resolve calibration/test weights for the current batch."""
         if not self._is_weighted_mode or self.weight_estimator is None:
             return None
-
         if refit_weights:
             self._fit_weights_for_batch(x, test_batch_signature=test_batch_signature)
-            return self.weight_estimator.get_weights()
-
-        if self._prepared_weight_batch_size is None:
+        prepared = self._prepared_weights
+        if prepared is None:
             raise RuntimeError(
                 "Weights are not prepared. Call prepare_weights_for(batch) "
                 "or use refit_weights=True."
             )
-        if self._prepared_weight_batch_size != len(x):
+        if prepared.batch_size != len(x):
             raise ValueError(
                 "Prepared weights do not match current batch size. "
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
-        if self.verify_prepared_batch_content and (
-            self._prepared_weight_batch_signature != test_batch_signature
+        if (
+            self.verify_prepared_batch_content
+            and prepared.signature != test_batch_signature
         ):
             raise ValueError(
                 "Prepared weights do not match current batch content. "
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
             )
-        return self.weight_estimator.get_weights()
+        return prepared.copy_arrays()
 
     def select(
         self,
@@ -912,7 +838,7 @@ class ConformalDetector(BaseConformalDetector):
         if self.strategy._uses_e_values:
             scores = self._score_models(x_array)
             selection = self.strategy._select_e_values(
-                scores, self._calibration_set, alpha=alpha
+                scores, self._require_calibration().scores, alpha=alpha
             )
             self._last_selection_result = selection
             mask = selection.selected.copy()
@@ -950,6 +876,10 @@ class ConformalDetector(BaseConformalDetector):
         In weighted mode, this fits the weight estimator for the supplied batch
         without producing predictions. Use this for explicit state transitions in
         exploratory workflows.
+
+        Prepared weights own their arrays independently of the estimator. A
+        failed preparation clears the previous prepared batch; prepare it again
+        before using ``refit_weights=False``.
 
         Args:
             x: Test batch for which weights should be prepared.
@@ -1008,7 +938,9 @@ class ConformalDetector(BaseConformalDetector):
             p_values=None,
             test_scores=estimates.copy(),
             calib_scores=(
-                None if self.strategy._uses_e_values else self._calibration_set.copy()
+                None
+                if self.strategy._uses_e_values
+                else self._require_calibration().scores.copy()
             ),
             test_weights=_safe_copy(test_weights),
             calib_weights=_safe_copy(calib_weights),
@@ -1070,12 +1002,7 @@ class ConformalDetector(BaseConformalDetector):
                 f"got shape {x_array.shape}."
             )
 
-        expected_features = self._n_features_in
-        if expected_features is None:
-            raise RuntimeError(
-                "Fitted feature count is unavailable. Refit or recalibrate the "
-                "detector before calling compute_p_value()."
-            )
+        expected_features = self._require_calibration().n_features
         if x_array.shape[0] != expected_features:
             raise ValueError(
                 f"x has {x_array.shape[0]} features, but this ConformalDetector "
@@ -1117,7 +1044,7 @@ class ConformalDetector(BaseConformalDetector):
         calib_weights, test_weights = weights if weights else (None, None)
 
         p_values = self.estimation.compute_p_values(
-            estimates, self._calibration_set, weights
+            estimates, self._require_calibration().scores, weights
         )
 
         metadata = self._result_metadata()
@@ -1129,7 +1056,7 @@ class ConformalDetector(BaseConformalDetector):
         result = ConformalResult(
             p_values=p_values.copy(),
             test_scores=estimates.copy(),
-            calib_scores=self._calibration_set.copy(),
+            calib_scores=self._require_calibration().scores.copy(),
             test_weights=_safe_copy(test_weights),
             calib_weights=_safe_copy(calib_weights),
             metadata=metadata,
@@ -1212,14 +1139,14 @@ class ConformalDetector(BaseConformalDetector):
             raise NotFittedError("This ConformalDetector instance is not fitted yet.")
         validate_scope(self._result_provenance(None), procedure="fpr_bounds")
         return FPRCertificate.from_scores(
-            self._calibration_set,
+            self._require_calibration().scores,
             confidence=confidence,
         )
 
     @property
     def detector_set(self) -> list[AnomalyDetector]:
         """Returns a copy of the list of trained detector models."""
-        return self._detector_set.copy()
+        return [] if self._calibration is None else list(self._calibration.models)
 
     @property
     def calibration_set(self) -> np.ndarray:
@@ -1229,12 +1156,20 @@ class ConformalDetector(BaseConformalDetector):
         (n_repetitions, n_calibration), with one row per retained model.
         Other strategies return their existing one-dimensional score array.
         """
-        return self._calibration_set.copy()
+        return (
+            np.array([])
+            if self._calibration is None
+            else self._calibration.scores.copy()
+        )
 
     @property
     def calibration_samples(self) -> np.ndarray:
         """Returns a copy of the calibration samples (weighted mode only)."""
-        return self._calibration_samples.copy()
+        return (
+            np.array([])
+            if self._calibration is None
+            else self._calibration.samples.copy()
+        )
 
     @property
     def last_result(self) -> ConformalResult | None:
@@ -1277,7 +1212,7 @@ class ConformalDetector(BaseConformalDetector):
     @property
     def is_fitted(self) -> bool:
         """Returns whether the detector has been fitted."""
-        return len(self._detector_set) > 0 and len(self._calibration_set) > 0
+        return self._calibration is not None
 
 
 __all__ = [

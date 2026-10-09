@@ -91,8 +91,8 @@ workflow can also be run manually for that version.
 
 ## API Compatibility
 
-nonconform is a v1 project. Public APIs should remain stable unless a breaking
-change is intentional and explicitly justified.
+nonconform has a stable public API. Public APIs should remain stable unless a
+breaking change is intentional and explicitly justified.
 
 Treat these as public contracts:
 

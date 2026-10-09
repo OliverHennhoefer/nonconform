@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 from sklearn.base import BaseEstimator
@@ -496,12 +498,8 @@ class TestSplitDetectorBridge:
 
     def test_bridge_rejects_inconsistent_fitted_state(self, fitted_split_detector):
         detector, _ = fitted_split_detector
-        detector._detector_set.append(detector._detector_set[0])
+        calibration = detector._require_calibration()
+        detector._calibration = replace(calibration, models=calibration.models * 2)
 
         with pytest.raises(ValueError, match="exactly one fitted model"):
-            ExchangeabilityMonitor.from_split_detector(detector)
-
-        detector._detector_set.pop()
-        detector._n_features_in = None
-        with pytest.raises(RuntimeError, match="feature count is unavailable"):
             ExchangeabilityMonitor.from_split_detector(detector)

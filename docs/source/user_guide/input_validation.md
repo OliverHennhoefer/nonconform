@@ -17,13 +17,33 @@ validity, adequate power, or reliable importance weights.
 |---|---|---|
 | `aggregation` | `"mean"`, `"median"`, `"minimum"`, `"maximum"` | Case and surrounding whitespace are normalized; aggregation is across raw test scores from retained models |
 | `score_polarity` | `None`, `"auto"`, `"higher_is_anomalous"`, `"higher_is_normal"`, or the corresponding enum | Explicitly configure custom detectors when the direction cannot be inferred safely |
-| `seed` | `None` or a nonnegative integer | Controls supported stochastic components and deterministic seed derivation |
+| `seed` | `None` or a nonnegative built-in integer, excluding Boolean values | Controls supported stochastic components and deterministic seed derivation |
 | `verbose` | `True` or `False` | Controls aggregation progress; resampling and weighting progress also depend on logger levels |
-| `verify_prepared_batch_content` | `True` or `False` | When true, prepared weighted state is tied to the exact batch bytes, shape, and dtype |
+| `verify_prepared_batch_content` | `True` or `False` | When true, prepared weighted state is tied to batch values, shape, and dtype |
 | `select(..., alpha=...)` | float strictly between `0` and `1` | Target level for the selected FDR procedure |
 
 The detector must be fitted with `fit(...)` or detached calibration must be
 completed with `calibrate(...)` before scoring.
+
+Fitting, calibration, and scoring require two-dimensional feature batches with
+at least one feature. Scoring must match the fitted feature count, and each
+retained model must return one score per input row.
+
+### Updating and recovering detector state
+
+Use `set_params(...)` to update configuration. Valid updates clear learned state;
+rejected updates leave the previous configuration, calibration, and prepared
+weights intact. Component objects returned by `get_params(...)` are detached
+constructor snapshots, so editing them does not update this detector or its
+future clones.
+
+A new `fit(...)`, or a supported `calibrate(...)` attempt, clears the previous
+calibration, results, and prepared weights before work begins. If it fails, the
+detector remains unfitted. Correct the input and fit or calibrate again before
+requesting evidence. This applies to every calibration strategy in version 2.0.
+
+The detector's serialized state also changes in 2.0. Recreate and refit detector
+objects saved with 1.x rather than loading those objects into the new release.
 
 ### `Split`
 
