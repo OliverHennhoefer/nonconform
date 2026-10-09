@@ -477,10 +477,9 @@ sorting and quadratic scans.
 
 ### Migration from the previous FDP API
 
-Replacement of the released FDP helpers is planned for the next major release;
-there is no version bump in this branch. `FDPCertificate` and the detector/result
-factory methods are unreleased, so simplifying their signatures does not add
-another change to a released API.
+Version 2.0.0 replaces the FDP helpers released in the 1.x series with immutable
+`FDPCertificate` objects and detector/result factory methods. The replacement
+factories and their simplified signatures are introduced together in 2.0.0.
 
 This is an intentional clean break for FDP certification. Replace
 `conformal_fdp_upper_bound_from_result(result, ...)` with
@@ -529,10 +528,11 @@ method whose assumptions match the p-value process.
 
 ### Online FDR
 
-The optional `fdr` extra provides the separate `online_fdr` package:
+The optional `fdr` extra provides the separate `online_fdr` package. The example
+below uses its 1.0 package surface:
 
 ```bash
-pip install "nonconform[fdr]"
+pip install "nonconform[fdr]" "online-fdr>=1.0.0"
 ```
 
 The following is a runnable API demonstration with a simulated p-value stream.
@@ -541,13 +541,13 @@ method's assumptions.
 
 ```python
 import numpy as np
-from online_fdr import LordThree
+from online_fdr.p_values import LordThree
 
 rng = np.random.default_rng(42)
 p_value_stream = rng.uniform(size=100)
 p_value_stream[[30, 70]] = [1e-6, 1e-7]
 
-controller = LordThree(alpha=0.05, wealth=0.025, reward=0.05)
+controller = LordThree(alpha=0.05, wealth=0.025, reward=0.025)
 rejections = np.array(
     [controller.test_one(float(p_value)) for p_value in p_value_stream],
     dtype=bool,

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-09
+
 ### Added
 
 - Added `nonconform.fdr.FPRCertificate` with immutable simultaneous raw-score
@@ -48,9 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Native entry points require unmodified native empirical Split/detached,
   unweighted snapshots. External p-values use the explicit expert factory.
   This intentional API break is limited to FDP certification; other workflows
-  are unchanged. Replacement of the released FDP helpers is planned for the
-  next major release; no version metadata is bumped in this change. The
-  certificate factories and their simplified signatures are unreleased.
+  are unchanged. Version 2.0.0 is a major release because it replaces the
+  released FDP helpers without compatibility aliases. See the
+  [FDP migration guide](docs/source/user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
+  for the replacement entry points and query options.
 
 ### Removed
 
@@ -122,7 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped indirect dependency `idna` from `3.10` to `3.15`.
 - Bumped indirect dependency `pymdown-extensions` from `10.16.1` to `10.21.3`.
 
-[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/OliverHennhoefer/nonconform/compare/b8aefdc39fe5116151e9142e94dcb30c99dfd794...v2.0.0
 [1.1.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/OliverHennhoefer/nonconform/compare/v1.0.1...v1.0.2
