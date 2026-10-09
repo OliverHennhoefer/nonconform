@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `fdr` and `all` extras now require `online-fdr>=1.0.0`, matching the
+  documented `online_fdr.p_values` API. Publish online-fdr 1.0.0 before installing
+  these extras from the nonconform 2.0.0 PyPI release.
+
 - **Breaking: FDP certification API replacement.** Use
   `ConformalDetector.fdp_bounds(x, ...)`, `ConformalResult.fdp_bounds(...)`, or
   `nonconform.fdr.FDPCertificate.from_p_values(...)`. Certificates are immutable

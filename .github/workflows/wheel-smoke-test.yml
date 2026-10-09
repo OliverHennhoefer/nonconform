@@ -27,6 +27,11 @@ jobs:
       - name: Check distribution metadata
         run: uvx twine check --strict dist/*
 
+      - name: Include online-FDR smoke inputs
+        run: |
+          mkdir -p dist/smoke
+          cp scripts/check_online_fdr_example.py docs/source/user_guide/fdr_control.md pyproject.toml dist/smoke/
+
       - name: Upload dist artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -52,11 +57,30 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install pinned online-FDR candidate for review
+        if: github.ref_type != 'tag'
+        run: |
+          python - <<'EOF'
+          import subprocess
+          import sys
+          import tomllib
+          from pathlib import Path
+
+          project = tomllib.loads(Path("dist/smoke/pyproject.toml").read_text(encoding="utf-8"))
+          source = project.get("tool", {}).get("uv", {}).get("sources", {}).get("online-fdr")
+          if source is not None:
+              requirement = f"online-fdr @ git+{source['git']}@{source['rev']}"
+              subprocess.run([sys.executable, "-m", "pip", "install", requirement], check=True)
+          EOF
+
       - name: Install wheel with all extras
         # Install the built wheel directly — no source tree present, no editable
-        # install. pip resolves extras from the wheel metadata and fetches
-        # dependencies from PyPI as a normal user would.
+        # install. pip resolves extras from the wheel metadata. During review,
+        # the pending online-fdr release is supplied by the pinned candidate above.
         run: pip install "$(ls dist/*.whl)[all]"
+
+      - name: Verify documented online-FDR example
+        run: python -I dist/smoke/check_online_fdr_example.py dist/smoke/fdr_control.md
 
       - name: Verify public API imports
         run: |

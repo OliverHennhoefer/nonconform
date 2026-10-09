@@ -62,7 +62,7 @@ data = [
     "pyarrow>=16.1.0",
 ]
 fdr = [
-    "online-fdr>=0.0.3",
+    "online-fdr>=1.0.0",
 ]
 probabilistic = [
     "optuna>=4.5.0",
@@ -72,7 +72,7 @@ all = [
     "pyod==2.0.7",
     "oddball>=1.3.0",
     "pyarrow>=16.1.0",
-    "online-fdr>=0.0.3",
+    "online-fdr>=1.0.0",
     "optuna>=4.5.0",
     "kdepy>=1.1.12",
 ]
@@ -98,6 +98,12 @@ dev = [
 "Homepage" = "https://github.com/OliverHennhoefer/nonconform"
 "Documentation" = "https://oliverhennhoefer.github.io/nonconform/"
 "Bugs" = "https://github.com/OliverHennhoefer/nonconform/issues"
+
+# Temporary review source until online-fdr 1.0.0 is published. Remove this
+# override and refresh only online-fdr in uv.lock before tagging nonconform 2.0.
+# Built wheel metadata still requires the PyPI distribution, not this Git source.
+[tool.uv.sources]
+online-fdr = { git = "https://github.com/OliverHennhoefer/online-fdr.git", rev = "fd0c257dedb3686b0b1854d9e3b8f5b26c5c3cc7" }
 
 [tool.ruff]
 line-length = 88
