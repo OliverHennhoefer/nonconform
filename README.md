@@ -260,7 +260,7 @@ If you use `nonconform` in academic work, please cite the
 [accompanying paper](https://arxiv.org/abs/2605.13642):
 
 ```bibtex
-@inproceedings{Hennhofer_Conformal_Anomaly_Detection_2026,
+@inproceedings{Hennhoefer2026,
 author = {Hennhöfer, Oliver and Kirsch, Maximilian and Preisach, Christine},
 booktitle = {Proceedings of the Fifteenth Symposium on Conformal and Probabilistic Prediction with Applications},
 pages = {613--632},
