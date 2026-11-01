@@ -41,7 +41,7 @@ Examples:
     (10,)
 """
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "Oliver Hennhoefer"
 __email__ = "oliver.hennhoefer@mail.de"
 
