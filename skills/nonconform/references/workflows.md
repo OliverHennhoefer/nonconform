@@ -207,9 +207,19 @@ w = result.calib_weights
 print("flagged:", np.flatnonzero(flagged))
 print("calibration weight range:", w.min().round(2), "to", w.max().round(2))
 print("effective calibration size:", round(w.sum() ** 2 / (w**2).sum()), "of", w.size)
+
+# Sensitivity to clipping: report it next to the result; the pre-chosen setting stays the answer.
+for clip in (0.01, 0.10):
+    alternative = ConformalDetector(
+        detector=IsolationForest(random_state=0),
+        strategy=Split(n_calib=0.4),
+        weight_estimator=logistic_weight_estimator(clip_quantile=clip),
+        seed=0,
+    ).fit(x_reference)
+    print(f"clip_quantile={clip}: flagged", np.flatnonzero(alternative.select(x_new, alpha=0.1)))
 ```
 
-Validity rests on the covariate-shift model, overlapping support and reasonable density-ratio estimates. Check the weights for extreme values and report the effective calibration size. Weighted mode needs more calibration data than BH: with 800 calibration points instead of 2,000, this example flags nothing, and no floor warning is logged. Storey's method, groups and certificates do not combine with weights.
+Validity rests on the covariate-shift model, overlapping support and reasonable density-ratio estimates. The FDR control is exact only for the true density ratios, so with estimated weights report it as approximate. Check the weights for extreme values, and report the effective calibration size, the clipping level and how the selection changes with it. Here, clipping at the 1st, 5th or 10th percentile flags the same 5 points. Without clipping (`clip_quantile=None`), nothing is flagged: the five far-out points lie outside the reference data's support, their estimated weights reach 1,500 to 20,000 against about 2,000 for all calibration points combined, and their p-values stay above 0.4. Weighted mode needs more calibration data than BH: with `Split(n_calib=500)`, this example flags nothing in weighted mode and logs no floor warning, while unweighted BH on the same 500 calibration points flags all five. Storey's method, groups and certificates do not combine with weights.
 
 ## 7. Groups such as sites or sensors (Mondrian p-values)
 

@@ -52,15 +52,17 @@ If any of these fails, say so next to the result instead of reporting the guaran
 
 ## 4. Weighted selection (WCS)
 
-**Claim.** With a `weight_estimator`, `select()` runs weighted conformalized selection (Jin & Candès, 2023), which controls FDR under covariate shift when the weights are the true density ratios between new and reference features.
+**Claim.** With a `weight_estimator`, `select()` runs weighted conformalized selection (Jin & Candès, 2023). It controls FDR at `alpha` under covariate shift when the weights are the true density ratios between new and reference features. In practice the weights are estimated, so the control is approximate.
 
-**Needs.** A real covariate shift: the feature mix changed, but what counts as normal did not. The new data's features must lie where the reference data has support. Weights are estimated, which adds error, and the default clipping (`clip_quantile=0.05`) trades bias for stability. The weights depend on the whole batch, so do not split it into chunks.
+**Needs.** A real covariate shift: the feature mix changed, but what counts as normal did not. The new data's features must lie where the reference data has support. The weights depend on the whole batch, so do not split it into chunks.
 
-**Does not promise.** Protection against a changed anomaly mechanism, new measurement semantics or missing support.
+**Estimated and clipped weights.** Errors in the estimated density ratios carry over into the FDR, and no stated bound covers them. Clipping (`clip_quantile=0.05`, the 5th to 95th percentile of all weights, by default) replaces the estimated ratio with a truncated one: it trades bias for stability and does not prove overlap. Report the estimator and the clipping level, and check how much the selection changes with the clipping (section 6 of `workflows.md`).
+
+**Does not promise.** Exact FDR control with estimated or clipped weights, or protection against a changed anomaly mechanism, new measurement semantics or missing support.
 
 **Calibration size.** Weighted mode often needs more calibration points than BH for the same batch. A test point's own weight sets its smallest possible p-value, and points far from the reference data, which is where anomalies sit, tend to get large weights. An empty weighted selection logs no p-value floor warning, so check the size yourself.
 
-**Say it like this.** "Assuming only the feature mix shifted, and with weights estimated by logistic regression, the selection controls the false discovery rate at 10%. After clipping, weights ranged from 0.14 to 3.17, and the effective calibration size was 1,145 of 2,000 points."
+**Say it like this.** "Assuming only the feature mix shifted, the selection targets a 10% false discovery rate. That guarantee is exact only for the true density ratios. These weights were estimated by logistic regression and clipped to their 5th to 95th percentiles, so the 10% is approximate. After clipping, weights ranged from 0.14 to 3.17, and the effective calibration size was 1,145 of 2,000 points. Clipping at the 1st or 10th percentile instead flagged the same 5 points."
 
 ## 5. E-values from `DerandomizedSplits`
 
@@ -124,7 +126,7 @@ After an alarm, investigate, then start a new episode with fresh reference data 
 
 Run these before trusting a result, and report what they show:
 
-- **Held-out normal data.** Score recent known-normal points that were not used for fitting or calibration. Their p-values should look uniform: about 10% at or below 0.1, give or take binomial noise. A much larger share means the reference data no longer matches, usually because of drift.
+- **Held-out normal data.** Score recent known-normal points that were not used for fitting or calibration, and count the share of classical p-values at or below 0.1. It should be near 10%, but expect more spread than binomial noise. All the points share one calibration set, and conformal validity is an average over calibration sets. With `n` calibration and `m` held-out points, the standard deviation of the share is about `sqrt(0.1 * 0.9 * (1/n + 1/m))`: 1.1 percentage points for `n = 2,500` and `m = 1,000`, against 0.95 from binomial noise alone. To see the spread directly, repeat the check with a few different `seed` values. A share well above that range means the reference data no longer matches, usually because of drift. A smaller share does not threaten validity: tied scores and `ConditionalEmpirical` p-values are conservative by design.
 - **Time order.** If the data have timestamps, check whether normal scores trend over time, for example by running `ExchangeabilityMonitor` over the reference period in time order. A trend breaks exchangeability.
 - **Duplicates and clusters.** Remove duplicate rows, and don't let near-identical records (the same user or device) sit in both training and calibration data.
 - **Data roles.** Confirm that no test row and no calibration row was used to fit the detector or its preprocessing.
