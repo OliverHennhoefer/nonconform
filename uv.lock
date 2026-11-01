@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 
 [[package]]
@@ -1059,11 +1059,11 @@ requires-dist = [
     { name = "online-fdr", marker = "extra == 'fdr'", specifier = ">=1.0.0" },
     { name = "optuna", marker = "extra == 'all'", specifier = ">=4.5.0" },
     { name = "optuna", marker = "extra == 'probabilistic'", specifier = ">=4.5.0" },
-    { name = "pandas", specifier = ">=2.2.1" },
+    { name = "pandas", specifier = ">=2.2.2" },
     { name = "pyarrow", marker = "extra == 'all'", specifier = ">=16.1.0" },
     { name = "pyarrow", marker = "extra == 'data'", specifier = ">=16.1.0" },
-    { name = "pyod", marker = "extra == 'all'", specifier = "==2.0.7" },
-    { name = "pyod", marker = "extra == 'pyod'", specifier = "==2.0.7" },
+    { name = "pyod", marker = "extra == 'all'", specifier = ">=2.0.7,<4" },
+    { name = "pyod", marker = "extra == 'pyod'", specifier = ">=2.0.7,<4" },
     { name = "scikit-learn", specifier = ">=1.5.2" },
     { name = "scipy", specifier = ">=1.13.0" },
     { name = "tqdm", specifier = ">=4.66.2" },
@@ -1078,7 +1078,7 @@ dev = [
     { name = "oddball", specifier = ">=1.4.0" },
     { name = "optuna", specifier = ">=4.5.0" },
     { name = "pre-commit" },
-    { name = "pyod", specifier = "==2.0.7" },
+    { name = "pyod", specifier = ">=2.0.7,<4" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -1460,7 +1460,7 @@ wheels = [
 
 [[package]]
 name = "pyod"
-version = "2.0.7"
+version = "3.6.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "joblib" },
@@ -1470,9 +1470,9 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/28/01faf952144f6da5be33c3f332d24eb003456da4561b7adf64072e1d2871/pyod-2.0.7.tar.gz", hash = "sha256:2cb7f5544808bc150f97ca2ce1fef34f6642e116365c8ca87fdd807fa1f6aa72", size = 183802, upload-time = "2026-02-27T09:12:25.076Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/86/d64841ec2d12cd44163fd735fbd886600bac7b270cf7aa0286ebefa26774/pyod-3.6.7.tar.gz", hash = "sha256:26e189ee93b85e6f11a4155674e77818fed3a25d96b6ae613a885b143d624e12", size = 352096, upload-time = "2026-10-12T03:49:37.547Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/6c/c662c4c1aed5b3f176162c41828c32e783d8ff64a72057ee8effd371f086/pyod-2.0.7-py3-none-any.whl", hash = "sha256:3d189c326b3a5a386b06390a42984a9638170fa6e0eb8819aa77c3ba6a83a973", size = 219818, upload-time = "2026-02-27T09:12:23.874Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/52/ba08231c789ce9585d627c789c98e0792ee288ade6975f9d834d324f5369/pyod-3.6.7-py3-none-any.whl", hash = "sha256:4c9dc840c83e8579c3f23b4a2e8f4c8a65cebadecf4b1d2a2a40ed71b4398b24", size = 417425, upload-time = "2026-10-12T03:49:36.033Z" },
 ]
 
 [[package]]
