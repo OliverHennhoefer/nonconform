@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The `pyod` and `all` extras now accept PyOD 3 (`pyod>=2.0.7,<4`) instead of
+  pinning `pyod==2.0.7`.
+- Package metadata now lists Python 3.14 and declares the `Typing :: Typed`
+  classifier; the wheel already ships `py.typed`.
+
+### Fixed
+
+- The declared pandas minimum is now 2.2.2. pandas 2.2.1 requires NumPy below
+  2, so it could never be installed alongside the required `numpy>=2.2.0`.
+
 ## [2.0.0] - 2026-10-22
 
 ### Added
