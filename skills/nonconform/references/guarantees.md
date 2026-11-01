@@ -98,6 +98,8 @@ Below the floor, `threshold_for()` returns infinity and `select()` flags nothing
 
 **Needs.** Section 1, unweighted empirical `Split` or detached calibration, and one construction. Rebuilding the certificate until a bound looks good voids it. `certificate.select(t)` takes a p-value cutoff, not a target FDP.
 
+**Tightness.** A bound of 100% is valid but says nothing. The default envelope is loose for short lists from large batches, such as 40 flagged out of 2,000; for those, choose `method="mc_hc"` through `FDPCertificate.from_p_values` before computing any bound (section 8 of `workflows.md`). Choosing the envelope after seeing a bound voids the confidence statement.
+
 **Say it like this.** "With 95% confidence, at most 16% of the 41 flagged points, so at most 6 of them, are false alarms."
 
 ## 8. Stream monitoring

@@ -36,7 +36,7 @@ Work out which error rate the user cares about, because it decides the API. If t
 | Whether and when a stream changed | Probability of any false alarm, ever | `ExchangeabilityMonitor` with a martingale |
 | A bound on false alarms in this exact batch, at several cutoffs | Realized false discovery proportion, with confidence | `detector.fdp_bounds(x_new, confidence=...)` |
 
-Translate the user's words: "at most 10% of what we send to the fraud team should be false" is FDR with `alpha=0.10`. "Flag no more than 1% of normal sessions" is FPR with `target_fpr=0.01`. "Tell me when the pump starts behaving differently, and don't cry wolf" is stream monitoring with a Ville threshold of `1 / alpha`.
+Translate the user's words: "at most 10% of what we send to the fraud team should be false" is FDR with `alpha=0.10`. If the limit is about each list itself ("if more than 10% of today's list is wrong, they stop trusting us"), FDR alone does not promise that, because it is an average over batches; say so and add an FDP bound for the list. "Flag no more than 1% of normal sessions" is FPR with `target_fpr=0.01`. "Tell me when the pump starts behaving differently, and don't cry wolf" is stream monitoring with a Ville threshold of `1 / alpha`.
 
 ## Step 2: Get clean reference data
 
@@ -121,5 +121,6 @@ nonconform adjusts some detector parameters it finds in `get_params()`: it sets 
 - **`select()` flags nothing and logs a p-value floor warning**: the calibration set is too small for the batch size and `alpha`. See Step 2.
 - **Almost everything is flagged**: the reference data do not match the new normal data (drift, a different pipeline, unscaled features), or a custom detector's score direction is inverted.
 - **`threshold_for()` returns `inf` and `certificate.select()` flags nothing**: the target is below the certificate's floor. Use more calibration scores or conditional p-values (`references/workflows.md`, section 2).
+- **`fdp_bounds()` gives a bound near 1.0 for a short list**: valid but uninformative. Do not switch envelopes for this batch after seeing the bound; report that no useful bound is available. When lists will be a small share of the batch, choose `method="mc_hc"` before computing any bound (`references/workflows.md`, section 8).
 - **Results change between runs**: pass `seed=` to `ConformalDetector`; it also seeds the base detector's `random_state`.
 - **Progress bars and INFO lines clutter the output**: nonconform logs at INFO by default. Call `logging.getLogger("nonconform").setLevel(logging.WARNING)` before fitting; warnings still show.

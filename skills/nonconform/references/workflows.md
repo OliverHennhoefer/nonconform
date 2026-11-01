@@ -277,6 +277,40 @@ print("discoveries:", mask.sum(), "FDP upper bound:", certificate.bound_at(0.01)
 
 The bounds hold simultaneously over all cutoffs with probability at least `confidence`, jointly over the data and the certificate's Monte Carlo sampling. Bounds vary slightly between constructions; build one certificate and do not rebuild until a bound looks good.
 
+**Short lists from large batches.** The default envelope (`mc_thc`, truncated to the range 0.01 to 0.99) is loose at cutoffs far below 0.01, which is where a short list from a large batch sits. If you expect the list to be a small share of the batch, say under 5%, decide before computing any bound to use the expert route with `method="mc_hc"`:
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+
+from nonconform import ConformalDetector, Split
+from nonconform.fdr import FDPCertificate
+
+rng = np.random.default_rng(0)
+x_reference = rng.normal(size=(5_000, 4))
+x_batch = np.vstack([rng.normal(size=(1_960, 4)), rng.normal(5.0, 1.0, size=(40, 4))])
+
+detector = ConformalDetector(
+    detector=IsolationForest(random_state=0),
+    strategy=Split(n_calib=3_500),
+    seed=0,
+).fit(x_reference)
+flagged = detector.select(x_batch, alpha=0.1)
+result = detector.last_result
+
+# Envelope chosen before computing any bound: the list is expected to be short.
+certificate = FDPCertificate.from_p_values(
+    result.p_values,
+    n_calibration=len(result.calib_scores),
+    confidence=0.95,
+    method="mc_hc",
+)
+cutoff = result.p_values[flagged].max()
+print("flagged:", flagged.sum(), "FDP upper bound for this list:", certificate.bound_at(cutoff))
+```
+
+In simulations of this shape (2,000 test points, 3,500 calibration scores, 40 anomalies, BH lists of about 43 points), the default envelope bounded the FDP of the BH list at a median of 0.86 (0.72 to 1.00) over 40 runs, which says little. `mc_hc` gave a median of 0.23 (0.11 to 0.36) over 200 runs, and its bounds were never violated. The expert route leaves the provenance checks to you: use it only on p-values from unweighted `Split` or detached calibration with `Empirical` p-values, as here.
+
 ## 9. Repeated splits with e-values
 
 `DerandomizedSplits` averages evidence over several train/calibration splits and applies e-BH, which removes the luck of a single split.
