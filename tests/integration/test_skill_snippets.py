@@ -60,7 +60,8 @@ def test_skill_snippet_runs(code):
     logger = logging.getLogger("nonconform")
     level, handlers = logger.level, list(logger.handlers)
     try:
-        exec(compile(code, str(SKILL_DIR), "exec"), {"__name__": "__main__"})
+        # A "<...>" filename tells coverage the code has no source file to report.
+        exec(compile(code, "<skill snippet>", "exec"), {"__name__": "__main__"})
     finally:
         logger.setLevel(level)
         logger.handlers[:] = handlers
