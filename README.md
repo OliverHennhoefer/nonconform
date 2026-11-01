@@ -232,6 +232,22 @@ for the full guarantee scope and other alarm statistics.
 | Certify realized FDP across p-value thresholds | [`fdp_bounds(...)` and FDP certificates](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds) |
 | Bring a custom or third-party detector | [Detector compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
+## Coding agents
+
+The repository includes an [agent skill](skills/nonconform/SKILL.md) that
+teaches coding agents to use `nonconform`: which error rate fits the request,
+how to calibrate on clean reference data, which assumptions to check, and how
+to state the guarantee without overclaiming. Install it in Claude Code with:
+
+```text
+/plugin marketplace add OliverHennhoefer/nonconform
+/plugin install nonconform@nonconform
+```
+
+Agents that read the Agent Skills format can also use the `skills/nonconform`
+folder directly, for example by copying it into `~/.claude/skills/` or a
+project's `.claude/skills/`.
+
 ## Statistical scope
 
 > [!IMPORTANT]
