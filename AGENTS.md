@@ -1,7 +1,7 @@
-# v1 Compatibility Policy
+# Compatibility Policy
 
-This project has reached `v1.0.0`. Backward compatibility is now a constraint
-for documented public APIs and statistical validity claims.
+This project is on `2.x` and follows semantic versioning. Backward compatibility
+is a constraint for documented public APIs and statistical validity claims.
 
 - Prefer additive public APIs over changing or removing existing public APIs.
 - Treat `nonconform.__all__` and public module `__all__` exports as compatibility
@@ -52,7 +52,7 @@ No substantial task is complete without validation evidence.
   - Python files outside `nonconform/**` and `tests/**` (e.g. `examples/**`).
 - Run `uv run ruff format .` for every task.
 - Run `uv run ruff check . --fix` for every task.
-- Run `uv run mkdocs build -f docs/mkdocs.yml` whenever documentation changes under `docs/**`.
+- Run `uv run zensical build --clean --strict -f docs/mkdocs.yml` whenever documentation changes under `docs/**` (the same build as `.github/workflows/docs.yml`).
 - Run narrower tests while iterating, then finish with full `pytest`.
 
 # Codebase Topology

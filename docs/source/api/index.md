@@ -4,7 +4,7 @@ description: "Public API reference for nonconform, covering discovery, sequentia
 
 # API Reference
 
-Reference documentation for the complete v1 public module surface of `nonconform`.
+Reference documentation for the complete 2.x public module surface of `nonconform`.
 For the statistical assumptions and decision context behind an API, follow the
 linked user-guide page before relying on a guarantee.
 
@@ -13,7 +13,7 @@ linked user-guide page before relying on a guarantee.
 If you are looking for task-oriented call sequences, start with
 [Common Workflows](common_workflows.md).
 
-For the v1 public compatibility contract, see
+For the public compatibility contract, see
 [API Stability](stability.md).
 
 ## Detector

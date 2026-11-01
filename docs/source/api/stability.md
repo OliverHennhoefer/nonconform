@@ -1,10 +1,13 @@
 ---
-description: "Compatibility policy for nonconform v1 public APIs, exports, documentation, and statistical validity claims."
+description: "Compatibility policy for nonconform 2.x public APIs, exports, documentation, and statistical validity claims."
 ---
 
 # API Stability
 
-nonconform 1.x treats public API stability as a release constraint.
+nonconform 2.x treats public API stability as a release constraint. Version
+2.0.0 replaced the 1.x FDP helpers; the
+[FDP migration guide](../user_guide/fdr_control.md#migration-from-the-previous-fdp-api)
+maps the old calls to the new ones.
 
 ## Stable Public Surface
 
@@ -33,7 +36,7 @@ Python signature is unchanged.
 
 ## Score Polarity Defaults
 
-If `score_polarity` is omitted, the v1 default policy is:
+If `score_polarity` is omitted, the default policy, unchanged since 1.0, is:
 
 - known scikit-learn normality-scoring detectors use `"higher_is_normal"`;
 - PyOD detectors use `"higher_is_anomalous"`;

@@ -58,8 +58,8 @@ or validity claims need tests and an explicit before/after rationale.
 
 ## API Stability
 
-nonconform is a v1 project. Public APIs should remain stable unless a breaking
-change is intentional and documented.
+nonconform follows semantic versioning and is on 2.x. Public APIs should remain
+stable unless a breaking change is intentional and documented.
 
 Public contracts include root exports, public module `__all__` exports,
 documented constructor arguments, methods, properties, enum values, and
