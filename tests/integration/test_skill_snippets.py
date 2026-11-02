@@ -1,14 +1,17 @@
-"""Check the agent skill in ``skills/nonconform``: metadata, links and examples."""
+"""Check the agent skill plugin: Claude Code and Codex packaging, links, examples."""
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
 
 import pytest
 
-SKILL_DIR = Path(__file__).parents[2] / "skills" / "nonconform"
+REPO_ROOT = Path(__file__).parents[2]
+PLUGIN_DIR = REPO_ROOT / "plugins" / "nonconform"
+SKILL_DIR = PLUGIN_DIR / "skills" / "nonconform"
 SKILL_FILE = SKILL_DIR / "SKILL.md"
 DOC_FILES = [SKILL_FILE, *sorted((SKILL_DIR / "references").glob("*.md"))]
 CODE_BLOCK = re.compile(r"```python\n(.*?)```", re.DOTALL)
@@ -34,6 +37,45 @@ def _snippets() -> list:
             for index, code in enumerate(blocks, start=1)
         )
     return params
+
+
+def _load_json(relative: str) -> dict:
+    return json.loads((REPO_ROOT / relative).read_text(encoding="utf-8"))
+
+
+def test_claude_code_marketplace_points_to_plugin():
+    marketplace = _load_json(".claude-plugin/marketplace.json")
+    (entry,) = marketplace["plugins"]
+    assert entry["name"] == "nonconform"
+    assert (REPO_ROOT / entry["source"]).resolve() == PLUGIN_DIR.resolve()
+
+
+def test_codex_marketplace_points_to_plugin():
+    marketplace = _load_json(".agents/plugins/marketplace.json")
+    (entry,) = marketplace["plugins"]
+    assert entry["name"] == "nonconform"
+    assert entry["source"]["source"] == "local"
+    assert (REPO_ROOT / entry["source"]["path"]).resolve() == PLUGIN_DIR.resolve()
+    assert {"installation", "authentication"} <= entry["policy"].keys()
+    assert entry["category"]
+
+
+def test_plugin_manifest_matches_skill():
+    manifest = _load_json("plugins/nonconform/plugin.json")
+    assert manifest["name"] == "nonconform"
+    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"])
+    skills = sorted(p.parent.name for p in (PLUGIN_DIR / "skills").glob("*/SKILL.md"))
+    assert skills == ["nonconform"]
+
+
+def test_codex_skill_metadata():
+    yaml = pytest.importorskip("yaml")
+    metadata = yaml.safe_load(
+        (SKILL_DIR / "agents" / "openai.yaml").read_text(encoding="utf-8")
+    )
+    assert metadata["interface"]["display_name"]
+    assert metadata["interface"]["short_description"]
+    assert isinstance(metadata["policy"]["allow_implicit_invocation"], bool)
 
 
 def test_skill_frontmatter_follows_agent_skills_format():

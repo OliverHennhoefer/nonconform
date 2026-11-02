@@ -234,19 +234,31 @@ for the full guarantee scope and other alarm statistics.
 
 ## Coding agents
 
-The repository includes an [agent skill](skills/nonconform/SKILL.md) that
+The repository includes an [agent skill](https://github.com/OliverHennhoefer/nonconform/blob/main/plugins/nonconform/skills/nonconform/SKILL.md) that
 teaches coding agents to use `nonconform`: which error rate fits the request,
 how to calibrate on clean reference data, which assumptions to check, and how
-to state the guarantee without overclaiming. Install it in Claude Code with:
+to state the guarantee without overclaiming. It is packaged as a plugin that
+Claude Code and Codex both install from this repository.
+
+Claude Code, inside a session:
 
 ```text
 /plugin marketplace add OliverHennhoefer/nonconform
 /plugin install nonconform@nonconform
 ```
 
-Agents that read the Agent Skills format can also use the `skills/nonconform`
-folder directly, for example by copying it into `~/.claude/skills/` or a
-project's `.claude/skills/`.
+Codex, from a terminal:
+
+```bash
+codex plugin marketplace add OliverHennhoefer/nonconform
+codex plugin add nonconform@nonconform
+```
+
+Without the plugin system, copy the
+[`plugins/nonconform/skills/nonconform`](https://github.com/OliverHennhoefer/nonconform/tree/main/plugins/nonconform/skills/nonconform)
+folder into `~/.claude/skills/` (Claude Code), `~/.agents/skills/` (Codex) or
+the matching folder of a project. Other agents that read the Agent Skills
+format can use the folder as it is.
 
 ## Statistical scope
 

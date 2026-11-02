@@ -9,13 +9,17 @@
   "plugins": [
     {
       "name": "nonconform",
-      "source": "./skills",
+      "source": "./plugins/nonconform",
       "description": "Turn anomaly scores into decisions with a stated error rate: FDR-controlled selection, certified false-alarm thresholds and stream monitoring with nonconform.",
       "license": "BSD-3-Clause",
       "homepage": "https://oliverhennhoefer.github.io/nonconform/",
       "repository": "https://github.com/OliverHennhoefer/nonconform",
-      "keywords": ["anomaly-detection", "conformal-prediction", "false-discovery-rate", "outlier-detection"],
-      "skills": ["./nonconform"]
+      "keywords": [
+        "anomaly-detection",
+        "conformal-prediction",
+        "false-discovery-rate",
+        "outlier-detection"
+      ]
     }
   ]
 }

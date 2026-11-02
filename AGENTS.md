@@ -62,8 +62,9 @@ No substantial task is complete without validation evidence.
 - `tests/unit/`, `tests/integration/`, `tests/e2e/`: layered validation.
 - `examples/`: user-facing executable usage.
 - `docs/` + `docs/source/`: canonical documentation.
-- `skills/nonconform/`: agent skill for coding agents; `.claude-plugin/marketplace.json`
-  lets Claude Code install it, and `tests/integration/test_skill_snippets.py` runs its examples.
+- `plugins/nonconform/`: plugin with the agent skill for coding agents (in `skills/nonconform/`).
+  `.claude-plugin/marketplace.json` (Claude Code) and `.agents/plugins/marketplace.json` (Codex)
+  both point to it, and `tests/integration/test_skill_snippets.py` checks the packaging and runs its examples.
 
 # API and Architecture Discipline
 
@@ -84,7 +85,7 @@ No substantial task is complete without validation evidence.
 - Behavioral/API changes require documentation updates.
 - User-facing changes require example updates.
 - Do not leave docs/examples stale relative to implementation.
-- Keep `skills/nonconform/` aligned with the public API and the documented guarantees.
+- Keep `plugins/nonconform/skills/nonconform/` aligned with the public API and the documented guarantees.
 
 # Changelog Policy
 
