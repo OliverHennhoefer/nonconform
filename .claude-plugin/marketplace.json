@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "nonconform",
+  "owner": {
+    "name": "Oliver Hennhöfer",
+    "url": "https://github.com/OliverHennhoefer"
+  },
+  "description": "Agent skill for nonconform, the Python library for conformal anomaly detection.",
+  "plugins": [
+    {
+      "name": "nonconform",
+      "source": "./plugins/nonconform",
+      "description": "Turn anomaly scores into decisions with a stated error rate: FDR-controlled selection, certified false-alarm thresholds and stream monitoring with nonconform.",
+      "license": "BSD-3-Clause",
+      "homepage": "https://oliverhennhoefer.github.io/nonconform/",
+      "repository": "https://github.com/OliverHennhoefer/nonconform",
+      "keywords": [
+        "anomaly-detection",
+        "conformal-prediction",
+        "false-discovery-rate",
+        "outlier-detection"
+      ]
+    }
+  ]
+}

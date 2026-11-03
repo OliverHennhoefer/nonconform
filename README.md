@@ -232,6 +232,15 @@ for the full guarantee scope and other alarm statistics.
 | Certify realized FDP across p-value thresholds | [`fdp_bounds(...)` and FDP certificates](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds) |
 | Bring a custom or third-party detector | [Detector compatibility](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/) |
 
+## Coding agents
+
+An [agent skill](https://github.com/OliverHennhoefer/nonconform/blob/main/plugins/nonconform/skills/nonconform/SKILL.md)
+teaches coding agents to use `nonconform` without overclaiming. Install it in
+Claude Code (`/plugin marketplace add OliverHennhoefer/nonconform`, then
+`/plugin install nonconform@nonconform`) or Codex
+(`codex plugin marketplace add OliverHennhoefer/nonconform`, then
+`codex plugin add nonconform@nonconform`).
+
 ## Statistical scope
 
 > [!IMPORTANT]

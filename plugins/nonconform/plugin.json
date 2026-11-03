@@ -1,0 +1,14 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "nonconform",
+  "version": "1.0.0",
+  "description": "Turn anomaly scores into decisions with a stated error rate: FDR-controlled selection, certified false-alarm thresholds and stream monitoring with nonconform.",
+  "author": {
+    "name": "Oliver Hennhöfer",
+    "url": "https://github.com/OliverHennhoefer"
+  },
+  "homepage": "https://oliverhennhoefer.github.io/nonconform/",
+  "repository": "https://github.com/OliverHennhoefer/nonconform",
+  "license": "BSD-3-Clause",
+  "keywords": ["anomaly-detection", "conformal-prediction", "false-discovery-rate", "outlier-detection"]
+}

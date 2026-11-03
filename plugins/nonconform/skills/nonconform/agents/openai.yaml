@@ -1,0 +1,6 @@
+interface:
+  display_name: "nonconform"
+  short_description: "Flag anomalies with a controlled error rate"
+  default_prompt: "Use $nonconform to flag the anomalies in this batch with a controlled false discovery rate."
+policy:
+  allow_implicit_invocation: true
