@@ -260,6 +260,10 @@ folder into `~/.claude/skills/` (Claude Code), `~/.agents/skills/` (Codex) or
 the matching folder of a project. Other agents that read the Agent Skills
 format can use the folder as it is.
 
+Put your project's defaults, such as the FDR level or where the reference data
+lives, in `CLAUDE.md` or `AGENTS.md` rather than in the skill. Plugin updates
+then keep them, and the skill treats a level set there as fixed in advance.
+
 ## Statistical scope
 
 > [!IMPORTANT]

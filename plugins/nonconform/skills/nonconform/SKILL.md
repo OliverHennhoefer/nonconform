@@ -27,7 +27,7 @@ Other extras: `[fdr]` for online FDR with `online-fdr`, `[probabilistic]` for KD
 
 ## Step 1: Pin down the decision
 
-Work out which error rate the user cares about, because it decides the API. If the request is ambiguous, ask; the options are different promises.
+Work out which error rate the user cares about, because it decides the API. The options are different promises, so if the request is ambiguous and you can ask, ask. If nobody is there to answer, pick the most likely reading, say at the top of the report which one you picked, and say what the other reading would have promised.
 
 | The user wants | Error rate | Use |
 | --- | --- | --- |
@@ -37,6 +37,8 @@ Work out which error rate the user cares about, because it decides the API. If t
 | A bound on false alarms in this exact batch, at several cutoffs | Realized false discovery proportion, with confidence | `detector.fdp_bounds(x_new, confidence=...)` |
 
 Translate the user's words: "at most 10% of what we send to the fraud team should be false" is FDR with `alpha=0.10`. If the limit is about each list itself ("if more than 10% of today's list is wrong, they stop trusting us"), FDR alone does not promise that, because it is an average over batches; say so and add an FDP bound for the list. "Flag no more than 1% of normal sessions" is FPR with `target_fpr=0.01`. "Tell me when the pump starts behaving differently, and don't cry wolf" is stream monitoring with a Ville threshold of `1 / alpha`.
+
+Write the decision down before you run anything: the error rate, its level (`alpha`, `target_fpr`, confidence), the method (`"bh"` or `"storey"`, the FDP envelope) and the reference data. Put it in the code or the report before the first `select()` call. A level set in the project's CLAUDE.md or AGENTS.md counts as fixed in advance. Changing any of these after seeing a result voids the guarantee.
 
 ## Step 2: Get clean reference data
 
@@ -92,11 +94,20 @@ The guarantees hold when these do. Check each one and tell the user about any th
 - **One testing family.** `select()` controls FDR over the batch you pass. Splitting a batch into ten calls makes ten families with ten separate guarantees.
 - **Streams are different.** Repeated batch p-values are not sequential p-values. Use `ExchangeabilityMonitor`, and don't refit the scorer mid-stream.
 
+Run the checks in `references/guarantees.md`, section 10, rather than assuming these hold. The held-out check takes a few lines and catches the most common failure: reference data that no longer matches the new normal data.
+
 nonconform refuses combinations it cannot back with a guarantee (for example Storey's method with weights) and says why in the error. Read the message instead of working around it.
 
 ## Step 5: Report the result with the right claim
 
-State what was controlled, at what level, under which assumption, and what it does not promise. For example:
+Lead with the decision, then the claim and its conditions, in this order:
+
+1. **The decision**: what was flagged or which threshold, and the reading of the request you picked if it was ambiguous.
+2. **The claim**: which error rate, at what level, in the wording from `references/guarantees.md`.
+3. **What you checked**, with the results (the held-out share, the calibration-size floor), kept apart from what you assumed and could not check.
+4. **What it does not promise**: this one batch (for FDR), misses, cause.
+
+For example:
 
 > Flagged 23 of 2,000 transactions at a 10% false discovery rate. On average, at most 10% of transactions flagged this way are false alarms, provided today's legitimate transactions resemble the 5,000 reference transactions. The rate is an average over repeated batches, not a promise for this one, and it says nothing about anomalies that were not flagged.
 
@@ -107,6 +118,18 @@ Avoid these claims, which are wrong:
 - Calling every point with `p < 0.05` "significant" without BH. With 1,000 normal points, about 50 would pass.
 
 `references/guarantees.md` explains each guarantee, its fine print and how to phrase it. Read it before writing up results for a stakeholder.
+
+## Before you report, or when reviewing code
+
+Each of these voids the guarantee. Treat any one as a blocker: fix it, or report that no guarantee applies. Use the same list to review nonconform code that someone else wrote.
+
+- The detector or its preprocessing saw a row of the batch being judged (Step 2).
+- `alpha`, the method, the detector or the reference window changed after someone saw a result (Step 1).
+- One batch went through several `select()` calls and is reported as one FDR (Step 4).
+- `CrossValidation` or `JackknifeBootstrap` results are reported with a finite-sample guarantee (Step 4).
+- A stream was tested batch by batch, or its scorer was refitted mid-stream (Step 4).
+- A contamination rate or top-k cutoff is described as a controlled error rate.
+- The report gives a rate without naming it: FDR, FPR, FDP or the stream's false alarm probability.
 
 ## Detectors
 
