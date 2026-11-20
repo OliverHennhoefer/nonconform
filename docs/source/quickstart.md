@@ -22,14 +22,9 @@ By the end of this guide, you'll know how to:
 
 **Prerequisites**: Familiarity with Python and basic anomaly detection concepts.
 
-!!! note "Guarantee scope"
-
-    The examples assume that the normal training/calibration data and normal
-    test points are exchangeable. If deployment data is shifted, start with
-    [Weighted Conformal](user_guide/weighted_conformal.md) before relying on
-    the same batch validity claims. The sequential example additionally relies
-    on a scoring rule fixed before monitoring and on the validity of its
-    randomized sequential conformal p-values.
+Not sure whether you need a list of anomalies or a threshold? Read
+[Start here](start.md) first. What each result promises, and under which
+assumptions, is on [Assumptions and guarantees](guarantees.md).
 
 ---
 
@@ -80,6 +75,11 @@ print(f"True anomalies in test set: {y_true.sum()}")
 
 `score_polarity="auto"` handles sklearn score orientation automatically for
 supported estimators.
+
+This toy batch contains many clear anomalies, so 240 calibration scores are
+enough. On real data, size the calibration set to at least
+`batch_size / alpha`, or `select` can return nothing; see
+[How much calibration data](start.md#how-much-calibration-data).
 
 ---
 
