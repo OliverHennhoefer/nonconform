@@ -38,9 +38,29 @@ pip install "nonconform[data,pyod]"
 
 No example assumes variables created by a previous code block.
 
-!!! note "Examples measure behavior; guides state scope"
+## Notebooks
 
-    A successful run shows that the API path executes on the displayed data.
-    It does not verify exchangeability, density-ratio correctness, dependence
-    conditions, or deployment performance. Follow each example's links to the
-    corresponding user guide before making a statistical claim.
+The notebooks in
+[`examples/`](https://github.com/OliverHennhoefer/nonconform/tree/main/examples)
+open in Colab. The first three have plots, accompany the
+[use cases](../use_cases/index.md), and install what they need. For the others,
+run `!pip install "nonconform[data,pyod]"` in a first cell.
+
+| Notebook | Run |
+|---|---|
+| Screen a batch of network traffic with `select` | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/batch_screening.ipynb) |
+| Replace `contamination` with a certified false-alarm rate | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/false_alarm_threshold.ipynb) |
+| Monitor a sensor stream with a martingale | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/sensor_stream.ipynb) |
+| Certify a raw-score false-alarm rate | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/fpr_bounds.ipynb) |
+| Bound the false discovery proportion of one batch | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/fdp_bounds.ipynb) |
+| Storey adaptive BH | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/adaptive_bh.ipynb) |
+| Conditionally calibrated p-values | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/conditional_calibration.ipynb) |
+| Calibrate on data separate from training | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/detached_calibration.ipynb) |
+| Compare p-value estimators | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/estimation_comparison.ipynb) |
+| Group-conditional p-values | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/group_conditional.ipynb) |
+| Derandomized e-values | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/derandomized_e_values.ipynb) |
+| Exchangeability martingale on fraud data | [Open in Colab](https://colab.research.google.com/github/OliverHennhoefer/nonconform/blob/main/examples/exchangeability_martingale.ipynb) |
+
+A successful run shows that the code executes on the displayed data. It does
+not verify the assumptions behind a statistical claim; see
+[Assumptions and guarantees](../guarantees.md).
