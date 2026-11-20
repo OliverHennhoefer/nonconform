@@ -1,6 +1,6 @@
 <h1 align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">
-    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/banner.png" alt="nonconform" width="900">
+    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/banner.png" alt="nonconform" width="760">
   </a>
 </h1>
 
@@ -20,12 +20,12 @@
 <p align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
   <a href="https://oliverhennhoefer.github.io/nonconform/api/">API Reference</a> ·
-  <a href="https://arxiv.org/abs/2605.13642">Paper</a>
+  <a href="https://proceedings.mlr.press/v329/hennhofer26a.html">Paper</a>
 </p>
 
 ---
 
-A detector ranks points by how unusual they look but leaves the cutoff to you.
+**A detector ranks points by how unusual they look but leaves the cutoff to you.**
 The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
@@ -47,12 +47,11 @@ The same Isolation Forest on seven benchmark datasets, with and without `nonconf
   <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the detector alone flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
 </picture>
 
-<sub><i>Mean of 20 random splits per <a href="https://pypi.org/project/oddball/">benchmark dataset</a>. The average false share stays under the 10% target on every dataset; where the detector barely separates anomalies (Mammography, Cardio), <code>nonconform</code> flags little rather than guess. The baseline trains on every row, <code>nonconform</code> holds some back for calibration. Reproduce with <a href="https://github.com/OliverHennhoefer/nonconform/blob/main/examples/benchmarks/default_thresholds.py"><code>default_thresholds.py</code></a>.</i></sub>
+<sub><i>Isolation Forest from PyOD; "detector alone" uses its default <code>predict()</code> threshold, "+ nonconform" uses <code>select(alpha=0.1)</code>. Mean of 20 random splits per <a href="https://pypi.org/project/oddball/">benchmark dataset</a>. The average false share stays under the 10% target on every dataset; where the detector barely separates anomalies (Mammography, Cardio), <code>nonconform</code> flags little rather than guess. The baseline trains on every row, <code>nonconform</code> holds some back for calibration. Reproduce with <a href="https://github.com/OliverHennhoefer/nonconform/blob/main/examples/benchmarks/default_thresholds.py"><code>default_thresholds.py</code></a>.</i></sub>
 
 ## Installation
 
-`nonconform` requires Python 3.11 or newer. Both discovery control and
-sequential monitoring are included in the core installation.
+`nonconform` requires Python 3.11 or newer.
 
 ```bash
 pip install nonconform
@@ -89,7 +88,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=0)
 alpha = 0.1  # target FDR: on average at most 10% of flags are false
 detector = ConformalDetector(
     detector=IsolationForest(random_state=0),
-    strategy=Split(n_calib=int(len(x_test) / alpha)),  # see the sizing rule below
+    strategy=Split(n_calib=1_000),  # normal rows held back for calibration
     seed=0,
 ).fit(x_train)
 
@@ -99,22 +98,13 @@ print(f"Flagged {flagged.sum()} of {len(x_test)}, {hits} true anomalies")
 # Flagged 105 of 1000, 95 true anomalies
 ```
 
-The conformal p-values behind the mask stay available in `detector.last_result`.
 Any PyOD model, a recognized scikit-learn estimator, or a
 [custom detector](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/)
 works in place of `IsolationForest`.
 
-> [!TIP]
-> **Calibration size.** With `n` calibration scores the smallest p-value is
-> `1 / (n + 1)`, so flagging a lone anomaly in a batch of `m` needs roughly
-> `n_calib >= m / alpha`. Below that, `select` can return nothing. More
-> calibration is necessary but not sufficient: if the detector separates
-> anomalies poorly, set a score threshold with `fpr_bounds` instead (below).
-
 ### Set a score threshold
 
-If the requirement is "flag no more than 5% of normal points", certify a raw-score
-threshold instead of targeting an FDR:
+To flag no more than 5% of normal points, certify a raw-score threshold instead:
 
 ```python
 certificate = detector.fpr_bounds(confidence=0.95)
@@ -130,8 +120,7 @@ an infinite threshold. See
 
 ### Monitor a stream
 
-A fitted `Split` detector can start a sequential monitor that raises an alarm when
-the data stops looking like the calibration set.
+A fitted `Split` detector can start a monitor that alarms once data drifts from calibration.
 
 <details>
 <summary><strong>Monitor a stream for change</strong></summary>
@@ -207,12 +196,14 @@ Claude Code (`/plugin marketplace add OliverHennhoefer/nonconform`, then
 ## Statistical scope
 
 > [!IMPORTANT]
-> Every guarantee rests on assumptions. Conformal p-values need calibration data
-> and normal test points to be exchangeable; FDR claims need the assumptions of
-> the chosen multiple-testing procedure; FPR certificates need i.i.d. scores from
-> an independently fitted detector; weighted workflows need a credible
-> covariate-shift model; Ville alarms cover one stream, while CUSUM and
-> Shiryaev-Roberts thresholds need separate calibration.
+> Conformal inference needs remarkably little: no distributional model, and its
+> guarantees hold in finite samples. The few assumptions it does make are worth
+> knowing. Conformal p-values need calibration data and normal test points to be
+> exchangeable; FDR claims need the assumptions of the chosen multiple-testing
+> procedure; FPR certificates need i.i.d. scores from an independently fitted
+> detector; weighted workflows need a credible covariate-shift model; Ville
+> alarms cover one stream, while CUSUM and Shiryaev-Roberts thresholds need
+> separate calibration.
 
 `nonconform` calibrates detector scores; it cannot make an unsuitable detector
 or a mismatched calibration set valid. Handle spatial or temporal dependence
@@ -224,7 +215,7 @@ before applying a guarantee to a new problem.
 ## Citation
 
 If you use `nonconform` in academic work, please cite the
-[accompanying paper](https://arxiv.org/abs/2605.13642):
+[accompanying paper](https://proceedings.mlr.press/v329/hennhofer26a.html):
 
 ```bibtex
 @inproceedings{Hennhoefer2026,
