@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>Anomaly detectors return scores. <code>nonconform</code> decides which to flag and keeps the share of false alarms below a level you set.</strong>
+  <strong>Turn anomaly scores into flags with a false-alarm rate you set.</strong>
 </p>
 
 <p align="center">
