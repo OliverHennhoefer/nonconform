@@ -100,6 +100,11 @@ def run():
             "anomalies": int(y.sum()),
             "test": len(y),
             **{rule: np.mean(values, axis=0) for rule, values in runs.items()},
+            # Splits whose normal-flag rate on the test set exceeds the target.
+            "over_target": {
+                rule: int(sum(v[3] > TARGET_FPR for v in values))
+                for rule, values in runs.items()
+            },
         }
     return results
 
@@ -107,14 +112,15 @@ def run():
 def print_table(results):
     print(
         f"{'dataset':<12} {'test':>5} {'anom':>5} | {'rule':<23} "
-        f"{'flagged':>7} {'false':>6} {'recall':>6} {'normals':>8}"
+        f"{'flagged':>7} {'false':>6} {'recall':>6} {'normals':>8} {'>10%':>5}"
     )
     for name, row in results.items():
         for rule in RULES:
             flagged, false_share, recall, fpr = row[rule][:4]
             print(
                 f"{name:<12} {row['test']:>5} {row['anomalies']:>5} | {rule:<23} "
-                f"{flagged:>7.0f} {false_share:>6.0%} {recall:>6.0%} {fpr:>8.1%}"
+                f"{flagged:>7.0f} {false_share:>6.0%} {recall:>6.0%} {fpr:>8.1%} "
+                f"{row['over_target'][rule]:>5}"
             )
 
 

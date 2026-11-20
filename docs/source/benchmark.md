@@ -56,7 +56,11 @@ It runs in about three minutes.
 
 ![Points flagged by each rule on seven datasets, split into true anomalies and false alarms, with the number of anomalies present marked](img/benchmarks/threshold_rules.png)
 
-Share of flags that are false alarms (mean of 20 splits):
+The tables give means over 20 splits. Each rule caps a different rate, so read
+the table that matches its promise.
+
+**Share of flags that are false alarms.** `select` promises this stays at or
+below 10% on average. The other two rules make no promise about it.
 
 | Dataset | Anomalies / test points | `contamination=0.1` | `select`, FDR 10% | `fpr_bounds`, FPR 10% |
 |---|---|---|---|---|
@@ -68,7 +72,8 @@ Share of flags that are false alarms (mean of 20 splits):
 | Cardio | 27 / 275 | 53% | 4% | 41% |
 | HTTP | 100 / 1,000 | 47% | 8% | 45% |
 
-Share of anomalies found:
+**Share of anomalies found.** No rule promises anything here; this is the
+price of each promise.
 
 | Dataset | `contamination=0.1` | `select`, FDR 10% | `fpr_bounds`, FPR 10% |
 |---|---|---|---|
@@ -79,6 +84,20 @@ Share of anomalies found:
 | Thyroid | 99% | 63% | 97% |
 | Cardio | 85% | 9% | 64% |
 | HTTP | 100% | 90% | 100% |
+
+**Share of normal points flagged.** `fpr_bounds` promises that, with 90%
+confidence, this stays at or below 10%, so up to 2 of 20 splits may go over.
+The last two columns count the splits that went over.
+
+| Dataset | `contamination=0.1` | `select`, FDR 10% | `fpr_bounds`, FPR 10% | Splits over 10%: default | Splits over 10%: `fpr_bounds` |
+|---|---|---|---|---|---|
+| Shuttle | 10.0% | 1.0% | 8.9% | 7 | 3 |
+| Fraud | 9.9% | 0.5% | 8.6% | 9 | 1 |
+| Mammography | 9.8% | 0.1% | 7.9% | 6 | 0 |
+| Satimage-2 | 10.2% | 0.7% | 7.3% | 11 | 0 |
+| Thyroid | 10.0% | 0.6% | 6.3% | 8 | 0 |
+| Cardio | 10.4% | 0.2% | 4.8% | 10 | 0 |
+| HTTP | 10.1% | 1.0% | 9.0% | 10 | 2 |
 
 ## What the numbers say
 
@@ -97,7 +116,11 @@ answer when the scores cannot back the promise.
 
 **`fpr_bounds` is the certified version of the default.** It caps the same rate
 the default aims at, the share of normal points flagged, but with a guarantee:
-here it flagged 4.8 to 9.0% of normal points against a 10% target. Use it when
+here it flagged 4.8 to 9.0% of normal points against a 10% target, and went
+over in 6 of 140 splits, within the 1 in 10 its confidence level allows. The
+default went over in 61 of 140. Its false share stays high for the same reason
+as the default's: 9% of 900 normal points is still about as many false alarms
+as there are anomalies. Use it when
 you need a fixed threshold that holds for every future point, or when `select`
 finds nothing.
 
