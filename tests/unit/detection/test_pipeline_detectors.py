@@ -177,6 +177,30 @@ def test_lof_without_novelty_fails_at_construction() -> None:
         adapt(make_pipeline(StandardScaler(), LocalOutlierFactor()))
 
 
+def test_pipeline_ending_in_passthrough_names_missing_method() -> None:
+    with pytest.raises(TypeError, match="Missing methods: decision_function"):
+        adapt(make_pipeline(StandardScaler(), "passthrough"))
+
+
+@pytest.mark.parametrize(
+    ("make_detector", "score_polarity"),
+    [
+        (lambda: make_pipeline(StandardScaler(), AnomalyScorer()), None),
+        (SklearnStyleOutlierDetector, "higher_is_normal"),
+    ],
+    ids=["custom-pipeline-default", "sklearn-style-explicit"],
+)
+def test_custom_detectors_find_planted_anomalies(
+    planted_batch, make_detector, score_polarity
+) -> None:
+    x_train, x_test, is_anomaly = planted_batch
+    detector = ConformalDetector(
+        make_detector(), Split(n_calib=1000), score_polarity=score_polarity, seed=0
+    )
+    selected = np.asarray(detector.fit(x_train).select(x_test, alpha=0.1))
+    assert selected[is_anomaly].sum() == is_anomaly.sum()
+
+
 def test_lof_with_novelty_is_accepted() -> None:
     assert adapt(LocalOutlierFactor(novelty=True)) is not None
 
