@@ -32,8 +32,9 @@ The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
 
-Same Isolation Forest, seven [benchmark datasets](https://pypi.org/project/oddball/),
-averaged over 20 random splits:
+Same Isolation Forest settings, seven [benchmark datasets](https://pypi.org/project/oddball/),
+averaged over 20 random splits (the PyOD baseline trains on every row; `nonconform`
+holds some back for calibration):
 
 | Dataset | Anomalies | PyOD default `predict()` | `nonconform`, `alpha=0.1` |
 | --- | ---: | ---: | ---: |
