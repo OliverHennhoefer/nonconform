@@ -88,7 +88,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=0)
 alpha = 0.1  # target FDR: on average at most 10% of flags are false
 detector = ConformalDetector(
     detector=IsolationForest(random_state=0),
-    strategy=Split(n_calib=int(len(x_test) / alpha)),  # see the sizing rule below
+    strategy=Split(n_calib=int(len(x_test) / alpha)),
     seed=0,
 ).fit(x_train)
 
@@ -102,12 +102,9 @@ Any PyOD model, a recognized scikit-learn estimator, or a
 [custom detector](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/)
 works in place of `IsolationForest`.
 
-> [!TIP]
-> **Calibration size.** With `n` calibration scores the smallest p-value is
-> `1 / (n + 1)`, so flagging a lone anomaly in a batch of `m` needs roughly
-> `n_calib >= m / alpha`. Below that, `select` can return nothing. More
-> calibration is necessary but not sufficient: if the detector separates
-> anomalies poorly, set a score threshold with `fpr_bounds` instead (below).
+Sizing calibration to `len(x_test) / alpha` gives the p-values enough resolution
+to flag even a single anomaly in the batch; if a run comes back empty, `select`
+logs how much calibration data it needs.
 
 ### Set a score threshold
 
