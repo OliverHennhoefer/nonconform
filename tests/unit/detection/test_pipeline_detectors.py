@@ -126,6 +126,23 @@ def test_pipeline_steps_receive_seed_and_parallelism(nonconform_caplog) -> None:
     assert "random_state" not in nonconform_caplog.text
 
 
+def test_parallelism_reaches_only_the_final_pipeline_step() -> None:
+    from sklearn.compose import ColumnTransformer
+
+    pipeline = Pipeline(
+        [
+            ("prep", ColumnTransformer([("scale", StandardScaler(), [0, 1])])),
+            ("model", IsolationForest()),
+        ]
+    )
+    detector = ConformalDetector(pipeline, Split(n_calib=0.3), seed=4)
+
+    params = detector.detector.get_params()
+    assert params["model__n_jobs"] == -1
+    assert params["model__random_state"] == 4
+    assert params["prep__n_jobs"] is None
+
+
 def test_pipeline_runs_are_reproducible(planted_batch) -> None:
     x_train, x_test, _ = planted_batch
 
@@ -175,6 +192,30 @@ def test_lof_without_novelty_fails_at_construction() -> None:
         ConformalDetector(LocalOutlierFactor(), Split())
     with pytest.raises(TypeError, match=r"novelty=True"):
         adapt(make_pipeline(StandardScaler(), LocalOutlierFactor()))
+
+
+def test_pipeline_ending_in_passthrough_names_missing_method() -> None:
+    with pytest.raises(TypeError, match="Missing methods: decision_function"):
+        adapt(make_pipeline(StandardScaler(), "passthrough"))
+
+
+@pytest.mark.parametrize(
+    ("make_detector", "score_polarity"),
+    [
+        (AnomalyScorer, None),
+        (SklearnStyleOutlierDetector, "higher_is_normal"),
+    ],
+    ids=["custom-default", "sklearn-style-explicit"],
+)
+def test_custom_detectors_find_planted_anomalies(
+    planted_batch, make_detector, score_polarity
+) -> None:
+    x_train, x_test, is_anomaly = planted_batch
+    detector = ConformalDetector(
+        make_detector(), Split(n_calib=1000), score_polarity=score_polarity, seed=0
+    )
+    selected = np.asarray(detector.fit(x_train).select(x_test, alpha=0.1))
+    assert selected[is_anomaly].sum() == is_anomaly.sum()
 
 
 def test_lof_with_novelty_is_accepted() -> None:

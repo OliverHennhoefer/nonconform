@@ -76,8 +76,8 @@ raises a `TypeError` that says so.
 A scikit-learn `Pipeline` reports the scores of its final step, so
 `nonconform` infers polarity from that step. A pipeline ending in
 `IsolationForest` is handled like a bare `IsolationForest`, including with
-`score_polarity="auto"`. The `seed`, `n_jobs` and `contamination` settings
-reach the pipeline steps that expose them.
+`score_polarity="auto"`. The `seed` reaches every step that exposes
+`random_state`; `n_jobs` and `contamination` are set on the final step only.
 
 ```python
 import numpy as np

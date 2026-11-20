@@ -64,11 +64,7 @@ def _scoring_estimator(detector: Any) -> Any:
     final step decides the score convention. Nested pipelines are unwrapped
     recursively. Any other detector is returned unchanged.
     """
-    seen: set[int] = set()
-    while _is_sklearn_pipeline(detector) and id(detector) not in seen:
-        seen.add(id(detector))
-        if not detector.steps:
-            break
+    while _is_sklearn_pipeline(detector) and detector.steps:
         detector = detector.steps[-1][1]
     return detector
 

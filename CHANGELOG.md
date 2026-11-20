@@ -36,9 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `score_polarity` omitted was treated as higher-is-anomalous, which silently
   inverted every decision, and `score_polarity="auto"` raised. Pipelines whose
   final step is a blocked batch-adaptive PyOD detector are now rejected too.
-- `seed`, `n_jobs` and `contamination` now reach the steps of a `Pipeline`
-  (for example `isolationforest__random_state`), so seeded pipeline runs are
-  reproducible.
+- `seed` now reaches every `Pipeline` step that exposes `random_state`, and
+  `n_jobs` and `contamination` reach the final step (for example
+  `isolationforest__random_state`), so seeded pipeline runs are reproducible.
 - `LocalOutlierFactor()` without `novelty=True` now fails at construction with
   a message naming `novelty=True`, instead of an `AttributeError` at scoring.
 
