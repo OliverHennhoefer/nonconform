@@ -134,8 +134,8 @@ Each of these voids the guarantee. Treat any one as a blocker: fix it, or report
 ## Detectors
 
 - **PyOD**, including models picked by PyOD 3's ADEngine or od-expert skill: pass the unfitted model; nonconform fits copies itself. If ADEngine already chose a detector, keep the choice and replace its contamination cutoff with `select()` or an FPR certificate.
-- **scikit-learn**: `IsolationForest`, `OneClassSVM`, `SGDOneClassSVM`, `LocalOutlierFactor(novelty=True)` and `EllipticEnvelope` are recognized, and their score direction is handled.
-- **Custom detectors** need `fit`, `decision_function`, `get_params` and `set_params`, and must be copyable. Each row's score must not depend on the other rows in the batch. Pass `score_polarity="higher_is_anomalous"` or `"higher_is_normal"` to say which way the scores point; omitted, it defaults to higher-is-anomalous.
+- **scikit-learn**: `IsolationForest`, `OneClassSVM`, `SGDOneClassSVM`, `LocalOutlierFactor(novelty=True)` and `EllipticEnvelope` are recognized, and their score direction is handled, also as the final step of a `Pipeline`.
+- **Custom detectors** need `fit`, `decision_function`, `get_params` and `set_params`, and must be copyable. Each row's score must not depend on the other rows in the batch. Pass `score_polarity="higher_is_anomalous"` or `"higher_is_normal"` to say which way the scores point; omitted, it defaults to higher-is-anomalous and logs a warning.
 
 nonconform adjusts some detector parameters it finds in `get_params()`: it sets `contamination` to a tiny value (the conformal rule replaces it), parallelism parameters such as `n_jobs` to `-1`, and `random_state` (or `seed`) from the `seed` you pass. Mention this if the user expects their own values to be used.
 

@@ -40,6 +40,7 @@ from nonconform._internal import (
     normalize_bootstrap_aggregation_method,
     set_params,
 )
+from nonconform._internal.config import matching_param_keys
 from nonconform._internal.detector_state import take_rows
 from nonconform._internal.validation import (
     as_1d_numeric,
@@ -75,8 +76,9 @@ def _try_set_random_state(detector: AnomalyDetector, seed: int | None) -> None:
     """Set the resampling seed when the detector supports random_state."""
     if hasattr(detector, "set_params"):
         try:
-            detector.set_params(random_state=seed)
-        except (TypeError, ValueError):
+            keys = matching_param_keys(detector.get_params(), "random_state")
+            detector.set_params(**dict.fromkeys(keys or ["random_state"], seed))
+        except (TypeError, ValueError, AttributeError):
             pass  # Detector may not support random_state parameter
 
 

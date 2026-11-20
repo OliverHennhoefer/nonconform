@@ -68,13 +68,16 @@ print(detector.compute_p_values(x_test))
 ```
 
 For `LocalOutlierFactor`, use `novelty=True`; otherwise scikit-learn does not
-expose `decision_function` for unseen observations.
+expose `decision_function` for unseen observations, and `ConformalDetector`
+raises a `TypeError` that says so.
 
-### Pipelines and unrecognized meta-estimators
+### Pipelines
 
-Polarity inference is based on the outer estimator type. A scikit-learn
-`Pipeline` around `IsolationForest`, for example, is not itself one of the
-recognized normality-estimator classes. Set its polarity explicitly:
+A scikit-learn `Pipeline` reports the scores of its final step, so
+`nonconform` infers polarity from that step. A pipeline ending in
+`IsolationForest` is handled like a bare `IsolationForest`, including with
+`score_polarity="auto"`. The `seed`, `n_jobs` and `contamination` settings
+reach the pipeline steps that expose them.
 
 ```python
 import numpy as np
@@ -95,12 +98,17 @@ pipeline = make_pipeline(
 detector = ConformalDetector(
     detector=pipeline,
     strategy=Split(n_calib=0.25),
-    score_polarity="higher_is_normal",
     seed=42,
 ).fit(x_reference)
 
+print(detector.score_polarity)  # ScorePolarity.HIGHER_IS_NORMAL
 print(detector.compute_p_values(x_test))
 ```
+
+Other meta-estimators, such as a search object or a custom wrapper, are not
+unwrapped. When polarity is omitted for any detector `nonconform` does not
+recognize, it assumes larger scores are more anomalous and logs a warning
+naming the detector. Pass `score_polarity` explicitly to confirm the direction.
 
 Putting learned preprocessing inside the pipeline prevents it from being fitted
 on held-out calibration rows.

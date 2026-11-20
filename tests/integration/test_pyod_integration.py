@@ -272,10 +272,10 @@ def test_custom_detector_parameters_are_configured(
 
 
 def test_detector_missing_random_state(caplog, monkeypatch):
-    """Detector without random_state param should warn when seed provided."""
+    """A missing random_state param is logged at debug level, not as a warning."""
     monkeypatch.setattr(logging.getLogger("nonconform"), "propagate", True)
 
-    with caplog.at_level(logging.WARNING, logger="nonconform"):
+    with caplog.at_level(logging.DEBUG, logger="nonconform"):
         ConformalDetector(
             detector=DeterministicDetector(),
             strategy=Split(n_calib=0.2),
@@ -285,3 +285,4 @@ def test_detector_missing_random_state(caplog, monkeypatch):
 
     assert "random_state" in caplog.text
     assert "Reproducibility cannot be guaranteed" in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]

@@ -73,7 +73,6 @@ base_detector = make_pipeline(
 detector = ConformalDetector(
     detector=base_detector,
     strategy=Split(n_calib=0.3),
-    score_polarity="higher_is_normal",
 ).calibrate(x_reference[700:])
 
 selected = detector.select(x_test, alpha=0.1)

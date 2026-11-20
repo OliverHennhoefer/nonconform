@@ -101,9 +101,10 @@ def test_missing_random_state_warns_only_when_seed_is_given(
 ):
     monkeypatch.setattr(logging.getLogger("nonconform"), "propagate", True)
 
-    with caplog.at_level(logging.WARNING, logger="nonconform"):
+    with caplog.at_level(logging.DEBUG, logger="nonconform"):
         set_params(ParamsDetector(), seed=seed)
 
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert ("Reproducibility cannot be guaranteed" in caplog.text) is warns
     assert ("random_state" in caplog.text) is warns
 
