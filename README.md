@@ -25,7 +25,7 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-**Anomaly detectors return scores. nonconform turns them into flags with an error rate you choose.**
+**Anomaly detectors return scores. `nonconform` turns them into flags with an error rate you choose.**
 
 A detector ranks points by how unusual they look but leaves the cutoff to you.
 The usual default, flagging the top 10% of scores, is a guess about how many
