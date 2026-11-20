@@ -422,7 +422,7 @@ def test_refit_rejects_malformed_reference_and_parallelism(batches):
     detector = make_detector().fit(reference)
     for invalid in [np.zeros(5), np.zeros((20, 0))]:
         detector.fit(reference).select(test)
-        with pytest.raises(ValueError, match="two-dimensional"):
+        with pytest.raises(ValueError, match=r"two-dimensional|0 feature"):
             detector.fit(invalid)
         assert not detector.is_fitted
         assert detector.last_selection_result is None

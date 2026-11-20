@@ -54,14 +54,16 @@ def test_rejected_strategy_switch_preserves_original_calibration(batches):
     np.testing.assert_array_equal(detector.compute_p_values(test), expected)
 
 
-def test_constructor_parameters_do_not_expose_owned_clone_snapshots():
+def test_constructor_parameters_are_independent_of_runtime_components():
     detector = ConformalDetector(OneClassSVM(gamma=0.1), Split(10))
     params = detector.get_params(deep=False)
     params["detector"].set_params(gamma=0.9)
     params["strategy"]._calib_size = 3
+    assert detector.get_params()["detector__gamma"] == 0.1
+    assert detector.strategy.calib_size == 10
     cloned = clone(detector)
-    assert cloned.get_params()["detector__gamma"] == 0.1
-    assert cloned.strategy.calib_size == 10
+    assert cloned.get_params()["detector__gamma"] == 0.9
+    assert cloned.strategy.calib_size == 3
 
 
 @pytest.mark.parametrize(

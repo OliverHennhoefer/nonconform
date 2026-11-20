@@ -62,9 +62,10 @@ installation and do not require the `fdr` extra.
 
 ### Missing protocol methods
 
-The base detector must implement `fit`, `decision_function`, `get_params`, and
-`set_params`, and it must be copyable. A `predict` method alone is insufficient
-because conformal calibration needs continuous scores.
+The base detector must implement `fit` and `decision_function` and be
+copyable, or be a scoring function that returns one score per row. A `predict`
+method alone is insufficient because conformal calibration needs continuous
+scores. Pass an instance such as `IsolationForest()`, not the class.
 
 See [Detector compatibility](detector_compatibility.md) for a complete custom
 implementation.
@@ -104,7 +105,8 @@ detached workflow: fit a base detector, construct `ConformalDetector` with
 ### Feature count differs
 
 Use the same feature count, order, units, encoding, and learned preprocessing at
-every stage. Prefer a fitted scikit-learn pipeline so transformations travel
+every stage. A detector fitted on a DataFrame checks column names and order at
+inference, as scikit-learn estimators do. Prefer a fitted scikit-learn pipeline so transformations travel
 with the detector.
 
 At inference, a pandas `Series` is interpreted as a batch with one feature. For
@@ -122,19 +124,23 @@ or pass a one-row 2D array/DataFrame to a batch method.
 
 See [Input validation](input_validation.md) for the complete constraints.
 
-## There is no `predict(...)` method
+## What `predict(...)` returns
 
-This is intentional. Choose the output that matches the task:
+`predict(X)` exists for scikit-learn compatibility. It applies `select(X,
+alpha=alpha)` to the whole batch, with `alpha` from the constructor, and
+returns `-1` for selected anomalies and `1` otherwise. Choose the output that
+matches the task:
 
 | Need | Method |
 |---|---|
 | Raw detector-scale values | `score_samples(...)` |
 | One unweighted p-value | `compute_p_value(...)` |
 | Batch p-values | `compute_p_values(...)` |
-| FDR-controlled batch decisions | `select(...)` |
+| FDR-controlled batch decisions | `select(...)`, or `predict(...)` in a `Pipeline` |
 | Sequential evidence state | `ExchangeabilityMonitor.update(...)` |
 
-Do not threshold raw scores and describe the result as conformal or
+`predict` labels depend on the batch, so predict on the complete test batch at
+once. Do not threshold raw scores and describe the result as conformal or
 FDR-controlled.
 
 ## P-values look wrong

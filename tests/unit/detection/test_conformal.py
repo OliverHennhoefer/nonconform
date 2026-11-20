@@ -878,8 +878,8 @@ class TestConformalDetectorSklearnParams:
         with pytest.raises(ValueError, match=match):
             detector.set_params(**params)
 
-    def test_clone_uses_constructor_snapshot_after_external_mutation(self):
-        """Clone should not pick up post-init changes to external param objects."""
+    def test_params_follow_sklearn_and_runtime_is_independent(self):
+        """get_params returns the passed objects; fitting uses separate copies."""
         external_detector = OneClassSVM(gamma=0.1)
         external_strategy = Split(n_calib=0.2)
         detector = _ConformalDetector(
@@ -887,11 +887,16 @@ class TestConformalDetectorSklearnParams:
             strategy=external_strategy,
             score_polarity="auto",
         )
+        params = detector.get_params(deep=False)
+        assert params["detector"] is external_detector
+        assert params["strategy"] is external_strategy
 
         external_detector.set_params(gamma=0.9)
         external_strategy._calib_size = 0.5
 
+        assert detector.get_params(deep=True)["detector__gamma"] == 0.1
+        assert detector.strategy.calib_size == 0.2
         cloned = clone(detector)
         assert isinstance(cloned, _ConformalDetector)
-        assert cloned.get_params(deep=True)["detector__gamma"] == 0.1
-        assert cloned.strategy.calib_size == 0.2
+        assert cloned.get_params(deep=True)["detector__gamma"] == 0.9
+        assert cloned.strategy.calib_size == 0.5

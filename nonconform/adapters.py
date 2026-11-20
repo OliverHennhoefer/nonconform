@@ -72,10 +72,13 @@ def adapt(detector: Any) -> AnomalyDetector:
     """Return a detector that satisfies the public anomaly-detector protocol.
 
     Args:
-        detector: PyOD, scikit-learn, or custom detector object.
+        detector: PyOD, scikit-learn, or custom detector object, or a plain
+            scoring function ``f(X) -> scores``.
 
     Returns:
-        The original structurally compatible object or a PyOD adapter.
+        The original structurally compatible object, a PyOD adapter, or a
+        minimal adapter for scoring functions and for objects that lack
+        ``get_params``/``set_params``.
 
     Raises:
         ValueError: If the detector is a blocked batch-adaptive PyOD class.
@@ -83,6 +86,12 @@ def adapt(detector: Any) -> AnomalyDetector:
         TypeError: If required protocol methods are missing.
     """
     _guard_blocked_pyod_detector(detector)
+
+    if isinstance(detector, type):
+        raise TypeError(
+            f"Detector must be an instance, not the class {detector.__name__}. "
+            f"Pass the class instance, for example {detector.__name__}()."
+        )
 
     if isinstance(detector, AnomalyDetector):
         return detector
@@ -96,15 +105,24 @@ def adapt(detector: Any) -> AnomalyDetector:
             'Install with: pip install "nonconform[pyod]" or pip install pyod.'
         )
 
-    required_methods = ["fit", "decision_function", "get_params", "set_params"]
-    missing_methods = [m for m in required_methods if not hasattr(detector, m)]
-    if missing_methods:
-        raise TypeError(
-            "Detector must implement AnomalyDetector protocol. "
-            f"Missing methods: {', '.join(missing_methods)}"
-        )
+    protocol_methods = ("fit", "decision_function", "get_params", "set_params")
+    if all(hasattr(detector, m) for m in protocol_methods):
+        return detector
 
-    return detector
+    if hasattr(detector, "fit") and hasattr(detector, "decision_function"):
+        # get_params/set_params are optional: wrap objects without them.
+        return _ScoringAdapter(detector)
+
+    if callable(detector):
+        return _ScoringAdapter(detector)
+
+    required_methods = ["fit", "decision_function"]
+    missing_methods = [m for m in required_methods if not hasattr(detector, m)]
+    raise TypeError(
+        "Detector must be an object with fit() and decision_function(), or a "
+        "scoring function that maps a batch to one score per row. "
+        f"Missing methods: {', '.join(missing_methods)}."
+    )
 
 
 def parse_score_polarity(score_polarity: ScorePolarityInput) -> ScorePolarity:
@@ -358,6 +376,64 @@ class ScorePolarityAdapter:
             detector=deepcopy(self._detector, memo),
             score_polarity=self._score_polarity,
         )
+
+
+class _ScoringAdapter:
+    """Give a scoring function or a minimal detector the full protocol.
+
+    A plain callable is treated as an already fitted score map: ``fit`` does
+    nothing and ``decision_function(X)`` returns ``detector(X)``. An object
+    with ``fit`` and ``decision_function`` but without ``get_params`` and
+    ``set_params`` is fitted and scored as usual and exposes no parameters.
+    """
+
+    def __init__(self, detector: Any) -> None:
+        self._detector = detector
+
+    def fit(self, X: Any, y: np.ndarray | None = None) -> Self:
+        """Fit the wrapped object; a scoring function needs no fitting."""
+        if hasattr(self._detector, "fit"):
+            self._detector.fit(X)
+        return self
+
+    def decision_function(self, X: Any) -> np.ndarray:
+        """Return one score per row of ``X``."""
+        if hasattr(self._detector, "decision_function"):
+            scores = self._detector.decision_function(X)
+        else:
+            scores = self._detector(X)
+        return np.asarray(scores, dtype=float).reshape(-1)
+
+    def get_params(self, deep: bool = True) -> dict[str, Any]:
+        """Return no parameters."""
+        return {}
+
+    def set_params(self, **params: Any) -> Self:
+        """Reject parameter updates, which the wrapped object cannot take."""
+        if params:
+            raise ValueError(
+                f"{type(self._detector).__name__} has no set_params(); "
+                f"cannot set {sorted(params)}."
+            )
+        return self
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate unknown attributes to the wrapped object."""
+        if "_detector" not in self.__dict__:
+            raise AttributeError(name)
+        return getattr(self._detector, name)
+
+    def __repr__(self) -> str:
+        """Return debug representation."""
+        return f"_ScoringAdapter({self._detector!r})"
+
+    def __copy__(self) -> _ScoringAdapter:
+        """Create a shallow copy."""
+        return _ScoringAdapter(copy(self._detector))
+
+    def __deepcopy__(self, memo: dict) -> _ScoringAdapter:
+        """Create a deep copy."""
+        return _ScoringAdapter(deepcopy(self._detector, memo))
 
 
 class PyODAdapter:

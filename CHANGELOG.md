@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `ConformalDetector` is now a scikit-learn `BaseEstimator` and `OutlierMixin`
+  and can be the last step of a `Pipeline`. `predict(X)` applies
+  `select(X, alpha=alpha)` to the whole batch and returns `-1` for selected
+  anomalies and `1` otherwise; `alpha` is a new constructor parameter
+  (default `0.05`). `decision_function(X)` returns the BH-adjusted p-value
+  minus `alpha`. `n_features_in_` and `feature_names_in_` are set by `fit()`
+  and `calibrate()`. `check_estimator` passes except for three checks that
+  assume a per-row threshold. `predict` leaves `last_result` unchanged.
+- `strategy` is optional and defaults to `Split()`. Passing a string such as
+  `"split"` or the class `Split` instead of an instance raises a `TypeError`
+  that names the fix.
+- The detector may be a plain scoring function `f(X) -> scores`, treated as
+  already fitted, or an object with only `fit` and `decision_function`. With an
+  identity function, precomputed scores can be calibrated and selected.
+- `ConformalResult.to_frame()` returns the scores, p-values, and weights as a
+  DataFrame that keeps the index of a pandas test batch.
+- SciPy sparse matrices pass through to the wrapped detector.
+
+### Changed
+
+- DataFrames now reach the wrapped detector unchanged instead of being
+  converted to NumPy, so a `ColumnTransformer` can select columns by name. A
+  detector fitted on a DataFrame rejects renamed or reordered test columns
+  and warns when test data has no column names, with scikit-learn's messages.
+  Built-in strategies index rows with `.iloc` accordingly.
+- `get_params()` now returns the objects passed to the constructor or
+  `set_params()`, as scikit-learn requires, instead of detached copies. The
+  fitted detector still uses its own copies, so editing a returned object
+  changes later clones but not the current detector.
+- Shape errors use scikit-learn's wording, for example "X has 2 features, but
+  ConformalDetector is expecting 3 features as input."
+
 ## [2.0.1] - 2026-11-01
 
 ### Changed

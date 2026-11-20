@@ -15,7 +15,8 @@ A detector must:
 
 - implement `fit(X, y=None)` and return itself;
 - implement `decision_function(X)` and return one finite numeric score per row;
-- implement `get_params(deep=True)` and `set_params(**params)`;
+- optionally implement `get_params(deep=True)` and `set_params(**params)`,
+  which `nonconform` uses to set seeds and nested parameters;
 - support shallow and deep copying;
 - retain all state needed to score new rows after fitting; and
 - score each row without adapting the score map to the other rows in the
@@ -216,6 +217,105 @@ For custom estimators, omitted polarity defaults to
 `"higher_is_anomalous"`. Prefer setting it explicitly so the convention is
 reviewable. Explicit `score_polarity="auto"` is deliberately strict and raises
 for a custom class whose family is unknown.
+
+## Scoring functions and existing scores
+
+A plain function that maps a batch to one score per row also works. It is
+treated as an already fitted score map, so calibrate it on held-out reference
+data instead of fitting. Its scores are taken as larger-is-more-anomalous unless
+you set `score_polarity`.
+
+```python
+import numpy as np
+
+from nonconform import ConformalDetector
+
+rng = np.random.default_rng(42)
+x_calibration = rng.normal(size=(1000, 3))
+x_test = np.vstack([rng.normal(size=(18, 3)), rng.normal(loc=4.0, size=(2, 3))])
+
+
+def distance_from_origin(X):
+    return np.linalg.norm(X, axis=1)
+
+
+detector = ConformalDetector(distance_from_origin).calibrate(x_calibration)
+print(np.flatnonzero(detector.select(x_test, alpha=0.1)))
+```
+
+If a model already produced the scores, for example in a database or another
+service, pass them as a single feature and use an identity scoring function.
+Calibration scores must come from held-out inliers that the model was not
+trained on.
+
+```python
+import numpy as np
+
+from nonconform import ConformalDetector
+
+rng = np.random.default_rng(0)
+calibration_scores = rng.normal(size=1000)
+test_scores = np.r_[rng.normal(size=95), rng.normal(loc=5.0, size=5)]
+
+detector = ConformalDetector(lambda s: s[:, 0]).calibrate(
+    calibration_scores.reshape(-1, 1)
+)
+selected = detector.select(test_scores.reshape(-1, 1), alpha=0.1)
+print(np.flatnonzero(selected))
+print(detector.last_result.to_frame().head())
+```
+
+An object with `fit` and `decision_function` but without `get_params` and
+`set_params` is accepted as well; `nonconform` then cannot pass it a seed.
+
+## DataFrames
+
+A pandas DataFrame reaches the wrapped detector unchanged, so a `Pipeline`
+with a `ColumnTransformer` can select columns by name. `ConformalDetector`
+records `feature_names_in_` at fit time and, like scikit-learn estimators,
+rejects test data whose columns are renamed or reordered. Results for pandas
+input keep the test batch's index, and `last_result.to_frame()` returns the
+scores and p-values as a DataFrame.
+
+## As a scikit-learn estimator
+
+`ConformalDetector` is a scikit-learn `BaseEstimator` and `OutlierMixin`, so
+`clone`, `get_params`, `set_params`, and `GridSearchCV` parameter grids work,
+and it can be the last step of a `Pipeline`. Omitting `strategy` uses
+`Split()`.
+
+`predict(X)` runs `select(X, alpha=alpha)` on the whole batch and returns `-1`
+for selected anomalies and `1` otherwise, with `alpha` set in the constructor
+(default `0.05`). The labels are a batch-level decision with false discovery
+rate control, not a per-row threshold: the same row can be labelled
+differently in a different batch. `decision_function(X)` returns the
+Benjamini-Hochberg adjusted p-value minus `alpha`, negative for selected rows.
+`score_samples(X)` keeps the `nonconform` convention of larger values for more
+anomalous rows.
+
+```python
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+from nonconform import ConformalDetector
+
+rng = np.random.default_rng(42)
+x_reference = rng.normal(size=(2000, 3))
+x_test = np.vstack([rng.normal(size=(95, 3)), rng.normal(loc=5.0, size=(5, 3))])
+
+pipeline = make_pipeline(
+    StandardScaler(),
+    ConformalDetector(IsolationForest(random_state=42), alpha=0.1, seed=42),
+).fit(x_reference)
+print(np.flatnonzero(pipeline.predict(x_test) == -1))
+```
+
+scikit-learn's `check_estimator` passes except for three checks that assume
+a per-row threshold: `check_outliers_train` and `check_outliers_fit_predict`
+expect some training rows to be flagged, and `check_methods_subset_invariance`
+expects a row's label not to depend on its batch.
 
 ## Automatic parameter normalization
 
