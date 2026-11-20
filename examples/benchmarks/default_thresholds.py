@@ -1,7 +1,8 @@
 """PyOD's default threshold versus nonconform FDR control on seven datasets.
 
 Reproduces the comparison table in the README. For each dataset and 20 random
-splits, the same Isolation Forest is thresholded twice:
+splits, Isolation Forests with the same settings are thresholded two ways
+(the PyOD baseline is fit on all training rows; ``Split`` withholds ``n_calib``):
 
 - PyOD ``predict()``, which flags the top 10% of scores (``contamination=0.1``).
 - ``ConformalDetector.select(alpha=0.1)``, which targets a 10% false discovery rate.
