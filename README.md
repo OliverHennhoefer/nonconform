@@ -79,12 +79,6 @@ sequential monitoring are included in the core installation.
 pip install nonconform
 ```
 
-For the PyOD detector collection and benchmark datasets:
-
-```bash
-pip install "nonconform[pyod,data]"
-```
-
 <details>
 <summary><strong>Optional extras</strong></summary>
 
@@ -101,8 +95,8 @@ pip install "nonconform[pyod,data]"
 ## Quick start
 
 Wrap a detector, fit it on normal data, and select anomalies at a target false
-discovery rate (FDR). The example loads a benchmark dataset, so it needs the
-`data` extra:
+discovery rate (FDR). The example loads a benchmark dataset, so it needs
+`pip install "nonconform[data]"`:
 
 ```python
 from oddball import Dataset, load
