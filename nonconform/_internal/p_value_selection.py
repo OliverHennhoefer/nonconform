@@ -174,7 +174,9 @@ def warn_if_floor_blocks_discovery(
     _logger.warning(
         "select() made no discoveries. With %s, classical conformal p-values "
         "cannot fall below 1/%d = %.3g, but %s. %s Use at least %d %s, or "
-        "smaller test batches, so that a single anomaly can be discovered.",
+        "smaller test batches, so that a single anomaly can be discovered. "
+        "If anomalies should stand out clearly, also check that "
+        "score_polarity matches the detector's score direction.",
         calibration,
         n_calibration + 1,
         1.0 / (n_calibration + 1),

@@ -50,8 +50,28 @@ _BLOCKED_STRICT_INDUCTIVE_PYOD_DETECTOR_SET = frozenset(
 )
 
 
+def _is_sklearn_pipeline(detector: Any) -> bool:
+    """Check whether detector is a scikit-learn ``Pipeline``."""
+    from sklearn.pipeline import Pipeline
+
+    return isinstance(detector, Pipeline)
+
+
+def _scoring_estimator(detector: Any) -> Any:
+    """Return the estimator whose scores a detector ultimately reports.
+
+    A scikit-learn ``Pipeline`` reports the scores of its final step, so the
+    final step decides the score convention. Nested pipelines are unwrapped
+    recursively. Any other detector is returned unchanged.
+    """
+    while _is_sklearn_pipeline(detector) and detector.steps:
+        detector = detector.steps[-1][1]
+    return detector
+
+
 def _guard_blocked_pyod_detector(detector: Any) -> None:
     """Raise for PyOD detectors that violate strict inductive score freezing."""
+    detector = _scoring_estimator(detector)
     if not _looks_like_pyod(detector):
         return
 
@@ -64,7 +84,33 @@ def _guard_blocked_pyod_detector(detector: Any) -> None:
         f"PyOD detector '{detector_name}' is incompatible with strict inductive "
         "conformal/FDR workflows. This detector adapts its scoring rule to the "
         "evaluation batch instead of using a fixed training-only score map. "
-        f"Blocked detectors: {blocked}."
+        f"Blocked detectors: {blocked}. Detectors that score each point from "
+        "the training data alone work, for example IForest, HBOS, KNN, LOF "
+        "or sklearn's IsolationForest."
+    )
+
+
+def _guard_missing_decision_function(detector: Any) -> None:
+    """Raise a clear error when ``decision_function`` is unavailable.
+
+    Protocol ``isinstance`` checks look the method up statically, so they
+    accept estimators that hide ``decision_function`` at runtime, such as
+    ``LocalOutlierFactor(novelty=False)``. Calling it later would fail with an
+    unhelpful ``AttributeError``.
+    """
+    if hasattr(detector, "decision_function"):
+        return
+    final = _scoring_estimator(detector)
+    from sklearn.neighbors import LocalOutlierFactor
+
+    if isinstance(final, LocalOutlierFactor) and not final.novelty:
+        raise TypeError(
+            "LocalOutlierFactor scores new data only with novelty=True. Use "
+            "LocalOutlierFactor(novelty=True)."
+        )
+    raise TypeError(
+        "Detector must implement AnomalyDetector protocol. "
+        "Missing methods: decision_function"
     )
 
 
@@ -83,6 +129,12 @@ def adapt(detector: Any) -> AnomalyDetector:
         TypeError: If required protocol methods are missing.
     """
     _guard_blocked_pyod_detector(detector)
+
+    if all(
+        hasattr(type(detector), name)
+        for name in ("fit", "decision_function", "get_params", "set_params")
+    ):
+        _guard_missing_decision_function(detector)
 
     if isinstance(detector, AnomalyDetector):
         return detector
@@ -162,8 +214,26 @@ def _sklearn_normality_types() -> tuple[type[Any], ...]:
 
 
 def _is_known_sklearn_normality_detector(detector: Any) -> bool:
-    """Check whether detector is a known sklearn normality-scoring estimator."""
-    return isinstance(detector, _sklearn_normality_types())
+    """Check whether detector is a known sklearn normality-scoring estimator.
+
+    A scikit-learn ``Pipeline`` is judged by its final step.
+    """
+    return isinstance(_scoring_estimator(detector), _sklearn_normality_types())
+
+
+def _is_pyod_detector(detector: Any) -> bool:
+    """Check whether detector, or a Pipeline's final step, comes from PyOD."""
+    final = _scoring_estimator(detector)
+    return isinstance(final, PyODAdapter) or _looks_like_pyod(final)
+
+
+def _detector_name(detector: Any) -> str:
+    """Return a readable name for a detector, naming a Pipeline's final step."""
+    final = _scoring_estimator(detector)
+    name = type(final).__name__
+    if final is not detector:
+        return f"Pipeline ending in {name}"
+    return name
 
 
 def resolve_implicit_score_polarity(detector: Any) -> ScorePolarity:
@@ -174,6 +244,8 @@ def resolve_implicit_score_polarity(detector: Any) -> ScorePolarity:
     - Known sklearn normality detectors -> HIGHER_IS_NORMAL
     - PyOD detectors -> HIGHER_IS_ANOMALOUS
     - Unknown custom detectors -> HIGHER_IS_ANOMALOUS
+
+    A scikit-learn ``Pipeline`` follows the rule for its final step.
 
     Args:
         detector: Adapted detector whose family determines the default.
@@ -214,12 +286,12 @@ def resolve_score_polarity(
     if parsed is not ScorePolarity.AUTO:
         return parsed
 
-    if isinstance(detector, PyODAdapter) or _looks_like_pyod(detector):
+    if _is_pyod_detector(detector):
         return ScorePolarity.HIGHER_IS_ANOMALOUS
     if _is_known_sklearn_normality_detector(detector):
         return ScorePolarity.HIGHER_IS_NORMAL
 
-    detector_cls = type(detector)
+    detector_cls = type(_scoring_estimator(detector))
     detector_name = f"{detector_cls.__module__}.{detector_cls.__qualname__}"
     raise ValueError(
         "Unable to infer score polarity automatically in strict auto mode for "
@@ -271,12 +343,37 @@ def _adapt_with_score_polarity(
         The normalized detector and its resolved non-auto score polarity.
     """
     adapted = adapt(detector)
-    resolved = (
-        resolve_implicit_score_polarity(adapted)
-        if score_polarity is None
-        else resolve_score_polarity(adapted, score_polarity)
-    )
+    if score_polarity is None:
+        resolved = resolve_implicit_score_polarity(adapted)
+        if not (
+            _is_pyod_detector(adapted) or _is_known_sklearn_normality_detector(adapted)
+        ):
+            _warn_assumed_score_polarity(adapted)
+    else:
+        resolved = resolve_score_polarity(adapted, score_polarity)
     return apply_score_polarity(adapted, resolved), resolved
+
+
+def _warn_assumed_score_polarity(detector: Any) -> None:
+    """Log that an unrecognized detector's score direction was assumed."""
+    from sklearn.base import OutlierMixin
+
+    hint = ""
+    # isinstance, not sklearn.base.is_outlier_detector: from scikit-learn 1.6
+    # that reads estimator tags and raises for plain custom detectors.
+    if isinstance(_scoring_estimator(detector), OutlierMixin):
+        hint = (
+            " scikit-learn outlier detectors usually return higher scores for "
+            "normal points, which needs score_polarity='higher_is_normal'."
+        )
+    logger.warning(
+        "score_polarity was not given, so nonconform assumes that higher scores "
+        "from %s mean more anomalous. If the detector's scores are higher for "
+        "normal points, every decision is inverted.%s Pass score_polarity "
+        "explicitly to confirm the direction and silence this warning.",
+        _detector_name(detector),
+        hint,
+    )
 
 
 def _looks_like_pyod(detector: Any) -> bool:

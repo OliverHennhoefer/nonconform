@@ -80,15 +80,17 @@ behavior.
 ### Automatic score polarity fails
 
 Explicit `score_polarity="auto"` recognizes PyOD and a small set of
-scikit-learn normality estimators. For a custom detector or outer meta-estimator,
-set the known convention explicitly:
+scikit-learn normality estimators, also as the final step of a scikit-learn
+`Pipeline`. For a custom detector or another meta-estimator, set the known
+convention explicitly:
 
 - `"higher_is_anomalous"` if larger values are more unusual;
 - `"higher_is_normal"` if larger values are more normal.
 
-A scikit-learn pipeline around `IsolationForest` needs
-`score_polarity="higher_is_normal"` because polarity inference sees the outer
-pipeline type.
+When polarity is omitted for such a detector, nonconform assumes
+`"higher_is_anomalous"` and logs a warning. If `select()` returns nothing while
+anomalies should stand out clearly, check this direction first: inverted
+scores give true anomalies p-values near 1.
 
 ## Fitted-state and shape errors
 

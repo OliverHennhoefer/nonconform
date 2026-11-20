@@ -46,14 +46,18 @@ def set_params(
         Configured detector instance.
 
     Note:
-        Missing contamination or parallelism parameters are logged at debug
-        level. A missing random-state parameter is logged as a warning when a
-        seed is provided.
+        For a scikit-learn ``Pipeline``, ``contamination`` and parallelism
+        are set on the final step only (``isolationforest__n_jobs``), while a
+        seed reaches every step that exposes ``random_state``. Missing
+        contamination, parallelism, or random-state parameters are logged at
+        debug level. Detectors without a seed parameter are usually
+        deterministic, so a missing one is not a warning.
     """
     params = detector.get_params()
+    final_prefix = _final_step_prefix(detector)
 
-    _try_set_contamination(detector, params)
-    _try_set_parallelism(detector, params)
+    _try_set_contamination(detector, params, final_prefix)
+    _try_set_parallelism(detector, params, final_prefix)
 
     if seed is not None:
         if random_iteration and iteration is not None:
@@ -63,22 +67,80 @@ def set_params(
     return detector
 
 
-def _try_set_contamination(detector: AnomalyDetector, params: dict[str, Any]) -> None:
+def matching_param_keys(params: dict[str, Any], alias: str) -> list[str]:
+    """Return the parameter keys that configure ``alias``.
+
+    A top-level key wins. Otherwise nested keys whose last ``__`` component is
+    ``alias`` are returned, so every step of a scikit-learn ``Pipeline`` that
+    exposes the parameter is configured.
+    """
+    if alias in params:
+        return [alias]
+    suffix = f"__{alias}"
+    return [key for key in params if key.endswith(suffix)]
+
+
+def _final_step_prefix(detector: Any) -> str:
+    """Return the nested-parameter prefix of a Pipeline's final step.
+
+    Adapters that wrap a detector in ``_detector`` are looked through. The
+    result is ``""`` for a detector that is not a scikit-learn ``Pipeline``.
+    """
+    from sklearn.pipeline import Pipeline
+
+    while "_detector" in getattr(detector, "__dict__", {}):
+        detector = detector.__dict__["_detector"]
+    prefix = ""
+    while isinstance(detector, Pipeline) and detector.steps:
+        name, detector = detector.steps[-1]
+        prefix += f"{name}__"
+    return prefix
+
+
+def _set_alias(
+    detector: AnomalyDetector,
+    params: dict[str, Any],
+    alias: str,
+    value: Any,
+    final_prefix: str | None = None,
+) -> bool:
+    """Set the keys matching ``alias``; return whether any key matched.
+
+    With ``final_prefix``, nested keys are limited to that Pipeline step, so
+    settings such as ``n_jobs`` reach only the scoring estimator and not
+    preprocessing steps like ``ColumnTransformer``.
+    """
+    if final_prefix is None:
+        keys = matching_param_keys(params, alias)
+    elif alias in params:
+        keys = [alias]
+    else:
+        nested = f"{final_prefix}{alias}"
+        keys = [nested] if final_prefix and nested in params else []
+    if not keys:
+        return False
+    detector.set_params(**dict.fromkeys(keys, value))
+    return True
+
+
+def _try_set_contamination(
+    detector: AnomalyDetector, params: dict[str, Any], final_prefix: str
+) -> None:
     """Try to set contamination to minimum for one-class training."""
     for alias in _CONTAMINATION_ALIASES:
-        if alias in params:
-            detector.set_params(**{alias: sys.float_info.min})
+        if _set_alias(detector, params, alias, sys.float_info.min, final_prefix):
             logger.debug(f"Set {alias}={sys.float_info.min} for one-class training")
             return
 
     logger.debug("Detector has no contamination parameter (acceptable)")
 
 
-def _try_set_parallelism(detector: AnomalyDetector, params: dict[str, Any]) -> None:
+def _try_set_parallelism(
+    detector: AnomalyDetector, params: dict[str, Any], final_prefix: str
+) -> None:
     """Try to set parallelism to use all cores."""
     for alias in _N_JOBS_ALIASES:
-        if alias in params:
-            detector.set_params(**{alias: -1})
+        if _set_alias(detector, params, alias, -1, final_prefix):
             logger.debug(f"Set {alias}=-1 for parallelism")
             return
 
@@ -90,13 +152,12 @@ def _set_random_state(
 ) -> None:
     """Set random state for reproducibility."""
     for alias in _RANDOM_STATE_ALIASES:
-        if alias in params:
-            detector.set_params(**{alias: seed})
+        if _set_alias(detector, params, alias, seed):
             logger.debug(f"Set {alias}={seed} for reproducibility")
             return
 
     tried_names = ", ".join(_RANDOM_STATE_ALIASES)
-    logger.warning(
+    logger.debug(
         f"Detector has no random_state parameter. Tried: {tried_names}. "
         f"Reproducibility cannot be guaranteed if detector uses randomness. "
         f"This is acceptable for deterministic detectors."
@@ -104,5 +165,6 @@ def _set_random_state(
 
 
 __all__ = [
+    "matching_param_keys",
     "set_params",
 ]
