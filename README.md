@@ -25,29 +25,30 @@
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-`nonconform` calibrates anomaly scores for discovery, threshold
-certification, and sequential change monitoring. Wrap a
-supported scikit-learn estimator, a [PyOD](https://pyod.readthedocs.io/) model,
-or a custom detector:
+**Anomaly detectors return scores. nonconform turns them into flags with an error rate you choose.**
 
-- **Discovery:** Use calibrated p-values directly or call `select(...)` to apply
-  false discovery rate (FDR) control.
-- **Score thresholds:** Build a simultaneous false-alarm/FPR certificate and
-  choose a score threshold for future inliers.
-- **Stream:** Use conformal martingales to accumulate evidence against
-  exchangeability and trigger configured alarms.
+A detector ranks points by how unusual they look but leaves the cutoff to you.
+The usual default, flagging the top 10% of scores, is a guess about how many
+anomalies there are. `nonconform` calibrates the scores of your existing detector
+against normal data, so the threshold follows from the error rate you can accept.
 
-## Why nonconform?
+Same Isolation Forest, seven [benchmark datasets](https://pypi.org/project/oddball/),
+averaged over 20 random splits:
 
-- **Calibrate anomaly scores** into conformal p-values using reference data.
-- **Certify raw-score thresholds** with simultaneous FPR certificates and
-  target-driven threshold inversion.
-- **Control discoveries** by accounting for multiple tests within a
-  fixed family.
-- **Monitor streams for change** with conformal martingales, anytime evidence
-  against exchangeability, and configurable alarms.
-- **Keep your detector** through support for PyOD, recognized scikit-learn
-  estimators, and protocol-compliant custom models.
+| Dataset | Anomalies | PyOD default `predict()` | `nonconform`, `alpha=0.1` |
+| --- | ---: | ---: | ---: |
+| Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
+| HTTP | 100 | 190 flagged, 47% false | 99 flagged, 8% false |
+| Satimage-2 | 71 | 157 flagged, 56% false | 70 flagged, 9% false |
+| Thyroid | 61 | 116 flagged, 48% false | 42 flagged, 7% false |
+| Fraud | 100 | 178 flagged, 50% false | 45 flagged, 9% false |
+| Mammography | 100 | 153 flagged, 58% false | 6 flagged, 5% false |
+| Cardio | 27 | 49 flagged, 53% false | 3 flagged, 4% false |
+
+The average false share stays below the 10% target on every dataset. Where the detector
+barely separates anomalies from normal data (Mammography, Cardio), `nonconform`
+flags little rather than guess. Reproduce with
+[`examples/benchmarks/default_thresholds.py`](examples/benchmarks/default_thresholds.py).
 
 <p align="center">
   <strong>Works with</strong>
@@ -89,87 +90,68 @@ pip install "nonconform[pyod,data]"
 
 ## Quick start
 
-### Batch discovery control
-
-This core-only example demonstrates the batch lane. The detector is trained on
-normal data, part of which is reserved automatically for conformal calibration.
+Wrap a detector, fit it on normal data, and select anomalies at a target false
+discovery rate (FDR). The example loads a benchmark dataset, so it needs the
+`data` extra:
 
 ```python
-import numpy as np
+from oddball import Dataset, load
 from sklearn.ensemble import IsolationForest
 
 from nonconform import ConformalDetector, Split
 
-rng = np.random.default_rng(42)
-x_train = rng.normal(size=(3_000, 2))
-x_test = np.vstack([
-    rng.normal(size=(200, 2)),
-    rng.normal(loc=5.0, size=(20, 2)),
-])
+# Normal-only training data; a labelled test batch with 10% anomalies
+x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=0)
 
+alpha = 0.1  # target FDR: on average at most 10% of flags are false
 detector = ConformalDetector(
-    detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=1_000),
-    seed=42,
+    detector=IsolationForest(random_state=0),
+    strategy=Split(n_calib=int(len(x_test) / alpha)),  # see the sizing rule below
+    seed=0,
 ).fit(x_train)
 
-discoveries = detector.select(x_test, alpha=0.05)
-p_values = detector.last_result.p_values
-
-print(f"Selected {discoveries.sum()} of {len(x_test)} observations")
+flagged = detector.select(x_test, alpha=alpha)  # Boolean mask
+hits = int(y_test[flagged].sum())
+print(f"Flagged {flagged.sum()} of {len(x_test)}, {hits} true anomalies")
+# Flagged 105 of 1000, 95 true anomalies
 ```
 
-> [!NOTE]
-> `discoveries` is a Boolean mask. Here, `alpha=0.05` is the target FDR level,
-> not a per-observation score threshold. The underlying conformal p-values remain
-> available through `last_result` for inspection or downstream analysis.
+The conformal p-values behind the mask stay available in `detector.last_result`.
+Any PyOD model, a recognized scikit-learn estimator, or a
+[custom detector](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/)
+works in place of `IsolationForest`.
 
-For threshold exploration in one fixed batch, use
-`certificate = detector.fdp_bounds(x_test, confidence=0.95)` and query its
-realized-FDP upper curve. `certificate.select(0.01)` applies the p-value cutoff
-0.01; it does not request FDP at most 1%. The ordinary call prepares one
-default envelope using fresh Monte Carlo sampling, and subsequent queries
-reuse it. Coverage is joint over data and that sampling. Keep the scoring rule
-and family fixed, and do not cherry-pick repeated constructions. The
-[FDP guide](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#post-hoc-simultaneous-fdp-bounds)
-shows a complete example and the separate expert interface for method settings.
+> [!TIP]
+> **Calibration size.** With `n` calibration scores the smallest p-value is
+> `1 / (n + 1)`, so flagging a lone anomaly in a batch of `m` needs roughly
+> `n_calib >= m / alpha`. Below that, `select` can return nothing. More
+> calibration is necessary but not sufficient: if the detector separates
+> anomalies poorly, set a score threshold with `fpr_bounds` instead (below).
 
-### Raw-score false-alarm control
+### Set a score threshold
 
-If the operational requirement is “flag no more than 5% of future inliers,” use
-the raw-score certificate instead of treating an FDR target as a score
-threshold:
+If the requirement is "flag no more than 5% of normal points", certify a raw-score
+threshold instead of targeting an FDR:
 
 ```python
 certificate = detector.fpr_bounds(confidence=0.95)
-scores = detector.score_samples(x_test)
-selected = certificate.select(scores, target_fpr=0.05)
+selected = certificate.select(detector.score_samples(x_test), target_fpr=0.05)
 print(f"Certified threshold: {certificate.threshold_for(0.05)}")
 ```
 
-With probability at least 95% over the clean calibration draw, the certificate
-bounds the population inlier false-alarm rate at every threshold, conditional
-on the independently fitted score map. On that event, the chosen threshold has
-a future-inlier false-alarm probability at most 5%. Calibration and future
-inlier scores must be i.i.d. from the same distribution; exchangeability alone
-is insufficient.
+With 95% probability over the calibration draw, the threshold flags at most 5%
+of future normal points. Calibration and future normal scores must be i.i.d.;
+targets below the certificate's band floor (about 3.85% for 1,000 calibration scores at 95% confidence) give
+an infinite threshold. See
+[raw-score false-alarm control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/#raw-score-false-alarm-control).
 
-The certificate uses the deterministic finite-sample one-sided KS distribution.
-With 1,000 calibration scores at 95% confidence, its finite-threshold band floor
-is about 3.85%, allowing the 5% target here. Smaller targets can produce an
-infinite threshold and an empty selection. Native certificates support
-unweighted `Split` calibration independently of the p-value estimator. This
-does not guarantee a realized false-alarm proportion in a finite batch, FDR,
-FDP, recall, or sequential Ville control.
+### Monitor a stream
 
-### Sequential change monitoring
-
-A fitted `Split` detector can initialize the stream lane without refitting its
-scoring model. The example is self-contained so it can be copied independently
-of the batch example.
+A fitted `Split` detector can start a sequential monitor that raises an alarm when
+the data stops looking like the calibration set.
 
 <details>
-<summary><strong>Show sequential monitoring example</strong></summary>
+<summary><strong>Monitor a stream for change</strong></summary>
 
 ```python
 import numpy as np
@@ -213,10 +195,8 @@ for x_t in x_stream:
 </details>
 
 Under the sequential validity assumptions, the restarted Ville alarm at
-`1 / alpha` controls the probability of ever crossing on one stream. It does
-not control FDR across multiple streams. See the
-[sequential monitoring guide](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
-for the full guarantee scope and other alarm statistics.
+`1 / alpha` bounds the probability of ever raising a false alarm on one stream.
+See the [sequential monitoring guide](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/).
 
 ## Choose a workflow
 
@@ -244,24 +224,19 @@ Claude Code (`/plugin marketplace add OliverHennhoefer/nonconform`, then
 ## Statistical scope
 
 > [!IMPORTANT]
-> **Guarantees are assumption-dependent.** Standard conformal workflows require
-> calibration data and null test cases to be exchangeable. FDR claims additionally
-> require valid p-values or the applicable aggregate null-evidence condition,
-> together with the assumptions of the selected multiple-testing procedure.
-> FPR certificates require clean, i.i.d. calibration and future inlier scores
-> from the same distribution, conditional on an independently fitted score map.
-> Weighted workflows require a plausible covariate-shift model, support
-> overlap, and reliable weights. Sequential martingales require valid sequential
-> conformal p-values; Ville thresholds provide false-alarm control for one valid
-> stream, while CUSUM and Shiryaev-Roberts thresholds are change-evidence triggers
-> that require separate calibration.
+> Every guarantee rests on assumptions. Conformal p-values need calibration data
+> and normal test points to be exchangeable; FDR claims need the assumptions of
+> the chosen multiple-testing procedure; FPR certificates need i.i.d. scores from
+> an independently fitted detector; weighted workflows need a credible
+> covariate-shift model; Ville alarms cover one stream, while CUSUM and
+> Shiryaev-Roberts thresholds need separate calibration.
 
 `nonconform` calibrates detector scores; it cannot make an unsuitable detector
-or mismatched calibration set valid. Spatial or temporal dependence must be
-handled explicitly before applying standard exchangeability-based claims. See
-the guides to [FDR control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/)
+or a mismatched calibration set valid. Handle spatial or temporal dependence
+before relying on exchangeability. Read the guides to
+[FDR control](https://oliverhennhoefer.github.io/nonconform/user_guide/fdr_control/)
 and [sequential monitoring](https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/)
-before relying on error-control statements in a new application.
+before applying a guarantee to a new problem.
 
 ## Citation
 
