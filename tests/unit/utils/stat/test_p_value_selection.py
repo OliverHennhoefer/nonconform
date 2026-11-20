@@ -265,3 +265,52 @@ def test_floor_warning_is_silent_when_one_discovery_is_attainable(
     )
 
     assert fdr_records == []
+
+
+def test_floor_warning_reports_whether_it_warned(fdr_records):
+    assert selection.warn_if_floor_blocks_discovery(
+        np.full(100, 0.5), alpha=0.05, method="bh", n_calibration=199
+    )
+    assert not selection.warn_if_floor_blocks_discovery(
+        np.full(100, 0.5), alpha=0.05, method="bh", n_calibration=5_000
+    )
+
+
+@pytest.mark.parametrize("suggest", [True, False])
+def test_no_discovery_warning_reports_the_missed_threshold(fdr_records, suggest):
+    p_values = np.linspace(0.02, 1.0, 100)
+
+    selection.warn_no_discoveries(
+        p_values,
+        alpha=0.05,
+        method="bh",
+        n_calibration=5_000,
+        suggest_fpr_bounds=suggest,
+        calibration_ruled_out=True,
+    )
+
+    assert len(fdr_records) == 1
+    message = fdr_records[0].getMessage()
+    assert "smallest p-value in this batch is 0.02" in message
+    assert "alpha/m = 0.0005" in message
+    assert "Calibration size is not the limit" in message
+    assert "score_polarity" in message
+    assert ("fpr_bounds()" in message) is suggest
+
+
+def test_no_discovery_warning_uses_storey_threshold(fdr_records):
+    p_values = np.linspace(0.02, 1.0, 100)
+    estimate = selection.storey_null_proportion(p_values, n_calibration=5_000)
+
+    selection.warn_no_discoveries(
+        p_values,
+        alpha=0.05,
+        method="storey",
+        n_calibration=5_000,
+        suggest_fpr_bounds=False,
+        calibration_ruled_out=False,
+    )
+
+    message = fdr_records[0].getMessage()
+    assert "too few calibration scores" in message
+    assert f"alpha/(m*pi0) = {0.05 / (100 * estimate):.3g}" in message

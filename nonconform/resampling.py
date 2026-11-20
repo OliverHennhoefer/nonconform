@@ -21,6 +21,7 @@ Classes:
 from __future__ import annotations
 
 import abc
+import inspect
 import logging
 import math
 import os
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
 
 # Module-level loggers for performance
+_split_logger = logging.getLogger("nonconform.resampling.split")
 _crossval_logger = logging.getLogger("nonconform.resampling.crossval")
 _bootstrap_logger = logging.getLogger("nonconform.resampling.bootstrap")
 
@@ -151,6 +153,21 @@ class BaseStrategy(abc.ABC):
         """Indices of data points used for calibration."""
         pass
 
+    def _repr_params(self) -> dict[str, Any]:
+        """Return the constructor arguments this strategy was configured with."""
+        return {}
+
+    def __repr__(self) -> str:
+        """Show the constructor call, listing only non-default arguments."""
+        signature = inspect.signature(type(self).__init__)
+        shown = []
+        for name, value in self._repr_params().items():
+            parameter = signature.parameters.get(name)
+            if parameter is not None and value == parameter.default:
+                continue
+            shown.append(f"{name}={value!r}")
+        return f"{type(self).__name__}({', '.join(shown)})"
+
 
 class Split(BaseStrategy):
     """Split conformal strategy for fast anomaly detection.
@@ -161,11 +178,24 @@ class Split(BaseStrategy):
     Args:
         n_calib: Size or proportion of data used for calibration.
             If float, must be between 0.0 and 1.0 (proportion).
-            If int, the absolute number of samples. Defaults to 0.1.
+            If int, the absolute number of samples. If None (the default),
+            half of the rows passed to ``fit`` are held out for calibration,
+            rounded down, so the detector trains on at least as many rows as
+            it calibrates on.
+
+    The default favors calibration because the smallest classical p-value is
+    ``1 / (n_calib + 1)``: ``select(alpha=...)`` can flag a lone anomaly in a
+    batch only when ``n_calib >= batch_size / alpha``. The batch size is not
+    known at ``fit``, so the default holds out as much as it can while leaving
+    the detector the larger half. When you know the batch size, pass
+    ``n_calib`` yourself.
 
     Examples:
         ```python
         from nonconform import Split
+
+        # Hold out half of the reference rows (the default)
+        strategy = Split()
 
         # Use 20% of data for calibration
         strategy = Split(n_calib=0.2)
@@ -175,9 +205,9 @@ class Split(BaseStrategy):
         ```
     """
 
-    def __init__(self, n_calib: float | int = 0.1) -> None:
+    def __init__(self, n_calib: float | int | None = None) -> None:
         super().__init__()
-        self._calib_size: float | int = n_calib
+        self._calib_size: float | int | None = n_calib
         self._calibration_ids: list[int] | None = None
 
     def _validate_n_calib(self, n_samples: int) -> int:
@@ -188,7 +218,9 @@ class Split(BaseStrategy):
                 f"one to calibrate it; got {n_samples} sample(s)."
             )
         n_calib = self._calib_size
-        if isinstance(n_calib, float):
+        if n_calib is None:
+            n_calib_abs = n_samples // 2
+        elif isinstance(n_calib, float):
             if not (0 < n_calib < 1):
                 raise ValueError(
                     f"Proportional n_calib must be in (0, 1), got {n_calib}"
@@ -201,7 +233,7 @@ class Split(BaseStrategy):
                 )
             n_calib_abs = n_calib
         else:
-            raise TypeError(f"n_calib must be int or float, got {type(n_calib)}")
+            raise TypeError(f"n_calib must be int, float or None, got {type(n_calib)}")
 
         if n_calib_abs >= n_samples:
             if n_calib_abs == n_samples:
@@ -233,10 +265,23 @@ class Split(BaseStrategy):
             Tuple of (list with trained detector, calibration scores array).
         """
         x = _as_rows(x)
-        self._validate_n_calib(x.shape[0])
+        n_calib = self._validate_n_calib(x.shape[0])
+        if self._calib_size is None:
+            _split_logger.info(
+                "Split() held out %d of %d rows for calibration. select() can "
+                "flag a lone anomaly in batches of up to alpha * %d rows "
+                "(n_calib >= batch_size / alpha). Pass Split(n_calib=...) to "
+                "choose the size.",
+                n_calib,
+                x.shape[0],
+                n_calib,
+            )
         x_id = np.arange(x.shape[0])
         train_id, calib_id = train_test_split(
-            x_id, test_size=self._calib_size, shuffle=True, random_state=seed
+            x_id,
+            test_size=n_calib if self._calib_size is None else self._calib_size,
+            shuffle=True,
+            random_state=seed,
         )
 
         _try_set_random_state(detector, seed)
@@ -257,9 +302,12 @@ class Split(BaseStrategy):
             self._calibration_ids.copy() if self._calibration_ids is not None else None
         )
 
+    def _repr_params(self) -> dict[str, Any]:
+        return {"n_calib": self._calib_size}
+
     @property
-    def calib_size(self) -> float | int:
-        """Returns the calibration size or proportion."""
+    def calib_size(self) -> float | int | None:
+        """Returns the calibration size or proportion (None: half of the rows)."""
         return self._calib_size
 
 
@@ -322,6 +370,9 @@ class DerandomizedSplits(BaseStrategy):
         self.alpha_bh = alpha_bh
         self.tie_seed = tie_seed
         self._effective_tie_seed: int | None = None
+
+    def _repr_params(self) -> dict[str, Any]:
+        return self.get_params()
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         """Return constructor parameters for inspection and sklearn cloning."""
@@ -586,6 +637,9 @@ class CrossValidation(BaseStrategy):
     def calibration_ids(self) -> list[int]:
         """Indices of samples used for calibration."""
         return self._calibration_ids.copy()
+
+    def _repr_params(self) -> dict[str, Any]:
+        return {"k": self._k, "mode": self.mode, "shuffle": self._shuffle}
 
     @property
     def k(self) -> int | None:
@@ -882,6 +936,13 @@ class JackknifeBootstrap(BaseStrategy):
     def calibration_ids(self) -> list[int]:
         """Indices used for calibration (all samples in JaB+)."""
         return self._calibration_ids.copy()
+
+    def _repr_params(self) -> dict[str, Any]:
+        return {
+            "n_bootstraps": self._n_bootstraps,
+            "aggregation_method": self._aggregation_method,
+            "mode": self._mode.value,
+        }
 
     @property
     def n_bootstraps(self) -> int:

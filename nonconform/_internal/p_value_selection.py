@@ -126,7 +126,7 @@ def warn_if_floor_blocks_discovery(
     method: SelectionMethod,
     n_calibration: int,
     grouped: bool = False,
-) -> None:
+) -> bool:
     """Warn when the classical p-value floor rules out a single discovery.
 
     Call only after an empty selection of classical empirical p-values. With
@@ -134,6 +134,9 @@ def warn_if_floor_blocks_discovery(
     the step-up rule cannot select one isolated point when that floor exceeds
     its first threshold ``alpha / (m * pi0)``. For group-conditional p-values,
     ``n`` is the largest calibration group among the test points.
+
+    Returns:
+        Whether the warning was logged.
     """
     n_test = p_values.size
     proportion = null_proportion(p_values, method=method, n_calibration=n_calibration)
@@ -141,7 +144,7 @@ def warn_if_floor_blocks_discovery(
     # floor 1 / (n + 1) without dividing by a possibly tiny threshold.
     scaled_floor = n_test * proportion / (n_calibration + 1)
     if scaled_floor <= alpha * (1.0 + 1e-12):
-        return
+        return False
     if method == "bh":
         rule = (
             f"a single BH discovery among m = {n_test} tests needs "
@@ -184,6 +187,64 @@ def warn_if_floor_blocks_discovery(
         consequence,
         required,
         target,
+    )
+    return True
+
+
+def warn_no_discoveries(
+    p_values: np.ndarray,
+    *,
+    alpha: float,
+    method: SelectionMethod,
+    n_calibration: int,
+    suggest_fpr_bounds: bool,
+    calibration_ruled_out: bool,
+) -> None:
+    """Explain an empty standard selection the p-value floor does not explain.
+
+    Call only after an empty standard selection for which
+    ``warn_if_floor_blocks_discovery`` did not warn. With
+    ``calibration_ruled_out``, the p-values are classical and their floor
+    permitted a single discovery, so the evidence in the batch was the limit.
+    Otherwise (randomized or calibration-conditional p-values) the calibration
+    size remains one of the possible causes.
+    """
+    n_test = p_values.size
+    proportion = null_proportion(p_values, method=method, n_calibration=n_calibration)
+    threshold = alpha / (n_test * proportion)
+    rule = "alpha/m" if method == "bh" else "alpha/(m*pi0)"
+    if calibration_ruled_out:
+        causes = (
+            "Calibration size is not the limit here: either the batch holds no "
+            "anomalies, or they score too close to normal points for the "
+            "detector to tell them apart."
+        )
+    else:
+        causes = (
+            "Either the batch holds no anomalies, they score too close to "
+            "normal points for the detector to tell them apart, or there are "
+            "too few calibration scores for this batch (aim for n_calib >= "
+            "batch_size / alpha)."
+        )
+    fallback = (
+        " If anomalies are expected but separate poorly, "
+        "detector.fpr_bounds() gives a score threshold that caps the "
+        "false-alarm rate instead of the share of false flags in a list."
+        if suggest_fpr_bounds
+        else ""
+    )
+    _logger.warning(
+        "select() made no discoveries. The smallest p-value in this batch is "
+        "%.3g, above %s = %.3g that a single discovery needs (m = %d tests), "
+        "and no larger group of points met its step-up threshold either. "
+        "%s Check that score_polarity matches the detector's score "
+        "direction.%s",
+        float(np.min(p_values)),
+        rule,
+        threshold,
+        n_test,
+        causes,
+        fallback,
     )
 
 

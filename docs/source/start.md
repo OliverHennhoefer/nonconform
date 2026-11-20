@@ -53,7 +53,8 @@ works.
 
 ## How much calibration data
 
-`Split(n_calib=...)` holds out reference points to calibrate the scores. Size it
+`Split(n_calib=...)` holds out reference points to calibrate the scores. Without
+`n_calib`, `Split()` holds out half of them. If you know the batch size, size it
 from the batch:
 
 ```text
@@ -74,7 +75,8 @@ unflagged.
 
 If the reference data are too small, score smaller batches or use a threshold.
 When a selection comes back empty for this reason, nonconform logs the size it
-would need. A large enough calibration set makes an empty list rarer, but cannot
+would need. When it comes back empty for another reason, the warning says so
+and reports the smallest p-value and the threshold it missed. A large enough calibration set makes an empty list rarer, but cannot
 rule one out when the anomalies score barely above normal points;
 [Screen a batch for intrusions](use_cases/batch_screening.md) shows both on
 real data.

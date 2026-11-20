@@ -218,6 +218,14 @@ BH, `alpha / (m * pi0_hat)` for Storey-BH), it logs a warning on the
 discovery. The warning does not change the selection. Randomized, conditional,
 KDE-based, and weighted values have different floors and are not checked.
 
+Any other empty standard selection logs a different warning on the same logger.
+It reports the smallest p-value in the batch and the threshold a single
+discovery needed. For classical `Empirical` p-values whose floor permitted a
+discovery, it states that calibration size is not the cause: either the batch
+holds no anomalies or the detector does not separate them from normal points.
+With `Split`, it also points to `fpr_bounds()`. Weighted selections are not
+covered.
+
 ## Adaptive BH with Storey's estimator
 
 Under its assumptions, BH keeps the FDR at most `pi0 * alpha`, where `pi0` is

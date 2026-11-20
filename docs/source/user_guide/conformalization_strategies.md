@@ -56,8 +56,16 @@ print(fixed_size.calib_size)
 
 `n_calib` accepts either:
 
-- a float strictly between `0` and `1`, interpreted as a proportion; or
-- an integer of at least `1` that leaves at least one row for fitting.
+- a float strictly between `0` and `1`, interpreted as a proportion;
+- an integer of at least `1` that leaves at least one row for fitting; or
+- `None`, the default, which holds out half of the rows, rounded down.
+
+The default favors calibration because `select(...)` can flag a lone anomaly
+only when `n_calib >= batch_size / alpha`, and the batch size is not known at
+`fit(...)`. It still leaves the detector the larger half. `Split()` logs the
+size it chose at INFO level on `nonconform.resampling.split`. When you know the
+batch size, pass `n_calib` yourself. Up to version 2.1 the default was `0.1`;
+pass `Split(n_calib=0.1)` to keep that split.
 
 For a proportional split, the calibration count is rounded up. With classical
 empirical p-values and `n_cal` calibration scores, the attainable values are

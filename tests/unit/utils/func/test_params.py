@@ -29,17 +29,17 @@ class ParamsDetector:
     ("params", "seed", "expected"),
     [
         (
-            {"contamination": 0.1, "n_jobs": 1, "random_state": None},
+            {"contamination": 0.1, "n_jobs": None, "random_state": None},
             99,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1, "random_state": 99},
         ),
         (
-            {"contamination": 0.5, "n_jobs": 1, "random_state": 999},
+            {"contamination": 0.5, "n_jobs": None, "random_state": 999},
             42,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1, "random_state": 42},
         ),
         (
-            {"n_jobs": 1, "random_state": None},
+            {"n_jobs": None, "random_state": None},
             42,
             {"n_jobs": -1, "random_state": 42},
         ),
@@ -49,15 +49,15 @@ class ParamsDetector:
             {"contamination": MIN_CONTAMINATION, "random_state": 42},
         ),
         (
-            {"contamination": 0.1, "n_jobs": 1},
+            {"contamination": 0.1, "n_jobs": None},
             42,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1},
         ),
         ({"seed": None}, 42, {"seed": 42}),
         ({"random_seed": None}, 99, {"random_seed": 99}),
-        ({"n_threads": 1}, None, {"n_threads": -1}),
+        ({"n_threads": None}, None, {"n_threads": -1}),
         (
-            {"num_workers": 1, "random_state": None},
+            {"num_workers": None, "random_state": None},
             42,
             {"num_workers": -1, "random_state": 42},
         ),
@@ -107,6 +107,36 @@ def test_missing_random_state_warns_only_when_seed_is_given(
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert ("Reproducibility cannot be guaranteed" in caplog.text) is warns
     assert ("random_state" in caplog.text) is warns
+
+
+class DefaultsDetector(ParamsDetector):
+    """Detector double that declares its parallelism default like PyOD."""
+
+    def __init__(self, n_jobs=1, contamination=0.1):
+        super().__init__(n_jobs=n_jobs, contamination=contamination)
+
+
+@pytest.mark.parametrize(
+    ("detector", "key", "expected"),
+    [
+        (ParamsDetector(n_jobs=None), "n_jobs", -1),
+        (DefaultsDetector(), "n_jobs", -1),
+        (DefaultsDetector(n_jobs=2), "n_jobs", 2),
+        (ParamsDetector(n_jobs=3), "n_jobs", 3),
+        (ParamsDetector(n_threads=4), "n_threads", 4),
+    ],
+    ids=[
+        "unset-none",
+        "declared-default",
+        "user-value",
+        "unknown-default-kept",
+        "alias-user-value",
+    ],
+)
+def test_parallelism_is_filled_only_when_left_at_default(detector, key, expected):
+    set_params(detector, seed=None)
+
+    assert detector.params[key] == expected
 
 
 def test_random_iteration_derives_reproducible_distinct_seeds():

@@ -261,3 +261,29 @@ def test_pyod_pipeline_polarity_and_blocked_final_step(nonconform_caplog) -> Non
 
     with pytest.raises(ValueError, match="ECOD"):
         ConformalDetector(make_pipeline(StandardScaler(), ECOD()), Split())
+
+
+def test_user_set_parallelism_is_kept() -> None:
+    standalone = ConformalDetector(IsolationForest(n_jobs=2), Split(n_calib=0.3))
+    pipeline = ConformalDetector(
+        make_pipeline(StandardScaler(), IsolationForest(n_jobs=3)), Split(n_calib=0.3)
+    )
+
+    assert standalone.detector.get_params()["n_jobs"] == 2
+    assert pipeline.detector.get_params()["isolationforest__n_jobs"] == 3
+
+
+def test_empty_selection_with_enough_calibration_explains_why(
+    nonconform_caplog,
+) -> None:
+    rng = np.random.default_rng(3)
+    detector = ConformalDetector(
+        IsolationForest(n_estimators=20, random_state=0), Split(n_calib=1_000), seed=0
+    ).fit(rng.normal(size=(1_500, 2)))
+
+    selected = detector.select(rng.normal(size=(50, 2)), alpha=0.1)
+
+    assert not selected.any()
+    assert "Calibration size is not the limit" in nonconform_caplog.text
+    assert "fpr_bounds()" in nonconform_caplog.text
+    assert "cannot fall below" not in nonconform_caplog.text
