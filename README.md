@@ -25,7 +25,7 @@
 
 ---
 
-A detector ranks points by how unusual they look but leaves the cutoff to you.
+**A detector ranks points by how unusual they look but leaves the cutoff to you.**
 The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
