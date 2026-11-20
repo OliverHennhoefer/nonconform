@@ -11,7 +11,7 @@ methods or approaches for conformal anomaly detection.
 
 Prerequisites:
 
-- Python 3.12 or newer
+- Python 3.11 or newer
 - Git
 - [uv](https://docs.astral.sh/uv/)
 

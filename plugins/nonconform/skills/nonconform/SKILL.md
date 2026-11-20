@@ -23,7 +23,7 @@ pip install nonconform            # core: scikit-learn detectors, all decision m
 pip install "nonconform[pyod]"    # adds PyOD's detectors
 ```
 
-Other extras: `[fdr]` for online FDR with `online-fdr`, `[probabilistic]` for KDE-based p-values, `[data]` for benchmark datasets. Python 3.12 or newer.
+Other extras: `[fdr]` for online FDR with `online-fdr`, `[probabilistic]` for KDE-based p-values, `[data]` for benchmark datasets. Python 3.11 or newer.
 
 ## Step 1: Pin down the decision
 

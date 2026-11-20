@@ -29,21 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column names, with scikit-learn's messages. SciPy sparse input raises a
   `TypeError` that suggests `X.toarray()`.
 
-### Fixed
-
-- A scikit-learn `Pipeline` now takes its score polarity from its final step.
-  Before, `make_pipeline(StandardScaler(), IsolationForest())` with
-  `score_polarity` omitted was treated as higher-is-anomalous, which silently
-  inverted every decision, and `score_polarity="auto"` raised. Pipelines whose
-  final step is a blocked batch-adaptive PyOD detector are now rejected too.
-- `seed` now reaches every `Pipeline` step that exposes `random_state`, and
-  `n_jobs` and `contamination` reach the final step (for example
-  `isolationforest__random_state`), so seeded pipeline runs are reproducible.
-- `LocalOutlierFactor()` without `novelty=True` now fails at construction with
-  a message naming `novelty=True`, instead of an `AttributeError` at scoring.
-
 ### Changed
 
+- nonconform now supports Python 3.11 (`requires-python = ">=3.11"`). CI tests
+  3.11, 3.12 and 3.13.
+- The NumPy floor is now 2.0 (was 2.2). The test suite passes on the lowest
+  declared versions: NumPy 2.0.0, pandas 2.2.2, SciPy 1.13.1 and
+  scikit-learn 1.5.2.
+- The SciPy floor is now 1.13.1, the first release built against NumPy 2.
+- oddball (in the `data` and `all` extras) requires Python 3.12, so on Python
+  3.11 those extras install without it. PyArrow is still installed.
 - Omitting `score_polarity` for a detector nonconform does not recognize now
   logs a warning that higher-is-anomalous was assumed. The resolved polarity is
   unchanged.
@@ -61,6 +56,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   changes later clones but not the current detector.
 - Shape errors use scikit-learn's wording, for example "X has 2 features, but
   ConformalDetector is expecting 3 features as input."
+
+### Fixed
+
+- A scikit-learn `Pipeline` now takes its score polarity from its final step.
+  Before, `make_pipeline(StandardScaler(), IsolationForest())` with
+  `score_polarity` omitted was treated as higher-is-anomalous, which silently
+  inverted every decision, and `score_polarity="auto"` raised. Pipelines whose
+  final step is a blocked batch-adaptive PyOD detector are now rejected too.
+- `seed` now reaches every `Pipeline` step that exposes `random_state`, and
+  `n_jobs` and `contamination` reach the final step (for example
+  `isolationforest__random_state`), so seeded pipeline runs are reproducible.
+- `LocalOutlierFactor()` without `novelty=True` now fails at construction with
+  a message naming `novelty=True`, instead of an `AttributeError` at scoring.
 
 ## [2.0.1] - 2026-11-01
 
