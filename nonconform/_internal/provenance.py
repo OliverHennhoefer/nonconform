@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
 
 from .constants import TieBreakMode
 
@@ -79,13 +78,10 @@ def restore_fields(instance: Any, state: Sequence[Any], **defaults: Any) -> None
 def batch_signature(x: Any) -> BatchSignature:
     """Return a stable signature for a concrete batch.
 
-    A pandas DataFrame is hashed by its values. A SciPy sparse matrix is hashed
-    from its canonical CSR arrays, without densifying it.
+    A pandas DataFrame is hashed by its values.
     """
     if isinstance(x, pd.DataFrame):
         x = x.to_numpy()
-    elif sparse.issparse(x):
-        return _sparse_batch_signature(x)
     contiguous = np.ascontiguousarray(x)
     hasher = hashlib.blake2b(digest_size=16)
     if contiguous.dtype.hasobject:
@@ -116,21 +112,3 @@ def parse_result_provenance(result: ConformalResult) -> ResultProvenance | None:
     if native is not None and not isinstance(native, ResultProvenance):
         raise ValueError("result contains invalid internal provenance.")
     return native
-
-
-def _sparse_batch_signature(x: Any) -> BatchSignature:
-    """Hash a sparse batch from canonical CSR data, indices, and row pointers."""
-    csr = sparse.csr_matrix(x, copy=True)
-    csr.sum_duplicates()
-    csr.sort_indices()
-    hasher = hashlib.blake2b(digest_size=16)
-    hasher.update(b"csr")
-    for array in (csr.data, csr.indices, csr.indptr):
-        contiguous = np.ascontiguousarray(array)
-        hasher.update(str(contiguous.dtype).encode())
-        hasher.update(contiguous.tobytes())
-    return BatchSignature(
-        shape=tuple(csr.shape),
-        dtype=f"sparse[{csr.dtype}]",
-        digest=hasher.hexdigest(),
-    )

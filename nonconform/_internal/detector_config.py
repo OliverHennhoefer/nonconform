@@ -40,6 +40,7 @@ class DetectorConfiguration:
     verify_prepared_batch_content: bool
     alpha: float
     weighted: bool
+    accepts_frames: bool
     constructor_params: dict[str, Any]
 
 
@@ -124,8 +125,22 @@ def prepare_configuration(
         verify_prepared_batch_content=verify_prepared_batch_content,
         alpha=alpha,
         weighted=weighted,
+        accepts_frames=_accepts_frames(detector),
         constructor_params=constructor_params,
     )
+
+
+def _accepts_frames(detector: Any) -> bool:
+    """Return whether the detector should receive DataFrames unchanged.
+
+    scikit-learn estimators and Pipelines use column names, for example in a
+    ColumnTransformer. PyOD and custom detectors keep receiving NumPy arrays.
+    """
+    from sklearn.base import BaseEstimator
+
+    from nonconform.adapters import _looks_like_pyod
+
+    return isinstance(detector, BaseEstimator) and not _looks_like_pyod(detector)
 
 
 def _validate_alpha(alpha: Any) -> float:

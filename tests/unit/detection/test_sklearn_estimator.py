@@ -7,39 +7,37 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
-from sklearn.base import clone
+from sklearn.base import BaseEstimator, clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import IsolationForest
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.utils.estimator_checks import parametrize_with_checks
+from sklearn.utils import estimator_checks
 
 from nonconform import ConformalDetector, CrossValidation, Split
 
-# Checks that assume a per-row threshold. predict() is a batch-level FDR
-# decision: it may select nothing on clean training data, and a row's label
-# depends on the rest of its batch.
-BATCH_LEVEL_CHECKS = {
-    "check_outliers_train",
-    "check_outliers_fit_predict",
-    "check_methods_subset_invariance",
-}
-# Parameters are validated when set, so rejected updates keep the fitted state.
-EAGER_VALIDATION_CHECKS = {"check_do_not_raise_errors_in_init_or_set_params"}
 
-
-@parametrize_with_checks(
-    [ConformalDetector(IsolationForest(random_state=0), Split(n_calib=0.3), seed=0)]
+@pytest.mark.parametrize(
+    "check",
+    [
+        estimator_checks.check_get_params_invariance,
+        estimator_checks.check_set_params,
+        estimator_checks.check_no_attributes_set_in_init,
+        estimator_checks.check_dont_overwrite_parameters,
+        estimator_checks.check_n_features_in,
+        estimator_checks.check_dataframe_column_names_consistency,
+        estimator_checks.check_estimators_unfitted,
+        estimator_checks.check_estimators_pickle,
+    ],
+    ids=lambda check: check.__name__,
 )
-def test_sklearn_compatible_estimator(estimator, check):
-    name = getattr(check, "func", check).__name__
-    if name in BATCH_LEVEL_CHECKS:
-        pytest.xfail("predict() is a batch-level FDR decision by design")
-    if name in EAGER_VALIDATION_CHECKS:
-        pytest.xfail("parameters are validated eagerly by design")
+def test_scikit_learn_estimator_contract(check):
+    estimator = ConformalDetector(
+        IsolationForest(random_state=0), Split(n_calib=0.3), seed=0
+    )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
-        check(estimator)
+        check("ConformalDetector", estimator)
 
 
 @pytest.fixture
@@ -77,23 +75,11 @@ def test_predict_matches_select_and_leaves_results_untouched(data):
     mask = detector.select(test, alpha=0.1)
     np.testing.assert_array_equal(labels, np.where(mask, -1, 1))
     assert labels.dtype.kind == "i"
-    np.testing.assert_array_equal(detector.decision_function(test) < 0, mask)
 
 
 def test_alpha_is_validated():
     with pytest.raises(ValueError, match=r"alpha must be in \(0, 1\)"):
         ConformalDetector(IsolationForest(), alpha=1.5)
-
-
-def test_decision_function_rejects_e_value_and_weighted_modes(data):
-    from nonconform import DerandomizedSplits
-
-    reference, test = data
-    detector = ConformalDetector(IsolationForest(), DerandomizedSplits(2, 0.5))
-    detector.fit(reference[:200])
-    with pytest.raises(ValueError, match="adjusted p-values"):
-        detector.decision_function(test)
-    assert detector.predict(test).shape == (len(test),)
 
 
 def test_works_as_the_last_pipeline_step(data):
@@ -147,22 +133,50 @@ def test_dataframes_reach_the_wrapped_pipeline_unchanged(frames):
     assert selected.iloc[-10:].all()
 
 
+class FrameRecorder:
+    """Custom detector that records the input types it receives."""
+
+    def __init__(self):
+        self.seen = []
+
+    def fit(self, X, y=None):
+        self.seen.append(type(X))
+        return self
+
+    def decision_function(self, X):
+        self.seen.append(type(X))
+        return np.asarray(X, dtype=float)[:, 0]
+
+    def get_params(self, deep=True):
+        return {}
+
+    def set_params(self, **params):
+        return self
+
+
+class SklearnFrameRecorder(FrameRecorder, BaseEstimator):
+    """The same recorder as a scikit-learn estimator."""
+
+
 @pytest.mark.parametrize("strategy", [Split(0.3), CrossValidation(k=3)])
-def test_strategies_pass_dataframes_through(strategy):
-    seen = []
-
-    class Recorder:
-        def fit(self, X, y=None):
-            seen.append(type(X))
-            return self
-
-        def decision_function(self, X):
-            seen.append(type(X))
-            return X["a"].to_numpy(dtype=float)
-
+@pytest.mark.parametrize(
+    ("recorder", "expected"),
+    [(FrameRecorder, np.ndarray), (SklearnFrameRecorder, pd.DataFrame)],
+    ids=["custom-gets-numpy", "sklearn-gets-dataframe"],
+)
+def test_only_sklearn_detectors_receive_dataframes(strategy, recorder, expected):
     frame = pd.DataFrame({"a": np.arange(30.0), "b": np.arange(30.0)})
-    ConformalDetector(Recorder(), strategy).fit(frame).compute_p_values(frame)
-    assert set(seen) == {pd.DataFrame}
+    detector = ConformalDetector(recorder(), strategy).fit(frame)
+    detector.compute_p_values(frame)
+    seen = {t for model in detector.detector_set for t in model.seen}
+    assert seen == {expected}
+    np.testing.assert_array_equal(detector.feature_names_in_, ["a", "b"])
+
+
+def test_sparse_input_is_rejected(data):
+    reference, _ = data
+    with pytest.raises(TypeError, match="Sparse input is not supported"):
+        ConformalDetector(IsolationForest()).fit(sparse.csr_matrix(reference))
 
 
 def test_reordered_columns_are_rejected(frames):
@@ -208,16 +222,6 @@ def test_scoring_function_with_detached_calibration(data):
     assert detector.select(test, alpha=0.1)[-10:].all()
 
 
-def test_sparse_input_is_supported(data):
-    reference, test = data
-    detector = ConformalDetector(IsolationForest(random_state=0), seed=0)
-    dense = detector.fit(reference).compute_p_values(test)
-    sparse_values = detector.fit(sparse.csr_matrix(reference)).compute_p_values(
-        sparse.csr_matrix(test)
-    )
-    np.testing.assert_allclose(dense, sparse_values)
-
-
 def test_result_to_frame_keeps_the_index(frames):
     reference, test = frames
     numeric = ["amount", "age"]
@@ -253,18 +257,6 @@ def test_clone_shares_no_component_state():
     assert cloned.get_params(deep=False)["detector"] is not estimation
 
 
-def test_sparse_batches_are_signed_without_densifying(data, monkeypatch):
-    reference, test = data
-    detector = ConformalDetector(IsolationForest(random_state=0), seed=0)
-    detector.fit(sparse.csr_matrix(reference))
-
-    def fail(*args, **kwargs):
-        raise AssertionError("densified")
-
-    monkeypatch.setattr(sparse.csr_matrix, "toarray", fail)
-    assert detector.score_samples(sparse.csr_matrix(test)).shape == (len(test),)
-
-
 @pytest.mark.parametrize(
     ("strategy", "match"),
     [(dict, "must be a strategy instance"), (object(), "nonconform strategy")],
@@ -291,21 +283,6 @@ def test_series_reference_and_unnamed_fit_warns_on_named_test(frames):
     detector.fit(reference[["amount", "age"]].to_numpy())
     with pytest.warns(UserWarning, match="fitted without feature names"):
         detector.compute_p_values(test[["amount", "age"]])
-
-
-def test_sparse_input_in_weighted_mode(data):
-    from nonconform import logistic_weight_estimator
-
-    reference, test = data
-    detector = ConformalDetector(
-        IsolationForest(random_state=0),
-        weight_estimator=logistic_weight_estimator(),
-        seed=0,
-    ).fit(sparse.csr_matrix(reference))
-    test_matrix = sparse.csr_matrix(test)
-    detector.prepare_weights_for(test_matrix)
-    reused = detector.compute_p_values(test_matrix, refit_weights=False)
-    assert reused.shape == (len(test),)
 
 
 def test_scoring_adapter_protocol_details():

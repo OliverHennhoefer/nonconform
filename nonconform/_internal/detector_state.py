@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from nonconform.structures import AnomalyDetector
 
 
-FeatureBatch = Any  # np.ndarray, pd.DataFrame, or a SciPy sparse matrix
+FeatureBatch = np.ndarray | pd.DataFrame
 
 
 def as_feature_batch(values: Any, *, n_features: int | None = None) -> FeatureBatch:
@@ -26,17 +26,11 @@ def as_feature_batch(values: Any, *, n_features: int | None = None) -> FeatureBa
 
     A pandas DataFrame is returned unchanged so the wrapped detector sees its
     column names and dtypes; a Series becomes a one-column DataFrame. Other
-    inputs are converted to a NumPy array, except SciPy sparse matrices,
-    which pass through in CSR format.
+    inputs are converted to a NumPy array.
     """
     if isinstance(values, pd.Series):
         values = values.to_frame()
-    if isinstance(values, pd.DataFrame):
-        batch = values
-    elif sparse.issparse(values):
-        batch = values.tocsr()
-    else:
-        batch = np.asarray(values)
+    batch = values if isinstance(values, pd.DataFrame) else as_feature_input(values)
     if batch.ndim != 2:
         raise ValueError(
             "x must be a two-dimensional batch with features; "
@@ -58,19 +52,24 @@ def as_feature_batch(values: Any, *, n_features: int | None = None) -> FeatureBa
 
 
 def take_rows(x: FeatureBatch, rows: Any) -> FeatureBatch:
-    """Select rows by position from an array, DataFrame, or sparse matrix."""
+    """Select rows by position from a NumPy array or a pandas DataFrame."""
     if isinstance(x, pd.DataFrame):
         return x.iloc[rows]
     return x[rows]
 
 
 def as_array(x: FeatureBatch) -> np.ndarray:
-    """Return the dense NumPy values of a feature batch."""
-    if isinstance(x, pd.DataFrame):
-        return x.to_numpy()
-    if sparse.issparse(x):
-        return x.toarray()
-    return np.asarray(x)
+    """Return the NumPy values of a feature batch."""
+    return x.to_numpy() if isinstance(x, pd.DataFrame) else np.asarray(x)
+
+
+def as_feature_input(values: Any) -> np.ndarray:
+    """Convert non-pandas input to NumPy, rejecting sparse matrices."""
+    if sparse.issparse(values):
+        raise TypeError(
+            "Sparse input is not supported. Convert it with X.toarray() first."
+        )
+    return np.asarray(values)
 
 
 def feature_names_of(x: Any) -> np.ndarray | None:
@@ -84,6 +83,14 @@ def feature_names_of(x: Any) -> np.ndarray | None:
     if len(columns) and all(isinstance(name, str) for name in columns):
         return columns
     return None
+
+
+def _name_list(names: list[str], limit: int = 5) -> str:
+    """Format names one per line, as scikit-learn does."""
+    lines = [f"- {name}\n" for name in names[:limit]]
+    if len(names) > limit:
+        lines.append("- ...\n")
+    return "".join(lines)
 
 
 def check_feature_names(
@@ -118,11 +125,10 @@ def check_feature_names(
     missing = sorted(set(fitted) - set(names))
     message = "The feature names should match those that were passed during fit.\n"
     if unexpected:
-        message += f"Feature names unseen at fit time:\n- {', '.join(unexpected)}\n"
+        message += "Feature names unseen at fit time:\n" + _name_list(unexpected)
     if missing:
-        message += (
-            "Feature names seen at fit time, yet now missing:\n"
-            f"- {', '.join(missing)}\n"
+        message += "Feature names seen at fit time, yet now missing:\n" + _name_list(
+            missing
         )
     if not unexpected and not missing:
         message += "Feature names must be in the same order as they were in fit.\n"

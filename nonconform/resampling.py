@@ -30,7 +30,6 @@ from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
 from sklearn.model_selection import KFold, train_test_split
 from tqdm import tqdm
 
@@ -67,8 +66,6 @@ def _as_rows(x: pd.DataFrame | pd.Series | np.ndarray) -> pd.DataFrame | np.ndar
         return x
     if isinstance(x, pd.Series):
         return x.to_numpy(copy=False)
-    if sparse.issparse(x):
-        return x.tocsr()
     return np.asarray(x)
 
 

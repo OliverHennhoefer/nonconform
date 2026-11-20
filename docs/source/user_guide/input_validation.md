@@ -20,7 +20,7 @@ validity, adequate power, or reliable importance weights.
 | `seed` | `None` or a nonnegative integer (built-in or NumPy integer), excluding Boolean values | Controls supported stochastic components and deterministic seed derivation |
 | `verbose` | `True` or `False` | Controls aggregation progress; resampling and weighting progress also depend on logger levels |
 | `verify_prepared_batch_content` | `True` or `False` | When true, prepared weighted state is tied to batch values, shape, and dtype |
-| `alpha` (constructor) | float strictly between `0` and `1`, default `0.05` | FDR target used by `predict(...)` and `decision_function(...)` |
+| `alpha` (constructor) | float strictly between `0` and `1`, default `0.05` | FDR target used by `predict(...)` |
 | `select(..., alpha=...)` | float strictly between `0` and `1` | Target level for the selected FDR procedure |
 
 The detector must be fitted with `fit(...)` or detached calibration must be

@@ -278,8 +278,9 @@ An object with `fit` and `decision_function` but without `get_params` and
 
 ## DataFrames
 
-A pandas DataFrame reaches the wrapped detector unchanged, so a `Pipeline`
-with a `ColumnTransformer` can select columns by name. `ConformalDetector`
+A pandas DataFrame reaches scikit-learn detectors and Pipelines unchanged, so
+a `ColumnTransformer` can select columns by name. PyOD and custom detectors
+receive NumPy arrays, as before. For every detector, `ConformalDetector`
 records `feature_names_in_` at fit time and, like scikit-learn estimators,
 rejects test data whose columns are renamed or reordered. Results for pandas
 input keep the test batch's index, and `last_result.to_frame()` returns the
@@ -287,19 +288,18 @@ scores and p-values as a DataFrame.
 
 ## As a scikit-learn estimator
 
-`ConformalDetector` is a scikit-learn `BaseEstimator` and `OutlierMixin`, so
-`clone`, `get_params`, `set_params`, and `GridSearchCV` parameter grids work,
-and it can be the last step of a `Pipeline`. Omitting `strategy` uses
-`Split()`.
+`ConformalDetector` is a scikit-learn `BaseEstimator`, whatever detector it
+wraps. `clone`, `get_params`, and `set_params` work, and it can be the last
+step of a `Pipeline`. Omitting `strategy` uses `Split()`.
 
 `predict(X)` runs `select(X, alpha=alpha)` on the whole batch and returns `-1`
 for selected anomalies and `1` otherwise, with `alpha` set in the constructor
 (default `0.05`). The labels are a batch-level decision with false discovery
 rate control, not a per-row threshold: the same row can be labelled
-differently in a different batch. `decision_function(X)` returns the
-Benjamini-Hochberg adjusted p-value minus `alpha`, negative for selected rows.
-`score_samples(X)` keeps the `nonconform` convention of larger values for more
-anomalous rows.
+differently in a different batch, so predict on the complete test batch at
+once. PyOD's own `predict` returns `0`/`1`; `ConformalDetector` follows
+scikit-learn's `-1`/`1`. `score_samples(X)` keeps the `nonconform` convention
+of larger values for more anomalous rows.
 
 ```python
 import numpy as np
@@ -320,12 +320,13 @@ pipeline = make_pipeline(
 print(np.flatnonzero(pipeline.predict(x_test) == -1))
 ```
 
-scikit-learn's `check_estimator` passes except for checks that conflict with
-this design: `check_outliers_train` and `check_outliers_fit_predict` expect
-some training rows to be flagged, `check_methods_subset_invariance` expects a
-row's label not to depend on its batch, and, from scikit-learn 1.6,
-`check_do_not_raise_errors_in_init_or_set_params` expects parameters to be
-validated only at fit time.
+!!! warning "Tuning without p-hacking"
+
+    Tune detector settings only on data that is not later used for
+    calibration or testing, for example a labeled validation set. Never choose
+    settings by the number of discoveries or the size of the p-values on the
+    batch you report: the FDR guarantee holds for one procedure fixed in
+    advance, not for the best of several tries.
 
 ## Automatic parameter normalization
 

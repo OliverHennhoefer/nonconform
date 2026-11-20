@@ -19,12 +19,11 @@ import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pandas as pd
-from scipy import sparse
-from sklearn.base import BaseEstimator, OutlierMixin
+from sklearn.base import BaseEstimator
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
@@ -50,6 +49,7 @@ from ._internal.detector_state import (
     PreparedWeights,
     as_array,
     as_feature_batch,
+    as_feature_input,
     check_feature_names,
     feature_names_of,
     take_rows,
@@ -101,16 +101,15 @@ def _as_batch_with_index(
 ) -> tuple[pd.DataFrame | np.ndarray, pd.Index | None]:
     """Return the batch for the wrapped detector and an optional pandas index.
 
-    DataFrames pass through unchanged so the wrapped detector sees column
-    names and dtypes. A pandas Series is a single-feature batch.
+    DataFrames are kept so their column names can be checked, and reach
+    scikit-learn detectors unchanged. A pandas Series is a single-feature
+    batch.
     """
     if isinstance(x, pd.Series):
         return x.to_frame(), x.index
     if isinstance(x, pd.DataFrame):
         return x, x.index
-    if sparse.issparse(x):
-        return x.tocsr(), None
-    return np.asarray(x), None
+    return as_feature_input(x), None
 
 
 class BaseConformalDetector(ABC):
@@ -217,7 +216,7 @@ class BaseConformalDetector(ABC):
         raise NotImplementedError("Subclasses must implement score_samples()")
 
 
-class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
+class ConformalDetector(BaseConformalDetector, BaseEstimator):
     """Wrap an anomaly detector with conformal calibration and batch selection.
 
     The wrapped detector may be a recognized scikit-learn estimator, a PyOD
@@ -245,11 +244,12 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
     calibration scores from its own group, and p-value methods then require the
     test labels. ``select()`` still applies BH once to the whole batch.
 
-    The class is a scikit-learn ``BaseEstimator`` and ``OutlierMixin``.
-    ``predict()`` labels a whole test batch with ``select(x, alpha=alpha)``,
-    returning ``-1`` for selected anomalies and ``1`` otherwise, so the detector
-    can be the last step of a ``Pipeline``. DataFrames reach the wrapped
-    detector unchanged, and column names are checked at inference.
+    The class is a scikit-learn ``BaseEstimator``, so ``clone`` and
+    ``get_params`` work. ``predict()`` labels a whole test batch with
+    ``select(x, alpha=alpha)``, returning ``-1`` for selected anomalies and
+    ``1`` otherwise, so the detector can be the last step of a ``Pipeline``.
+    DataFrames reach scikit-learn detectors unchanged (other detectors get
+    NumPy arrays as before), and column names are checked at inference.
 
     With ``DerandomizedSplits``, ``fit()`` retains repeated model/calibration
     pairs and ``select()`` uniformly aggregates per-split e-values before e-BH.
@@ -286,8 +286,8 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
             (``refit_weights=False``) verifies exact batch content identity via
             hashing. This adds O(n) overhead per checked batch. Set to False to
             skip content hashing and validate only batch size.
-        alpha: FDR target in ``(0, 1)`` used by ``predict()`` and
-            ``decision_function()``. ``select()`` takes its own ``alpha``.
+        alpha: FDR target in ``(0, 1)`` used by ``predict()``. ``select()``
+            takes its own ``alpha``.
             Defaults to 0.05.
 
     Attributes:
@@ -379,9 +379,6 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         CD, COF, COPOD, ECOD, LMDD, LOCI, RGraph, SOD, SOS.
     """
 
-    # scikit-learn's common checks cannot build this class without a detector.
-    _required_parameters: ClassVar[list[str]] = ["detector"]
-
     def __init__(
         self,
         detector: Any,
@@ -434,6 +431,8 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         state.pop("_sklearn_version", None)
         # Detectors pickled before alpha existed use its default.
         state.setdefault("alpha", 0.05)
+        # Detectors pickled before DataFrame pass-through received NumPy.
+        state.setdefault("_accepts_frames", False)
         state["_constructor_params"] = {
             "alpha": 0.05,
             **state["_constructor_params"],
@@ -520,6 +519,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         self.verify_prepared_batch_content = configuration.verify_prepared_batch_content
         self.alpha = configuration.alpha
         self._is_weighted_mode = configuration.weighted
+        self._accepts_frames = configuration.accepts_frames
         self._constructor_params = configuration.constructor_params
         self._reset_fit_state()
 
@@ -636,7 +636,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         # Split records calibration rows only on request; groups need them.
         record_ids = self._is_weighted_mode or labels is not None
         fit_kwargs: dict[str, Any] = {
-            "x": x,
+            "x": self._detector_input(x),
             "detector": self.detector,
             "weighted": record_ids,
             "seed": self.seed,
@@ -720,7 +720,9 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         x = as_feature_batch(x)
         labels = None if groups is None else as_group_labels(groups, n_rows=x.shape[0])
         try:
-            scores = np.asarray(self.detector.decision_function(x), dtype=float).ravel()
+            scores = np.asarray(
+                self.detector.decision_function(self._detector_input(x)), dtype=float
+            ).ravel()
         except Exception as exc:
             message = str(exc).lower()
             if (
@@ -753,14 +755,23 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         )
         return self
 
+    def _detector_input(
+        self, x: pd.DataFrame | np.ndarray
+    ) -> pd.DataFrame | np.ndarray:
+        """Hand DataFrames only to scikit-learn detectors; others get NumPy."""
+        if self._accepts_frames or not isinstance(x, pd.DataFrame):
+            return x
+        return x.to_numpy(copy=False)
+
     def _check_batch(self, x: Any) -> pd.DataFrame | np.ndarray:
         """Validate a test batch against the fitted feature count and names."""
         calibration = self._require_calibration()
-        x = as_feature_batch(x, n_features=calibration.n_features)
+        x = as_feature_batch(x)
+        # Names first, as in scikit-learn: renamed columns explain a count change.
         check_feature_names(
             calibration.feature_names, x, estimator_name=type(self).__name__
         )
-        return x
+        return as_feature_batch(x, n_features=calibration.n_features)
 
     def _score_models(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Score one batch with every replica, preserving model order."""
@@ -774,7 +785,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         )
         rows = []
         for model in iterable:
-            row = np.asarray(model.decision_function(x))
+            row = np.asarray(model.decision_function(self._detector_input(x)))
             if row.shape != (x.shape[0],):
                 raise ValueError("Each model must return one score per test row.")
             rows.append(row)
@@ -1541,14 +1552,10 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         Pass the whole batch at once, and use ``select()`` for its options
         (``method``, ``groups``, weighted pruning) or a pandas Series result.
 
-        ``fit_predict(x)`` fits and then predicts on the same rows. Because
-        rows used for calibration are then also tested, prefer separate
-        reference and test data.
+        Unlike ``select()``, it leaves ``last_result`` unchanged.
 
         Args:
             x: The test batch.
-
-        Unlike ``select()``, it leaves ``last_result`` unchanged.
 
         Returns:
             Integer array of shape ``(n_test,)`` with ``-1`` for anomalies and
@@ -1557,55 +1564,6 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         with self._preserve_results():
             mask = np.asarray(self.select(x, alpha=self.alpha), dtype=bool)
         return np.where(mask, -1, 1)
-
-    def decision_function(self, x: pd.DataFrame | pd.Series | np.ndarray) -> np.ndarray:
-        """Return a batch-level margin whose negative entries are anomalies.
-
-        The margin is the Benjamini-Hochberg adjusted p-value minus
-        ``alpha``, so ``decision_function(x) < 0`` matches
-        ``predict(x) == -1``, following scikit-learn's outlier convention.
-        Like ``predict``, it depends on the whole batch. It requires
-        unweighted p-values; weighted mode and ``DerandomizedSplits`` select
-        without adjusted p-values, so use ``predict`` or ``select`` there.
-
-        Args:
-            x: The test batch.
-
-        Returns:
-            Float array of shape ``(n_test,)``.
-
-        Raises:
-            ValueError: In weighted mode or with ``DerandomizedSplits``.
-        """
-        if self._is_weighted_mode or self.strategy._uses_e_values:
-            raise ValueError(
-                "decision_function() needs adjusted p-values, which weighted "
-                "selection and DerandomizedSplits do not produce. Use predict() "
-                "or select() instead."
-            )
-        with self._preserve_results():
-            mask = np.asarray(self.select(x, alpha=self.alpha), dtype=bool)
-            adjusted = self._last_result.adjusted_p_values(method="bh")
-        margin = adjusted - self.alpha
-        # A p-value exactly at alpha is selected; keep its margin negative.
-        margin[mask & (margin >= 0)] = -np.finfo(float).eps
-        return margin
-
-    def __sklearn_tags__(self) -> Any:  # pragma: no cover - scikit-learn >= 1.6
-        """Inherit input tags (NaN, sparse) from the wrapped detector.
-
-        Used by scikit-learn 1.6 and later.
-        """
-        tags = super().__sklearn_tags__()
-        try:
-            from sklearn.utils import get_tags
-
-            inner = get_tags(self._constructor_params["detector"])
-        except Exception:
-            return tags
-        tags.input_tags.allow_nan = inner.input_tags.allow_nan
-        tags.input_tags.sparse = inner.input_tags.sparse
-        return tags
 
     def __sklearn_is_fitted__(self) -> bool:
         """Return whether the detector is fitted or calibrated."""
