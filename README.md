@@ -104,8 +104,7 @@ works in place of `IsolationForest`.
 
 ### Set a score threshold
 
-If the requirement is "flag no more than 5% of normal points", certify a raw-score
-threshold instead of targeting an FDR:
+To flag no more than 5% of normal points, certify a raw-score threshold instead:
 
 ```python
 certificate = detector.fpr_bounds(confidence=0.95)
