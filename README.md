@@ -40,21 +40,6 @@ for calibration.
   <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the detector alone flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
 </picture>
 
-<details>
-<summary>Flag counts per dataset</summary>
-
-| Dataset | Anomalies | Detector alone | + `nonconform`, `alpha=0.1` |
-| --- | ---: | ---: | ---: |
-| Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
-| HTTP | 100 | 190 flagged, 47% false | 99 flagged, 8% false |
-| Satimage-2 | 71 | 157 flagged, 56% false | 70 flagged, 9% false |
-| Thyroid | 61 | 116 flagged, 48% false | 42 flagged, 7% false |
-| Fraud | 100 | 178 flagged, 50% false | 45 flagged, 9% false |
-| Mammography | 100 | 153 flagged, 58% false | 6 flagged, 5% false |
-| Cardio | 27 | 49 flagged, 53% false | 3 flagged, 4% false |
-
-</details>
-
 The average false share stays below the 10% target on every dataset. Where the detector
 barely separates anomalies from normal data (Mammography, Cardio), `nonconform`
 flags little rather than guess. Reproduce with
