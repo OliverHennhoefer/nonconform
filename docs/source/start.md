@@ -74,8 +74,10 @@ unflagged.
 
 If the reference data are too small, score smaller batches or use a threshold.
 When a selection comes back empty for this reason, nonconform logs the size it
-would need. [Screen a batch for intrusions](use_cases/batch_screening.md) shows
-the difference on real data.
+would need. A large enough calibration set makes an empty list rarer, but cannot
+rule one out when the anomalies score barely above normal points;
+[Screen a batch for intrusions](use_cases/batch_screening.md) shows both on
+real data.
 
 ## A threshold: `fpr_bounds`
 
