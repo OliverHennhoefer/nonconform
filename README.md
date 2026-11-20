@@ -120,8 +120,7 @@ an infinite threshold. See
 
 ### Monitor a stream
 
-A fitted `Split` detector can start a sequential monitor that raises an alarm when
-the data stops looking like the calibration set.
+A fitted `Split` detector can start a monitor that alarms once data drifts from calibration.
 
 <details>
 <summary><strong>Monitor a stream for change</strong></summary>
