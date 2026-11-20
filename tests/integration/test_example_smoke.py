@@ -189,10 +189,33 @@ def test_fdp_notebook_smoke(monkeypatch, capsys):
     assert "Certified FDP upper bound:" in capsys.readouterr().out
 
 
+def test_readme_snippets_smoke(monkeypatch, capsys):
+    """Run every README Python block in order against a labeled fixture."""
+    rng = np.random.default_rng(0)
+    x_train = rng.normal(size=(12_000, 2))
+    x_test = np.vstack([rng.normal(size=(900, 2)), rng.normal(loc=5.0, size=(100, 2))])
+    y_test = np.r_[np.zeros(900, dtype=bool), np.ones(100, dtype=bool)]
+    oddball = ModuleType("oddball")
+    oddball.Dataset = SimpleNamespace(SHUTTLE="shuttle")
+    oddball.load = lambda *args, **kwargs: (x_train, x_test, y_test)
+    monkeypatch.setitem(sys.modules, "oddball", oddball)
+    path = Path(__file__).parents[2] / "README.md"
+    blocks = re.findall(r"```python\n(.*?)```", path.read_text(encoding="utf-8"), re.S)
+    assert len(blocks) == 3
+    namespace = {"__name__": "__main__"}
+    exec(compile(blocks[0], str(path), "exec"), namespace)
+    flagged = namespace["flagged"]
+    assert flagged[-100:].mean() > 0.9
+    assert flagged[:900].sum() / flagged.sum() < 0.25
+    exec(compile(blocks[1], str(path), "exec"), namespace)
+    assert np.isfinite(namespace["certificate"].threshold_for(0.05))
+    exec(compile(blocks[2], str(path), "exec"), {"__name__": "__main__"})
+    assert "Flagged" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize(
     "relative_path,n_calibration,n_anomalies",
     [
-        ("README.md", 1_000, 20),
         ("docs/source/api/common_workflows.md", 1_000, 40),
         ("docs/source/examples/fdr_control.md", 1_000, 40),
         ("docs/source/user_guide/fdr_control.md", 1_500, 20),
@@ -214,23 +237,13 @@ def test_fdp_documentation_snippets(
     path = Path(__file__).parents[2] / relative_path
     text = path.read_text(encoding="utf-8")
     blocks = re.findall(r"```python\n(.*?)```", text, re.S)
-    if relative_path == "README.md":
-        code = next(
-            block
-            for block in blocks
-            if "import numpy" in block and ".fit(x_train)" in block
-        )
-        construction = re.search(r"`(certificate = detector\.fdp_bounds[^`]+)`", text)
-        assert construction is not None
-        code += "\n" + construction.group(1) + "\ncutoff = 0.01\n"
-    else:
-        code = next(
-            block
-            for block in blocks
-            if "import numpy" in block
-            and "certificate =" in block
-            and ".fdp_bounds(" in block
-        )
+    code = next(
+        block
+        for block in blocks
+        if "import numpy" in block
+        and "certificate =" in block
+        and ".fdp_bounds(" in block
+    )
     namespace = {"__name__": "__main__"}
     exec(compile(code, str(path), "exec"), namespace)
     certificate = namespace["certificate"]
