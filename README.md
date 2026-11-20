@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>Calibrate scores. Control discoveries. Monitor change.</strong>
+  <strong>Anomaly detectors return scores. <code>nonconform</code> turns them into flags with an error rate you choose.</strong>
 </p>
 
 <p align="center">
@@ -19,13 +19,11 @@
 
 <p align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
-  <a href="https://oliverhennhoefer.github.io/nonconform/quickstart/">Batch workflow</a> ·
-  <a href="https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/">Sequential workflow</a> ·
   <a href="https://oliverhennhoefer.github.io/nonconform/api/">API reference</a> ·
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-**Anomaly detectors return scores. `nonconform` turns them into flags with an error rate you choose.**
+---
 
 A detector ranks points by how unusual they look but leaves the cutoff to you.
 The usual default, flagging the top 10% of scores, is a guess about how many
@@ -36,6 +34,14 @@ Same Isolation Forest settings, seven [benchmark datasets](https://pypi.org/proj
 averaged over 20 random splits (the PyOD baseline trains on every row; `nonconform`
 holds some back for calibration):
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/readme/false-share-dark.svg">
+  <img src="docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: PyOD's default threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
+</picture>
+
+<details>
+<summary>Flag counts per dataset</summary>
+
 | Dataset | Anomalies | PyOD default `predict()` | `nonconform`, `alpha=0.1` |
 | --- | ---: | ---: | ---: |
 | Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
@@ -45,6 +51,8 @@ holds some back for calibration):
 | Fraud | 100 | 178 flagged, 50% false | 45 flagged, 9% false |
 | Mammography | 100 | 153 flagged, 58% false | 6 flagged, 5% false |
 | Cardio | 27 | 49 flagged, 53% false | 3 flagged, 4% false |
+
+</details>
 
 The average false share stays below the 10% target on every dataset. Where the detector
 barely separates anomalies from normal data (Mammography, Cardio), `nonconform`
@@ -265,8 +273,6 @@ Contributions are welcome; start with the
 [contributing guide](https://oliverhennhoefer.github.io/nonconform/contributing/).
 `nonconform` is distributed under the
 [BSD 3-Clause License](https://github.com/OliverHennhoefer/nonconform/blob/main/LICENSE).
-
----
 
 <p align="center">
   <a href="https://www.dlr.de/">
