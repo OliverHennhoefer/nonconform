@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
   <a href="https://oliverhennhoefer.github.io/nonconform/api/">API Reference</a> ·
-  <a href="https://arxiv.org/abs/2605.13642">Paper</a>
+  <a href="https://proceedings.mlr.press/v329/hennhofer26a.html">Paper</a>
 </p>
 
 ---
@@ -224,7 +224,7 @@ before applying a guarantee to a new problem.
 ## Citation
 
 If you use `nonconform` in academic work, please cite the
-[accompanying paper](https://arxiv.org/abs/2605.13642):
+[accompanying paper](https://proceedings.mlr.press/v329/hennhofer26a.html):
 
 ```bibtex
 @inproceedings{Hennhoefer2026,
