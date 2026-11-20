@@ -126,6 +126,23 @@ def test_pipeline_steps_receive_seed_and_parallelism(nonconform_caplog) -> None:
     assert "random_state" not in nonconform_caplog.text
 
 
+def test_parallelism_reaches_only_the_final_pipeline_step() -> None:
+    from sklearn.compose import ColumnTransformer
+
+    pipeline = Pipeline(
+        [
+            ("prep", ColumnTransformer([("scale", StandardScaler(), [0, 1])])),
+            ("model", IsolationForest()),
+        ]
+    )
+    detector = ConformalDetector(pipeline, Split(n_calib=0.3), seed=4)
+
+    params = detector.detector.get_params()
+    assert params["model__n_jobs"] == -1
+    assert params["model__random_state"] == 4
+    assert params["prep__n_jobs"] is None
+
+
 def test_pipeline_runs_are_reproducible(planted_batch) -> None:
     x_train, x_test, _ = planted_batch
 
