@@ -5,7 +5,7 @@
 </h1>
 
 <p align="center">
-  <strong>Calibrate scores. Control discoveries. Monitor change.</strong>
+  <strong>Anomaly detectors return scores. <code>nonconform</code> decides which to flag and keeps the share of false alarms below a level you set.</strong>
 </p>
 
 <p align="center">
@@ -19,24 +19,31 @@
 
 <p align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
-  <a href="https://oliverhennhoefer.github.io/nonconform/quickstart/">Batch workflow</a> ·
-  <a href="https://oliverhennhoefer.github.io/nonconform/user_guide/exchangeability_martingales/">Sequential workflow</a> ·
   <a href="https://oliverhennhoefer.github.io/nonconform/api/">API reference</a> ·
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
-**Anomaly detectors return scores. `nonconform` turns them into flags with an error rate you choose.**
+---
 
 A detector ranks points by how unusual they look but leaves the cutoff to you.
 The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
 
-Same Isolation Forest settings, seven [benchmark datasets](https://pypi.org/project/oddball/),
-averaged over 20 random splits (the PyOD baseline trains on every row; `nonconform`
-holds some back for calibration):
+Below, the same Isolation Forest runs on seven [benchmark datasets](https://pypi.org/project/oddball/)
+(20 random splits each), once with its default threshold (flag the top 10% of scores) and
+once with `nonconform`. The baseline trains on every row; `nonconform` holds some back
+for calibration.
 
-| Dataset | Anomalies | PyOD default `predict()` | `nonconform`, `alpha=0.1` |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-dark.svg">
+  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the detector alone flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
+</picture>
+
+<details>
+<summary>Flag counts per dataset</summary>
+
+| Dataset | Anomalies | Detector alone | + `nonconform`, `alpha=0.1` |
 | --- | ---: | ---: | ---: |
 | Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
 | HTTP | 100 | 190 flagged, 47% false | 99 flagged, 8% false |
@@ -45,6 +52,8 @@ holds some back for calibration):
 | Fraud | 100 | 178 flagged, 50% false | 45 flagged, 9% false |
 | Mammography | 100 | 153 flagged, 58% false | 6 flagged, 5% false |
 | Cardio | 27 | 49 flagged, 53% false | 3 flagged, 4% false |
+
+</details>
 
 The average false share stays below the 10% target on every dataset. Where the detector
 barely separates anomalies from normal data (Mammography, Cardio), `nonconform`
@@ -70,12 +79,6 @@ sequential monitoring are included in the core installation.
 pip install nonconform
 ```
 
-For the PyOD detector collection and benchmark datasets:
-
-```bash
-pip install "nonconform[pyod,data]"
-```
-
 <details>
 <summary><strong>Optional extras</strong></summary>
 
@@ -92,8 +95,8 @@ pip install "nonconform[pyod,data]"
 ## Quick start
 
 Wrap a detector, fit it on normal data, and select anomalies at a target false
-discovery rate (FDR). The example loads a benchmark dataset, so it needs the
-`data` extra:
+discovery rate (FDR). The example loads a benchmark dataset, so it needs
+`pip install "nonconform[data]"`:
 
 ```python
 from oddball import Dataset, load
@@ -265,8 +268,6 @@ Contributions are welcome; start with the
 [contributing guide](https://oliverhennhoefer.github.io/nonconform/contributing/).
 `nonconform` is distributed under the
 [BSD 3-Clause License](https://github.com/OliverHennhoefer/nonconform/blob/main/LICENSE).
-
----
 
 <p align="center">
   <a href="https://www.dlr.de/">
