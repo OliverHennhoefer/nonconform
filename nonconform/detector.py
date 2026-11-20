@@ -562,8 +562,17 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         return self
 
     def __sklearn_clone__(self) -> Self:
-        """Return sklearn-compatible unfitted clone from constructor snapshots."""
-        return type(self)(**self.get_params(deep=False))
+        """Return an unfitted clone with independent copies of the parameters.
+
+        Like ``sklearn.base.clone``, each parameter is cloned, so the clone
+        shares no estimation, weighting, or detector state with this detector.
+        """
+        from sklearn.base import clone
+
+        params = self.get_params(deep=False)
+        return type(self)(
+            **{name: clone(value, safe=False) for name, value in params.items()}
+        )
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly detector summary."""
@@ -828,14 +837,15 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         """Fit batch weights and record the size and optional reuse signature."""
         self._prepared_weights = None
         calibration = self._require_calibration()
-        x = as_array(as_feature_batch(x, n_features=calibration.n_features))
+        batch = as_feature_batch(x, n_features=calibration.n_features)
+        x = as_array(batch)
         self.weight_estimator.fit(calibration.samples, x)
         calib_weights, test_weights = self.weight_estimator.get_weights()
         signature = (
             (
                 test_batch_signature
                 if test_batch_signature is not None
-                else batch_signature(x)
+                else batch_signature(batch)
             )
             if self.verify_prepared_batch_content
             else None
@@ -1124,7 +1134,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         if self.strategy._uses_e_values:
             self._last_result = None
         x_batch, index = _as_batch_with_index(x)
-        test_batch_signature = batch_signature(as_array(x_batch))
+        test_batch_signature = batch_signature(x_batch)
         estimates = self._aggregate_scores(x_batch)
         weights = self._resolve_weights(
             x_batch,
@@ -1258,7 +1268,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         self._require_p_value_strategy()
         x_batch, index = _as_batch_with_index(x)
         test_codes = self._test_group_codes(x_batch, groups)
-        test_batch_signature = batch_signature(as_array(x_batch))
+        test_batch_signature = batch_signature(x_batch)
         estimates = self._aggregate_scores(x_batch)
         weights = self._resolve_weights(
             x_batch,

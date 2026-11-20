@@ -237,3 +237,29 @@ def test_result_to_frame_keeps_the_index(frames):
 def test_pipeline_of_conformal_detector_is_cloneable():
     pipeline = Pipeline([("conf", ConformalDetector(IsolationForest()))])
     assert clone(pipeline)[0].get_params()["strategy"] is None
+
+
+def test_clone_shares_no_component_state():
+    from nonconform import Empirical, logistic_weight_estimator
+
+    estimation = Empirical(tie_break="randomized")
+    weights = logistic_weight_estimator()
+    detector = ConformalDetector(
+        IsolationForest(), estimation=estimation, weight_estimator=weights, seed=1
+    )
+    cloned = clone(detector)
+    assert cloned.estimation is not detector.estimation
+    assert cloned.weight_estimator is not detector.weight_estimator
+    assert cloned.get_params(deep=False)["detector"] is not estimation
+
+
+def test_sparse_batches_are_signed_without_densifying(data, monkeypatch):
+    reference, test = data
+    detector = ConformalDetector(IsolationForest(random_state=0), seed=0)
+    detector.fit(sparse.csr_matrix(reference))
+
+    def fail(*args, **kwargs):
+        raise AssertionError("densified")
+
+    monkeypatch.setattr(sparse.csr_matrix, "toarray", fail)
+    assert detector.score_samples(sparse.csr_matrix(test)).shape == (len(test),)
