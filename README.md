@@ -35,8 +35,8 @@ averaged over 20 random splits (the PyOD baseline trains on every row; `nonconfo
 holds some back for calibration):
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/readme/false-share-dark.svg">
-  <img src="docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: PyOD's default threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-dark.svg">
+  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: PyOD's default threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
 </picture>
 
 <details>
