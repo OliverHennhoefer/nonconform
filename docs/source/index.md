@@ -170,6 +170,8 @@ probabilistic-estimation, and online-FDR extras.
 - [Start here](start.md) chooses between a short list and a threshold.
 - [Use cases](use_cases/index.md) solve three problems end to end with plots
   and Colab notebooks.
+- [Benchmark](benchmark.md) compares PyOD's default threshold with both
+  rules on seven datasets.
 - [Quick Start](quickstart.md) provides complete first examples.
 - [Assumptions and guarantees](guarantees.md) states what each workflow
   promises and what it needs.

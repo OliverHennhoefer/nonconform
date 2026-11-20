@@ -63,6 +63,7 @@ nav:
     - Screen a Batch: use_cases/batch_screening.md
     - Replace the Contamination Guess: use_cases/false_alarm_threshold.md
     - Monitor a Sensor Stream: use_cases/sensor_stream.md
+  - Benchmark: benchmark.md
   - Assumptions and Guarantees: guarantees.md
   - User Guide:
     - user_guide/index.md
