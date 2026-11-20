@@ -60,10 +60,13 @@ from the batch:
 n_calib >= batch_size / alpha
 ```
 
-The smallest p-value nonconform can give is `1 / (n_calib + 1)`, and `select`
-needs one at or below `alpha / batch_size` before it can flag anything.
+The smallest p-value nonconform can give is `1 / (n_calib + 1)`. To flag a
+single anomaly on its own, `select` needs a p-value at or below
+`alpha / batch_size`. With fewer calibration scores it can still flag a group
+of anomalies that all beat every calibration score, but a lone one goes
+unflagged.
 
-| Batch size | `alpha` | `n_calib` at least |
+| Batch size | `alpha` | `n_calib` for one lone anomaly |
 |---|---|---|
 | 100 | 0.1 | 1,000 |
 | 1,000 | 0.1 | 10,000 |

@@ -1,5 +1,5 @@
 ---
-description: "Screen a batch of network connections with select() and see why the calibration set must be at least batch size divided by alpha."
+description: "Screen a batch of network connections with select() and see why the calibration set should be at least batch size divided by alpha."
 ---
 
 # Screen a batch for intrusions
