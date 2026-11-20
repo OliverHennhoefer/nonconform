@@ -185,10 +185,10 @@ def test_pipeline_ending_in_passthrough_names_missing_method() -> None:
 @pytest.mark.parametrize(
     ("make_detector", "score_polarity"),
     [
-        (lambda: make_pipeline(StandardScaler(), AnomalyScorer()), None),
+        (AnomalyScorer, None),
         (SklearnStyleOutlierDetector, "higher_is_normal"),
     ],
-    ids=["custom-pipeline-default", "sklearn-style-explicit"],
+    ids=["custom-default", "sklearn-style-explicit"],
 )
 def test_custom_detectors_find_planted_anomalies(
     planted_batch, make_detector, score_polarity
