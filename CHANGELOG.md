@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A scikit-learn `Pipeline` now takes its score polarity from its final step.
+  Before, `make_pipeline(StandardScaler(), IsolationForest())` with
+  `score_polarity` omitted was treated as higher-is-anomalous, which silently
+  inverted every decision, and `score_polarity="auto"` raised. Pipelines whose
+  final step is a blocked batch-adaptive PyOD detector are now rejected too.
+- `seed`, `n_jobs` and `contamination` now reach the steps of a `Pipeline`
+  (for example `isolationforest__random_state`), so seeded pipeline runs are
+  reproducible.
+- `LocalOutlierFactor()` without `novelty=True` now fails at construction with
+  a message naming `novelty=True`, instead of an `AttributeError` at scoring.
+
+### Changed
+
+- Omitting `score_polarity` for a detector nonconform does not recognize now
+  logs a warning that higher-is-anomalous was assumed. The resolved polarity is
+  unchanged.
+- "Detector has no random_state parameter" is now logged at debug level instead
+  of as a warning, since it fired for every deterministic detector.
+- The empty-selection p-value floor warning now also suggests checking
+  `score_polarity`, and the error for blocked PyOD detectors names detectors
+  that work.
+
 ## [2.0.1] - 2026-11-01
 
 ### Changed
