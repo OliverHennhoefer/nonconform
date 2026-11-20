@@ -39,7 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mode. When the p-value floor is not the cause, it reports the smallest
   p-value and the threshold a single discovery needed, says whether
   calibration size can be ruled out, asks to check `score_polarity`, and with
-  `Split` points to `fpr_bounds()`. Weighted selections are unchanged.
+  `Split` points to `fpr_bounds()`. With groups, calibration size stays a
+  possible cause and `fpr_bounds()` is not suggested. Weighted selections are
+  unchanged.
 
 ## [2.1.0] - 2026-11-20
 

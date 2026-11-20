@@ -223,8 +223,10 @@ It reports the smallest p-value in the batch and the threshold a single
 discovery needed. For classical `Empirical` p-values whose floor permitted a
 discovery, it states that calibration size is not the cause: either the batch
 holds no anomalies or the detector does not separate them from normal points.
-With `Split`, it also points to `fpr_bounds()`. Weighted selections are not
-covered.
+With `Split`, it also points to `fpr_bounds()`. With groups, smaller groups can
+still be too small, so calibration size stays among the possible causes and
+`fpr_bounds()`, which rejects grouped calibration, is not suggested. Weighted
+selections are not covered.
 
 ## Adaptive BH with Storey's estimator
 

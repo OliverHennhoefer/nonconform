@@ -1098,8 +1098,11 @@ class ConformalDetector(BaseConformalDetector, BaseEstimator):
                         alpha=alpha,
                         method=method,
                         n_calibration=n_calibration,
-                        suggest_fpr_bounds=isinstance(self.strategy, Split),
-                        calibration_ruled_out=classical,
+                        # fpr_bounds() rejects grouped calibration, and the
+                        # floor check above covers only the largest group.
+                        suggest_fpr_bounds=isinstance(self.strategy, Split)
+                        and calibration.groups is None,
+                        calibration_ruled_out=classical and calibration.groups is None,
                     )
 
         if index is not None:

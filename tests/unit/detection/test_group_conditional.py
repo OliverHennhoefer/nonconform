@@ -306,6 +306,23 @@ def test_floor_warning_uses_the_largest_test_group(fdr_records):
     assert "at least 999 calibration scores per group" in message
 
 
+def test_grouped_empty_selection_keeps_calibration_size_as_a_cause(fdr_records):
+    rng = np.random.default_rng(4)
+    g_calibration = np.array(["a"] * 1_000 + ["b"] * 9)
+    detector = _detector()
+    detector.calibrate(_rows(rng, g_calibration), groups=g_calibration)
+    g_test = np.array(["a"] * 99 + ["b"])
+
+    selected = detector.select(_rows(rng, g_test), alpha=0.1, groups=g_test)
+
+    assert not selected.any()
+    assert len(fdr_records) == 1
+    message = fdr_records[0].getMessage()
+    assert "too few calibration scores" in message
+    assert "Calibration size is not the limit" not in message
+    assert "fpr_bounds()" not in message
+
+
 def test_empty_grouped_batch_selects_nothing_without_warning(fdr_records):
     x_reference, g_reference = _reference()
     detector = _detector().fit(x_reference, groups=g_reference)
