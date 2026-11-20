@@ -15,7 +15,8 @@ description: "Guide to nonconform: concepts, discovery control, weighted conform
   alarms.
 
 Choose the workflow first. Their evidence, error targets, and evaluation metrics
-are different.
+are different. New users should begin with [Start here](../start.md) and the
+[use cases](../use_cases/index.md).
 
 ## Start from your task
 
@@ -60,17 +61,9 @@ are different.
 | [Logging](logging.md) | Actual logger namespaces and progress controls |
 | [Troubleshooting](troubleshooting.md) | Symptom-led diagnosis without weakening guarantees post hoc |
 
-!!! important "Guarantees are conditional statements"
-
-    Standard split-conformal p-values require exchangeability of calibration
-    and true-null test scores conditional on a fixed training-only scorer. FDR
-    control additionally requires the dependence assumptions of the selection
-    procedure. Weighted workflows require a correct shift model, overlap, and
-    suitable weights. FPR certificates require clean, i.i.d. calibration and
-    future inlier scores from the same distribution conditional on an
-    independently fitted score map. Sequential Ville guarantees require conditionally valid
-    sequential p-values and a valid e-process. Passing API validation does not
-    establish any of these assumptions.
+Every guarantee holds only under its assumptions, and passing API validation
+does not establish them. [Assumptions and guarantees](../guarantees.md) lists
+them for each workflow.
 
 ## Review checklist
 

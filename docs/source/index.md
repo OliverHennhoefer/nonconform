@@ -25,6 +25,10 @@ sequential workflows:
 These workflows can wrap supported scikit-learn estimators, PyOD models, or a
 custom detector that implements the documented protocol.
 
+New here? [Start here](start.md) helps you choose between a short list and a
+threshold, and the [use cases](use_cases/index.md) show each workflow end to
+end with plots.
+
 ## Batch discovery control
 
 Use `select(...)` when a fixed batch of observations must become anomaly
@@ -37,7 +41,7 @@ from sklearn.ensemble import IsolationForest
 from nonconform import ConformalDetector, Split
 
 rng = np.random.default_rng(42)
-x_train = rng.normal(size=(3_000, 2))
+x_train = rng.normal(size=(6_000, 2))
 x_test = np.vstack([
     rng.normal(size=(200, 2)),
     rng.normal(loc=5.0, size=(20, 2)),
@@ -45,7 +49,7 @@ x_test = np.vstack([
 
 detector = ConformalDetector(
     detector=IsolationForest(random_state=42),
-    strategy=Split(n_calib=1_000),
+    strategy=Split(n_calib=4_400),  # at least batch size / alpha
     score_polarity="auto",
     seed=42,
 ).fit(x_train)
@@ -76,19 +80,10 @@ print(f"Certified threshold: {certificate.threshold_for(0.05)}")
 print(f"Selected {selected.sum()} observations")
 ```
 
-With probability at least 95% over the clean calibration draw, conditional on
-the independently fitted score map, the certificate bounds the population
-inlier false-alarm rate simultaneously at every threshold. On that event, the
-chosen threshold has a future-inlier false-alarm probability at most 5%.
-Calibration and future inlier scores must be i.i.d. from the same distribution;
-exchangeability alone is insufficient.
-
-The deterministic finite-sample one-sided KS band has a finite-threshold floor
-of about 3.85% with 1,000 calibration scores at 95% confidence. A target below
-that floor yields an infinite threshold and an empty selection. Native
-certificates support unweighted `Split` calibration independently of the
-p-value estimator. They do not guarantee realized finite-batch proportions,
-FDR, FDP, recall, or sequential Ville false-alarm control.
+With 95% confidence over the calibration data, normal points cross the chosen
+threshold at most 5% of the time. Too small a calibration set for the target
+gives an infinite threshold and an empty selection; see
+[Start here](start.md#a-threshold-fpr_bounds).
 
 ## Sequential change monitoring
 
@@ -140,27 +135,17 @@ by 0.05 on one valid null stream. It does not control FDR across streams.
 
 ## Guarantee scope
 
-!!! important "Guarantees are assumption-dependent"
+Each promise above holds when its assumptions hold, chiefly that the reference
+data are clean and resemble the normal points you score.
+[Assumptions and guarantees](guarantees.md) lists them for every workflow.
 
-    Standard conformal workflows require the calibration data and null test
-    cases to be exchangeable relative to a scoring rule fixed without using the
-    calibration or test outcomes. BH selection additionally requires valid
-    p-values and its dependence conditions. Weighted workflows require the
-    stated covariate-shift model, support overlap, and reliable importance
-    weights. FPR certificates require clean, i.i.d. calibration and future inlier
-    scores from the same distribution conditional on an independently fitted
-    score map. Sequential Ville guarantees require conditionally valid
-    sequential conformal p-values.
-
-    `nonconform` calibrates detector scores. It cannot make an unsuitable
-    detector, contaminated reference set, adaptive analysis, or mismatched data
-    collection process valid.
+## Choose a workflow
 
 | Workflow | Start here | Main output |
 |---|---|---|
-| Fixed batch of anomaly candidates | [Quick Start](quickstart.md#batch-discovery-control) | Conformal p-values and an FDR-controlled Boolean mask |
-| Fixed raw-score false-alarm target | [FDR Control](user_guide/fdr_control.md#raw-score-false-alarm-control) | A simultaneous FPR curve and target-driven threshold |
-| Ordered stream monitored for change | [Exchangeability Martingales](user_guide/exchangeability_martingales.md) | Sequential p-values, e-values, evidence statistics, and configured alarms |
+| Fixed batch of anomaly candidates | [Screen a batch](use_cases/batch_screening.md) | Conformal p-values and an FDR-controlled Boolean mask |
+| Fixed raw-score false-alarm target | [Replace the contamination guess](use_cases/false_alarm_threshold.md) | A simultaneous FPR curve and target-driven threshold |
+| Ordered stream monitored for change | [Monitor a sensor stream](use_cases/sensor_stream.md) | Sequential p-values, e-values, evidence statistics, and configured alarms |
 | Covariate shift between calibration and test | [Weighted Conformal](user_guide/weighted_conformal.md) | Weighted p-values and WCS selections |
 | Groups with different normal behavior, or a shifted group mix | [Group-conditional p-values](user_guide/conformal_inference.md#group-conditional-mondrian-p-values) | Per-group conformal p-values and one BH selection |
 | Custom or third-party detector | [Detector Compatibility](user_guide/detector_compatibility.md) | A validated, anomaly-oriented score interface |
@@ -182,7 +167,12 @@ probabilistic-estimation, and online-FDR extras.
 
 ## Documentation map
 
+- [Start here](start.md) chooses between a short list and a threshold.
+- [Use cases](use_cases/index.md) solve three problems end to end with plots
+  and Colab notebooks.
 - [Quick Start](quickstart.md) provides complete first examples.
+- [Assumptions and guarantees](guarantees.md) states what each workflow
+  promises and what it needs.
 - [Statistical Concepts](user_guide/statistical_concepts.md) defines the claims
   and assumptions used throughout the site.
 - [Common API Workflows](api/common_workflows.md) maps tasks to public calls.

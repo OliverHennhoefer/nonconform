@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- nonconform now supports Python 3.11 (`requires-python = ">=3.11"`). CI tests
+  3.11, 3.12 and 3.13.
+- The NumPy floor is now 2.0 (was 2.2). The test suite passes on the lowest
+  declared versions: NumPy 2.0.0, pandas 2.2.2, SciPy 1.13.1 and
+  scikit-learn 1.5.2.
+- The SciPy floor is now 1.13.1, the first release built against NumPy 2.
+- oddball (in the `data` and `all` extras) requires Python 3.12, so on Python
+  3.11 those extras install without it. PyArrow is still installed.
+- Omitting `score_polarity` for a detector nonconform does not recognize now
+  logs a warning that higher-is-anomalous was assumed. The resolved polarity is
+  unchanged.
+- "Detector has no random_state parameter" is now logged at debug level instead
+  of as a warning, since it fired for every deterministic detector.
+- The empty-selection p-value floor warning now also suggests checking
+  `score_polarity`, and the error for blocked PyOD detectors names detectors
+  that work.
+
 ### Fixed
 
 - A scikit-learn `Pipeline` now takes its score polarity from its final step.
@@ -19,17 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `isolationforest__random_state`), so seeded pipeline runs are reproducible.
 - `LocalOutlierFactor()` without `novelty=True` now fails at construction with
   a message naming `novelty=True`, instead of an `AttributeError` at scoring.
-
-### Changed
-
-- Omitting `score_polarity` for a detector nonconform does not recognize now
-  logs a warning that higher-is-anomalous was assumed. The resolved polarity is
-  unchanged.
-- "Detector has no random_state parameter" is now logged at debug level instead
-  of as a warning, since it fired for every deterministic detector.
-- The empty-selection p-value floor warning now also suggests checking
-  `score_polarity`, and the error for blocked PyOD detectors names detectors
-  that work.
 
 ## [2.0.1] - 2026-11-01
 
