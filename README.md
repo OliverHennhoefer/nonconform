@@ -88,7 +88,7 @@ x_train, x_test, y_test = load(Dataset.SHUTTLE, setup=True, seed=0)
 alpha = 0.1  # target FDR: on average at most 10% of flags are false
 detector = ConformalDetector(
     detector=IsolationForest(random_state=0),
-    strategy=Split(n_calib=int(len(x_test) / alpha)),
+    strategy=Split(n_calib=1_000),  # normal rows held back for calibration
     seed=0,
 ).fit(x_train)
 
@@ -101,10 +101,6 @@ print(f"Flagged {flagged.sum()} of {len(x_test)}, {hits} true anomalies")
 Any PyOD model, a recognized scikit-learn estimator, or a
 [custom detector](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/)
 works in place of `IsolationForest`.
-
-Sizing calibration to `len(x_test) / alpha` gives the p-values enough resolution
-to flag even a single anomaly in the batch; if a run comes back empty, `select`
-logs how much calibration data it needs.
 
 ### Set a score threshold
 
