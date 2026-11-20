@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">Documentation</a> ·
-  <a href="https://oliverhennhoefer.github.io/nonconform/api/">API reference</a> ·
+  <a href="https://oliverhennhoefer.github.io/nonconform/api/">API Reference</a> ·
   <a href="https://arxiv.org/abs/2605.13642">Paper</a>
 </p>
 
