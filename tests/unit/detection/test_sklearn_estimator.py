@@ -263,3 +263,96 @@ def test_sparse_batches_are_signed_without_densifying(data, monkeypatch):
 
     monkeypatch.setattr(sparse.csr_matrix, "toarray", fail)
     assert detector.score_samples(sparse.csr_matrix(test)).shape == (len(test),)
+
+
+@pytest.mark.parametrize(
+    ("strategy", "match"),
+    [(dict, "must be a strategy instance"), (object(), "nonconform strategy")],
+)
+def test_other_strategy_values_are_rejected(strategy, match):
+    with pytest.raises(TypeError, match=match):
+        ConformalDetector(IsolationForest(), strategy)
+
+
+def test_fitted_attributes_are_absent_before_fit():
+    detector = ConformalDetector(IsolationForest())
+    assert not hasattr(detector, "n_features_in_")
+    assert not hasattr(detector, "feature_names_in_")
+    assert not detector.__sklearn_is_fitted__()
+
+
+def test_series_reference_and_unnamed_fit_warns_on_named_test(frames):
+    reference, test = frames
+    detector = ConformalDetector(IsolationForest(random_state=0), seed=0)
+    detector.fit(reference["amount"])
+    np.testing.assert_array_equal(detector.feature_names_in_, ["amount"])
+    assert detector.compute_p_values(test["amount"]).shape == (len(test),)
+
+    detector.fit(reference[["amount", "age"]].to_numpy())
+    with pytest.warns(UserWarning, match="fitted without feature names"):
+        detector.compute_p_values(test[["amount", "age"]])
+
+
+def test_sparse_input_in_weighted_mode(data):
+    from nonconform import logistic_weight_estimator
+
+    reference, test = data
+    detector = ConformalDetector(
+        IsolationForest(random_state=0),
+        weight_estimator=logistic_weight_estimator(),
+        seed=0,
+    ).fit(sparse.csr_matrix(reference))
+    test_matrix = sparse.csr_matrix(test)
+    detector.prepare_weights_for(test_matrix)
+    reused = detector.compute_p_values(test_matrix, refit_weights=False)
+    assert reused.shape == (len(test),)
+
+
+def test_scoring_adapter_protocol_details():
+    from nonconform.adapters import adapt
+
+    def score(x):
+        return np.asarray(x)[:, 0]
+
+    adapted = adapt(score)
+    assert adapted.set_params() is adapted
+    assert "_ScoringAdapter" in repr(adapted)
+    assert adapted.__name__ == "score"
+    with pytest.raises(AttributeError):
+        adapted.missing_attribute
+
+
+def test_to_frame_requires_scores_and_includes_weights(data):
+    from nonconform import logistic_weight_estimator
+    from nonconform.structures import ConformalResult
+
+    with pytest.raises(ValueError, match="no test scores"):
+        ConformalResult().to_frame()
+
+    reference, test = data
+    detector = ConformalDetector(
+        IsolationForest(random_state=0),
+        weight_estimator=logistic_weight_estimator(),
+        seed=0,
+    ).fit(reference)
+    detector.compute_p_values(test)
+    assert list(detector.last_result.to_frame().columns) == [
+        "score",
+        "p_value",
+        "weight",
+    ]
+
+
+def test_split_strategy_accepts_a_series():
+    seen = []
+
+    class Recorder:
+        def fit(self, X, y=None):
+            seen.append(np.shape(X))
+            return self
+
+        def decision_function(self, X):
+            return np.zeros(len(X))
+
+    Split(0.5).fit_calibrate(pd.Series(np.arange(10.0)), Recorder())
+    assert seen == [(5,)]

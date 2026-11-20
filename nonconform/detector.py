@@ -1591,7 +1591,7 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         margin[mask & (margin >= 0)] = -np.finfo(float).eps
         return margin
 
-    def __sklearn_tags__(self) -> Any:
+    def __sklearn_tags__(self) -> Any:  # pragma: no cover - scikit-learn >= 1.6
         """Inherit input tags (NaN, sparse) from the wrapped detector.
 
         Used by scikit-learn 1.6 and later.
