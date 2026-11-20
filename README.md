@@ -51,8 +51,7 @@ The same Isolation Forest on seven benchmark datasets, with and without `nonconf
 
 ## Installation
 
-`nonconform` requires Python 3.11 or newer. Both discovery control and
-sequential monitoring are included in the core installation.
+`nonconform` requires Python 3.11 or newer.
 
 ```bash
 pip install nonconform
