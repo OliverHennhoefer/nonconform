@@ -98,7 +98,6 @@ print(f"Flagged {flagged.sum()} of {len(x_test)}, {hits} true anomalies")
 # Flagged 105 of 1000, 95 true anomalies
 ```
 
-The conformal p-values behind the mask stay available in `detector.last_result`.
 Any PyOD model, a recognized scikit-learn estimator, or a
 [custom detector](https://oliverhennhoefer.github.io/nonconform/user_guide/detector_compatibility/)
 works in place of `IsolationForest`.
