@@ -45,3 +45,17 @@ If `score_polarity` is omitted, the default policy, unchanged since 1.0, is:
 Use `score_polarity="auto"` when strict detector-family validation is desired;
 it raises for custom detectors outside recognized PyOD and known scikit-learn
 families.
+
+## Candidates for the Next Major Version
+
+These changes would simplify the API but break 2.x code, so they wait for a
+future major release:
+
+- Store constructor parameters as passed and validate them in `fit()`, as
+  scikit-learn recommends, instead of validating on construction and in a
+  transactional `set_params()`.
+- Return lower `score_samples()` values for more anomalous rows, matching
+  scikit-learn.
+- Pass DataFrames unchanged to every detector, not only scikit-learn ones.
+- Drop the pickle compatibility handling for detectors saved by older 2.x
+  releases.

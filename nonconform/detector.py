@@ -17,11 +17,13 @@ from __future__ import annotations
 
 import inspect
 from abc import ABC, abstractmethod
-from copy import deepcopy
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator
 from sklearn.exceptions import NotFittedError
 from tqdm import tqdm
 
@@ -45,7 +47,12 @@ from ._internal.detector_config import (
 from ._internal.detector_state import (
     FittedCalibration,
     PreparedWeights,
+    as_array,
     as_feature_batch,
+    as_feature_input,
+    check_feature_names,
+    feature_names_of,
+    take_rows,
 )
 from ._internal.groups import (
     CalibrationGroups,
@@ -89,19 +96,20 @@ def _derive_wcs_pruning_seed(seed: int | None) -> int | None:
     return int(seed_sequence.generate_state(1, dtype=np.uint64)[0])
 
 
-def _as_numpy_with_index(
+def _as_batch_with_index(
     x: pd.DataFrame | pd.Series | np.ndarray,
-) -> tuple[np.ndarray, pd.Index | None]:
-    """Return numpy view of input and optional pandas index.
+) -> tuple[pd.DataFrame | np.ndarray, pd.Index | None]:
+    """Return the batch for the wrapped detector and an optional pandas index.
 
-    Pandas Series are interpreted as a single-feature batch with shape
-    ``(n_samples, 1)``.
+    DataFrames are kept so their column names can be checked, and reach
+    scikit-learn detectors unchanged. A pandas Series is a single-feature
+    batch.
     """
     if isinstance(x, pd.Series):
-        return x.to_numpy(copy=False).reshape(-1, 1), x.index
+        return x.to_frame(), x.index
     if isinstance(x, pd.DataFrame):
-        return x.to_numpy(copy=False), x.index
-    return x, None
+        return x, x.index
+    return as_feature_input(x), None
 
 
 class BaseConformalDetector(ABC):
@@ -208,7 +216,7 @@ class BaseConformalDetector(ABC):
         raise NotImplementedError("Subclasses must implement score_samples()")
 
 
-class ConformalDetector(BaseConformalDetector):
+class ConformalDetector(BaseConformalDetector, BaseEstimator):
     """Wrap an anomaly detector with conformal calibration and batch selection.
 
     The wrapped detector may be a recognized scikit-learn estimator, a PyOD
@@ -236,15 +244,24 @@ class ConformalDetector(BaseConformalDetector):
     calibration scores from its own group, and p-value methods then require the
     test labels. ``select()`` still applies BH once to the whole batch.
 
+    The class is a scikit-learn ``BaseEstimator``, so ``clone`` and
+    ``get_params`` work. ``predict()`` labels a whole test batch with
+    ``select(x, alpha=alpha)``, returning ``-1`` for selected anomalies and
+    ``1`` otherwise, so the detector can be the last step of a ``Pipeline``.
+    DataFrames reach scikit-learn detectors unchanged (other detectors get
+    NumPy arrays as before), and column names are checked at inference.
+
     With ``DerandomizedSplits``, ``fit()`` retains repeated model/calibration
     pairs and ``select()`` uniformly aggregates per-split e-values before e-BH.
     Inspect ``last_selection_result`` for evidence and selection diagnostics.
     P-value methods and detached calibration are unavailable for this strategy.
 
     Args:
-        detector: Anomaly detector (PyOD, sklearn-compatible, or custom).
+        detector: Anomaly detector (PyOD, sklearn-compatible, or custom), or
+            a scoring function ``f(X) -> scores`` treated as already fitted.
         strategy: The conformal strategy for fitting, calibration, and evidence
             construction. DerandomizedSplits selects through e-values and e-BH.
+            Defaults to None, which uses ``Split()``.
         estimation: P-value estimation strategy. Defaults to Empirical(). Unused
             by DerandomizedSplits, which accepts only None or ordinary Empirical.
         weight_estimator: Weight estimator for covariate shift. Defaults to None.
@@ -269,6 +286,9 @@ class ConformalDetector(BaseConformalDetector):
             (``refit_weights=False``) verifies exact batch content identity via
             hashing. This adds O(n) overhead per checked batch. Set to False to
             skip content hashing and validate only batch size.
+        alpha: FDR target in ``(0, 1)`` used by ``predict()``. ``select()``
+            takes its own ``alpha``.
+            Defaults to 0.05.
 
     Attributes:
         detector: The underlying anomaly detection model.
@@ -362,7 +382,7 @@ class ConformalDetector(BaseConformalDetector):
     def __init__(
         self,
         detector: Any,
-        strategy: BaseStrategy,
+        strategy: BaseStrategy | None = None,
         estimation: BaseEstimation | None = None,
         weight_estimator: BaseWeightEstimator | None = None,
         aggregation: str = "median",
@@ -372,6 +392,7 @@ class ConformalDetector(BaseConformalDetector):
         seed: int | None = None,
         verbose: bool = False,
         verify_prepared_batch_content: bool = True,
+        alpha: float = 0.05,
     ) -> None:
         self._configure(
             detector=detector,
@@ -383,7 +404,12 @@ class ConformalDetector(BaseConformalDetector):
             seed=seed,
             verbose=verbose,
             verify_prepared_batch_content=verify_prepared_batch_content,
+            alpha=alpha,
         )
+
+    def __getstate__(self) -> Any:
+        """Pickle like a plain object, so subclasses may define __slots__."""
+        return object.__getstate__(self)
 
     def __setstate__(
         self, state: dict[str, Any] | tuple[dict[str, Any] | None, dict[str, Any]]
@@ -401,6 +427,16 @@ class ConformalDetector(BaseConformalDetector):
                 "fitted-state layout is not supported in 2.0. Recreate the "
                 "detector and fit or calibrate it again."
             )
+        state = dict(state)
+        state.pop("_sklearn_version", None)
+        # Detectors pickled before alpha existed use its default.
+        state.setdefault("alpha", 0.05)
+        # Detectors pickled before DataFrame pass-through received NumPy.
+        state.setdefault("_accepts_frames", False)
+        state["_constructor_params"] = {
+            "alpha": 0.05,
+            **state["_constructor_params"],
+        }
         self.__dict__.update(state)
         for name, value in slot_state.items():
             setattr(self, name, value)
@@ -427,6 +463,7 @@ class ConformalDetector(BaseConformalDetector):
         n_features: int,
         mode: CalibrationMode,
         groups: CalibrationGroups | None = None,
+        feature_names: np.ndarray | None = None,
     ) -> None:
         """Own and commit all fitted facts only after calibration succeeds."""
         scores = np.asarray(scores)
@@ -439,13 +476,14 @@ class ConformalDetector(BaseConformalDetector):
             n_features=n_features,
             mode=mode,
             groups=groups,
+            feature_names=feature_names,
         )
 
     def _configure(
         self,
         *,
         detector: Any,
-        strategy: BaseStrategy,
+        strategy: BaseStrategy | None,
         estimation: BaseEstimation | None,
         weight_estimator: BaseWeightEstimator | None,
         aggregation: str,
@@ -455,6 +493,7 @@ class ConformalDetector(BaseConformalDetector):
         seed: int | None,
         verbose: bool,
         verify_prepared_batch_content: bool,
+        alpha: float,
     ) -> None:
         """Apply constructor parameters and reset learned state."""
         configuration = prepare_configuration(
@@ -467,6 +506,7 @@ class ConformalDetector(BaseConformalDetector):
             seed=seed,
             verbose=verbose,
             verify_prepared_batch_content=verify_prepared_batch_content,
+            alpha=alpha,
         )
         self.detector = configuration.detector
         self.strategy = configuration.strategy
@@ -477,7 +517,9 @@ class ConformalDetector(BaseConformalDetector):
         self.seed = configuration.seed
         self.verbose = configuration.verbose
         self.verify_prepared_batch_content = configuration.verify_prepared_batch_content
+        self.alpha = configuration.alpha
         self._is_weighted_mode = configuration.weighted
+        self._accepts_frames = configuration.accepts_frames
         self._constructor_params = configuration.constructor_params
         self._reset_fit_state()
 
@@ -485,15 +527,16 @@ class ConformalDetector(BaseConformalDetector):
         """Return estimator parameters following sklearn conventions.
 
         Notes:
-            - ``deep=False`` returns constructor-facing parameters used for
-              sklearn clone compatibility. Returned component snapshots are
-              detached; change this estimator with ``set_params``.
+            - ``deep=False`` returns the constructor parameters as passed to
+              ``__init__`` or ``set_params``, following scikit-learn. The
+              fitted runtime components are separate copies, so changing a
+              returned object affects later clones, not this fitted detector.
             - ``deep=True`` also includes nested ``component__param`` entries
               read from the current runtime components (effective/internal state),
               which may differ from originally passed constructor objects after
               adaptation/normalization.
         """
-        params = deepcopy(self._constructor_params)
+        params = dict(self._constructor_params)
         if deep:
             for name in NESTED_COMPONENTS:
                 component = getattr(self, name)
@@ -519,8 +562,17 @@ class ConformalDetector(BaseConformalDetector):
         return self
 
     def __sklearn_clone__(self) -> Self:
-        """Return sklearn-compatible unfitted clone from constructor snapshots."""
-        return type(self)(**self.get_params(deep=False))
+        """Return an unfitted clone with independent copies of the parameters.
+
+        Like ``sklearn.base.clone``, each parameter is cloned, so the clone
+        shares no estimation, weighting, or detector state with this detector.
+        """
+        from sklearn.base import clone
+
+        params = self.get_params(deep=False)
+        return type(self)(
+            **{name: clone(value, safe=False) for name, value in params.items()}
+        )
 
     def __repr__(self) -> str:
         """Return concise notebook-friendly detector summary."""
@@ -539,7 +591,6 @@ class ConformalDetector(BaseConformalDetector):
             f"n_models={n_models}, n_calibration={n_calibration})"
         )
 
-    @ensure_numpy_array
     def fit(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -581,11 +632,11 @@ class ConformalDetector(BaseConformalDetector):
         labels = None
         if groups is not None:
             self._require_group_scope()
-            labels = as_group_labels(groups, n_rows=len(x))
+            labels = as_group_labels(groups, n_rows=x.shape[0])
         # Split records calibration rows only on request; groups need them.
         record_ids = self._is_weighted_mode or labels is not None
         fit_kwargs: dict[str, Any] = {
-            "x": x,
+            "x": self._detector_input(x),
             "detector": self.detector,
             "weighted": record_ids,
             "seed": self.seed,
@@ -601,7 +652,11 @@ class ConformalDetector(BaseConformalDetector):
             fit_kwargs["n_jobs"] = n_jobs
         models, scores = self.strategy.fit_calibrate(**fit_kwargs)
         ids = self.strategy.calibration_ids if record_ids else None
-        samples = x[ids] if self._is_weighted_mode and ids else np.array([])
+        samples = (
+            as_array(take_rows(x, ids))
+            if self._is_weighted_mode and ids
+            else np.array([])
+        )
         calibration_groups = None
         if labels is not None:
             rows = np.asarray(ids if ids is not None else [], dtype=np.intp)
@@ -618,10 +673,10 @@ class ConformalDetector(BaseConformalDetector):
             n_features=x.shape[1],
             mode=CalibrationMode.INTEGRATED,
             groups=calibration_groups,
+            feature_names=feature_names_of(x),
         )
         return self
 
-    @ensure_numpy_array
     def calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -663,9 +718,11 @@ class ConformalDetector(BaseConformalDetector):
             self._require_group_scope()
         self._reset_fit_state()
         x = as_feature_batch(x)
-        labels = None if groups is None else as_group_labels(groups, n_rows=len(x))
+        labels = None if groups is None else as_group_labels(groups, n_rows=x.shape[0])
         try:
-            scores = np.asarray(self.detector.decision_function(x), dtype=float).ravel()
+            scores = np.asarray(
+                self.detector.decision_function(self._detector_input(x)), dtype=float
+            ).ravel()
         except Exception as exc:
             message = str(exc).lower()
             if (
@@ -678,29 +735,48 @@ class ConformalDetector(BaseConformalDetector):
                     "before calling calibrate()."
                 ) from exc
             raise
-        if scores.shape[0] != len(x):
+        if scores.shape[0] != x.shape[0]:
             raise ValueError(
                 "calibration scores must have one value per calibration sample. "
-                f"Got {scores.shape[0]} scores for {len(x)} samples."
+                f"Got {scores.shape[0]} scores for {x.shape[0]} samples."
             )
         self._publish_calibration(
             [self.detector],
             scores,
-            x if self._is_weighted_mode else np.array([]),
+            as_array(x) if self._is_weighted_mode else np.array([]),
             n_features=x.shape[1],
             mode=CalibrationMode.DETACHED,
             groups=(
                 None
                 if labels is None
-                else CalibrationGroups.from_rows(labels, np.arange(len(x)))
+                else CalibrationGroups.from_rows(labels, np.arange(x.shape[0]))
             ),
+            feature_names=feature_names_of(x),
         )
         return self
 
-    def _score_models(self, x: np.ndarray) -> np.ndarray:
+    def _detector_input(
+        self, x: pd.DataFrame | np.ndarray
+    ) -> pd.DataFrame | np.ndarray:
+        """Hand DataFrames only to scikit-learn detectors; others get NumPy."""
+        if self._accepts_frames or not isinstance(x, pd.DataFrame):
+            return x
+        return x.to_numpy(copy=False)
+
+    def _check_batch(self, x: Any) -> pd.DataFrame | np.ndarray:
+        """Validate a test batch against the fitted feature count and names."""
+        calibration = self._require_calibration()
+        x = as_feature_batch(x)
+        # Names first, as in scikit-learn: renamed columns explain a count change.
+        check_feature_names(
+            calibration.feature_names, x, estimator_name=type(self).__name__
+        )
+        return as_feature_batch(x, n_features=calibration.n_features)
+
+    def _score_models(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Score one batch with every replica, preserving model order."""
         calibration = self._require_calibration()
-        x = as_feature_batch(x, n_features=calibration.n_features)
+        x = self._check_batch(x)
         models = calibration.models
         iterable = (
             tqdm(models, total=len(models), desc="Aggregation")
@@ -709,13 +785,13 @@ class ConformalDetector(BaseConformalDetector):
         )
         rows = []
         for model in iterable:
-            row = np.asarray(model.decision_function(x))
-            if row.shape != (len(x),):
+            row = np.asarray(model.decision_function(self._detector_input(x)))
+            if row.shape != (x.shape[0],):
                 raise ValueError("Each model must return one score per test row.")
             rows.append(row)
         return np.vstack(rows)
 
-    def _aggregate_scores(self, x: np.ndarray) -> np.ndarray:
+    def _aggregate_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Compute aggregated anomaly scores across fitted detector replicas."""
         scores = self._score_models(x)
         return aggregate(method=self.aggregation, scores=scores)
@@ -772,14 +848,15 @@ class ConformalDetector(BaseConformalDetector):
         """Fit batch weights and record the size and optional reuse signature."""
         self._prepared_weights = None
         calibration = self._require_calibration()
-        x = as_feature_batch(x, n_features=calibration.n_features)
+        batch = as_feature_batch(x, n_features=calibration.n_features)
+        x = as_array(batch)
         self.weight_estimator.fit(calibration.samples, x)
         calib_weights, test_weights = self.weight_estimator.get_weights()
         signature = (
             (
                 test_batch_signature
                 if test_batch_signature is not None
-                else batch_signature(x)
+                else batch_signature(batch)
             )
             if self.verify_prepared_batch_content
             else None
@@ -809,7 +886,7 @@ class ConformalDetector(BaseConformalDetector):
                 "Weights are not prepared. Call prepare_weights_for(batch) "
                 "or use refit_weights=True."
             )
-        if prepared.batch_size != len(x):
+        if prepared.batch_size != x.shape[0]:
             raise ValueError(
                 "Prepared weights do not match current batch size. "
                 "Call prepare_weights_for(batch) again or use refit_weights=True."
@@ -950,14 +1027,14 @@ class ConformalDetector(BaseConformalDetector):
 
         from nonconform.fdr import weighted_false_discovery_control
 
-        x_array, index = _as_numpy_with_index(x)
+        x_batch, index = _as_batch_with_index(x)
         if self.strategy._uses_e_values:
             if groups is not None:
                 raise ValueError(
                     "groups= is unavailable with DerandomizedSplits, which "
                     "selects with e-values."
                 )
-            scores = self._score_models(x_array)
+            scores = self._score_models(x_batch)
             selection = self.strategy._select_e_values(
                 scores, self._require_calibration().scores, alpha=alpha
             )
@@ -969,7 +1046,7 @@ class ConformalDetector(BaseConformalDetector):
 
         # Pass groups only when given, so overrides without the keyword still work.
         group_kwargs = {} if groups is None else {"groups": groups}
-        self.compute_p_values(x_array, refit_weights=refit_weights, **group_kwargs)
+        self.compute_p_values(x_batch, refit_weights=refit_weights, **group_kwargs)
         result = self._last_result
         if result is None or result.p_values is None:
             raise RuntimeError(
@@ -1014,7 +1091,6 @@ class ConformalDetector(BaseConformalDetector):
             return pd.Series(mask, index=index, name="selected")
         return mask
 
-    @ensure_numpy_array
     def prepare_weights_for(self, x: pd.DataFrame | np.ndarray) -> Self:
         """Prepare weighted conformal state for a specific test batch.
 
@@ -1068,11 +1144,11 @@ class ConformalDetector(BaseConformalDetector):
         self._last_selection_result = None
         if self.strategy._uses_e_values:
             self._last_result = None
-        x_array, index = _as_numpy_with_index(x)
-        test_batch_signature = batch_signature(x_array)
-        estimates = self._aggregate_scores(x_array)
+        x_batch, index = _as_batch_with_index(x)
+        test_batch_signature = batch_signature(x_batch)
+        estimates = self._aggregate_scores(x_batch)
         weights = self._resolve_weights(
-            x_array,
+            x_batch,
             refit_weights=refit_weights,
             test_batch_signature=test_batch_signature,
         )
@@ -1091,6 +1167,7 @@ class ConformalDetector(BaseConformalDetector):
             metadata={},
         )
         result._provenance = self._result_provenance(test_batch_signature)
+        result._index = index
         self._last_result = result
         if index is not None:
             return pd.Series(estimates, index=index, name="score")
@@ -1145,17 +1222,22 @@ class ConformalDetector(BaseConformalDetector):
                 "Use compute_p_values() with that batch instead."
             )
 
-        x_array = np.asarray(x)
-        if x_array.ndim != 1:
-            raise ValueError(
-                "x must be a one-dimensional feature vector; "
-                f"got shape {x_array.shape}."
-            )
+        if isinstance(x, pd.Series):
+            # A row of a DataFrame: keep its column names for the name check.
+            row = x.to_frame().T.infer_objects()
+        else:
+            x_batch = np.asarray(x)
+            if x_batch.ndim != 1:
+                raise ValueError(
+                    "x must be a one-dimensional feature vector; "
+                    f"got shape {x_batch.shape}."
+                )
+            row = x_batch[np.newaxis, :]
 
         expected_features = calibration.n_features
-        if x_array.shape[0] != expected_features:
+        if row.shape[1] != expected_features:
             raise ValueError(
-                f"x has {x_array.shape[0]} features, but this ConformalDetector "
+                f"x has {row.shape[1]} features, but this ConformalDetector "
                 f"was fitted with {expected_features} features."
             )
 
@@ -1164,7 +1246,7 @@ class ConformalDetector(BaseConformalDetector):
             labels = np.empty(1, dtype=object)
             labels[0] = group
             group_kwargs["groups"] = labels
-        p_values = self.compute_p_values(x_array[np.newaxis, :], **group_kwargs)
+        p_values = self.compute_p_values(row, **group_kwargs)
         return float(np.asarray(p_values).item())
 
     def compute_p_values(
@@ -1195,12 +1277,12 @@ class ConformalDetector(BaseConformalDetector):
             named ``"p_value"``; NumPy input produces an ndarray.
         """
         self._require_p_value_strategy()
-        x_array, index = _as_numpy_with_index(x)
-        test_codes = self._test_group_codes(x_array, groups)
-        test_batch_signature = batch_signature(x_array)
-        estimates = self._aggregate_scores(x_array)
+        x_batch, index = _as_batch_with_index(x)
+        test_codes = self._test_group_codes(x_batch, groups)
+        test_batch_signature = batch_signature(x_batch)
+        estimates = self._aggregate_scores(x_batch)
         weights = self._resolve_weights(
-            x_array,
+            x_batch,
             refit_weights=refit_weights,
             test_batch_signature=test_batch_signature,
         )
@@ -1236,6 +1318,7 @@ class ConformalDetector(BaseConformalDetector):
             metadata=metadata,
         )
         result._provenance = self._result_provenance(test_batch_signature)
+        result._index = index
         self._last_result = result
         if index is not None:
             return pd.Series(p_values, index=index, name="p_value")
@@ -1433,7 +1516,7 @@ class ConformalDetector(BaseConformalDetector):
                 "labels with groups= (group= for compute_p_value())."
             )
         x = as_feature_batch(x, n_features=calibration.n_features)
-        return calibration.groups.encode(groups, n_rows=len(x))
+        return calibration.groups.encode(groups, n_rows=x.shape[0])
 
     def _require_p_value_strategy(self) -> None:
         """Reject p-value operations for a strategy that constructs e-values."""
@@ -1444,6 +1527,68 @@ class ConformalDetector(BaseConformalDetector):
                 "DerandomizedSplits constructs e-values, not p-values. "
                 "Use select(x, alpha=...) and inspect last_selection_result."
             )
+
+    @contextmanager
+    def _preserve_results(self) -> Iterator[None]:
+        """Keep last_result and last_selection_result across predict calls.
+
+        scikit-learn expects predict-style methods to leave estimator state
+        unchanged; use select() to inspect a batch's p-values.
+        """
+        saved = (self._last_result, self._last_selection_result)
+        try:
+            yield
+        finally:
+            self._last_result, self._last_selection_result = saved
+
+    def predict(self, x: pd.DataFrame | pd.Series | np.ndarray) -> np.ndarray:
+        """Label a test batch with scikit-learn's outlier convention.
+
+        Runs ``select(x, alpha=self.alpha)`` on the whole batch and returns
+        ``-1`` for selected anomalies and ``1`` for the rest, so the detector
+        works as the last step of a scikit-learn ``Pipeline``. The labels are
+        a batch-level decision with FDR control at ``alpha``, not a per-row
+        threshold: the same row can be labelled differently in another batch.
+        Pass the whole batch at once, and use ``select()`` for its options
+        (``method``, ``groups``, weighted pruning) or a pandas Series result.
+
+        Unlike ``select()``, it leaves ``last_result`` unchanged.
+
+        Args:
+            x: The test batch.
+
+        Returns:
+            Integer array of shape ``(n_test,)`` with ``-1`` for anomalies and
+            ``1`` for inliers.
+        """
+        with self._preserve_results():
+            mask = np.asarray(self.select(x, alpha=self.alpha), dtype=bool)
+        return np.where(mask, -1, 1)
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether the detector is fitted or calibrated."""
+        return self.is_fitted
+
+    @property
+    def n_features_in_(self) -> int:
+        """Number of features seen during fit or calibrate."""
+        if self._calibration is None:
+            raise AttributeError(
+                "This ConformalDetector is not fitted yet; n_features_in_ is "
+                "set by fit() or calibrate()."
+            )
+        return self._calibration.n_features
+
+    @property
+    def feature_names_in_(self) -> np.ndarray:
+        """Column names seen during fit or calibrate (DataFrame input only)."""
+        names = None if self._calibration is None else self._calibration.feature_names
+        if names is None:
+            raise AttributeError(
+                "feature_names_in_ is defined only after fitting on a DataFrame "
+                "whose column names are all strings."
+            )
+        return names.copy()
 
     @property
     def score_polarity(self) -> ScorePolarity:

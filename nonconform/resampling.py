@@ -36,11 +36,11 @@ from tqdm import tqdm
 from nonconform._internal import (
     BootstrapAggregationMethod,
     ConformalMode,
-    ensure_numpy_array,
     normalize_bootstrap_aggregation_method,
     set_params,
 )
 from nonconform._internal.config import matching_param_keys
+from nonconform._internal.detector_state import take_rows
 from nonconform._internal.validation import (
     as_1d_numeric,
     validate_finite,
@@ -58,6 +58,15 @@ _crossval_logger = logging.getLogger("nonconform.resampling.crossval")
 _bootstrap_logger = logging.getLogger("nonconform.resampling.bootstrap")
 
 ConformalModeInput = ConformalMode | Literal["plus", "single_model"]
+
+
+def _as_rows(x: pd.DataFrame | pd.Series | np.ndarray) -> pd.DataFrame | np.ndarray:
+    """Keep a DataFrame for the wrapped detector; convert anything else."""
+    if isinstance(x, pd.DataFrame):
+        return x
+    if isinstance(x, pd.Series):
+        return x.to_numpy(copy=False)
+    return np.asarray(x)
 
 
 def _try_set_random_state(detector: AnomalyDetector, seed: int | None) -> None:
@@ -173,6 +182,11 @@ class Split(BaseStrategy):
 
     def _validate_n_calib(self, n_samples: int) -> int:
         """Validate calibration size and return the absolute calibration count."""
+        if n_samples < 2:
+            raise ValueError(
+                "Split needs at least 2 samples, one to train the detector and "
+                f"one to calibrate it; got {n_samples} sample(s)."
+            )
         n_calib = self._calib_size
         if isinstance(n_calib, float):
             if not (0 < n_calib < 1):
@@ -200,7 +214,6 @@ class Split(BaseStrategy):
             )
         return n_calib_abs
 
-    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -219,16 +232,17 @@ class Split(BaseStrategy):
         Returns:
             Tuple of (list with trained detector, calibration scores array).
         """
-        self._validate_n_calib(len(x))
-        x_id = np.arange(len(x))
+        x = _as_rows(x)
+        self._validate_n_calib(x.shape[0])
+        x_id = np.arange(x.shape[0])
         train_id, calib_id = train_test_split(
             x_id, test_size=self._calib_size, shuffle=True, random_state=seed
         )
 
         _try_set_random_state(detector, seed)
 
-        detector.fit(x[train_id])
-        calibration_set = detector.decision_function(x[calib_id])
+        detector.fit(take_rows(x, train_id))
+        calibration_set = detector.decision_function(take_rows(x, calib_id))
 
         if weighted:
             self._calibration_ids = calib_id.tolist()
@@ -330,7 +344,6 @@ class DerandomizedSplits(BaseStrategy):
         self.__dict__.update(updated.__dict__)
         return self
 
-    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -345,7 +358,7 @@ class DerandomizedSplits(BaseStrategy):
             contains only held-out scores produced by model i.
         """
         self._effective_tie_seed = None
-        x = np.asarray(x)
+        x = _as_rows(x)
         if x.ndim != 2 or x.shape[1] == 0:
             raise ValueError(
                 "x must be a two-dimensional reference batch with features."
@@ -357,7 +370,7 @@ class DerandomizedSplits(BaseStrategy):
         validate_optional_seed("seed", seed)
         validate_positive_integer("n_repetitions", self.n_repetitions)
         split = Split(n_calib=self.n_calib)
-        n_calibration = split._validate_n_calib(len(x))
+        n_calibration = split._validate_n_calib(x.shape[0])
         split_stream, tie_stream = np.random.SeedSequence(seed).spawn(2)
         models = []
         calibration_rows = []
@@ -481,7 +494,6 @@ class CrossValidation(BaseStrategy):
         """
         return cls(k=None, mode=mode, shuffle=False)
 
-    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -505,8 +517,9 @@ class CrossValidation(BaseStrategy):
         """
         self._detector_list.clear()
         self._calibration_ids = []
+        x = _as_rows(x)
 
-        n_samples = len(x)
+        n_samples = x.shape[0]
 
         # Determine k (for jackknife mode, k=n)
         k = n_samples if self._is_jackknife else self._k
@@ -550,12 +563,12 @@ class CrossValidation(BaseStrategy):
 
             model = copy(detector)
             _try_set_random_state(model, seed)
-            model.fit(x[train_idx])
+            model.fit(take_rows(x, train_idx))
 
             if self._mode is ConformalMode.PLUS:
                 self._detector_list.append(deepcopy(model))
 
-            fold_scores = model.decision_function(x[calib_idx])
+            fold_scores = model.decision_function(take_rows(x, calib_idx))
             n_fold_samples = len(fold_scores)
             end_idx = calibration_offset + n_fold_samples
             self._calibration_set[calibration_offset:end_idx] = fold_scores
@@ -587,7 +600,7 @@ class CrossValidation(BaseStrategy):
 
 def _train_bootstrap_model(
     detector: AnomalyDetector,
-    x: np.ndarray,
+    x: pd.DataFrame | np.ndarray,
     bootstrap_indices: np.ndarray,
     seed: int | None,
 ) -> AnomalyDetector:
@@ -608,7 +621,7 @@ def _train_bootstrap_model(
     """
     model = deepcopy(detector)
     _try_set_random_state(model, seed)
-    model.fit(x[bootstrap_indices])
+    model.fit(take_rows(x, bootstrap_indices))
     return model
 
 
@@ -675,7 +688,6 @@ class JackknifeBootstrap(BaseStrategy):
         self._bootstrap_models: list[AnomalyDetector | None] = []
         self._oob_mask: np.ndarray = np.array([])
 
-    @ensure_numpy_array
     def fit_calibrate(
         self,
         x: pd.DataFrame | np.ndarray,
@@ -698,7 +710,8 @@ class JackknifeBootstrap(BaseStrategy):
         Returns:
             Tuple of (list of trained detectors, calibration scores array).
         """
-        n_samples = len(x)
+        x = _as_rows(x)
+        n_samples = x.shape[0]
         generator = np.random.default_rng(seed)
 
         _bootstrap_logger.info(
@@ -840,7 +853,7 @@ class JackknifeBootstrap(BaseStrategy):
 
     def _compute_oob_scores(self, x: pd.DataFrame | np.ndarray) -> np.ndarray:
         """Compute out-of-bag calibration scores."""
-        n_samples = len(x)
+        n_samples = x.shape[0]
         all_predictions = [[] for _ in range(n_samples)]
 
         for model_idx, model in enumerate(self._bootstrap_models):
@@ -848,7 +861,7 @@ class JackknifeBootstrap(BaseStrategy):
             oob_indices = np.where(oob_samples)[0]
 
             if len(oob_indices) > 0:
-                oob_predictions = model.decision_function(x[oob_indices])
+                oob_predictions = model.decision_function(take_rows(x, oob_indices))
                 for idx, pred in zip(oob_indices, oob_predictions):
                     all_predictions[idx].append(pred)
 

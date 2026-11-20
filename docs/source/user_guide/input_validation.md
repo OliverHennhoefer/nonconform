@@ -20,6 +20,7 @@ validity, adequate power, or reliable importance weights.
 | `seed` | `None` or a nonnegative integer (built-in or NumPy integer), excluding Boolean values | Controls supported stochastic components and deterministic seed derivation |
 | `verbose` | `True` or `False` | Controls aggregation progress; resampling and weighting progress also depend on logger levels |
 | `verify_prepared_batch_content` | `True` or `False` | When true, prepared weighted state is tied to batch values, shape, and dtype |
+| `alpha` (constructor) | float strictly between `0` and `1`, default `0.05` | FDR target used by `predict(...)` |
 | `select(..., alpha=...)` | float strictly between `0` and `1` | Target level for the selected FDR procedure |
 
 The detector must be fitted with `fit(...)` or detached calibration must be
@@ -27,15 +28,18 @@ completed with `calibrate(...)` before scoring.
 
 Fitting, calibration, and scoring require two-dimensional feature batches with
 at least one feature. Scoring must match the fitted feature count, and each
-retained model must return one score per input row.
+retained model must return one score per input row. After fitting on a
+DataFrame with string column names, scoring rejects renamed or reordered
+columns and warns when the batch has no column names.
 
 ### Updating and recovering detector state
 
 Use `set_params(...)` to update configuration. Valid updates clear learned state;
 rejected updates leave the previous configuration, calibration, and prepared
-weights intact. Component objects returned by `get_params(...)` are detached
-constructor snapshots, so editing them does not update this detector or its
-future clones.
+weights intact. As in scikit-learn, `get_params(...)` returns the objects passed
+to the constructor or `set_params(...)`. The fitted detector uses its own
+copies of the detector and strategy, so editing a returned object changes later
+clones but not this detector.
 
 A new `fit(...)`, or a supported `calibrate(...)` attempt, clears the previous
 calibration, results, and prepared weights before work begins. If it fails, the

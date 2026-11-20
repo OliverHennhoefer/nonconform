@@ -75,8 +75,13 @@ def restore_fields(instance: Any, state: Sequence[Any], **defaults: Any) -> None
         object.__setattr__(instance, name, value)
 
 
-def batch_signature(x: np.ndarray) -> BatchSignature:
-    """Return a stable signature for a concrete batch."""
+def batch_signature(x: Any) -> BatchSignature:
+    """Return a stable signature for a concrete batch.
+
+    A pandas DataFrame is hashed by its values.
+    """
+    if isinstance(x, pd.DataFrame):
+        x = x.to_numpy()
     contiguous = np.ascontiguousarray(x)
     hasher = hashlib.blake2b(digest_size=16)
     if contiguous.dtype.hasobject:

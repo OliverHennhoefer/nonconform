@@ -83,16 +83,51 @@ def test_adapt_passes_compliant_detectors_through(detector):
 @pytest.mark.parametrize(
     ("methods", "missing"),
     [
-        (("fit",), ("decision_function", "get_params", "set_params")),
-        (("fit", "decision_function"), ("get_params", "set_params")),
+        (("fit",), ("decision_function",)),
+        (("decision_function",), ("fit",)),
     ],
-    ids=["only-fit", "partial"],
+    ids=["only-fit", "only-decision-function"],
 )
 def test_adapt_lists_exactly_the_missing_protocol_methods(methods, missing):
-    with pytest.raises(TypeError, match="AnomalyDetector protocol") as exc_info:
+    with pytest.raises(TypeError, match="fit\\(\\) and decision_function") as exc_info:
         adapt(_detector(methods=methods))
 
-    assert str(exc_info.value).endswith(f"Missing methods: {', '.join(missing)}")
+    assert str(exc_info.value).endswith(f"Missing methods: {', '.join(missing)}.")
+
+
+def test_adapt_rejects_a_detector_class_with_a_hint():
+    with pytest.raises(TypeError, match="Pass the class instance"):
+        adapt(ProtocolDetector)
+
+
+class FitScoreDetector:
+    """Detector with fit and decision_function only."""
+
+    def fit(self, X, y=None):
+        self.center_ = np.mean(X, axis=0)
+        return self
+
+    def decision_function(self, X):
+        return np.linalg.norm(np.asarray(X) - self.center_, axis=1)
+
+
+def test_adapt_wraps_detectors_without_get_and_set_params():
+    detector = FitScoreDetector()
+    adapted = adapt(detector)
+    assert isinstance(adapted, AnomalyDetector)
+    assert adapted.get_params() == {}
+    adapted.fit(np.zeros((3, 2)))
+    np.testing.assert_allclose(adapted.decision_function(np.ones((2, 2))), [2**0.5] * 2)
+    with pytest.raises(ValueError, match="has no set_params"):
+        adapted.set_params(alpha=1)
+    assert deepcopy(adapted).center_.tolist() == [0.0, 0.0]
+
+
+def test_adapt_wraps_a_scoring_function():
+    adapted = adapt(lambda X: np.asarray(X)[:, 0] * 2)
+    assert isinstance(adapted, AnomalyDetector)
+    assert adapted.fit(np.zeros((2, 2))) is adapted
+    np.testing.assert_array_equal(adapted.decision_function([[1, 0], [3, 0]]), [2, 6])
 
 
 @pytest.mark.parametrize(

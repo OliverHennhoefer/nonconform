@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkable
 
 import numpy as np
+import pandas as pd
 
 if TYPE_CHECKING:
     from nonconform._internal.provenance import ResultProvenance
@@ -147,6 +148,13 @@ class ConformalResult:
     calib_weights: np.ndarray | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     _provenance: ResultProvenance | None = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    # Index of the pandas test batch that produced this snapshot, if any.
+    _index: pd.Index | None = field(
         default=None,
         init=False,
         repr=False,
@@ -301,6 +309,45 @@ class ConformalResult:
             confidence=confidence,
         )
 
+    def to_frame(self) -> pd.DataFrame:
+        """Return one row per test point with its score, p-value, and weight.
+
+        Columns are ``score`` (anomalous-higher), ``p_value`` when p-values
+        were computed, and ``weight`` in weighted mode. When the test batch
+        was a pandas DataFrame or Series, its index is kept.
+
+        Returns:
+            A new DataFrame.
+
+        Raises:
+            ValueError: If the snapshot holds no test scores.
+
+        Examples:
+            ```python
+            import numpy as np
+            from sklearn.ensemble import IsolationForest
+
+            from nonconform import ConformalDetector
+
+            rng = np.random.default_rng(0)
+            detector = ConformalDetector(IsolationForest(random_state=0)).fit(
+                rng.normal(size=(500, 2))
+            )
+            detector.compute_p_values(rng.normal(size=(5, 2)))
+            print(detector.last_result.to_frame())
+            ```
+        """
+        if self.test_scores is None:
+            raise ValueError("This result holds no test scores.")
+        columns: dict[str, np.ndarray] = {"score": np.asarray(self.test_scores)}
+        if self.p_values is not None:
+            columns["p_value"] = np.asarray(self.p_values)
+        if self.test_weights is not None:
+            columns["weight"] = np.asarray(self.test_weights)
+        # Snapshots pickled before _index existed lack the slot.
+        index = getattr(self, "_index", None)
+        return pd.DataFrame(columns, index=index, copy=True)
+
     def copy(self) -> ConformalResult:
         """Return a copy with arrays and metadata fully duplicated.
 
@@ -320,6 +367,7 @@ class ConformalResult:
             metadata=deepcopy(self.metadata),
         )
         copied._provenance = self._provenance
+        copied._index = getattr(self, "_index", None)
         return copied
 
 
