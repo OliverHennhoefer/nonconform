@@ -36,8 +36,8 @@ by `nonconform`. The baseline trains on every row; `nonconform` holds some back
 for calibration.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-dark.svg">
-  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: default top-10% threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-dark.svg">
+  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the top-10% threshold flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
 </picture>
 
 <details>
