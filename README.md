@@ -31,19 +31,19 @@ anomalies there are. `nonconform` calibrates the scores of your existing detecto
 against normal data, so the threshold follows from the error rate you can accept.
 
 Below, the same Isolation Forest runs on seven [benchmark datasets](https://pypi.org/project/oddball/)
-(20 random splits each), thresholded once by the usual top-10% default and once
-by `nonconform`. The baseline trains on every row; `nonconform` holds some back
+(20 random splits each), once with its default threshold (flag the top 10% of scores) and
+once with `nonconform`. The baseline trains on every row; `nonconform` holds some back
 for calibration.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-dark.svg">
-  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the top-10% threshold flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
+  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the detector alone flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
 </picture>
 
 <details>
 <summary>Flag counts per dataset</summary>
 
-| Dataset | Anomalies | Top-10% threshold | `nonconform`, `alpha=0.1` |
+| Dataset | Anomalies | Detector alone | + `nonconform`, `alpha=0.1` |
 | --- | ---: | ---: | ---: |
 | Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
 | HTTP | 100 | 190 flagged, 47% false | 99 flagged, 8% false |
