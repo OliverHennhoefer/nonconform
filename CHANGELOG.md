@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-20
+
 ### Added
 
 - `ConformalDetector` is now a scikit-learn `BaseEstimator`, so `clone` works
@@ -254,7 +256,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bumped indirect dependency `idna` from `3.10` to `3.15`.
 - Bumped indirect dependency `pymdown-extensions` from `10.16.1` to `10.21.3`.
 
-[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/OliverHennhoefer/nonconform/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/OliverHennhoefer/nonconform/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/OliverHennhoefer/nonconform/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/OliverHennhoefer/nonconform/compare/b8aefdc39fe5116151e9142e94dcb30c99dfd794...v2.0.0
 [1.1.1]: https://github.com/OliverHennhoefer/nonconform/compare/v1.1.0...v1.1.1
