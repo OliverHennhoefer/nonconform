@@ -200,11 +200,12 @@ Claude Code (`/plugin marketplace add OliverHennhoefer/nonconform`, then
 > [!IMPORTANT]
 > Conformal inference needs remarkably little: no distributional model, and its
 > guarantees hold in finite samples. The few assumptions it does make are worth
-> knowing. Conformal p-values need calibration data and normal test points to be exchangeable; FDR claims need the assumptions of
-> the chosen multiple-testing procedure; FPR certificates need i.i.d. scores from
-> an independently fitted detector; weighted workflows need a credible
-> covariate-shift model; Ville alarms cover one stream, while CUSUM and
-> Shiryaev-Roberts thresholds need separate calibration.
+> knowing. Conformal p-values need calibration data and normal test points to be
+> exchangeable; FDR claims need the assumptions of the chosen multiple-testing
+> procedure; FPR certificates need i.i.d. scores from an independently fitted
+> detector; weighted workflows need a credible covariate-shift model; Ville
+> alarms cover one stream, while CUSUM and Shiryaev-Roberts thresholds need
+> separate calibration.
 
 `nonconform` calibrates detector scores; it cannot make an unsuitable detector
 or a mismatched calibration set valid. Handle spatial or temporal dependence
