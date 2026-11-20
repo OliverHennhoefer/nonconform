@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anomalies and `1` otherwise; `alpha` is a new constructor parameter
   (default `0.05`). `decision_function(X)` returns the BH-adjusted p-value
   minus `alpha`. `n_features_in_` and `feature_names_in_` are set by `fit()`
-  and `calibrate()`. `check_estimator` passes except for three checks that
-  assume a per-row threshold. `predict` leaves `last_result` unchanged.
+  and `calibrate()`. `check_estimator` passes except for the checks that
+  assume a per-row threshold, and from scikit-learn 1.6 the one that expects
+  validation only at fit time. NaN and sparse input tags follow the wrapped
+  detector. `predict` leaves `last_result` unchanged.
 - `strategy` is optional and defaults to `Split()`. Passing a string such as
   `"split"` or the class `Split` instead of an instance raises a `TypeError`
   that names the fix.

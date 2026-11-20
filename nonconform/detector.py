@@ -1581,6 +1581,22 @@ class ConformalDetector(OutlierMixin, BaseConformalDetector, BaseEstimator):
         margin[mask & (margin >= 0)] = -np.finfo(float).eps
         return margin
 
+    def __sklearn_tags__(self) -> Any:
+        """Inherit input tags (NaN, sparse) from the wrapped detector.
+
+        Used by scikit-learn 1.6 and later.
+        """
+        tags = super().__sklearn_tags__()
+        try:
+            from sklearn.utils import get_tags
+
+            inner = get_tags(self._constructor_params["detector"])
+        except Exception:
+            return tags
+        tags.input_tags.allow_nan = inner.input_tags.allow_nan
+        tags.input_tags.sparse = inner.input_tags.sparse
+        return tags
+
     def __sklearn_is_fitted__(self) -> bool:
         """Return whether the detector is fitted or calibrated."""
         return self.is_fitted

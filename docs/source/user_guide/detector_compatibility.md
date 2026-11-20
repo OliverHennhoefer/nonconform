@@ -320,10 +320,12 @@ pipeline = make_pipeline(
 print(np.flatnonzero(pipeline.predict(x_test) == -1))
 ```
 
-scikit-learn's `check_estimator` passes except for three checks that assume
-a per-row threshold: `check_outliers_train` and `check_outliers_fit_predict`
-expect some training rows to be flagged, and `check_methods_subset_invariance`
-expects a row's label not to depend on its batch.
+scikit-learn's `check_estimator` passes except for checks that conflict with
+this design: `check_outliers_train` and `check_outliers_fit_predict` expect
+some training rows to be flagged, `check_methods_subset_invariance` expects a
+row's label not to depend on its batch, and, from scikit-learn 1.6,
+`check_do_not_raise_errors_in_init_or_set_params` expects parameters to be
+validated only at fit time.
 
 ## Automatic parameter normalization
 
