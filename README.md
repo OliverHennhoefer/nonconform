@@ -30,19 +30,20 @@ The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
 
-Same Isolation Forest settings, seven [benchmark datasets](https://pypi.org/project/oddball/),
-averaged over 20 random splits (the PyOD baseline trains on every row; `nonconform`
-holds some back for calibration):
+Below, the same Isolation Forest runs on seven [benchmark datasets](https://pypi.org/project/oddball/)
+(20 random splits each), thresholded once by the usual top-10% default and once
+by `nonconform`. The baseline trains on every row; `nonconform` holds some back
+for calibration.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-dark.svg">
-  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: PyOD's default threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
+  <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/false-share-light.svg" alt="Share of flags that are false on seven datasets: default top-10% threshold 47 to 58 percent, nonconform 4 to 9 percent, below the 10 percent target" width="820">
 </picture>
 
 <details>
 <summary>Flag counts per dataset</summary>
 
-| Dataset | Anomalies | PyOD default `predict()` | `nonconform`, `alpha=0.1` |
+| Dataset | Anomalies | Top-10% threshold | `nonconform`, `alpha=0.1` |
 | --- | ---: | ---: | ---: |
 | Shuttle | 100 | 188 flagged, 47% false | 105 flagged, 8% false |
 | HTTP | 100 | 190 flagged, 47% false | 99 flagged, 8% false |

@@ -46,7 +46,7 @@ def evaluate(y, flagged):
 
 
 print(
-    f"{'dataset':<12} {'anomalies':>9} | {'PyOD flagged':>12} {'false':>6} "
+    f"{'dataset':<12} {'anomalies':>9} | {'top-10% flagged':>15} {'false':>6} "
     f"{'recall':>6} | {'nonconform flagged':>18} {'false':>6} {'recall':>6}"
 )
 for dataset in DATASETS:
@@ -69,6 +69,6 @@ for dataset in DATASETS:
 
     p, c = np.mean(pyod, axis=0), np.mean(conformal, axis=0)
     print(
-        f"{dataset.name:<12} {int(y.sum()):>9} | {p[0]:>12.0f} {p[1]:>6.0%} "
+        f"{dataset.name:<12} {int(y.sum()):>9} | {p[0]:>15.0f} {p[1]:>6.0%} "
         f"{p[2]:>6.0%} | {c[0]:>18.0f} {c[1]:>6.0%} {c[2]:>6.0%}"
     )
