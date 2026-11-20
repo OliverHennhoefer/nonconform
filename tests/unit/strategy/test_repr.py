@@ -51,4 +51,9 @@ def test_custom_strategy_without_parameters_prints_its_name():
         def calibration_ids(self):
             return None
 
-    assert repr(Holdout()) == "Holdout()"
+    strategy = Holdout()
+
+    assert repr(strategy) == "Holdout()"
+    assert strategy.calibration_ids is None
+    with pytest.raises(NotImplementedError):
+        strategy.fit_calibrate(None, None)
