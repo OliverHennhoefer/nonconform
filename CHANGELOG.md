@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- nonconform now supports Python 3.11 (`requires-python = ">=3.11"`). CI tests
+  3.11, 3.12 and 3.13.
+- The NumPy floor is now 2.0 (was 2.2). The test suite passes on the lowest
+  declared versions: NumPy 2.0.0, pandas 2.2.2, SciPy 1.13.1 and
+  scikit-learn 1.5.2.
+- The SciPy floor is now 1.13.1, the first release built against NumPy 2.
+- oddball (in the `data` and `all` extras) requires Python 3.12, so on Python
+  3.11 those extras install without it. PyArrow is still installed.
+
 ## [2.0.1] - 2026-11-01
 
 ### Changed
