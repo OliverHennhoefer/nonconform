@@ -6,10 +6,13 @@ This module provides logging and decorator utilities used throughout the package
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, cast
+from typing import Any, ParamSpec, TypeVar, cast
 
 import numpy as np
 import pandas as pd
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -49,7 +52,7 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 
 
-def ensure_numpy_array[**P, R](func: Callable[P, R]) -> Callable[P, R]:
+def ensure_numpy_array(func: Callable[P, R]) -> Callable[P, R]:
     """Ensure a specific input argument is a numpy array.
 
     **Internal use only.** This decorator is designed for methods where the first

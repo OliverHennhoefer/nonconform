@@ -61,7 +61,7 @@ or a custom detector:
 
 ## Installation
 
-`nonconform` requires Python 3.12 or newer. Both discovery control and
+`nonconform` requires Python 3.11 or newer. Both discovery control and
 sequential monitoring are included in the core installation.
 
 ```bash

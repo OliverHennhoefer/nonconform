@@ -6,7 +6,7 @@ description: "Install nonconform with pip or uv and choose optional extras for P
 
 ## Requirements
 
-- Python 3.12 or newer
+- Python 3.11 or newer
 - A supported platform for NumPy, SciPy, pandas, and scikit-learn
 
 The core package includes batch conformal detection, FDR selection, sequential
@@ -34,7 +34,7 @@ Install only the capabilities your application needs.
 | Extra | Adds | Needed for |
 |---|---|---|
 | `[pyod]` | [PyOD](https://pyod.readthedocs.io/) | PyOD's detector collection |
-| `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) and PyArrow | Packaged benchmark-dataset workflows |
+| `[data]` | [oddball](https://github.com/OliverHennhoefer/oddball) and PyArrow | Packaged benchmark-dataset workflows (oddball needs Python 3.12+) |
 | `[fdr]` | [online-fdr](https://github.com/OliverHennhoefer/online-fdr) | Online multiple-testing procedures such as GAI and LORD |
 | `[probabilistic]` | [KDEpy](https://kdepy.readthedocs.io/) and [Optuna](https://optuna.org/) | `Probabilistic()` KDE estimation and tuning |
 | `[all]` | Every optional dependency above | Development or environments that need every feature |
