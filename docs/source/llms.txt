@@ -10,6 +10,7 @@ This file is a concise, AI-readable map of the public documentation for nonconfo
 - [Start Here](https://oliverhennhoefer.github.io/nonconform/start/) - Choose between select() for a short list and fpr_bounds() for a threshold, and size the calibration set (n_calib >= batch_size / alpha).
 - [Assumptions and Guarantees](https://oliverhennhoefer.github.io/nonconform/guarantees/) - What each workflow promises, its assumptions, and what breaks them.
 - [Use Cases](https://oliverhennhoefer.github.io/nonconform/use_cases/) - Batch screening, a false-alarm threshold replacing contamination, and stream monitoring, with plots and Colab notebooks.
+- [Benchmark](https://oliverhennhoefer.github.io/nonconform/benchmark/) - PyOD's default contamination=0.1 threshold against select() and fpr_bounds() on seven datasets: share of flags that are false, anomalies found, and which rule to use.
 - [Installation](https://oliverhennhoefer.github.io/nonconform/installation/) - Package installation and optional extras.
 - [Quick Start](https://oliverhennhoefer.github.io/nonconform/quickstart/) - Minimal batch-discovery and sequential-monitoring workflows.
 - [User Guide](https://oliverhennhoefer.github.io/nonconform/user_guide/) - Concepts, strategies, weighting, FDR control, martingales, evaluation, and troubleshooting.
