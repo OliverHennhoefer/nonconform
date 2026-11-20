@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Strategies print as the call that configured them, listing only arguments
+  that differ from the defaults, for example `Split(n_calib=0.2)`,
+  `CrossValidation(k=10)` or `JackknifeBootstrap()`, instead of a memory
+  address.
+
+### Changed
+
+- `Split()` without `n_calib` now holds out half of the rows passed to `fit()`
+  for calibration, rounded down, instead of 10%. This also applies when
+  `ConformalDetector` is created without a strategy. `select()` can flag a lone
+  anomaly only when `n_calib >= batch_size / alpha`, and the batch size is not
+  known at `fit()`, so the default favors calibration while leaving the
+  detector the larger half. Over 10 seeds on seven oddball datasets with
+  IsolationForest and LOF at `alpha=0.1`, empty selections fell from 91 to 60
+  of 140 runs, mean realized FDR was at most 0.10 in every setting, and power
+  rose or held in 12 of 14 settings. Both Pendigits settings lost power, LOF
+  most (0.50 to 0.23), since it scores against fewer training rows. The chosen
+  size is logged at INFO level. Pass `Split(n_calib=0.1)` to keep the previous
+  split; an explicit `n_calib` gives the same split as before.
+  `Split().calib_size` is now `None`.
+- nonconform no longer overrides a parallelism setting you chose for the
+  wrapped detector. `n_jobs`, `n_threads` or `num_workers` is set to `-1` only
+  while it is `None` or equal to the default in the detector's constructor, so
+  `IsolationForest(n_jobs=2)` keeps two workers, for example inside
+  `GridSearchCV`. PyOD detectors default to `n_jobs=1`, which still counts as
+  unset.
+- An empty `select()` now always logs a warning on `nonconform.fdr` in standard
+  mode. When the p-value floor is not the cause, it reports the smallest
+  p-value and the threshold a single discovery needed, says whether
+  calibration size can be ruled out, asks to check `score_polarity`, and with
+  `Split` points to `fpr_bounds()`. With groups, calibration size stays a
+  possible cause and `fpr_bounds()` is not suggested. Weighted selections are
+  unchanged.
+
 ## [2.1.0] - 2026-11-20
 
 ### Added

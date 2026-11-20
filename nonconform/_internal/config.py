@@ -6,6 +6,7 @@ standard parameters for conformal anomaly detection.
 
 from __future__ import annotations
 
+import inspect
 import logging
 import sys
 from typing import TYPE_CHECKING, Any
@@ -32,7 +33,8 @@ def set_params(
 
     Sets common parameters following sklearn conventions with fallback aliases:
     - contamination: Set to minimum for one-class training (optional)
-    - n_jobs/n_threads: Set to -1 to use all cores (optional)
+    - n_jobs/n_threads: Set to -1 to use all cores when the value is still
+      the detector's default (optional)
     - random_state/seed: Set for reproducibility (only if seed provided)
 
     Args:
@@ -135,14 +137,72 @@ def _try_set_contamination(
     logger.debug("Detector has no contamination parameter (acceptable)")
 
 
+def _parallelism_keys(
+    params: dict[str, Any], alias: str, final_prefix: str
+) -> list[str]:
+    """Return the keys ``_set_alias`` would set for a parallelism alias."""
+    if alias in params:
+        return [alias]
+    nested = f"{final_prefix}{alias}"
+    return [nested] if final_prefix and nested in params else []
+
+
+def _constructor_default(owner: Any, name: str) -> Any:
+    """Return the default of ``name`` in ``type(owner).__init__``, if declared."""
+    try:
+        parameter = inspect.signature(type(owner).__init__).parameters.get(name)
+    except (TypeError, ValueError):
+        return inspect.Parameter.empty
+    if parameter is None:
+        return inspect.Parameter.empty
+    return parameter.default
+
+
+def _left_at_default(detector: Any, params: dict[str, Any], key: str) -> bool:
+    """Whether the parallelism parameter ``key`` still holds its default.
+
+    ``None`` always counts as unset. Otherwise the value counts as unset only
+    when it equals the default declared by the constructor of the object that
+    owns the parameter (the Pipeline step for nested keys). A value that
+    differs, or one whose default cannot be found, was chosen by the user.
+    """
+    value = params[key]
+    if value is None:
+        return True
+    if "__" in key:
+        owner_key, name = key.rsplit("__", 1)
+        owner = params.get(owner_key)
+    else:
+        name = key
+        owner = detector
+        while "_detector" in getattr(owner, "__dict__", {}):
+            owner = owner.__dict__["_detector"]
+    if owner is None:
+        return False
+    default = _constructor_default(owner, name)
+    return default is not inspect.Parameter.empty and value == default
+
+
 def _try_set_parallelism(
     detector: AnomalyDetector, params: dict[str, Any], final_prefix: str
 ) -> None:
-    """Try to set parallelism to use all cores."""
+    """Use all cores unless the user chose the detector's parallelism.
+
+    A parallelism value the user set is kept, so a detector configured with
+    ``n_jobs=2`` (for example inside ``GridSearchCV`` or on a shared machine)
+    is not switched to every core. Only a value left at its default is set
+    to ``-1``.
+    """
     for alias in _N_JOBS_ALIASES:
-        if _set_alias(detector, params, alias, -1, final_prefix):
-            logger.debug(f"Set {alias}=-1 for parallelism")
+        keys = _parallelism_keys(params, alias, final_prefix)
+        if not keys:
+            continue
+        if not all(_left_at_default(detector, params, key) for key in keys):
+            logger.debug(f"Kept user-set {alias}={params[keys[0]]!r}")
             return
+        _set_alias(detector, params, alias, -1, final_prefix)
+        logger.debug(f"Set {alias}=-1 for parallelism")
+        return
 
     logger.debug("Detector has no parallelism parameter (acceptable)")
 

@@ -207,7 +207,8 @@ Check, in order:
 2. **Calibration grid:** is the smallest attainable p-value compatible with
    the family size and selection thresholds? With classical `Empirical`
    p-values, an empty `select(...)` logs a `nonconform.fdr` warning when
-   `1 / (n_cal + 1)` rules out even one discovery; see
+   `1 / (n_cal + 1)` rules out even one discovery. Otherwise the warning
+   reports the smallest p-value and the threshold it missed; see
    [Calibration size and the p-value floor](fdr_control.md#calibration-size-and-the-p-value-floor).
 3. **Family size:** BH thresholds depend on the complete number of tests.
 4. **Reference contamination:** anomalies in calibration can thicken the score

@@ -327,7 +327,10 @@ def test_select_does_not_warn_when_floor_permits_a_discovery(fdr_records):
     detector = _detector(strategy=Split(n_calib=999)).fit(x_reference)
 
     assert not detector.select(x_clean, alpha=0.05).any()
-    assert fdr_records == []
+    assert len(fdr_records) == 1
+    message = fdr_records[0].getMessage()
+    assert "Calibration size is not the limit" in message
+    assert "cannot fall below" not in message
 
 
 def test_select_does_not_warn_after_discoveries(fdr_records):
@@ -368,4 +371,10 @@ def test_floor_warning_is_limited_to_classical_empirical_p_values(fdr_records, k
 
     detector.select(x_clean, alpha=0.05)
 
-    assert fdr_records == []
+    messages = [record.getMessage() for record in fdr_records]
+    assert not any("cannot fall below" in message for message in messages)
+    if "weight_estimator" in kwargs:
+        assert messages == []
+    else:
+        assert len(messages) == 1
+        assert "too few calibration scores" in messages[0]

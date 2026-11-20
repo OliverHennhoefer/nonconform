@@ -77,7 +77,8 @@ A scikit-learn `Pipeline` reports the scores of its final step, so
 `nonconform` infers polarity from that step. A pipeline ending in
 `IsolationForest` is handled like a bare `IsolationForest`, including with
 `score_polarity="auto"`. The `seed` reaches every step that exposes
-`random_state`; `n_jobs` and `contamination` are set on the final step only.
+`random_state`; `n_jobs` and `contamination` are set on the final step only,
+and `n_jobs` only when that step still has its default.
 
 ```python
 import numpy as np
@@ -336,8 +337,16 @@ set common parameters:
 | Parameter aliases | Value | Purpose |
 |---|---|---|
 | `contamination` | Smallest positive Python float | Prevent detector-level contamination thresholds from defining the conformal decision rule |
-| `n_jobs`, `n_threads`, or `num_workers` | `-1` | Use available parallel workers when the detector exposes such a parameter |
+| `n_jobs`, `n_threads`, or `num_workers` | `-1`, only if still at the detector's default | Use available parallel workers unless you chose a value |
 | `random_state`, `seed`, or `random_seed` | Detector seed | Reproducible fitting where supported |
+
+A parallelism value you set yourself is kept, so `IsolationForest(n_jobs=2)`
+uses two workers, for example inside `GridSearchCV(n_jobs=-1)` or on a shared
+machine. nonconform cannot see how a detector was constructed, so it treats
+`None` and the value the detector's constructor declares as its default as
+unset. PyOD detectors default to `n_jobs=1`, so `IForest(n_jobs=1)` still runs
+on every core; pass the detector a different value, such as `n_jobs=2`, to
+limit it.
 
 Absent contamination and parallelism parameters are acceptable. If a seed is
 provided but the detector exposes no recognized seed parameter, the library

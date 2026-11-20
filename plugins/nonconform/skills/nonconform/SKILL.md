@@ -137,11 +137,12 @@ Each of these voids the guarantee. Treat any one as a blocker: fix it, or report
 - **scikit-learn**: `IsolationForest`, `OneClassSVM`, `SGDOneClassSVM`, `LocalOutlierFactor(novelty=True)` and `EllipticEnvelope` are recognized, and their score direction is handled, also as the final step of a `Pipeline`.
 - **Custom detectors** need `fit` and `decision_function` (`get_params`/`set_params` are optional), and must be copyable; a plain scoring function `f(X) -> scores` also works with `calibrate()`. Each row's score must not depend on the other rows in the batch. Pass `score_polarity="higher_is_anomalous"` or `"higher_is_normal"` to say which way the scores point; omitted, it defaults to higher-is-anomalous and logs a warning.
 
-nonconform adjusts some detector parameters it finds in `get_params()`: it sets `contamination` to a tiny value (the conformal rule replaces it), parallelism parameters such as `n_jobs` to `-1`, and `random_state` (or `seed`) from the `seed` you pass. Mention this if the user expects their own values to be used.
+nonconform adjusts some detector parameters it finds in `get_params()`: it sets `contamination` to a tiny value (the conformal rule replaces it), parallelism parameters such as `n_jobs` to `-1` when they are still at the detector's default (a value the user set, such as `n_jobs=2`, is kept; PyOD's default `n_jobs=1` counts as unset), and `random_state` (or `seed`) from the `seed` you pass. Mention this if the user expects their own values to be used.
 
 ## Troubleshooting
 
 - **`select()` flags nothing and logs a p-value floor warning**: the calibration set is too small for the batch size and `alpha`. See Step 2.
+- **`select()` flags nothing and the warning says calibration size is not the limit**: the batch has no anomalies the detector can separate from normal points. Check `score_polarity` and the detector; if a per-point false-alarm cap fits the decision, use `fpr_bounds()` (`references/workflows.md`, section 1).
 - **Almost everything is flagged**: the reference data do not match the new normal data (drift, a different pipeline, unscaled features), or a custom detector's score direction is inverted.
 - **`threshold_for()` returns `inf` and `certificate.select()` flags nothing**: the target is below the certificate's floor. Use more calibration scores or conditional p-values (`references/workflows.md`, section 2).
 - **`fdp_bounds()` gives a bound near 1.0 for a short list**: valid but uninformative. Do not switch envelopes for this batch after seeing the bound; report that no useful bound is available. When lists will be a small share of the batch, choose `method="mc_hc"` before computing any bound (`references/workflows.md`, section 8).

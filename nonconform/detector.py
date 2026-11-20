@@ -65,6 +65,7 @@ from ._internal.p_value_selection import (
     normalize_method,
     validate_storey_scope,
     warn_if_floor_blocks_discovery,
+    warn_no_discoveries,
 )
 from ._internal.provenance import (
     BatchSignature,
@@ -931,7 +932,10 @@ class ConformalDetector(BaseConformalDetector, BaseEstimator):
         is empty and that floor exceeds the first step-up threshold, a warning
         on the ``nonconform.fdr`` logger reports the calibration size needed to
         discover a single isolated anomaly. With groups, ``n`` is the size of
-        the largest calibration group among the test points.
+        the largest calibration group among the test points. Any other empty
+        standard selection logs a warning that reports the smallest p-value
+        and the threshold it missed, since the cause is then the evidence in
+        the batch rather than the calibration size.
 
         Args:
             x: New data instances for anomaly estimation.
@@ -1069,23 +1073,37 @@ class ConformalDetector(BaseConformalDetector, BaseEstimator):
                 adjusted_p_values(p_values, method=method, n_calibration=n_calibration)
                 <= alpha
             )
-            if (
-                p_values.size
-                and not mask.any()
-                and has_classical_floor(result._provenance)
-            ):
-                if calibration.groups is not None:
-                    # The smallest attainable p-value comes from the largest
-                    # calibration group among the test points.
-                    test_codes = calibration.groups.encode(groups, n_rows=p_values.size)
-                    n_calibration = int(calibration.groups.counts[test_codes].max())
-                warn_if_floor_blocks_discovery(
-                    p_values,
-                    alpha=alpha,
-                    method=method,
-                    n_calibration=n_calibration,
-                    grouped=calibration.groups is not None,
-                )
+            if p_values.size and not mask.any():
+                floor_blocked = False
+                classical = has_classical_floor(result._provenance)
+                if classical:
+                    floor_n = n_calibration
+                    if calibration.groups is not None:
+                        # The smallest attainable p-value comes from the largest
+                        # calibration group among the test points.
+                        test_codes = calibration.groups.encode(
+                            groups, n_rows=p_values.size
+                        )
+                        floor_n = int(calibration.groups.counts[test_codes].max())
+                    floor_blocked = warn_if_floor_blocks_discovery(
+                        p_values,
+                        alpha=alpha,
+                        method=method,
+                        n_calibration=floor_n,
+                        grouped=calibration.groups is not None,
+                    )
+                if not floor_blocked:
+                    warn_no_discoveries(
+                        p_values,
+                        alpha=alpha,
+                        method=method,
+                        n_calibration=n_calibration,
+                        # fpr_bounds() rejects grouped calibration, and the
+                        # floor check above covers only the largest group.
+                        suggest_fpr_bounds=isinstance(self.strategy, Split)
+                        and calibration.groups is None,
+                        calibration_ruled_out=classical and calibration.groups is None,
+                    )
 
         if index is not None:
             return pd.Series(mask, index=index, name="selected")

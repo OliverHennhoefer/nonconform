@@ -16,7 +16,7 @@ def sample_data():
 
 @pytest.mark.parametrize(
     ("kwargs", "expected"),
-    [({}, 0.1), ({"n_calib": 0.3}, 0.3), ({"n_calib": 100}, 100)],
+    [({}, None), ({"n_calib": 0.3}, 0.3), ({"n_calib": 100}, 100)],
     ids=["default", "proportional", "absolute"],
 )
 def test_calib_size_reflects_configuration(kwargs, expected):
@@ -25,8 +25,8 @@ def test_calib_size_reflects_configuration(kwargs, expected):
 
 @pytest.mark.parametrize(
     ("n_samples", "n_calib", "expected_calib"),
-    [(100, 0.2, 20), (100, 30, 30), (10, 0.3, 3)],
-    ids=["proportional", "absolute", "small-dataset"],
+    [(100, 0.2, 20), (100, 30, 30), (10, 0.3, 3), (101, None, 50), (2, None, 1)],
+    ids=["proportional", "absolute", "small-dataset", "default-half", "default-min"],
 )
 def test_fit_calibrate_returns_one_fitted_seeded_model(
     n_samples, n_calib, expected_calib
@@ -85,7 +85,7 @@ def test_seed_determines_calibration_split(sample_data, second_seed, same_split)
         (0, ValueError, "Absolute n_calib"),
         (10, ValueError, "No training data remaining"),
         (11, ValueError, "Calibration size"),
-        ("bad", TypeError, "n_calib must be int or float"),
+        ("bad", TypeError, "n_calib must be int, float or None"),
     ],
 )
 def test_invalid_n_calib_raises(n_calib, error, match):
@@ -94,3 +94,30 @@ def test_invalid_n_calib_raises(n_calib, error, match):
 
     with pytest.raises(error, match=match):
         strategy.fit_calibrate(x=x, detector=MockDetector(), seed=42)
+
+
+def test_default_size_is_logged_with_the_batch_rule(caplog, monkeypatch):
+    import logging
+
+    monkeypatch.setattr(logging.getLogger("nonconform"), "propagate", True)
+    x = np.random.default_rng(0).standard_normal((400, 3))
+
+    with caplog.at_level(logging.INFO, logger="nonconform"):
+        Split().fit_calibrate(x=x, detector=MockDetector(), seed=1)
+
+    assert "held out 200 of 400 rows" in caplog.text
+    assert "n_calib >= batch_size / alpha" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("first", "second"), [(None, 50), (0.1, 10)], ids=["default", "fraction"]
+)
+def test_equivalent_sizes_give_the_same_split(first, second):
+    x = np.random.default_rng(0).standard_normal((100, 3))
+    ids = []
+    for n_calib in (first, second):
+        strategy = Split(n_calib=n_calib)
+        strategy.fit_calibrate(x=x, detector=MockDetector(), seed=5, weighted=True)
+        ids.append(strategy.calibration_ids)
+
+    assert ids[0] == ids[1]

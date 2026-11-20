@@ -29,17 +29,17 @@ class ParamsDetector:
     ("params", "seed", "expected"),
     [
         (
-            {"contamination": 0.1, "n_jobs": 1, "random_state": None},
+            {"contamination": 0.1, "n_jobs": None, "random_state": None},
             99,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1, "random_state": 99},
         ),
         (
-            {"contamination": 0.5, "n_jobs": 1, "random_state": 999},
+            {"contamination": 0.5, "n_jobs": None, "random_state": 999},
             42,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1, "random_state": 42},
         ),
         (
-            {"n_jobs": 1, "random_state": None},
+            {"n_jobs": None, "random_state": None},
             42,
             {"n_jobs": -1, "random_state": 42},
         ),
@@ -49,15 +49,15 @@ class ParamsDetector:
             {"contamination": MIN_CONTAMINATION, "random_state": 42},
         ),
         (
-            {"contamination": 0.1, "n_jobs": 1},
+            {"contamination": 0.1, "n_jobs": None},
             42,
             {"contamination": MIN_CONTAMINATION, "n_jobs": -1},
         ),
         ({"seed": None}, 42, {"seed": 42}),
         ({"random_seed": None}, 99, {"random_seed": 99}),
-        ({"n_threads": 1}, None, {"n_threads": -1}),
+        ({"n_threads": None}, None, {"n_threads": -1}),
         (
-            {"num_workers": 1, "random_state": None},
+            {"num_workers": None, "random_state": None},
             42,
             {"num_workers": -1, "random_state": 42},
         ),
@@ -109,6 +109,36 @@ def test_missing_random_state_warns_only_when_seed_is_given(
     assert ("random_state" in caplog.text) is warns
 
 
+class DefaultsDetector(ParamsDetector):
+    """Detector double that declares its parallelism default like PyOD."""
+
+    def __init__(self, n_jobs=1, contamination=0.1):
+        super().__init__(n_jobs=n_jobs, contamination=contamination)
+
+
+@pytest.mark.parametrize(
+    ("detector", "key", "expected"),
+    [
+        (ParamsDetector(n_jobs=None), "n_jobs", -1),
+        (DefaultsDetector(), "n_jobs", -1),
+        (DefaultsDetector(n_jobs=2), "n_jobs", 2),
+        (ParamsDetector(n_jobs=3), "n_jobs", 3),
+        (ParamsDetector(n_threads=4), "n_threads", 4),
+    ],
+    ids=[
+        "unset-none",
+        "declared-default",
+        "user-value",
+        "unknown-default-kept",
+        "alias-user-value",
+    ],
+)
+def test_parallelism_is_filled_only_when_left_at_default(detector, key, expected):
+    set_params(detector, seed=None)
+
+    assert detector.params[key] == expected
+
+
 def test_random_iteration_derives_reproducible_distinct_seeds():
     def configured_seed(seed, iteration, random_iteration=True):
         detector = ParamsDetector(random_state=None)
@@ -132,3 +162,26 @@ def test_random_iteration_derives_reproducible_distinct_seeds():
 def test_derive_seed_requires_at_least_one_part() -> None:
     with pytest.raises(ValueError, match="At least one seed part"):
         derive_seed()
+
+
+def test_parallelism_owner_without_inspectable_signature_counts_as_user_set(
+    monkeypatch,
+):
+    from nonconform._internal import config
+
+    def no_signature(_):
+        raise ValueError("no signature found")
+
+    monkeypatch.setattr(config.inspect, "signature", no_signature)
+    detector = DefaultsDetector()
+
+    set_params(detector, seed=None)
+
+    assert detector.params["n_jobs"] == 1
+
+
+def test_nested_parallelism_without_owner_counts_as_user_set():
+    from nonconform._internal.config import _left_at_default
+
+    assert not _left_at_default(None, {"model__n_jobs": 2}, "model__n_jobs")
+    assert _left_at_default(None, {"model__n_jobs": None}, "model__n_jobs")

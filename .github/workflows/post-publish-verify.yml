@@ -16,6 +16,7 @@ jobs:
   verify:
     name: Verify PyPI install (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -26,17 +27,26 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Wait for PyPI availability
-        # PyPI indexing can lag a few seconds after a release is published.
-        run: sleep 30
-
       - name: Install from PyPI
+        # The GitHub release is published when the tag is pushed, but the
+        # Release workflow only uploads to PyPI after its build and test job
+        # (about 8 minutes for 2.1.0), and the PyPI index can lag behind the
+        # upload. Retry every 30 seconds for up to 40 minutes.
         # Release trigger: version comes from the tag (strips leading "v").
         # Manual trigger: version comes from the workflow_dispatch input.
+        env:
+          VERSION_INPUT: ${{ github.event.release.tag_name || inputs.version }}
         run: |
-          VERSION="${{ github.event.release.tag_name || inputs.version }}"
-          VERSION="${VERSION#v}"
-          pip install "nonconform[all]==${VERSION}"
+          VERSION="${VERSION_INPUT#v}"
+          for attempt in $(seq 1 80); do
+            if pip install --no-cache-dir "nonconform[all]==${VERSION}"; then
+              exit 0
+            fi
+            echo "nonconform ${VERSION} is not installable from PyPI yet (attempt ${attempt} of 80); retrying in 30 seconds."
+            sleep 30
+          done
+          echo "::error::nonconform ${VERSION} was not installable from PyPI after 40 minutes."
+          exit 1
 
       - name: Verify public API imports
         run: |
