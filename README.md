@@ -30,20 +30,14 @@ The usual default, flagging the top 10% of scores, is a guess about how many
 anomalies there are. `nonconform` calibrates the scores of your existing detector
 against normal data, so the threshold follows from the error rate you can accept.
 
-Below, the same Isolation Forest runs on seven [benchmark datasets](https://pypi.org/project/oddball/)
-(20 random splits each), once with its default threshold (flag the top 10% of scores) and
-once with `nonconform`. The baseline trains on every row; `nonconform` holds some back
-for calibration.
+The same Isolation Forest on seven benchmark datasets, with and without `nonconform`:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-dark.svg">
   <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/img/readme/flags-light.svg" alt="True anomalies and false alarms flagged on seven datasets: the detector alone flags about twice the real anomalies with 47 to 58 percent false; nonconform flags fewer, with 4 to 9 percent false" width="820">
 </picture>
 
-The average false share stays below the 10% target on every dataset. Where the detector
-barely separates anomalies from normal data (Mammography, Cardio), `nonconform`
-flags little rather than guess. Reproduce with
-[`examples/benchmarks/default_thresholds.py`](examples/benchmarks/default_thresholds.py).
+<sub><i>Mean of 20 random splits per <a href="https://pypi.org/project/oddball/">benchmark dataset</a>. The average false share stays under the 10% target on every dataset; where the detector barely separates anomalies (Mammography, Cardio), <code>nonconform</code> flags little rather than guess. The baseline trains on every row, <code>nonconform</code> holds some back for calibration. Reproduce with <a href="https://github.com/OliverHennhoefer/nonconform/blob/main/examples/benchmarks/default_thresholds.py"><code>default_thresholds.py</code></a>.</i></sub>
 
 <p align="center">
   <strong>Works with</strong>
