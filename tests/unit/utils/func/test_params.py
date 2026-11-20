@@ -162,3 +162,26 @@ def test_random_iteration_derives_reproducible_distinct_seeds():
 def test_derive_seed_requires_at_least_one_part() -> None:
     with pytest.raises(ValueError, match="At least one seed part"):
         derive_seed()
+
+
+def test_parallelism_owner_without_inspectable_signature_counts_as_user_set(
+    monkeypatch,
+):
+    from nonconform._internal import config
+
+    def no_signature(_):
+        raise ValueError("no signature found")
+
+    monkeypatch.setattr(config.inspect, "signature", no_signature)
+    detector = DefaultsDetector()
+
+    set_params(detector, seed=None)
+
+    assert detector.params["n_jobs"] == 1
+
+
+def test_nested_parallelism_without_owner_counts_as_user_set():
+    from nonconform._internal.config import _left_at_default
+
+    assert not _left_at_default(None, {"model__n_jobs": 2}, "model__n_jobs")
+    assert _left_at_default(None, {"model__n_jobs": None}, "model__n_jobs")

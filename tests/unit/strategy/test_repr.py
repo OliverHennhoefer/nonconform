@@ -38,3 +38,17 @@ def test_repr_shows_single_model_mode(caplog):
     assert repr(JackknifeBootstrap(mode="single_model")) == (
         "JackknifeBootstrap(mode='single_model')"
     )
+
+
+def test_custom_strategy_without_parameters_prints_its_name():
+    from nonconform.resampling import BaseStrategy
+
+    class Holdout(BaseStrategy):
+        def fit_calibrate(self, x, detector, seed=None, weighted=False):
+            raise NotImplementedError
+
+        @property
+        def calibration_ids(self):
+            return None
+
+    assert repr(Holdout()) == "Holdout()"
