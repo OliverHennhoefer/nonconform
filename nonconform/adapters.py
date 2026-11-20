@@ -360,10 +360,12 @@ def _adapt_with_score_polarity(
 
 def _warn_assumed_score_polarity(detector: Any) -> None:
     """Log that an unrecognized detector's score direction was assumed."""
-    from sklearn.base import is_outlier_detector
+    from sklearn.base import OutlierMixin
 
     hint = ""
-    if is_outlier_detector(_scoring_estimator(detector)):
+    # isinstance, not sklearn.base.is_outlier_detector: from scikit-learn 1.6
+    # that reads estimator tags and raises for plain custom detectors.
+    if isinstance(_scoring_estimator(detector), OutlierMixin):
         hint = (
             " scikit-learn outlier detectors usually return higher scores for "
             "normal points, which needs score_polarity='higher_is_normal'."
