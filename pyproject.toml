@@ -1,7 +1,7 @@
 [project]
 name = "nonconform"
 dynamic = ["version"]
-description = "Conformal Anomaly Detection"
+description = "A Python library for anomaly detection with statistical guarantees. Wraps any PyOD or scikit-learn detector, controls false alarms (FDR/FPR), and monitors streams for change points."
 authors = [
   { name = "Oliver Hennhoefer", email = "oliver.hennhoefer@mail.de" },
 ]
