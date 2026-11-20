@@ -198,8 +198,9 @@ Claude Code (`/plugin marketplace add OliverHennhoefer/nonconform`, then
 ## Statistical scope
 
 > [!IMPORTANT]
-> Every guarantee rests on assumptions. Conformal p-values need calibration data
-> and normal test points to be exchangeable; FDR claims need the assumptions of
+> Conformal inference needs remarkably little: no distributional model, and its
+> guarantees hold in finite samples. The few assumptions it does make are worth
+> knowing. Conformal p-values need calibration data and normal test points to be exchangeable; FDR claims need the assumptions of
 > the chosen multiple-testing procedure; FPR certificates need i.i.d. scores from
 > an independently fitted detector; weighted workflows need a credible
 > covariate-shift model; Ville alarms cover one stream, while CUSUM and
