@@ -4,7 +4,8 @@ description: "Calibrate anomaly scores, control discoveries, and monitor streams
 ---
 
 <p align="center">
-  <img src="assets/banner.png" alt="nonconform" width="720">
+  <img src="assets/logo-light.svg#only-light" alt="nonconform" width="420">
+  <img src="assets/logo-dark.svg#only-dark" alt="nonconform" width="420">
 </p>
 
 # nonconform: Conformal Anomaly Detection in Python
