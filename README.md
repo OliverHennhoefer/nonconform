@@ -1,6 +1,9 @@
 <h1 align="center">
   <a href="https://oliverhennhoefer.github.io/nonconform/">
-    <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/banner.png" alt="nonconform" width="760">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/logo-dark.svg">
+      <img src="https://raw.githubusercontent.com/OliverHennhoefer/nonconform/main/docs/source/assets/logo-light.svg" alt="nonconform" width="420">
+    </picture>
   </a>
 </h1>
 

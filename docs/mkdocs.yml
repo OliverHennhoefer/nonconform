@@ -15,7 +15,8 @@ use_directory_urls: true
 theme:
   name: material
   custom_dir: overrides
-  favicon: assets/favicon.png
+  favicon: assets/favicon.svg
+  logo: assets/mark-light.svg
   font: false
   icon:
     repo: fontawesome/brands/github
