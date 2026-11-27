@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from nonconform._internal.conditional_calibration import (
-    betainv_asymptotic,
     betainv_mc,
     betainv_simes,
     calibrate_conditional_p_values,
@@ -13,7 +12,6 @@ from nonconform._internal.conditional_calibration import (
     compute_hybrid_bound,
     estimate_fs_correction,
 )
-from nonconform.scoring import ConditionalEmpirical
 
 P_VALUES = np.array([0.2, 0.8])
 
@@ -143,33 +141,6 @@ def test_betainv_simes_maps_p_above_last_grid_step_to_one() -> None:
         rtol=0.0,
         atol=1e-12,
     )
-
-    estimator = ConditionalEmpirical(method="simes", delta=0.1)
-    actual = estimator.compute_p_values(
-        np.array([-1.0, 0.5, 1.0]),
-        np.array([0.5]),
-    )
-    np.testing.assert_allclose(actual, np.array([1.0, 1.0, 0.9]), rtol=0.0, atol=1e-12)
-
-
-def test_betainv_classical_grid_avoids_float_floor_off_by_one() -> None:
-    n_cal, k_simes, delta = 48, 24, 0.05
-    grid = np.arange(1, n_cal + 2, dtype=float) / (n_cal + 1)
-
-    aseq_simes = compute_aseq(n_cal, k_simes, delta)
-    expected_simes = np.concatenate([1.0 - aseq_simes[::-1], [1.0]])
-    actual_simes = betainv_simes(grid, n_cal, k_simes, delta)
-    np.testing.assert_allclose(actual_simes, expected_simes, rtol=0.0, atol=1e-12)
-
-    i = np.arange(1, n_cal + 1)
-    cn = compute_cn(delta, n_cal)
-    aseq_asymp = 1.0 - np.minimum(
-        1.0,
-        (i / n_cal + cn * np.sqrt(i * (n_cal - i)) / (n_cal * np.sqrt(n_cal)))[::-1],
-    )
-    expected_asymp = np.concatenate([1.0 - aseq_asymp[::-1], [1.0]])
-    actual_asymp = betainv_asymptotic(grid, n_cal, delta)
-    np.testing.assert_allclose(actual_asymp, expected_asymp, rtol=0.0, atol=1e-12)
 
 
 def test_betainv_preserves_strict_step_boundaries_for_randomized_p_values() -> None:

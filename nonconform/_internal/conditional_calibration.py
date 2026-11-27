@@ -121,18 +121,23 @@ def compute_aseq(n_calibration: int, k: int, delta: float) -> np.ndarray:
 
 
 def _betainv_generic(p_values: np.ndarray, aseq: np.ndarray) -> np.ndarray:
-    """Apply inverse beta-sequence transform."""
+    """Map p-values onto the calibration envelope ``b_i = 1 - aseq[n_cal - i]``.
+
+    Each p-value is rounded up to the classical grid ``i / (n_cal + 1)`` and
+    replaced by ``b_i``, with ``b_{n_cal + 1} = 1`` (Bates et al., 2023).
+    ``p = 0`` maps to ``b_1``, which is conservative.
+    """
     p_vals = _validate_p_values(p_values)
     n_cal = len(aseq)
-    raw = (n_cal + 1) * (1.0 - p_vals)
-    idx = np.clip(np.floor(raw).astype(int), 0, n_cal)
-    # Reconcile IEEE-754 rounding at exact classical grid points k / (n_cal + 1).
-    inc = (idx < n_cal) & (p_vals <= (n_cal - idx) / (n_cal + 1))
-    idx = np.where(inc, idx + 1, idx)
-    dec = (idx > 0) & (p_vals > (n_cal + 1 - idx) / (n_cal + 1))
-    idx = np.where(dec, idx - 1, idx)
-    padded_aseq = np.concatenate(([0.0], aseq))
-    return 1.0 - padded_aseq[idx]
+    # The grid floats equal classical p-values (1 + r) / (1 + n_cal) bit for bit,
+    # so a p-value on the grid stays on its own step.
+    grid = np.arange(1, n_cal + 1, dtype=float)
+    grid /= n_cal + 1
+    below = np.searchsorted(grid, p_vals, side="left")  # p rounds up to rank below+1
+    calibrated = np.ones_like(p_vals)
+    on_envelope = below < n_cal
+    calibrated[on_envelope] = 1.0 - aseq[n_cal - 1 - below[on_envelope]]
+    return calibrated
 
 
 def betainv_simes(
