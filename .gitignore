@@ -18,8 +18,10 @@ __pycache__
 /dist/
 .uv-cache/
 
-# Auto-generated during builds
-/src/hatch/_version.py
+# Test and coverage output
+.coverage
+.coverage.*
+coverage.xml
 
 # MkDocs documentation
 docs/site/
