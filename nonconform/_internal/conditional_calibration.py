@@ -124,9 +124,15 @@ def _betainv_generic(p_values: np.ndarray, aseq: np.ndarray) -> np.ndarray:
     """Apply inverse beta-sequence transform."""
     p_vals = _validate_p_values(p_values)
     n_cal = len(aseq)
-    idx = np.floor((n_cal + 1) * (1.0 - p_vals)).astype(int)
-    idx = np.clip(idx, 1, n_cal)
-    return 1.0 - aseq[idx - 1]
+    raw = (n_cal + 1) * (1.0 - p_vals)
+    idx = np.clip(np.floor(raw).astype(int), 0, n_cal)
+    # Reconcile IEEE-754 rounding at exact classical grid points k / (n_cal + 1).
+    inc = (idx < n_cal) & (p_vals <= (n_cal - idx) / (n_cal + 1))
+    idx = np.where(inc, idx + 1, idx)
+    dec = (idx > 0) & (p_vals > (n_cal + 1 - idx) / (n_cal + 1))
+    idx = np.where(dec, idx - 1, idx)
+    padded_aseq = np.concatenate(([0.0], aseq))
+    return 1.0 - padded_aseq[idx]
 
 
 def betainv_simes(
