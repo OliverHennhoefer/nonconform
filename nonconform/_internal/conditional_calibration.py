@@ -121,12 +121,24 @@ def compute_aseq(n_calibration: int, k: int, delta: float) -> np.ndarray:
 
 
 def _betainv_generic(p_values: np.ndarray, aseq: np.ndarray) -> np.ndarray:
-    """Apply inverse beta-sequence transform."""
+    """Map p-values onto the calibration envelope ``b_i = 1 - aseq[n_cal - i]``.
+
+    Each p-value is rounded up to the classical grid ``i / (n_cal + 1)`` and
+    replaced by ``b_i``, with ``b_{n_cal + 1} = 1`` (Bates et al., 2023).
+    ``p = 0`` maps to ``b_1``, which is conservative.
+    """
     p_vals = _validate_p_values(p_values)
     n_cal = len(aseq)
-    idx = np.floor((n_cal + 1) * (1.0 - p_vals)).astype(int)
-    idx = np.clip(idx, 1, n_cal)
-    return 1.0 - aseq[idx - 1]
+    # Take the nearest grid rank, then step up if p lies above that grid value.
+    # Comparing against i / (n_cal + 1) itself keeps classical p-values, which
+    # are computed the same way, on their own step.
+    rank = np.rint(p_vals * (n_cal + 1))
+    rank += p_vals > rank / (n_cal + 1)
+    rank = np.clip(rank, 1, n_cal + 1).astype(int)
+    calibrated = np.ones_like(p_vals)
+    on_envelope = rank <= n_cal
+    calibrated[on_envelope] = 1.0 - aseq[n_cal - rank[on_envelope]]
+    return calibrated
 
 
 def betainv_simes(

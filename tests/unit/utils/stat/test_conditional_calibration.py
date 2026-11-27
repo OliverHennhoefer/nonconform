@@ -5,6 +5,7 @@ import pytest
 
 from nonconform._internal.conditional_calibration import (
     betainv_mc,
+    betainv_simes,
     calibrate_conditional_p_values,
     compute_aseq,
     compute_cn,
@@ -122,3 +123,52 @@ def test_fs_correction_locates_seeded_crossing_probability_root() -> None:
     assert -(1.0 - delta) < estimates[0] < delta
     assert crossing_probability(estimates[0] + 1e-6) <= delta
     assert crossing_probability(estimates[0] - 1e-6) > delta
+
+
+def test_betainv_simes_maps_p_above_last_grid_step_to_one() -> None:
+    np.testing.assert_allclose(
+        betainv_simes(np.array([0.5, 1.0]), n_calibration=1, k=1, delta=0.1),
+        np.array([0.9, 1.0]),
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+    n_cal, delta = 50, 0.05
+    p_vals = np.array([n_cal / (n_cal + 1), (n_cal + 0.5) / (n_cal + 1), 1.0])
+    np.testing.assert_allclose(
+        betainv_simes(p_vals, n_calibration=n_cal, k=1, delta=delta),
+        np.array([1.0 - delta / n_cal, 1.0, 1.0]),
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+
+def test_betainv_preserves_strict_step_boundaries_for_randomized_p_values() -> None:
+    n_cal, k_simes, delta = 48, 1, 0.05
+    aseq = compute_aseq(n_cal, k_simes, delta)
+    grid = np.arange(1, n_cal + 1, dtype=float) / (n_cal + 1)
+
+    just_above = np.nextafter(grid, 1.0)
+    expected_above = np.concatenate([1.0 - aseq[:-1][::-1], [1.0]])
+    np.testing.assert_allclose(
+        betainv_simes(just_above, n_cal, k_simes, delta),
+        expected_above,
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+    just_below = np.nextafter(grid, 0.0)
+    expected_below = 1.0 - aseq[::-1]
+    np.testing.assert_allclose(
+        betainv_simes(just_below, n_cal, k_simes, delta),
+        expected_below,
+        rtol=0.0,
+        atol=1e-12,
+    )
+
+    np.testing.assert_allclose(
+        betainv_simes(np.array([0.0]), n_cal, k_simes, delta),
+        np.array([1.0 - aseq[-1]]),
+        rtol=0.0,
+        atol=1e-12,
+    )

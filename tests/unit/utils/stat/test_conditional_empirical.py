@@ -47,10 +47,13 @@ def _reference_compute_aseq(n_cal: int, k: int, delta: float) -> np.ndarray:
 
 
 def _reference_betainv_generic(p_values: np.ndarray, aseq: np.ndarray) -> np.ndarray:
+    """Give each p-value b_i for the first grid rank i with p <= i / (n_cal + 1)."""
     n_cal = len(aseq)
-    idx = np.floor((n_cal + 1) * (1.0 - p_values)).astype(int)
-    idx = np.clip(idx, 1, n_cal)
-    return 1.0 - aseq[idx - 1]
+    envelope = [*(1.0 - aseq[::-1]), 1.0]  # b_1, ..., b_n_cal, b_{n_cal + 1} = 1
+    ranks = [
+        next(i for i in range(1, n_cal + 2) if p <= i / (n_cal + 1)) for p in p_values
+    ]
+    return np.array([envelope[i - 1] for i in ranks])
 
 
 def _reference_betainv_simes(
@@ -161,6 +164,15 @@ def test_conditional_empirical_n_calib_one() -> None:
     assert p_values.shape == scores.shape
     assert np.all((0.0 <= p_values) & (p_values <= 1.0))
 
+    # Simes uses k = 1 here; a score at or below the calibration score must get 1.
+    simes = ConditionalEmpirical(method="simes", delta=0.1)
+    np.testing.assert_allclose(
+        simes.compute_p_values(scores, calibration),
+        np.array([1.0, 1.0, 0.9]),
+        rtol=0.0,
+        atol=1e-12,
+    )
+
 
 @pytest.mark.parametrize(
     ("method", "calibration", "delta", "reference"),
@@ -203,6 +215,33 @@ def test_conditional_empirical_matches_reference_transform(
     )
     actual = estimation.compute_p_values(SCORES, calibration)
     np.testing.assert_allclose(actual, expected, rtol=0.0, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("method", "reference"),
+    [
+        ("simes", lambda p: _reference_betainv_simes(p, 48, 24, 0.05)),
+        ("asymptotic", lambda p: _reference_betainv_asymptotic(p, 48, 0.05)),
+        ("mc", lambda p: _reference_betainv_mc(p, 48, 0.05, FS_CORRECTION)),
+    ],
+    ids=["simes", "asymptotic", "mc-fixed-fs-correction"],
+)
+def test_conditional_empirical_matches_reference_at_every_rank(
+    fs_correction_calls,
+    method: str,
+    reference,
+) -> None:
+    # n_cal = 48 has ranks, such as 22 / 49, where a floor of the rescaled
+    # p-value lands one step off; scores between calibration points hit all ranks.
+    calibration = np.arange(48.0)
+    scores = np.arange(49.0) - 0.5
+    base_p = Empirical(tie_break="classical").compute_p_values(scores, calibration)
+    assert 22 / 49 in base_p
+
+    estimation = ConditionalEmpirical(method=method, tie_break="classical", delta=0.05)
+    actual = estimation.compute_p_values(scores, calibration)
+    np.testing.assert_allclose(actual, reference(base_p), rtol=0.0, atol=1e-12)
+    assert actual[0] == 1.0
 
 
 def test_conditional_empirical_rejects_weighted_inputs() -> None:

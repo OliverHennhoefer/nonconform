@@ -43,6 +43,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   possible cause and `fpr_bounds()` is not suggested. Weighted selections are
   unchanged.
 
+### Fixed
+
+- `ConditionalEmpirical` with `method="simes"`, `"asymptotic"` or `"mc"` now
+  rounds each p-value up to the grid `i / (n_cal + 1)` exactly; `"dkwm"` is
+  unchanged. Before, a floating-point floor sent some grid points one step up,
+  so the calibrated p-value was higher than the bound requires. That was
+  conservative but could miss discoveries: with calibration scores 0 to 1030,
+  a test score of 998, Simes and `delta=0.05`, the p-value drops from 0.0512
+  to 0.0499 and passes `alpha=0.05`. A raw p-value of 1, which classical tie
+  handling gives a test score at or below every calibration score, now always
+  maps to 1.0. Simes with `k = 1` (at most 3 calibration points with the
+  default `simes_kden=2`) used to map it to `1 - delta / n_cal`, which broke
+  the conditional guarantee on every calibration draw.
+
 ## [2.1.0] - 2026-11-20
 
 ### Added
