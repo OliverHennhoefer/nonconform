@@ -311,14 +311,18 @@ $$
 \widetilde p=C_{n,\delta}(p).
 $$
 
-It uses the calibration envelopes `b_1 <= ... <= b_n` of the reference
-implementation accompanying Bates et al. Each p-value is rounded up to the
-classical grid `i / (n + 1)` and replaced by `b_i`, and `p = 1` maps to
-`b_{n+1} = 1`. A p-value of exactly 0, which classical p-values never take,
-maps to `b_1` rather than 0, which is conservative. nonconform 2.1.0 and
-earlier computed the grid rank with a floating-point floor that sometimes
-landed one step high, and with Simes at `k = 1` gave `p = 1` a value below 1.
-Calibrated p-values can therefore differ slightly from those releases.
+The `"simes"`, `"asymptotic"` and `"mc"` maps use the calibration envelopes
+`b_1 <= ... <= b_n` of the reference implementation accompanying Bates et al.
+Each p-value is rounded up to the classical grid `i / (n + 1)` and replaced by
+`b_i`, and `p = 1` maps to `b_{n+1} = 1`. A p-value of exactly 0, which
+classical p-values never take, maps to `b_1` rather than 0, which is
+conservative. `"dkwm"`, which `"mc"` and `"asymptotic"` fall back to below 17
+calibration scores, instead adds a constant to every p-value and is unaffected.
+nonconform 2.1.0 and earlier computed the grid rank with a floating-point floor
+that sometimes landed one step high, and with Simes at `k = 1` gave `p = 1` the
+value `b_n` instead of 1. Results from those releases can differ: by one
+envelope step at some grid points, and with one calibration score, Simes and
+`delta=0.5`, the top value moves from 0.5 to 1.0.
 
 ```python
 import numpy as np

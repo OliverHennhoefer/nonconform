@@ -129,14 +129,15 @@ def _betainv_generic(p_values: np.ndarray, aseq: np.ndarray) -> np.ndarray:
     """
     p_vals = _validate_p_values(p_values)
     n_cal = len(aseq)
-    # The grid floats equal classical p-values (1 + r) / (1 + n_cal) bit for bit,
-    # so a p-value on the grid stays on its own step.
-    grid = np.arange(1, n_cal + 1, dtype=float)
-    grid /= n_cal + 1
-    below = np.searchsorted(grid, p_vals, side="left")  # p rounds up to rank below+1
+    # Take the nearest grid rank, then step up if p lies above that grid value.
+    # Comparing against i / (n_cal + 1) itself keeps classical p-values, which
+    # are computed the same way, on their own step.
+    rank = np.rint(p_vals * (n_cal + 1))
+    rank += p_vals > rank / (n_cal + 1)
+    rank = np.clip(rank, 1, n_cal + 1).astype(int)
     calibrated = np.ones_like(p_vals)
-    on_envelope = below < n_cal
-    calibrated[on_envelope] = 1.0 - aseq[n_cal - 1 - below[on_envelope]]
+    on_envelope = rank <= n_cal
+    calibrated[on_envelope] = 1.0 - aseq[n_cal - rank[on_envelope]]
     return calibrated
 
 
