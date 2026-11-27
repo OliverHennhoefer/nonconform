@@ -109,7 +109,7 @@ src = [
     "nonconform", # Specify your source directory explicitly
     "tests",  # Add your tests directory
     "examples", # Add your examples directory
-    "."       # For files in root like pyproject.toml, conf.py if not in a subdir
+    "."       # For files in the repository root
 ]
 include = [
     "*.py",
@@ -119,7 +119,6 @@ include = [
 ]
 exclude = [
     "*.md",
-    "paper.bib",
     ".bzr",
     ".direnv",
     ".eggs",
@@ -145,16 +144,9 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
-    "docs/build", # Exclude Sphinx build output
-    "docs/source/api", # Exclude autoapi generated files from direct linting by Ruff
-                       # as their source is Python docstrings.
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"docs/source/conf.py" = [
-    "D100", # Missing docstring in public module
-    "E402"  # Module level import not at top of file (sys.path.insert)
-]
 "examples/**/*.py" = [ # Allow more relaxed rules for examples
     "D100", "D103", "D101", "D102", "D104", "D105", "D107",
     "E501", # Line too long, common in example plots/data
