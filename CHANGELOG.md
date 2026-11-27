@@ -55,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   handling gives a test score at or below every calibration score, now always
   maps to 1.0. Simes with `k = 1` (at most 3 calibration points with the
   default `simes_kden=2`) used to map it to `1 - delta / n_cal`, which broke
-  the conditional guarantee on every calibration draw.
+  the conditional guarantee on every calibration draw. Thanks to Chen-Yang Su
+  (@chenyangsu) for the original fix in #86.
 
 ## [2.1.0] - 2026-11-20
 
